@@ -121,6 +121,28 @@ test("Direct 六阶段只保留为显式实验入口，不能被普通 CLI 误�
   assert.equal(cfg.engine, "direct");
 });
 
+test("请求级 WorkBuddy 订阅进入 local_agent，不继承 OpenAI provider 档案或 Codex 执行层", () => {
+  const env = { VRA_REQUEST_LLM_META: JSON.stringify({ provider: "cli-codebuddy" }) };
+  const cfg = configFromArgs({ symbol: "300308", "repo-root": REPO }, env).cfg;
+  assert.equal(cfg.engine, "local_agent");
+  assert.equal(cfg.localAgent, "codebuddy");
+  assert.equal(cfg.executionMode, "controlled_mcp");
+  assert.equal(cfg.hooksEnabled, false);
+  assert.equal(cfg.provider.name, "cli-codebuddy");
+  assert.equal(cfg.provider.auth, "subscription_login");
+  assert.equal(cfg.providerProfile, null, "运行记录不能把 WorkBuddy 冒充成 OpenAI provider 档案");
+  assert.equal(cfg.model, undefined, "订阅 CLI 不得继承产品默认 API / Codex 模型名");
+  assert.equal(cfg.reasoning, undefined, "订阅 CLI 不得继承产品默认推理档位");
+  assert.throws(
+    () => configFromArgs({ symbol: "300308", "repo-root": REPO, engine: "codex" }, env),
+    /不能再用 --engine 覆盖/,
+  );
+  assert.throws(
+    () => configFromArgs({ symbol: "300308", "repo-root": REPO, model: "冒充模型" }, env),
+    /不能用 --model/,
+  );
+});
+
 test("Direct 实验运行信息不探测 Codex 二进制", async () => {
   const env = { MIMO_API_KEY: "test-key-only" };
   const cfg = configFromArgs({

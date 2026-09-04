@@ -94,7 +94,7 @@ test("直连模式可以先看见 Deep 路由，但不能执行，明确要求�
   }, undefined, deps), (error: unknown) => error instanceof ServiceError && error.code === "agent_required");
 });
 
-test("任务路由绑定 AI 来源，且外部本机 Agent 不冒充可执行六阶段", async () => {
+test("任务路由绑定 AI 来源，Claude / WorkBuddy 订阅可启动六阶段", async () => {
   const dataRoot = tmp();
   const rec = await addReport(dataRoot, { name: "300308-深研.md", content: Buffer.from("公司代码 300308。", "utf8").toString("base64") });
   const deepTask = { ...task(rec.id, "deep"), kind: "deep_research", evidenceScope: "open_discovery",
@@ -105,12 +105,26 @@ test("任务路由绑定 AI 来源，且外部本机 Agent 不冒充可执行六
     task: deepTask, execute: false, executionMode: "agent", llm: claude,
   }, undefined, deps);
   assert.equal(routed.route.target, "deep");
-  assert.equal(routed.executionAvailable, false, "Claude 当前不能被标成六阶段可执行");
+  assert.equal(routed.executionAvailable, true, "Claude 已有受控 MCP 六阶段适配器");
+  assert.equal(routed.route.engineFamily, "local_agent", "Claude 订阅不能冒充 Codex Harness");
 
   const codebuddyRouted = await runUnifiedTask(ctx(dataRoot), {
     task: deepTask, execute: false, executionMode: "agent", llm: { provider: "cli-codebuddy" },
   }, undefined, deps);
-  assert.equal(codebuddyRouted.executionAvailable, false, "CodeBuddy 当前不能被标成六阶段可执行");
+  assert.equal(codebuddyRouted.executionAvailable, true, "CodeBuddy 已有受控 MCP 六阶段适配器");
+  assert.equal(codebuddyRouted.route.engineFamily, "local_agent", "WorkBuddy 订阅不能冒充 Codex Harness");
+
+  let startedRuntime: unknown = null;
+  const backend: DeepResearchBackend = {
+    start(_request, internal) { startedRuntime = internal?.runtimeLlm; return { run_id: "task-local-agent", run_dir: "runs/task-local-agent", log: "logs/task-local-agent.log", pid: 7 }; },
+    status() { throw new Error("not used"); }, report() { throw new Error("not used"); },
+  };
+  const started = await runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: true, executionMode: "agent", llm: { provider: "cli-codebuddy" },
+    expectedRouteFingerprint: codebuddyRouted.route.routeFingerprint,
+  }, undefined, { ...deps, deepBackend: backend });
+  assert.equal(started.events[0]?.payload?.executor, "local-agent-deep-v1");
+  assert.deepEqual(startedRuntime, { provider: "cli-codebuddy" });
 
   await assert.rejects(() => runUnifiedTask(ctx(dataRoot), {
     task: deepTask, execute: true, executionMode: "agent", llm: { provider: "cli-codex", model: "codex-subscription" },

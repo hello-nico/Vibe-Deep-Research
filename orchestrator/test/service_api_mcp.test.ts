@@ -181,6 +181,11 @@ test("service:startResearch 立即返回相对路径;子进程最小环境(resea
     (e: unknown) => e instanceof ServiceError && e.code === "experimental_engine_not_public",
     "公开 /research 与 MCP 不能把 Direct Deep 实验适配器暴露成产品 Quick",
   );
+  const workBuddy = startResearch(ctx, {
+    symbol: "300308", run_id: "svc-workbuddy", no_agent: true,
+    llm: { provider: "cli-codebuddy" },
+  });
+  assert.equal(workBuddy.run_id, "svc-workbuddy", "已校验的 WorkBuddy 订阅档应能进入六阶段子进程");
 });
 
 test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 415 / 路由 / 无绝对路径 / 500 脱敏", async () => {

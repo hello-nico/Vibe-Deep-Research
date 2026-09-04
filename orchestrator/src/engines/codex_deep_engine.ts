@@ -11,7 +11,7 @@ import { atomicWrite, readJsonIfExists, restrictPrivateFile } from "../fsutil.ts
 import { getReport, researchStatus, safePath, startResearch, type RunStatus, type ServiceContext,
   type StartResult } from "../service.ts";
 import { isTrustedRouteDecision, type ExecutionEngine, type ExecutionResumeRef, type RouteDecision,
-  type TaskEvent } from "../task_router.ts";
+  type AgentEngineFamily, type TaskEvent } from "../task_router.ts";
 import type { LlmOverride } from "../runtime_provider.ts";
 
 export interface DeepResearchTarget {
@@ -38,6 +38,8 @@ export interface CodexDeepEngineOptions {
   /** 本次请求的 AI 来源；只在内存中交给子进程，不写任务绑定。 */
   readonly runtimeLlm?: LlmOverride;
   readonly now?: () => Date;
+  /** 实际执行 Deep turn 的 Agent 家族；默认保留 Codex 兼容路径。 */
+  readonly engineFamily?: AgentEngineFamily;
 }
 
 interface DeepRunBinding {
@@ -110,13 +112,14 @@ function safeStartMessage(error: unknown): string {
 }
 
 export class CodexDeepEngine implements ExecutionEngine {
-  readonly id = "codex-deep-v1";
+  readonly id: string;
   readonly target = "deep" as const;
   readonly #ctx: ServiceContext;
   readonly #resolveTarget: DeepTargetResolver["resolveDeepTarget"];
   readonly #backend: DeepResearchBackend;
   readonly #now: () => Date;
   readonly #runtimeLlm?: LlmOverride;
+  readonly #engineFamily: AgentEngineFamily;
 
   constructor(options: CodexDeepEngineOptions) {
     if (!options || typeof options.materials?.resolveDeepTarget !== "function") {
@@ -131,14 +134,16 @@ export class CodexDeepEngine implements ExecutionEngine {
     };
     this.#now = options.now ?? (() => new Date());
     this.#runtimeLlm = options.runtimeLlm;
+    this.#engineFamily = options.engineFamily ?? "codex_harness";
+    this.id = this.#engineFamily === "local_agent" ? "local-agent-deep-v1" : "codex-deep-v1";
   }
 
   async *run(route: RouteDecision, signal?: AbortSignal): AsyncIterable<TaskEvent> {
     const runId = `task-${this.#now().getTime().toString(36)}-${randomUUID().slice(0, 12)}`;
     let sequence = 0;
     try {
-      if (!isTrustedRouteDecision(route) || route.target !== "deep" || route.engineFamily !== "codex_harness") {
-        throw new DeepExecutionError("invalid_route", "Deep 执行器只接受已路由并绑定指纹的 Codex Harness 任务");
+      if (!isTrustedRouteDecision(route) || route.target !== "deep" || route.engineFamily !== this.#engineFamily) {
+        throw new DeepExecutionError("invalid_route", "Deep 执行器只接受已路由并绑定真实 Agent 家族的任务");
       }
       if (signal?.aborted) throw new DeepExecutionError("deep_start_failed", "Deep 任务已取消，未启动长流程");
       const target = this.#resolveTarget(route);
@@ -150,7 +155,7 @@ export class CodexDeepEngine implements ExecutionEngine {
       saveBinding(this.#ctx, binding);
       try {
         this.#backend.start({ symbol: target.symbol, market: target.market, endpoints: "full", knowledge: "on",
-          run_id: runId, engine: "codex" }, { taskObjective: route.task.objective, reportIds: target.reportIds,
+          run_id: runId }, { taskObjective: route.task.objective, reportIds: target.reportIds,
           reportRevisions: target.reportRevisions, ...(this.#runtimeLlm ? { runtimeLlm: this.#runtimeLlm } : {}) });
       } catch (error) {
         try { fs.unlinkSync(bindingPath(this.#ctx, runId)); } catch { /* 启动失败清理尽力而为；原错误优先 */ }

@@ -19,9 +19,9 @@ import type { Stage } from "./config.ts";
 /** 引擎能力声明:原样写进 manifest.engine.capabilities,并回给界面 */
 export interface EngineCapabilities {
   /** 引擎种类 */
-  kind: "codex" | "direct";
+  kind: "codex" | "direct" | "local_agent";
   /** 与模型对话的线路协议 */
-  protocol: "responses" | "chat_completions";
+  protocol: "responses" | "chat_completions" | "cli_subscription";
   /**
    * 宿主隔离方式。
    * - `seatbelt_readonly`:引擎自带的操作系统级沙箱

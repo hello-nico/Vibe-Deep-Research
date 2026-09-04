@@ -4,10 +4,10 @@ import { chatSend as chatSendCore } from "./chat.ts";
 import { CodexDeepEngine, DeepExecutionError, type DeepResearchBackend, type DeepTargetResolver } from "./engines/codex_deep_engine.ts";
 import { DeterministicEngine } from "./engines/deterministic_engine.ts";
 import { QuickEngine, type QuickProvider } from "./engines/quick_engine.ts";
-import { assertExecutionMode, resolveDirectProvider, resolveRuntimeProvider, runtimeSourceFingerprint, RuntimeProviderError, type ExecutionMode, type LlmOverride } from "./runtime_provider.ts";
+import { assertExecutionMode, resolveDirectProvider, resolveRuntimeProvider, resolveSelectedRuntime, runtimeSourceFingerprint, RuntimeProviderError, type ExecutionMode, type LlmOverride } from "./runtime_provider.ts";
 import { ServiceError, type ServiceContext } from "./service.ts";
 import { ProductTaskOperations, ReportTaskMaterials } from "./task_adapters.ts";
-import { TaskRouteError, TaskRouter, type RouteDecision, type TaskEvent } from "./task_router.ts";
+import { TaskRouteError, TaskRouter, type AgentEngineFamily, type RouteDecision, type TaskEvent } from "./task_router.ts";
 
 export interface UnifiedTaskRequest {
   readonly task: unknown;
@@ -124,7 +124,9 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   let route: RouteDecision;
   try {
     const sourceFingerprint = runtimeSourceFingerprint(ctx.repoRoot, ctx.dataRoot, req.llm);
-    route = await router.route(req.task, signal, req.executionMode, sourceFingerprint);
+    const selected = resolveSelectedRuntime(ctx.repoRoot, ctx.dataRoot, req.llm);
+    const agentEngineFamily: AgentEngineFamily = selected.runtime === "local-agent" ? "local_agent" : "codex_harness";
+    route = await router.route(req.task, signal, req.executionMode, sourceFingerprint, agentEngineFamily);
   }
   catch (error) {
     if (signal?.aborted) throw new ServiceError("cancelled", "任务已取消");
@@ -138,15 +140,9 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   if (req.expectedRouteFingerprint !== undefined && route.routeFingerprint !== req.expectedRouteFingerprint) {
     throw new ServiceError("route_changed", "所选材料在路由后发生变化，请重新开始任务");
   }
-  let deepRuntimeAvailable = true;
-  let localAgentName = "本机 Agent";
   if (route.target === "deep" && req.llm) {
     try {
-      const runtime = resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, req.llm);
-      deepRuntimeAvailable = runtime.runtime === "codex";
-      if (runtime.runtime === "local-agent") {
-        localAgentName = runtime.agent === "codebuddy" ? "WorkBuddy / CodeBuddy Agent" : "Claude Code Agent";
-      }
+      resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, req.llm);
     }
     catch (error) {
       throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_llm",
@@ -154,15 +150,12 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
     }
   }
   const executionAvailable = route.target !== "deep" ||
-    (req.executionMode === "agent" && deepRuntimeAvailable && dependencies.deepTargetResolver !== undefined);
+    (req.executionMode === "agent" && dependencies.deepTargetResolver !== undefined);
   if (req.execute === false) {
     return Object.freeze({ status: "routed", executionAvailable, route, events: Object.freeze([]) });
   }
   if (route.target === "deep" && req.executionMode === "direct") {
     throw new ServiceError("agent_required", "这个任务需要长流程取证与工具调用，请先开启 Vibe Research Agent");
-  }
-  if (route.target === "deep" && !deepRuntimeAvailable) {
-    throw new ServiceError("agent_runtime_unsupported", `当前 ${localAgentName} 支持对话和有界材料任务；完整六阶段研究请改用 Codex 或 API Agent`);
   }
   if (route.target === "deep" && !dependencies.deepTargetResolver) {
     throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");
@@ -175,9 +168,10 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
             materials, requestTimeoutMs: 120_000, engineFamily: "direct_api",
             ...(dependencies.complete ? { complete: dependencies.complete } : {}) })
         : new QuickEngine({ provider: dependencies.quickProvider ?? agentQuickProvider(req.llm),
-            materials, requestTimeoutMs: 120_000, engineFamily: "codex_harness",
+            materials, requestTimeoutMs: 120_000, engineFamily: route.engineFamily as AgentEngineFamily,
             complete: dependencies.complete ?? agentQuickComplete(ctx, req.llm) })
       : new CodexDeepEngine({ ctx, materials: dependencies.deepTargetResolver!,
+          engineFamily: route.engineFamily as AgentEngineFamily,
           ...(req.llm ? { runtimeLlm: req.llm } : {}),
           ...(dependencies.deepBackend ? { backend: dependencies.deepBackend } : {}) });
   const events: TaskEvent[] = [];

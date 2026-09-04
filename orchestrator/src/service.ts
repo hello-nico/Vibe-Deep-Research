@@ -443,8 +443,8 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
   if (stages.length) argv.push("--stages", stages.join(","));
   if (req.overwrite === true) argv.push("--overwrite");
   if (req.no_agent === true) argv.push("--no-agent");
-  // 公开研究只接受 Codex Deep。Direct 六阶段没有加载完整宪法 / 专用 skills，
-  // 只保留在 CLI 的显式实验开关后；产品 Quick 走统一 /tasks，不经过这里。
+  // Direct 六阶段没有加载完整宪法 / 专用 skills，只保留在 CLI 实验开关后。
+  // 本机订阅 Agent 不从公开 engine 参数进入，只能由下面的已校验 runtimeLlm 内部选中。
   const engine = assertEngine(req.engine);
   if (engine) argv.push("--engine", engine);
   const taskObjective = String(internal.taskObjective ?? "").trim();
@@ -469,14 +469,13 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
     catch (error) {
       throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_llm", error instanceof Error ? error.message : String(error));
     }
-    if (runtime.runtime !== "codex") {
-      throw new ServiceError("agent_runtime_unsupported", "当前六阶段研究还不支持这个本地 Agent；可继续用它进行对话与材料定位");
-    }
     Object.assign(childEnv, runtime.env);
-    childEnv.VRA_REQUEST_LLM_META = JSON.stringify({ provider: runtimeLlm.provider,
-      ...(runtimeLlm.baseURL !== undefined ? { baseURL: runtimeLlm.baseURL } : {}),
-      ...(runtimeLlm.model !== undefined ? { model: runtimeLlm.model } : {}),
-      envKey: runtime.profile.env_key });
+    childEnv.VRA_REQUEST_LLM_META = JSON.stringify(runtime.runtime === "local-agent"
+      ? { provider: runtimeLlm.provider }
+      : { provider: runtimeLlm.provider,
+          ...(runtimeLlm.baseURL !== undefined ? { baseURL: runtimeLlm.baseURL } : {}),
+          ...(runtimeLlm.model !== undefined ? { model: runtimeLlm.model } : {}),
+          envKey: runtime.profile.env_key });
   }
   if (taskObjective) childEnv.VRA_TASK_OBJECTIVE = taskObjective;
   if (reportIds.length) childEnv.VRA_TASK_REPORT_IDS = reportIds.join(",");

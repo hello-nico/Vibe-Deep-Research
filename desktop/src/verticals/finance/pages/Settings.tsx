@@ -229,14 +229,14 @@ export function Settings() {
   const selectedRuntime = !configured
     ? "等待连接 AI"
     : localRuntimeLabel(runtime.config?.source.provider);
-  const boundedLocalRuntime = configured && ["cli-claude", "cli-codebuddy"].includes(runtime.config?.source.provider ?? "");
+  const localSubscriptionRuntime = configured && ["cli-claude", "cli-codebuddy"].includes(runtime.config?.source.provider ?? "");
   const localRuntimeName = runtime.config?.source.provider === "cli-codebuddy" ? "WorkBuddy / CodeBuddy" : "Claude Code";
-  const runtimeFeatures = boundedLocalRuntime
+  const runtimeFeatures = localSubscriptionRuntime
     ? [
         { icon: Terminal, title: "本地对话", text: `使用 ${localRuntimeName} 登录账号` },
-        { icon: Wrench, title: "受限执行", text: "本地工具与联网已关闭" },
-        { icon: Database, title: "材料上下文", text: "支持有界材料定位" },
-        { icon: ShieldCheck, title: "证据纪律", text: "回答经过校验与红线" },
+        { icon: Wrench, title: "受控工具", text: "六阶段只开放产品 MCP" },
+        { icon: Database, title: "完整研究", text: "支持 A 股六阶段流程" },
+        { icon: ShieldCheck, title: "证据纪律", text: "产物经过校验与红线" },
       ]
     : [
         { icon: Terminal, title: "本地任务", text: "任务状态留在本机" },
@@ -326,7 +326,7 @@ export function Settings() {
               已安装并登录 WorkBuddy 桌面版时会直接识别，不需要重复安装或登录 CLI；独立使用 CodeBuddy Code 的用户也可沿用现有 CLI 登录。
             </p>
             <p className="rounded-lg border border-warning/25 bg-warning/[0.05] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              Claude Code 与 WorkBuddy / CodeBuddy 当前支持对话和有界材料任务；完整六阶段研究目前需要 Codex Harness，或在 Agent 模式下接入模型 API。选择后不会暗中换成 Codex。
+              Claude Code 与 WorkBuddy / CodeBuddy 可运行对话、有界材料任务和 A 股六阶段研究；研究阶段只开放产品受控 MCP。选择后不会暗中换成 Codex。
             </p>
             {agentErr && <p className="rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-xs text-destructive">本机 Agent 状态检测失败：{agentErr}</p>}
             <div className="grid gap-2 sm:grid-cols-3">
@@ -456,8 +456,8 @@ export function Settings() {
                 <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Research Agent</h2>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {boundedLocalRuntime
-                  ? `默认开启。${localRuntimeName} Agent 当前承载本地对话和有界材料任务；完整六阶段研究需改用 Codex 或 API Agent。`
+                {localSubscriptionRuntime
+                  ? `默认开启。${localRuntimeName} Agent 可承载本地对话、有界材料任务和 A 股六阶段研究；研究阶段只开放产品受控 MCP。`
                   : "默认开启。Agent 会维持上下文、调用本地数据和计算工具、完成多步研究，并保留可继续迭代的任务记录。"}
                 当前运行时：<b className="text-foreground">{selectedRuntime}</b>。
               </p>
@@ -475,8 +475,8 @@ export function Settings() {
               <><b className="text-foreground">等待连接 AI。</b> 连接成功后 Agent 会自动开启，不需要再做一次选择。</>
             ) : runtime.config?.executionMode === "direct" ? (
               <><b className="text-foreground">当前：模型直连。</b> 适合轻量对话和材料定位；六阶段研究、多空辩论、Agent 回测与需要工具的任务会要求重新开启 Agent。</>
-            ) : boundedLocalRuntime ? (
-              <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话和有界材料任务；完整六阶段研究当前不支持这个运行时。</>
+            ) : localSubscriptionRuntime ? (
+              <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话、有界材料任务和 A 股六阶段研究；不会暗中换成 Codex。</>
             ) : (
               <><b className="text-foreground">当前：Agent 已开启（推荐）。</b> 所有能力都走完整工作流；模型只是提供推理能力。</>
             )}

@@ -3,10 +3,10 @@
  *
  * 来源与边界：参考 nexu-io/open-design 0.21.0 的 runtime registry / detection，
  * 但这里只收下金融工作台当前能安全证明的最小能力：Claude Code 与 CodeBuddy 的订阅登录。
- * 两者都必须能在命令行层关闭工具、MCP、会话落盘与用户配置；没有等价隔离参数的 CLI
- * 不能照搬自动批准模式后把按钮点亮。
+ * 普通对话关闭全部工具与 MCP；Deep 研究关闭全部内建工具，只开放本产品显式受控 MCP。
+ * 两条路径都关闭会话落盘与用户配置；没有等价隔离参数的 CLI 不能把按钮点亮。
  */
-import { execFile, spawn, spawnSync } from "node:child_process";
+import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -15,6 +15,10 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 const MAX_ACTIVE_LOCAL_AGENTS = 4;
 let activeLocalAgents = 0;
+const activeLocalAgentProcesses = new Set<ChildProcess>();
+type ParentSignal = "SIGINT" | "SIGTERM" | "SIGHUP";
+const parentSignalHandlers = new Map<ParentSignal, () => void>();
+let parentExitHookInstalled = false;
 
 export type LocalAgentId = "claude" | "codebuddy";
 
@@ -47,6 +51,63 @@ function signalProcessTree(child: { pid?: number; kill: (signal?: NodeJS.Signals
     } else if (child.pid) process.kill(-child.pid, signal);
     else child.kill(signal);
   } catch { /* 整棵已经退出 */ }
+}
+
+/**
+ * 终止当前进程启动的所有订阅 CLI 进程树。供父进程退出钩子与产品关闭流程共用。
+ * SIGKILL 直接打到父编排器本身时，任何进程内清理都不可能运行；其余正常退出与可捕获信号均在这里收口。
+ */
+export function terminateActiveLocalAgentProcesses(signal: NodeJS.Signals = "SIGKILL"): number {
+  const children = [...activeLocalAgentProcesses];
+  for (const child of children) signalProcessTree(child, signal);
+  return children.length;
+}
+
+function removeParentShutdownHooks(): void {
+  if (!parentExitHookInstalled) return;
+  parentExitHookInstalled = false;
+  process.removeListener("exit", onParentExit);
+  for (const [signal, handler] of parentSignalHandlers) process.removeListener(signal, handler);
+  parentSignalHandlers.clear();
+}
+
+function onParentExit(): void {
+  terminateActiveLocalAgentProcesses("SIGKILL");
+}
+
+function installParentShutdownHooks(): void {
+  if (parentExitHookInstalled) return;
+  parentExitHookInstalled = true;
+  process.once("exit", onParentExit);
+  const signals: ParentSignal[] = process.platform === "win32" ? ["SIGINT", "SIGTERM"] : ["SIGINT", "SIGTERM", "SIGHUP"];
+  for (const signal of signals) {
+    const handler = () => {
+      // 父进程已经收到终止信号；此时不等 CLI 自行收尾，先同步杀整棵树，避免继续消耗订阅额度。
+      terminateActiveLocalAgentProcesses("SIGKILL");
+      removeParentShutdownHooks();
+      // 恢复该信号的默认语义。延后一拍让同一轮中已有的其他监听器先完成同步清理。
+      setImmediate(() => { try { process.kill(process.pid, signal); } catch { process.exit(1); } });
+    };
+    parentSignalHandlers.set(signal, handler);
+    process.once(signal, handler);
+  }
+}
+
+function trackLocalAgentProcess(child: ChildProcess): void {
+  activeLocalAgentProcesses.add(child);
+  installParentShutdownHooks();
+}
+
+function untrackLocalAgentProcess(child: ChildProcess): void {
+  activeLocalAgentProcesses.delete(child);
+  if (activeLocalAgentProcesses.size === 0) removeParentShutdownHooks();
+}
+
+/** setTimeout 可表达的范围内保留调用方配置；六阶段默认 20 分钟不得被适配器暗中缩短。 */
+export function normalizeLocalAgentTimeoutMs(value: number | undefined): number {
+  const requested = value ?? 180_000;
+  if (!Number.isFinite(requested) || requested <= 0) throw new LocalAgentError("agent_bad_timeout", "本机 Agent 超时配置无效");
+  return Math.max(1_000, Math.min(Math.trunc(requested), 2_147_000_000));
 }
 
 function codexHomeKey(codexHome: string): string {
@@ -582,18 +643,38 @@ export interface RunLocalAgentOptions {
   signal?: AbortSignal;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
+  /**
+   * Deep 研究专用：关掉所有内建工具，只开放这一个显式 MCP 白名单。
+   * 配置只含本地可执行文件与运行目录，不得放密钥。
+   */
+  controlledMcp?: {
+    serverName: string;
+    command: string;
+    args: string[];
+    env: Record<string, string>;
+    allowedTools: string[];
+    maxTurns?: number;
+  };
 }
 
-/** 可单测的参数生成器。`--safe-mode` 与 `--tools ""` 两道都在，避免用户配置把工具重新打开。 */
-export function claudeArgs(systemPrompt: string, outputSchema?: unknown): string[] {
+/** 可单测的参数生成器。普通对话无工具；Deep 只开放显式受控 MCP。 */
+export function claudeArgs(systemPrompt: string, outputSchema?: unknown,
+  controlledMcp?: RunLocalAgentOptions["controlledMcp"]): string[] {
+  const mcpConfig = controlledMcp ? JSON.stringify({ mcpServers: {
+    [controlledMcp.serverName]: { type: "stdio", command: controlledMcp.command,
+      args: controlledMcp.args, env: controlledMcp.env },
+  } }) : '{"mcpServers":{}}';
   const args = [
     "-p",
-    "--safe-mode",
+    // safe-mode 会把**显式传入**的 MCP 也关掉，所以 Deep 路径用临时 cwd + 空 setting sources
+    // 隔离自动发现；无工具对话仍用 safe-mode。安全边界是下面的内建工具全关 + 严格 MCP 白名单。
+    ...(controlledMcp ? ["--setting-sources", ""] : ["--safe-mode"]),
     "--no-chrome",
     "--disable-slash-commands",
     "--strict-mcp-config",
-    "--mcp-config", '{"mcpServers":{}}',
+    "--mcp-config", mcpConfig,
     "--tools", "",
+    ...(controlledMcp ? ["--allowedTools", ...controlledMcp.allowedTools] : []),
     "--permission-mode", "dontAsk",
     "--no-session-persistence",
     "--output-format", "json",
@@ -604,14 +685,28 @@ export function claudeArgs(systemPrompt: string, outputSchema?: unknown): string
 }
 
 /** CodeBuddy 的 `--print` 不携位置 prompt，因此只从 stdin 取用户正文，不进 argv / 进程列表。 */
-export function codeBuddyArgs(systemPrompt: string, outputSchema?: unknown, legacyEphemeralHome = false): string[] {
+export function codeBuddyArgs(systemPrompt: string, outputSchema?: unknown, legacyEphemeralHome = false,
+  controlledMcp?: RunLocalAgentOptions["controlledMcp"]): string[] {
+  const isolation = codeBuddyIsolationArgs(legacyEphemeralHome);
+  if (controlledMcp) {
+    isolation[isolation.indexOf("--tools") + 1] = `NoDefer(mcp__${controlledMcp.serverName}__*)`;
+    const i = isolation.indexOf("--mcp-config");
+    isolation[i + 1] = JSON.stringify({ mcpServers: {
+      [controlledMcp.serverName]: { type: "stdio", command: controlledMcp.command,
+        args: controlledMcp.args, env: controlledMcp.env, alwaysLoad: true, defer_loading: false },
+    } });
+  }
   const args = [
     "-p",
     "--agent", "cli",
-    ...codeBuddyIsolationArgs(legacyEphemeralHome),
-    "--permission-mode", legacyEphemeralHome ? "default" : "dontAsk",
+    ...isolation,
+    ...(controlledMcp ? ["--allowedTools", ...controlledMcp.allowedTools] : []),
+    // WorkBuddy 桌面端内置的旧 CLI 在非交互模式下会拒绝 MCP 确认，
+    // `--allowedTools` 并不足以让它真正执行。Deep 路径可以用 bypassPermissions，
+    // 因为同一组 argv 已经把内建工具全关，并用 strict-mcp-config 只留一个本产品 MCP。
+    "--permission-mode", controlledMcp ? "bypassPermissions" : legacyEphemeralHome ? "default" : "dontAsk",
     "--subagent-permission-mode", legacyEphemeralHome ? "default" : "dontAsk",
-    "--max-turns", "1",
+    "--max-turns", String(controlledMcp?.maxTurns ?? 1),
     "--output-format", "json",
     "--system-prompt", systemPrompt,
   ];
@@ -680,7 +775,8 @@ function failureMessage(agent: LocalAgentId, stdout: string, stderr: string, cod
 }
 
 /**
- * 运行一次无工具本机 Agent 请求。提示词走 stdin，避免把用户正文放进 argv / 进程列表。
+ * 运行一次本机 Agent 请求。普通对话无工具；Deep 研究只开放调用方给出的受控 MCP。
+ * 提示词走 stdin，避免把用户正文放进 argv / 进程列表。
  * stdout / stderr 都有限额；超时或取消后先 TERM，再 KILL，避免 CLI 留在后台继续消耗额度。
  */
 export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOptions): Promise<string> {
@@ -711,7 +807,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     }
   }
 
-  const timeoutMs = Math.max(1_000, Math.min(opts.timeoutMs ?? 180_000, 600_000));
+  const timeoutMs = normalizeLocalAgentTimeoutMs(opts.timeoutMs);
   const maxOut = 4 * 1024 * 1024;
   const maxErr = 64 * 1024;
   let tmpDir: string;
@@ -729,9 +825,18 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
         account: codeBuddyRuntime!.legacyEphemeralHome ? codeBuddyRuntime!.account : null,
         ephemeralHome: codeBuddyRuntime!.legacyEphemeralHome ? tmpDir : undefined,
       });
+    // M6 的无工具对话刻意不等 MCP；Deep 研究则必须反过来。
+    // 否则真实 WorkBuddy 会在 stdio server 尚未初始化时就开始首轮，
+    // 模型看到零工具仍正常退出，表现为“请求成功但阶段文件永远不写”。
+    if (agent === "codebuddy" && opts.controlledMcp) {
+      runEnv.CODEBUDDY_WAIT_FOR_MCP_SERVERS_ENABLED = "1";
+      // CodeBuddy 默认把 MCP 延迟加载，除非配置 alwaysLoad/defer_loading；
+      // 只开 `WAIT_FOR_MCP_SERVERS` 不会让它进入首轮等待清单。官方默认等 2 秒，本地 Node 冷启动留 30 秒。
+      runEnv.CODEBUDDY_FIRST_RUN_MCP_PREWAIT_TIMEOUT_MS = "30000";
+    }
     const args = agent === "claude"
-      ? claudeArgs(opts.systemPrompt, opts.outputSchema)
-      : codeBuddyArgs(opts.systemPrompt, opts.outputSchema, codeBuddyRuntime!.legacyEphemeralHome);
+      ? claudeArgs(opts.systemPrompt, opts.outputSchema, opts.controlledMcp)
+      : codeBuddyArgs(opts.systemPrompt, opts.outputSchema, codeBuddyRuntime!.legacyEphemeralHome, opts.controlledMcp);
     const launch = executableInvocation(bin, args, runEnv);
     const child = spawn(launch.file, launch.args, {
       cwd: tmpDir,
@@ -741,6 +846,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       // 只杀直接 child 会让后代留在后台继续消耗订阅额度。
       detached: process.platform !== "win32",
     });
+    trackLocalAgentProcess(child);
     let stdout = "";
     let stderr = "";
     let outBytes = 0;
@@ -760,6 +866,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       if (hardKillTimer) clearTimeout(hardKillTimer);
       if (killFallbackTimer) clearTimeout(killFallbackTimer);
       activeLocalAgents = Math.max(0, activeLocalAgents - 1);
+      untrackLocalAgentProcess(child);
       cleanup();
       fn();
     };

@@ -53,7 +53,7 @@ test("Deep 适配器只启动现有 Codex 六阶段入口，并把任务与材�
   assert.match(events[0]!.runId, /^task-/);
   const reportRevision = route.materials.inputs.find((item) => item.id === report.id)!.revision!;
   assert.deepEqual(starts, [{
-    request: { symbol: "300308", market: "SZ", endpoints: "full", knowledge: "on", run_id: events[0]!.runId, engine: "codex" },
+    request: { symbol: "300308", market: "SZ", endpoints: "full", knowledge: "on", run_id: events[0]!.runId },
     internal: { taskObjective: route.task.objective, reportIds: [report.id], reportRevisions: { [report.id]: reportRevision } },
   }]);
   const binding = JSON.parse(fs.readFileSync(path.join(dataRoot, "task-runs", `${events[0]!.runId}.json`), "utf8"));

@@ -25,6 +25,8 @@ import type { EngineLifecycle, EngineRuntime } from "./engine.ts";
 import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
 import { DirectEngineLifecycle, directCapabilities } from "./engines/direct_lifecycle.ts";
 import { DirectStageAgent } from "./engines/direct_stage_agent.ts";
+import { LocalAgentEngineLifecycle, localAgentCapabilities } from "./engines/local_agent_lifecycle.ts";
+import { LocalAgentStageAgent } from "./engines/local_agent_stage_agent.ts";
 import { directCapabilityOf, structuredOutputMode } from "./providers.ts";
 import type { AgentRunner } from "./agent_runner.ts";
 import { runFetchScripts } from "./fetchrun.ts";
@@ -32,6 +34,7 @@ import { ProgressReporter } from "./progress.ts";
 import { runResearch } from "./orchestrate.ts";
 import { loadProductConfig } from "./productConfig.ts";
 import { resolveRuntimeProvider, type LlmOverride } from "./runtime_provider.ts";
+import { probeClaude, probeCodeBuddy } from "./local_agent_runtime.ts";
 import { isStage } from "./schemas.ts";
 import { verifyCalcs } from "./validator.ts";
 
@@ -94,17 +97,16 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
           Object.keys(parsed).some((key) => !["provider", "baseURL", "model", "envKey"].includes(key)) ||
           typeof parsed.provider !== "string" ||
-          typeof parsed.envKey !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/.test(parsed.envKey) ||
+          (parsed.envKey !== undefined && (typeof parsed.envKey !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/.test(parsed.envKey))) ||
+          (!parsed.provider.startsWith("cli-") && typeof parsed.envKey !== "string") ||
           ["baseURL", "model"].some((key) => parsed[key] !== undefined && typeof parsed[key] !== "string")) {
         throw new TypeError("shape");
       }
       llm = { provider: parsed.provider, baseURL: parsed.baseURL as string | undefined,
-        model: parsed.model as string | undefined, apiKey: String(env[parsed.envKey] ?? "") };
+        model: parsed.model as string | undefined,
+        ...(typeof parsed.envKey === "string" ? { apiKey: String(env[parsed.envKey] ?? "") } : {}) };
     } catch { throw new Error("VRA_REQUEST_LLM_META 格式无效"); }
     requestRuntime = resolveRuntimeProvider(repoRoot, pc.resolved.dataRoot, llm, env);
-    if (requestRuntime.runtime !== "codex") {
-      throw new Error("当前六阶段研究还不支持这个本地 Agent 运行时");
-    }
   }
   const d = pc.defaults;
   const taskObjective = String(env.VRA_TASK_OBJECTIVE ?? "").trim();
@@ -125,7 +127,14 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
       Object.keys(reportRevisions).some((id) => !reportIds.includes(id))) {
     throw new Error("VRA_TASK_REPORT_REVISIONS 格式无效");
   }
-  const engine = parseEngine(str(args.engine));
+  const requestedEngine = parseEngine(str(args.engine));
+  if (requestRuntime?.runtime === "local-agent" && requestedEngine !== undefined) {
+    throw new Error("请求级本机 Agent 运行时不能再用 --engine 覆盖");
+  }
+  if (requestRuntime?.runtime === "local-agent" && (str(args.model) !== undefined || str(args.reasoning) !== undefined)) {
+    throw new Error("本机订阅 Agent 的模型与推理档位由已登录 CLI 决定，不能用 --model / --reasoning 冒充覆盖");
+  }
+  const engine = requestRuntime?.runtime === "local-agent" ? "local_agent" : requestedEngine;
   if (engine === "direct" && args["experimental-direct-deep"] !== true) {
     throw new Error("--engine direct 是实验性 Direct Deep，不是产品 Quick；开发验证必须同时显式传 --experimental-direct-deep");
   }
@@ -148,13 +157,19 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
     provider: requestRuntime?.runtime === "codex"
       ? { ...pc.provider, auth: requestRuntime.auth, env_key: requestRuntime.profile.env_key, name: requestRuntime.profile.id,
           wire_api: requestRuntime.profile.wire_api, base_url: requestRuntime.profile.base_url }
-      : pc.provider,
-    providerProfile: requestRuntime?.runtime === "codex" ? requestRuntime.profile : pc.providerProfile,
+      : requestRuntime?.runtime === "local-agent"
+        ? { ...pc.provider, name: `cli-${requestRuntime.agent}`, base_url: null, env_key: "", auth: "subscription_login" }
+        : pc.provider,
+    providerProfile: requestRuntime?.runtime === "codex"
+      ? requestRuntime.profile
+      : requestRuntime?.runtime === "local-agent" ? null : pc.providerProfile,
     scriptsRel: pc.resolved.scriptsRel,
     calcCliRel: pc.paths.calc_cli,
     constitutionPath: pc.resolved.constitution,
-    model: str(args.model) ?? (requestRuntime?.runtime === "codex" ? requestRuntime.model ?? undefined : d.model ?? undefined),
-    reasoning: str(args.reasoning) ?? d.reasoning ?? undefined,
+    model: requestRuntime?.runtime === "local-agent"
+      ? undefined
+      : str(args.model) ?? (requestRuntime?.runtime === "codex" ? requestRuntime.model ?? undefined : d.model ?? undefined),
+    reasoning: requestRuntime?.runtime === "local-agent" ? undefined : str(args.reasoning) ?? d.reasoning ?? undefined,
     maxRetries: str(args["max-retries"]) !== undefined ? Number(args["max-retries"]) : d.max_retries,
     gateRetries: str(args["gate-retries"]) !== undefined ? Number(args["gate-retries"]) : d.gate_retries,
     turnTimeoutMs: str(args["turn-timeout-min"]) !== undefined ? Number(args["turn-timeout-min"]) * 60_000 : d.turn_timeout_min * 60_000,
@@ -163,6 +178,7 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
     hooksEnabled: args["no-hooks"] !== true,
     executionMode: parseExecutionMode(str(args["execution-mode"])),
     engine,
+    ...(requestRuntime?.runtime === "local-agent" ? { localAgent: requestRuntime.agent } : {}),
     overwrite: args.overwrite === true,
     scenario,
     endpointScope: parseScope(str(args.endpoints)),
@@ -191,6 +207,20 @@ export async function makeEngine(cfg: RunConfig, eventsPath: string, observer?: 
   lifecycle: EngineLifecycle;
   runtime: EngineRuntime;
 }> {
+  if (cfg.engine === "local_agent") {
+    const agent = cfg.localAgent;
+    if (!agent) throw new Error("local_agent 引擎缺少本机 Agent 种类");
+    const status = agent === "claude" ? await probeClaude(env) : await probeCodeBuddy(env);
+    if (!status.available) throw new Error(`${status.name} 不可用:${status.detail}`);
+    const runner = new LocalAgentStageAgent({ agent, runId: cfg.runId, runDir: cfg.runDir,
+      repoRoot: cfg.repoRoot, python: cfg.python, eventsPath, env, timeoutMs: cfg.turnTimeoutMs, observer });
+    return {
+      runner,
+      lifecycle: new LocalAgentEngineLifecycle(localAgentCapabilities()),
+      runtime: { kind: "local_agent", version: status.version ?? `${agent}/unknown`, binary: null,
+        model: null, codexPath: null, codexHome: null },
+    };
+  }
   if (cfg.engine === "direct") {
     const cap = directCapabilityOf(cfg.providerProfile);
     if (!cap.supported) {
@@ -239,7 +269,7 @@ async function main(): Promise<number> {
   let cfg: RunConfig, stages: Stage[] | undefined, sources: string[], progress: boolean;
   try { ({ cfg, stages, sources, progress } = configFromArgs(parseArgs(process.argv.slice(2)))); }
   catch (e) { console.error(`参数 / 配置错误:${e instanceof Error ? e.message : String(e)}`); return 3; }
-  const engineLabel = cfg.engine === "direct" ? "direct-api(experimental)" : (cfg.codexPath ?? "sdk-bundled");
+  const engineLabel = cfg.engine === "direct" ? "direct-api(experimental)" : cfg.engine === "local_agent" ? `local-agent:${cfg.localAgent}` : (cfg.codexPath ?? "sdk-bundled");
   console.error(`[orchestrator] run ${cfg.runId} → ${cfg.runDir}\n[orchestrator] config sources: ${sources.join(" ← ")}; CODEX_HOME=${cfg.codexHome}; engine=${engineLabel}; provider=${cfg.provider.name}/${cfg.provider.auth}`);
   // 进度只写 stderr:六阶段要跑十几分钟,没有它用户全程看不到任何内容(见 progress.ts 顶部)。
   // **连构造也要保护**:显示层任何环节出问题都只是"没有进度显示",绝不能让一次真实研究起不来(Codex progress-r1 P2)。

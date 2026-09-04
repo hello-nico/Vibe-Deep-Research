@@ -215,7 +215,9 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
     run_id: cfg.runId, symbol: cfg.symbol, market: cfg.market, started_at: nowIso(), finished_at: null, status: "running", stages: [],
     codex_version: sdk.version,
     model: actualModel,
-    model_note: cfg.model
+    model_note: runtimeKind === "local_agent"
+      ? "本机订阅 Agent 的实际模型由已登录 CLI 决定；CLI 未向产品回报模型名"
+      : cfg.model
       ? "显式指定"
       : actualModel
         ? `provider 默认模型，已由 ${runtimeKind === "direct" ? "Direct" : "Codex"} 运行时解析`
@@ -223,8 +225,8 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
     // 运行记账只需要识别 provider，不需要可能含租户路径或凭据的完整端点。
     provider: { name: cfg.provider.name, wire_api: cfg.provider.wire_api, base_url: providerOrigin, env_key: cfg.provider.env_key, auth: cfg.provider.auth, profile: cfg.providerProfile?.id ?? null, matrix_status: cfg.providerProfile?.matrix?.status ?? null },
     engine: {
-      codex_path: runtimeKind === "direct" ? null : (sdk.codexPath ?? cfg.codexPath),
-      codex_home: runtimeKind === "direct" ? null : (sdk.codexHome ?? cfg.codexHome),
+      codex_path: runtimeKind === "codex" ? (sdk.codexPath ?? cfg.codexPath) : null,
+      codex_home: runtimeKind === "codex" ? (sdk.codexHome ?? cfg.codexHome) : null,
       binary: sdk.binary,
     },
     constitution: { path: cfg.constitutionPath, sha256: sha256File(cfg.constitutionPath) },

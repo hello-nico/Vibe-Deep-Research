@@ -5,7 +5,8 @@
 import path from "node:path";
 
 import type { ProviderProfile } from "./productConfig.ts";
-import { providerEnv, type ProviderProfileFile } from "./providers.ts";
+import { providerEnv, type AuthMode, type ProviderProfileFile } from "./providers.ts";
+import type { LocalAgentId } from "./local_agent_runtime.ts";
 import { currentPlugin } from "./plugin.ts";
 import { buildStagePlan, criticalScripts as registryCriticalScripts, endpointsById, loadRegistry, type EndpointDef, type ScopeKind, type StagePlan } from "./registry.ts";
 
@@ -84,7 +85,7 @@ export interface RunConfig {
   codexPath: string | null;
   /** 产品自己的 CODEX_HOME(永不读写 ~/.codex) */
   codexHome: string;
-  provider: ProviderProfile;
+  provider: Omit<ProviderProfile, "auth"> & { auth: AuthMode | "subscription_login" };
   /** M4:provider 模板(openai 原生为 null 或 openai 模板);决定 Codex model_providers 注入与密钥环境变量名 */
   providerProfile: ProviderProfileFile | null;
   /** 相对产品根的 data-access 脚本目录 / calc CLI */
@@ -111,11 +112,14 @@ export interface RunConfig {
   /** 执行层:shell_hooks = POSIX 成熟链路;controlled_mcp = Windows 原生受控工具链(无 Shell / 无 lifecycle hooks) */
   executionMode?: "shell_hooks" | "controlled_mcp";
   /**
-   * 用哪个引擎跑。`codex` = 官方引擎(需要 codex 二进制);`direct` = 直连 OpenAI 兼容端点。
+   * 用哪个引擎跑。`codex` = 官方引擎；`direct` = 直连 OpenAI 兼容端点；
+   * `local_agent` = 本机已登录的 Claude Code / WorkBuddy，通过产品受控 MCP 跑阶段。
    * ⚠️ `executionMode` 是 **Codex 的**执行层概念,对 direct 无意义 —— 直连既没有 Shell 也不经 MCP,
    *    它直接在本进程里调受控工具。两者不要混着判(要判"谁需要 turn 上下文"就用 needsTurnContext)。
    */
-  engine: "codex" | "direct";
+  engine: "codex" | "direct" | "local_agent";
+  /** 只在 engine=local_agent 时存在；来自已校验的请求级订阅档。 */
+  localAgent?: LocalAgentId;
   /** 运行目录已存在且非空时是否清空重来 */
   overwrite: boolean;
   /** 硬测试数据夹具目录:播种前几个阶段的产物并跳过它们(见 fixture.ts)。**播种运行一律按测试运行隔离** */
@@ -203,7 +207,7 @@ export const DEFAULT_PROVIDER: ProviderProfile = { name: "openai", wire_api: "re
  *    直连会因此拿不到阶段上下文,表现为"每个工具都报 turn_context_missing"。
  */
 export function needsTurnContext(cfg: Pick<RunConfig, "hooksEnabled" | "executionMode" | "engine">): boolean {
-  return cfg.hooksEnabled || cfg.executionMode === "controlled_mcp" || cfg.engine === "direct";
+  return cfg.hooksEnabled || cfg.executionMode === "controlled_mcp" || cfg.engine === "direct" || cfg.engine === "local_agent";
 }
 
 export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoRoot: string }): RunConfig {
@@ -213,6 +217,8 @@ export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoR
   const dataRoot = path.resolve(partial.dataRoot ?? path.join(repoRoot, ".local"));
   const executionMode = partial.executionMode ?? (process.platform === "win32" ? "controlled_mcp" : "shell_hooks");
   const engine = partial.engine ?? "codex";
+  if (engine === "local_agent" && !partial.localAgent) throw new Error("local_agent 引擎缺少已校验的本机 Agent 种类");
+  if (engine !== "local_agent" && partial.localAgent) throw new Error("localAgent 只能与 local_agent 引擎同时使用");
   // 🔴 根路径里不许有空白。执行层的命令扫描器按空白切 token 找绝对路径,路径里带空格就会被切断:
   //    `~/Library/Application Support/X/runs/…` 只剩 `/Users/…/Library/Application`,与允许前缀永远对不上,
   //    于是 agent 每一条引用运行目录绝对路径的命令都被拒(实测)。
@@ -278,9 +284,10 @@ export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoR
     allowedPathPrefixes: partial.allowedPathPrefixes ?? [...DEFAULT_ALLOWED_PATH_PREFIXES, repoRoot, dataRoot, interpreterRoot(python)],
     noAgent: partial.noAgent ?? false,
     // 直连没有 Codex 的 lifecycle hooks —— 这里强制关掉,免得别处按 hooksEnabled 去装钩子、读钩子日志
-    hooksEnabled: (executionMode === "controlled_mcp" || engine === "direct") ? false : (partial.hooksEnabled ?? true),
-    executionMode,
+    hooksEnabled: (executionMode === "controlled_mcp" || engine === "direct" || engine === "local_agent") ? false : (partial.hooksEnabled ?? true),
+    executionMode: engine === "local_agent" ? "controlled_mcp" : executionMode,
     engine,
+    ...(partial.localAgent ? { localAgent: partial.localAgent } : {}),
     overwrite: partial.overwrite ?? false,
     seedFrom: partial.seedFrom,
     allowStaleFixture: partial.allowStaleFixture ?? false,
@@ -339,6 +346,9 @@ export const fetchEnv = (extra: Record<string, string> = {}, source: NodeJS.Proc
 export function codexEnvFor(cfg: Pick<RunConfig, "codexHome" | "provider"> & { providerProfile?: ProviderProfileFile | null }, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const extra: Record<string, string> = { CODEX_HOME: cfg.codexHome };
   if (cfg.providerProfile) {
+    if (cfg.provider.auth === "subscription_login") {
+      throw new Error("subscription_login 只属于本机 Agent，不能进入 Codex provider 环境");
+    }
     Object.assign(extra, providerEnv(cfg.providerProfile, cfg.provider.auth, env));  // M4:按模板把 env_key(与 env_http_headers 引用的变量)按名透传;openai 另加 CODEX_API_KEY
   } else if (cfg.provider.auth === "api_key") {
     const key = env[cfg.provider.env_key];

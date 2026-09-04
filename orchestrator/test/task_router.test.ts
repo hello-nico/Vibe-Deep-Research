@@ -102,6 +102,18 @@ test("直连模式的有界任务才使用 direct_api", async () => {
   assert.equal(result.executionMode, "direct");
 });
 
+test("本机订阅 Agent 的 Quick / Deep 路由如实标记 local_agent，并绑定进路由指纹", async () => {
+  const fingerprint = "a".repeat(64);
+  const quick = await router().route(task({ kind: "locate_passages" }), undefined, "agent", fingerprint, "local_agent");
+  const deep = await router().route(task({ kind: "deep_research", requestedMode: "deep",
+    evidenceScope: "open_discovery", workflow: "multi_step", outputFormat: "document" }),
+  undefined, "agent", fingerprint, "local_agent");
+  assert.equal(quick.engineFamily, "local_agent");
+  assert.equal(deep.engineFamily, "local_agent");
+  const codex = await router().route(task({ kind: "locate_passages" }), undefined, "agent", fingerprint, "codex_harness");
+  assert.notEqual(quick.routeFingerprint, codex.routeFingerprint, "执行保障家族变化必须让两段式路由失效");
+});
+
 test("Auto 深研意图由服务端判定，不被普通子串误触发", async () => {
   const deep = await route({ kind: "locate_passages", objective: "深入分析并核验最新数据" });
   assert.equal(deep.target, "deep");

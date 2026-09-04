@@ -6,9 +6,16 @@ import test from "node:test";
 
 import {
   LocalAgentError, claudeArgs, codeBuddyArgs, codexLoginProgress, findExecutable, parseClaudeOutput,
-  executableInvocation, parseCodeBuddyOutput, probeClaude, probeCodeBuddy, probeCodex, runLocalAgent,
-  startCodexLogin, workBuddyCliCandidates,
+  executableInvocation, normalizeLocalAgentTimeoutMs, parseCodeBuddyOutput, probeClaude, probeCodeBuddy, probeCodex, runLocalAgent,
+  startCodexLogin, terminateActiveLocalAgentProcesses, workBuddyCliCandidates,
 } from "../src/local_agent_runtime.ts";
+
+test("六阶段订阅 Agent 保留 20 分钟超时，不被适配器暗中截成 10 分钟", () => {
+  assert.equal(normalizeLocalAgentTimeoutMs(20 * 60_000), 20 * 60_000);
+  assert.equal(normalizeLocalAgentTimeoutMs(undefined), 180_000);
+  assert.throws(() => normalizeLocalAgentTimeoutMs(Number.NaN),
+    (e: unknown) => e instanceof LocalAgentError && e.code === "agent_bad_timeout");
+});
 
 function fakeNodeExecutable(dir: string, name: string, source: string): string {
   if (process.platform !== "win32") {
@@ -56,6 +63,7 @@ let input='';process.stdin.setEncoding('utf8');process.stdin.on('data',x=>input+
   if(process.env.FAKE_EXEC_NOT_LOGGED==='1'){console.log('Authentication required. Please use /login command to sign in to your account');return}
   const profiles=['HOME','USERPROFILE','APPDATA','LOCALAPPDATA'].every(k=>!process.env['FAKE_BASE_'+k]||process.env[k]!==process.env['FAKE_BASE_'+k]);
   const result={result:input+'|api='+Boolean(process.env.CODEBUDDY_API_KEY)+'|token='+Boolean(process.env.CODEBUDDY_AUTH_TOKEN)+'|base='+Boolean(process.env.CODEBUDDY_BASE_URL)+'|tools='+a.slice(a.indexOf('--tools'),a.indexOf('--tools')+2).join(':')+'|memory='+process.env.CODEBUDDY_DISABLE_AUTO_MEMORY+'|ephemeral='+Boolean(process.env.FAKE_BASE_HOME&&process.env.HOME!==process.env.FAKE_BASE_HOME)+'|profiles='+profiles+'|noSession='+a.includes('--no-session-persistence')+'|permission='+a[a.indexOf('--permission-mode')+1]};
+  if(process.env.FAKE_ECHO_MCP_ENV==='1') result.result+='|wait='+process.env.CODEBUDDY_WAIT_FOR_MCP_SERVERS_ENABLED+'|prewait='+process.env.CODEBUDDY_FIRST_RUN_MCP_PREWAIT_TIMEOUT_MS;
   console.log(JSON.stringify(process.env.FAKE_LEGACY_HELP==='1'?[{type:'message'},result]:result));
 });
 `);
@@ -155,6 +163,18 @@ test("Claude 参数强制无工具、无 MCP、无会话落盘，正文不进 ar
   assert.ok(!args.join(" ").includes("USER_SECRET_PROMPT"));
 });
 
+test("Claude Deep 只开显式 MCP 白名单，不开内建工具", () => {
+  const controlledMcp = { serverName: "vra", command: process.execPath, args: ["/app/run_tools_mcp.ts"],
+    env: { VRA_RUN_DIR: "/data/runs/r1" }, allowedTools: ["mcp__vra__read_run_file", "mcp__vra__write_stage"] };
+  const args = claudeArgs("SYSTEM", { type: "object" }, controlledMcp);
+  assert.ok(!args.includes("--safe-mode"), "safe-mode 会把显式 MCP 也关掉");
+  assert.deepEqual(args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2), ["--tools", ""]);
+  assert.deepEqual(args.slice(args.indexOf("--setting-sources"), args.indexOf("--setting-sources") + 2), ["--setting-sources", ""]);
+  assert.ok(args.includes("mcp__vra__read_run_file") && args.includes("mcp__vra__write_stage"));
+  const config = JSON.parse(args[args.indexOf("--mcp-config") + 1]!) as { mcpServers: { vra: { command: string } } };
+  assert.equal(config.mcpServers.vra.command, process.execPath);
+});
+
 test("本机 Claude 探针只返回版本与登录布尔，不泄露账号", async () => {
   const f = fakeClaude();
   try {
@@ -212,6 +232,22 @@ test("CodeBuddy 参数关闭工具、MCP、配置、记忆与子代理，正文�
   assert.ok(!args.join(" ").includes("USER_SECRET_PROMPT"));
 });
 
+test("CodeBuddy Deep 只开显式 MCP 白名单，并允许多轮工具调用", () => {
+  const controlledMcp = { serverName: "vra", command: process.execPath, args: ["/app/run_tools_mcp.ts"],
+    env: { VRA_RUN_DIR: "/data/runs/r1" }, allowedTools: ["mcp__vra__calculate"], maxTurns: 32 };
+  const args = codeBuddyArgs("SYSTEM", { type: "object" }, false, controlledMcp);
+  assert.deepEqual(args.slice(args.indexOf("--tools"), args.indexOf("--tools") + 2), ["--tools", "NoDefer(mcp__vra__*)"]);
+  assert.ok(args.includes("mcp__vra__calculate"));
+  assert.deepEqual(args.slice(args.indexOf("--max-turns"), args.indexOf("--max-turns") + 2), ["--max-turns", "32"]);
+  assert.deepEqual(args.slice(args.indexOf("--permission-mode"), args.indexOf("--permission-mode") + 2), ["--permission-mode", "bypassPermissions"]);
+  const config = JSON.parse(args[args.indexOf("--mcp-config") + 1]!) as {
+    mcpServers: { vra: { command: string; alwaysLoad: boolean; defer_loading: boolean } };
+  };
+  assert.equal(config.mcpServers.vra.command, process.execPath);
+  assert.equal(config.mcpServers.vra.alwaysLoad, true);
+  assert.equal(config.mcpServers.vra.defer_loading, false);
+});
+
 test("Windows 能发现 WorkBuddy 桌面版内置 CLI，并用 Node 启动无扩展名脚本", () => {
   const candidates = workBuddyCliCandidates({
     LOCALAPPDATA: "C:\\Users\\Simon\\AppData\\Local",
@@ -255,6 +291,24 @@ test("CodeBuddy 订阅调用走 stdin，移除 API / token / 自定义端点并�
       },
     });
     assert.equal(out, "USER_SECRET_PROMPT|api=false|token=false|base=false|tools=--tools:|memory=1|ephemeral=false|profiles=true|noSession=true|permission=dontAsk");
+  } finally { fs.rmSync(f.dir, { recursive: true, force: true }); }
+});
+
+test("CodeBuddy Deep 首轮等待唯一 MCP，并维持订阅环境隔离", async () => {
+  const f = fakeCodeBuddy();
+  try {
+    const out = await runLocalAgent("codebuddy", {
+      systemPrompt: "规则", userPrompt: "读取运行文件",
+      env: { CODEBUDDY_BIN: f.bin, PATH: process.env.PATH, FAKE_ECHO_MCP_ENV: "1" },
+      controlledMcp: {
+        serverName: "vra", command: process.execPath, args: ["/app/run_tools_mcp.ts"],
+        env: { VRA_RUN_DIR: "/data/runs/r1" }, allowedTools: ["mcp__vra__list_run_files"], maxTurns: 8,
+      },
+    });
+    assert.match(out, /tools=--tools:NoDefer\(mcp__vra__\*\)/);
+    assert.match(out, /permission=bypassPermissions/);
+    assert.match(out, /wait=1\|prewait=30000/);
+    assert.match(out, /api=false\|token=false\|base=false/);
   } finally { fs.rmSync(f.dir, { recursive: true, force: true }); }
 });
 
@@ -340,6 +394,28 @@ setInterval(()=>{},1000);
     const childPid = Number(fs.readFileSync(childPidFile, "utf8"));
     assert.throws(() => process.kill(parentPid, 0), /ESRCH/);
     assert.throws(() => process.kill(childPid, 0), /ESRCH/);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("产品退出清理入口会终止仍在运行的订阅 CLI 进程树", async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "vra-shutdown-claude-"));
+  const pidFile = path.join(dir, "pid");
+  const bin = fakeNodeExecutable(dir, "claude", `
+const fs=require('node:fs');
+fs.writeFileSync(process.env.TEST_PID_FILE,String(process.pid));
+setInterval(()=>{},1000);
+`);
+  const running = runLocalAgent("claude", {
+    systemPrompt: "规则", userPrompt: "等待", timeoutMs: 60_000,
+    env: { CLAUDE_BIN: bin, PATH: process.env.PATH, TEST_PID_FILE: pidFile },
+  });
+  try {
+    for (let i = 0; i < 100 && !fs.existsSync(pidFile); i += 1) await new Promise((resolve) => setTimeout(resolve, 20));
+    assert.ok(fs.existsSync(pidFile), "假 CLI 应已启动");
+    const pid = Number(fs.readFileSync(pidFile, "utf8"));
+    assert.equal(terminateActiveLocalAgentProcesses("SIGKILL"), 1);
+    await assert.rejects(running, (e: unknown) => e instanceof LocalAgentError && e.code === "agent_failed");
+    assert.throws(() => process.kill(pid, 0), /ESRCH/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
 

@@ -186,7 +186,7 @@ export const manifestSchema = () => ({
     "evidence_conflicts", "gate", "exit_code", "provider", "engine", "constitution", "hooks"],
   properties: {
     provider: { type: "object", additionalProperties: false, required: ["name", "wire_api", "base_url", "env_key", "auth"],
-      properties: { name: { type: "string" }, wire_api: { type: "string", enum: ["responses", "chat"] }, base_url: { type: ["string", "null"] }, env_key: { type: "string" }, auth: { type: "string", enum: ["chatgpt_login", "api_key"] },
+      properties: { name: { type: "string" }, wire_api: { type: "string", enum: ["responses", "chat"] }, base_url: { type: ["string", "null"] }, env_key: { type: "string" }, auth: { type: "string", enum: ["chatgpt_login", "api_key", "subscription_login"] },
         profile: { type: ["string", "null"] }, matrix_status: { type: ["string", "null"] } } },
     constitution: { type: "object", additionalProperties: false, required: ["path", "sha256"], properties: { path: { type: "string" }, sha256: { type: "string", pattern: "^[0-9a-f]{64}$" } } },
     hooks: { type: "object", additionalProperties: false, required: ["enabled", "installed", "hooks_json", "invocations", "stop_blocks", "stop_terminations", "pre_tool_use_blocks", "errors", "log_trust"],
@@ -205,8 +205,8 @@ export const manifestSchema = () => ({
         capabilities: { type: "object", additionalProperties: false,
           required: ["kind", "protocol", "sandbox", "hooks", "contextStrategy", "structuredOutput", "auditLevel", "methodology"],
           properties: {
-            kind: { type: "string", enum: ["codex", "direct"] },
-            protocol: { type: "string", enum: ["responses", "chat_completions"] },
+            kind: { type: "string", enum: ["codex", "direct", "local_agent"] },
+            protocol: { type: "string", enum: ["responses", "chat_completions", "cli_subscription"] },
             sandbox: { type: "string", enum: ["seatbelt_readonly", "model_has_no_host_access"] },
             hooks: { type: "boolean" },
             contextStrategy: { type: "string", enum: ["thread", "per_stage_session"] },

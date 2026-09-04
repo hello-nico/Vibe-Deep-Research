@@ -4,6 +4,20 @@
 
 ## [Unreleased]
 
+- M7 把 Claude Code / WorkBuddy 订阅接入正式六阶段研究：新增独立 `local_agent` 引擎与逐阶段 CLI 运行器，
+  不继承 OpenAI provider、Codex 路径、`CODEX_HOME`、hooks 或模型名，也不把它们冒充 Codex Harness。
+- 本机订阅 Agent 每个阶段关闭内建工具，只开放既有五个 VRA MCP 工具；工具 schema、阶段所有权、确定性计算、
+  文件边界与最终 validator 继续共用一份实现，没有复制第二套研究状态机。自然语言回答或退出码 0 不构成完成。
+- WorkBuddy Deep 首轮显式等待 MCP，并按官方加载机制设置 `alwaysLoad / defer_loading=false` 与
+  `NoDefer(mcp__vra__*)`。本机 WorkBuddy 5.2.6 / CodeBuddy Code 2.106.4 已真实完成 profile 阶段：
+  23 条证据、一次尝试、阶段 `complete`、validator 通过；刻意只跑一个阶段时整次仍如实为
+  `incomplete / exit 2`。这不是完整六阶段真实运行验收；Claude Code 路径已由机器测试覆盖，但本轮没有冒充
+  做过真实 Claude 订阅运行。
+- M7 独立 Codex 首轮审计确认 4 个 P2：阶段超时被错误压到 10 分钟、父进程退出可能遗留订阅 CLI / MCP
+  进程树、订阅运行错误继承默认模型名，以及任务路由把本机 Agent 冒充 Codex Harness。四项均已修复并加回归；
+  收敛复审结论为 `No actionable P1/P2 findings`。
+- M7 最终验证：orchestrator **708 项**（707 通过、1 项 Windows ACL 在 macOS 跳过）、desktop **34/34**、
+  Python **577/577**；两端类型检查、Vite 生产构建与 diff 格式检查通过。M7 尚未提交、未推送、未发布。
 - M6 新增 WorkBuddy / CodeBuddy 订阅适配器：设置页把它作为第三个真实订阅来源，
   已安装并登录 WorkBuddy 桌面版时直接复用应用内置 CodeBuddy Code CLI；独立安装 CLI 的用户也可沿用
   原有登录，不再强迫这类用户重复安装、重复登录或填写 API key。
@@ -11,8 +25,8 @@
   账号与 token 不返回、不落日志。执行时强制关闭工具、MCP、用户设置、自动记忆、后台任务与子 Agent，
   并移除 API key、自定义端点和模型覆盖环境变量。WorkBuddy 内置旧 CLI 缺少无会话参数时，订阅凭据只在
   内存中转给一次性临时用户目录中的回答进程，完成后删除，防止写入真实用户目录。
-- 边界如实保持：WorkBuddy / CodeBuddy 与 Claude Code 目前只承载对话与有界材料任务；完整六阶段研究
-  仍交给 Codex Harness，选中后不会暗中换成 Codex。旧的“CodeBuddy 适配器尚未完成”引导已移除。
+- M6 当时的边界如实保持在对话与有界材料任务；完整六阶段研究由后续 M7 独立实现。旧的
+  “CodeBuddy 适配器尚未完成”引导已移除。
 - M6 使用腾讯官方 CodeBuddy Code 2.143.1 完成干净环境实装：版本探测、未登录识别及退出码为 0 的纯文本
   登录错误均被稳定归类；又使用本机 WorkBuddy 5.2.6 内置 CodeBuddy Code 2.106.4 的真实订阅登录完成
   受限回答，验证桌面端自动发现、内存凭据桥与临时用户目录清理。同时补齐 Windows 常见安装位置的内置 CLI 发现，

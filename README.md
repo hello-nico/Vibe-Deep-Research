@@ -11,7 +11,7 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v1.0.3-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
-  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-691%20checks-passing">
+  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-708%20checks-passing">
   <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-34%20tests-passing">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
@@ -51,8 +51,8 @@ Agent 模式会在本机维持上下文、调用工具、推进任务、处理�
 本机 Claude Code Agent 承载；WorkBuddy / CodeBuddy 账号由腾讯官方 CodeBuddy Code CLI 承载。Vibe Research 在这些运行时之上统一叠加金融数据、研究 SOP、确定性计算、
 证据校验和合规边界。
 
-Claude Code 与 WorkBuddy / CodeBuddy Agent 当前支持对话和有界材料任务；完整六阶段研究需要 Codex Harness，或在 Agent
-模式下接入模型 API。界面会按当前运行时明确展示这个边界。
+Claude Code 与 WorkBuddy / CodeBuddy Agent 除了对话和有界材料任务，也能运行完整 A 股六阶段研究。
+研究阶段关闭它们的内建工具，只开放 Vibe Research 的五个受控 MCP 工具；不会暗中换成 Codex。
 
 API 用户还可以在设置里关闭 Agent，改成模型直连。这个开关只对通过直连能力验证的 provider 开放：
 
@@ -65,7 +65,8 @@ API 用户还可以在设置里关闭 Agent，改成模型直连。这个开关�
 | 订阅或 API 都可作为推理来源 | 只支持已验证的 API provider |
 
 当前订阅入口已接通 Codex、Claude Code 与 WorkBuddy / CodeBuddy，设置页会实时检测 CLI、版本与登录状态。
-CodeBuddy 适配器复用本机已登录账号，并在每次调用时关闭工具、MCP、用户配置、自动记忆和会话落盘。
+CodeBuddy 适配器复用本机已登录账号：普通对话关闭全部工具与 MCP，六阶段研究关闭内建工具、只开放产品受控 MCP，
+同时隔离用户配置、自动记忆和会话落盘。
 Qwen Code 与 DeepSeek CLI 当前仍需各自的 API key，也归入 API 接入。
 
 ## 功能
@@ -234,10 +235,10 @@ ChatGPT / Claude.ai / WorkBuddy 订阅 · OpenAI · DeepSeek · Qwen · GLM · K
 “开启”，只有明确想做轻量直连的 API 用户才需要改。
 
 - Agent Runtime 负责本地上下文、工具调用、任务状态、进度和失败处理。Codex 订阅走 Codex Harness；Claude 订阅走 Claude Code Agent；WorkBuddy / CodeBuddy 走 CodeBuddy Code Agent，三者不会混叫。
-- Claude Code 与 WorkBuddy / CodeBuddy Agent 当前支持对话和有界材料任务；完整六阶段研究需要 Codex Harness，或在 Agent 模式下接入模型 API。
+- Claude Code 与 WorkBuddy / CodeBuddy Agent 可运行完整 A 股六阶段研究；每个阶段使用一次独立会话，只能调用 Vibe Research 的受控 MCP，不会暗中换成 Codex。
 - AI 来源可以是订阅登录，也可以是用户自己的 Model Provider API。换来源不会自动关闭 Agent。
 - 模型直连不运行 Agent、不调用工具，也没有 Agent 任务记忆；六阶段研究、多空辩论和 Agent 回测会明确提示重新开启 Agent，不会静默降级。
-- Codex 订阅使用产品自己的 `CODEX_HOME`，不读写用户的 `~/.codex`；Claude 与 CodeBuddy 订阅复用各自本机登录态，调用时强制关闭本地工具、MCP、用户配置与自动记忆。WorkBuddy 自带的旧 CLI 若没有“禁止会话落盘”参数，整次回答会改在一次性临时用户目录运行，结束后删除。
+- Codex 订阅使用产品自己的 `CODEX_HOME`，不读写用户的 `~/.codex`；Claude 与 CodeBuddy 订阅复用各自本机登录态。普通对话关闭全部工具与 MCP；六阶段研究关闭内建工具，只开放产品受控 MCP。用户配置与自动记忆保持关闭。WorkBuddy 自带的旧 CLI 若没有“禁止会话落盘”参数，整次回答会改在一次性临时用户目录运行，结束后删除。
 - 无论订阅或 API，点击“测试并保存”都会先做一次真实对话探针；探针失败不覆盖当前已生效配置。
 - API 模式的 key 会持久保存在当前浏览器的本机 `localStorage`，方便下次直接使用；它不是系统钥匙串，
   也不承诺加密，只建议在可信个人电脑使用。key 随请求交给本机后端，但不进入仓库、后端配置、运行账本
@@ -302,7 +303,7 @@ npm run build --prefix desktop
 
 当前验证基线：
 
-- orchestrator：**691 项**（本机 690 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
+- orchestrator：**708 项**（本机 707 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
 - desktop：**34/34**，TypeScript 类型检查与 Vite 生产构建通过。
 - Python（计算库、回测、数据脚本）：**577/577**。
 - 当前未发布改动经 Codex 独立复审，末轮为 `No actionable P1/P2 findings`。
