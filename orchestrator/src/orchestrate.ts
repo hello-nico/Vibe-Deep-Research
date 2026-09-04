@@ -16,9 +16,13 @@ import { FixtureError, fixtureFreshness, readFixture, seedRunDir, verifyFixture,
 import { writeViewer } from "./viewer.ts";
 import { atomicWrite, ensureDirs, nowIso, sha256File, sha256Text, writeJson } from "./fsutil.ts";
 import { complianceGate, normalizeReportStatus, probeReportLine } from "./gate.ts";
-import { HOOK_CONTEXT_REL, clearStopFailed, installHooks, readHookLog, readStopFailed, summarizeHookLog, uninstallHooks, writeHookContext } from "./hooks.ts";
-import { installSkillsIsolation } from "./skills_isolation.ts";
-import { CONSTITUTION_FILENAME, ensureInstructionsRoot } from "./instructions_root.ts";
+// turn 上下文(stage/attempt)留在本文件写:它是**受控工具**判断当前阶段的依据,两个引擎都要;
+// Codex 专属的那半(指令根 / skills 隔离 / hooks 安装与汇总)已移入 engines/codex_lifecycle.ts。
+import { HOOK_CONTEXT_REL, writeHookContext } from "./hooks.ts";
+import { CONSTITUTION_FILENAME } from "./instructions_root.ts";
+import type { EngineLifecycle, LifecycleContext } from "./engine.ts";
+import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
+import { structuredOutputMode } from "./providers.ts";
 import { currentPlugin } from "./plugin.ts";
 import { rawHashes, writeConflicts, writeManifest, writeMergedArtifacts, type Manifest, type StageRecord } from "./merge.ts";
 import type { AgentRunner } from "./runner.ts";
@@ -30,6 +34,12 @@ export interface Deps {
   runner: AgentRunner;
   fetchRunner: FetchExecutor;
   verify: CalcVerifier;
+  /**
+   * 引擎生命周期。缺省 = Codex(现有唯一引擎,行为与拆分前逐字一致)。
+   * ⚠️ 直连引擎接入后,`run.ts` 必须**显式**传;缺省回落只是过渡期的向后兼容,
+   *    不要让它变成"忘了传就静默用 Codex"——那正是本产品最不该有的那类静默失败。
+   */
+  lifecycle?: EngineLifecycle;
   sdkVersion: () => { version: string; binary: string | null };
 }
 
@@ -210,34 +220,21 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   const protectedFiles: Record<string, string> = {};
   const persistManifest = () => { writeManifest(cfg, manifest); protectedFiles["manifest.json"] = sha256File(path.join(cfg.runDir, "manifest.json")); };
   const protectedNow = (): ProtectedExpectation => ({ files: { ...protectedFiles }, eventsSha: runner.eventsDigest() });
-  // skills 隔离(执行层,常开):把用户主目录 ~/.agents/skills 与捆绑系统 skills 从产品 CODEX_HOME 的 catalog 里禁掉,只留产品 .agents/skills(skills_isolation.ts)
-  if (!cfg.noAgent) {
-    // 指令发现链:写 project root marker + project_root_markers 配置(分离安装时先把宪法与技能同步到数据根),
-    // 再逐条校验链路。不通过直接抛 —— 这类失效引擎全程不报错,只是宪法与技能不在提示词里(instructions_root.ts)。
-    const ins = ensureInstructionsRoot(cfg);
-    manifest.instructions_root = { root: ins.root, mode: ins.mode, marker_created: ins.markerCreated, synced_files: ins.sync ? ins.sync.copied.length + ins.sync.removed.length : 0 };
-    runner.log("orchestrator", "instructions.root", { root: ins.root, mode: ins.mode, marker_created: ins.markerCreated, config_changed: ins.configChanged, synced: ins.sync ? { copied: ins.sync.copied.length, removed: ins.sync.removed.length, unchanged: ins.sync.unchanged } : null });
-    const iso = installSkillsIsolation(cfg);  // cfg 含 repoRoot(产品 skill 不写入)与 python(写前 tomllib 校验)
-    manifest.skills_isolation = { installed: true, config_toml: iso.configTomlPath, disabled_user_skills: iso.disabledPaths.length, bundled_disabled: iso.bundledDisabled, max_context_tokens: iso.maxContextTokens, truncated: iso.truncated };
-    // 事件只记数量 + 清单哈希:events.jsonl 会经 service 层(API / MCP research_status.last_events)回给调用方,不带用户主目录下的路径清单
-    runner.log("orchestrator", "skills.isolated", { config_toml: iso.configTomlPath, disabled_user_skills: iso.disabledPaths.length, disabled_sha256: iso.disabledSha256, bundled_disabled: iso.bundledDisabled, max_context_tokens: iso.maxContextTokens, excluded_in_repo: iso.excludedInRepo, truncated: iso.truncated, toml_validated: iso.tomlValidated, changed: iso.changed });
-    // 触及 Codex 截断边界(2,000 目录 / 20,000 条目)= 清单可能不完整,出声但不中断(Codex 自己也在同一边界截断、继续运行)
-    if (iso.truncated) runner.log("orchestrator", "skills.isolation_truncated", { disabled_user_skills: iso.disabledPaths.length, note: "用户级 skill 根超过 Codex 截断边界,未枚举到的 skill 也不会被 Codex 看到;如需完整隔离请清理 ~/.agents/skills 下的大目录(如 node_modules)" });
-  }
-  // hooks v0(执行层):安装到产品 CODEX_HOME(hooks.json + trusted_hash),每个 turn 前写钩子上下文(受保护)
-  if (!cfg.hooksEnabled && !cfg.noAgent) { uninstallHooks(cfg); runner.log("orchestrator", "hooks.uninstalled", { codex_home: cfg.codexHome }); }
-  if (cfg.hooksEnabled && !cfg.noAgent) {
-    const fault = cfg.scenario?.hook_fault;
-    const inst = installHooks(cfg, process.execPath, fault === "timeout" || fault === "crash" ? fault : undefined);
-    if (fault) runner.log("orchestrator", "scenario.hook_fault", { fault });
-    manifest.hooks.installed = true;
-    manifest.hooks.hooks_json = inst.hooksJsonPath;
-    runner.log("orchestrator", "hooks.installed", { hooks_json: inst.hooksJsonPath, config_toml: inst.configTomlPath, states: inst.states });
-  }
+  // 引擎生命周期(engine.ts):Codex 要准备指令发现链 / skills 隔离 / lifecycle hooks,直连引擎一样都不碰。
+  // ⚠️ noAgent(干跑)不准备任何引擎环境 —— 原行为如此,别改成"总是 prepare"。
+  const lifecycle = deps.lifecycle ?? new CodexEngineLifecycle(cfg, codexCapabilities(cfg, structuredOutputMode(cfg.providerProfile) === "prompt" ? "prompt" : "server_schema"));
+  const lifecycleCtx: LifecycleContext = {
+    log: (stage, type, payload) => runner.log(stage, type, payload),
+    markProtected: (rel) => { protectedFiles[rel] = sha256File(path.join(cfg.runDir, rel)); },
+    unmarkProtected: (rel) => { delete protectedFiles[rel]; },
+    manifest: manifest as unknown as Record<string, unknown>,
+  };
+  manifest.engine.capabilities = lifecycle.capabilities;
+  if (!cfg.noAgent) lifecycle.prepare(lifecycleCtx);
   const hookCtx = (stage: Stage, attempt: number) => {
     // Windows 受控 MCP 也复用这份逐 turn 上下文；它不执行 hook，只用 stage/attempt 约束工具写入范围。
     if (!cfg.hooksEnabled && cfg.executionMode !== "controlled_mcp") return;
-    if (cfg.hooksEnabled) clearStopFailed(cfg.runDir);
+    lifecycle.beforeTurn(lifecycleCtx, stage, attempt);
     if (cfg.scenario?.hook_fault === "context_missing" && stage === (cfg.scenario.probe_stage ?? "profile")) {
       // 故障注入:本阶段不写钩子上下文 → 钩子应放行但出声(hooks.log error),编排器 validator 兜底
       const p = path.join(cfg.runDir, HOOK_CONTEXT_REL); if (fs.existsSync(p)) fs.rmSync(p); delete protectedFiles[HOOK_CONTEXT_REL];
@@ -250,18 +247,8 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   /** 真实跑过的 agent 轮次数:零调用只有在**有过 turn** 时才算钩子失效(--no-agent / 纯播种运行本来就没有) */
   let agentTurns = 0;
   /** turn 后汇总钩子日志(诊断,不可信);Stop 钩子留下终止标记 → 该 turn 视为失败(缺产物不许正常收工) */
-  const hookSummary = (stage: Stage, attempt: number): string | null => {
-    if (!cfg.hooksEnabled) return null;
-    const sum = summarizeHookLog(readHookLog(cfg.runDir));
-    Object.assign(manifest.hooks, sum);
-    runner.log(stage, "hooks.summary", { attempt, ...sum });
-    const marker = readStopFailed(cfg.runDir);
-    if (marker && marker.stage === stage && marker.attempt === attempt) {
-      runner.log(stage, "hooks.stop_terminated", { attempt, blocks: marker.blocks, problems: marker.problems.slice(0, 6) });
-      return `Stop 钩子终止本轮(拦截 ${marker.blocks} 次后仍不合格):${marker.problems.slice(0, 3).join("; ")}`;
-    }
-    return null;
-  };
+  /** turn 后的引擎收尾:返回非 null = 该 turn 判失败(Codex 下即 Stop 钩子终止;详见 engines/codex_lifecycle.ts) */
+  const hookSummary = (stage: Stage, attempt: number): string | null => lifecycle.afterTurn(lifecycleCtx, stage, attempt);
   // M2 知识层召回:只在未由 scenario 注入且开启时;注入文本进全阶段提示词,由 knowledge_conflicts 裁决
   if (shouldRecall(cfg)) {
     const k = recallKnowledge(cfg);
