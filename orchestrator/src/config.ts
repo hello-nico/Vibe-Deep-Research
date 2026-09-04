@@ -66,6 +66,12 @@ export interface RunConfig {
   symbol: string;
   /** 可选主体名：用于补充召回“只写名称、没写标识符”的用户资料。 */
   companyName?: string;
+  /** 产品任务层的关注点；只改变提示中的研究重点，不改变六阶段状态机与校验规则。 */
+  taskObjective?: string;
+  /** 产品任务层明确圈选的本地资料。存在时只召回这些 id，不按同代码扩到整库。 */
+  reportIds?: readonly string[];
+  /** 路由时看到的资料正文版本；长流程只接受这些版本，变化后明确失败而不偷读新内容。 */
+  reportRevisions?: Readonly<Record<string, string>>;
   market: string;
   runId: string;
   /** 产品根(安装后 = app/);AGENTS.md / skills / calc 均相对它 */
@@ -243,6 +249,9 @@ export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoR
   return {
     symbol: partial.symbol,
     companyName: partial.companyName,
+    taskObjective: partial.taskObjective,
+    reportIds: partial.reportIds ? Object.freeze([...partial.reportIds]) : undefined,
+    reportRevisions: partial.reportRevisions ? Object.freeze({ ...partial.reportRevisions }) : undefined,
     market: partial.market ?? "",
     runId,
     repoRoot,

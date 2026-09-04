@@ -443,16 +443,27 @@ function snippetAt(text: string, terms: string[]): { snippet: string; page: numb
   return { snippet: `${start > 0 ? "…" : ""}${snippet}${end < text.length ? "…" : ""}`, page: pageAt(text, pos) };
 }
 
-export function searchReports(dataRoot: string, query: string, opts: { limit?: number; reportIds?: readonly string[]; mustInclude?: boolean } = {}): ReportSearchHit[] {
+export function searchReports(dataRoot: string, query: string, opts: { limit?: number; reportIds?: readonly string[]; mustInclude?: boolean;
+  expectedRevisions?: Readonly<Record<string, string>> } = {}): ReportSearchHit[] {
   const terms = termsOf(query);
   if (!terms.length && !opts.mustInclude) return [];
   const allowed = opts.reportIds ? new Set(opts.reportIds) : null;
+  const verified = new Set<string>();
   const hits: ReportSearchHit[] = [];
   for (const rec of listReports(dataRoot)) {
     if (allowed && !allowed.has(rec.id)) continue;
     const textPath = inside(dataRoot, rec.text_file);
     if (!fs.existsSync(textPath) || !fs.lstatSync(textPath).isFile()) continue;
-    const text = fs.readFileSync(textPath, "utf8");
+    const stored = fs.readFileSync(textPath, "utf8");
+    // addReport 的文本索引以换行收尾；版本语义与 reportText() 一致，不把这个存储细节算进正文版本。
+    const text = stored.endsWith("\n") ? stored.slice(0, -1) : stored;
+    if (opts.expectedRevisions) {
+      const expected = opts.expectedRevisions[rec.id];
+      if (!expected || crypto.createHash("sha256").update(text).digest("hex") !== expected) {
+        throw new ReportLibraryError("report_revision_mismatch", "资料在任务路由后发生变化，请重新发起任务");
+      }
+      verified.add(rec.id);
+    }
     const name = normalized(rec.name);
     const body = normalized(text);
     let score = 0;
@@ -468,11 +479,16 @@ export function searchReports(dataRoot: string, query: string, opts: { limit?: n
     const best = snippetAt(text, terms);
     hits.push({ id: rec.id, name: rec.name, score, snippet: best.snippet, page: best.page, symbols: rec.symbols, uploaded_at: rec.uploaded_at, text_file: rec.text_file });
   }
+  if (opts.expectedRevisions && Object.keys(opts.expectedRevisions).some((id) => !verified.has(id))) {
+    throw new ReportLibraryError("report_revision_mismatch", "资料在任务路由后发生变化，请重新发起任务");
+  }
   return hits.sort((a, b) => b.score - a.score || b.uploaded_at.localeCompare(a.uploaded_at)).slice(0, Math.min(Math.max(opts.limit ?? 5, 1), 20));
 }
 
-export function reportContext(dataRoot: string, query: string, opts: { limit?: number; maxChars?: number; reportIds?: readonly string[]; mustInclude?: boolean } = {}): ReportContext | null {
-  const hits = searchReports(dataRoot, query, { limit: opts.limit ?? 5, reportIds: opts.reportIds, ...(opts.mustInclude ? { mustInclude: true } : {}) });
+export function reportContext(dataRoot: string, query: string, opts: { limit?: number; maxChars?: number; reportIds?: readonly string[]; mustInclude?: boolean;
+  expectedRevisions?: Readonly<Record<string, string>> } = {}): ReportContext | null {
+  const hits = searchReports(dataRoot, query, { limit: opts.limit ?? 5, reportIds: opts.reportIds,
+    ...(opts.mustInclude ? { mustInclude: true } : {}), ...(opts.expectedRevisions ? { expectedRevisions: opts.expectedRevisions } : {}) });
   if (!hits.length) return null;
   const max = Math.min(Math.max(opts.maxChars ?? REPORT_CONTEXT_MAX_CHARS, 1_000), 40_000);
   const head = [

@@ -20,6 +20,15 @@ const MODE_LABELS: Record<TaskMode, string> = { auto: "Auto", quick: "Quick", de
 const TARGET_LABELS: Record<TaskRouteDecision["target"], string> = {
   deterministic: "确定性处理", quick: "Quick", deep: "Deep",
 };
+const DEEP_REPORT_LIMIT = 16;
+const waitFor = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
+  const onAbort = () => { window.clearTimeout(timer); reject(new DOMException("Aborted", "AbortError")); };
+  const timer = window.setTimeout(() => {
+    signal.removeEventListener("abort", onAbort);
+    resolve();
+  }, ms);
+  signal.addEventListener("abort", onAbort, { once: true });
+});
 
 // 读文件为 dataURL（含 base64）；后端会剥掉 data: 前缀。
 const fileToB64 = (file: File): Promise<string> =>
@@ -120,16 +129,30 @@ export function MyReports() {
     const controller = new AbortController();
     taskAbortRef.current?.abort();
     taskAbortRef.current = controller;
+    const selectedReports = reports.filter((report) => selected.includes(report.id));
+    const selectedSymbols = [...new Set(selectedReports.flatMap((report) => report.symbols))];
+    if (mode === "deep" && selected.length > DEEP_REPORT_LIMIT) {
+      setTaskError(`Deep 六阶段研究一次最多使用 ${DEEP_REPORT_LIMIT} 份资料，请缩小勾选范围。`);
+      return;
+    }
+    if (mode === "deep" && (selectedSymbols.length !== 1 || !/^(?:0|3|4|6|8|9)\d{5}$/.test(selectedSymbols[0] ?? ""))) {
+      setTaskError(selectedSymbols.length > 1
+        ? "Deep 六阶段研究一次只处理一个 A 股标的，请只选择同一代码的资料。"
+        : "Deep 六阶段研究需要从所选资料中确认一个 A 股代码；请先选择已识别代码的资料。");
+      return;
+    }
+    const isDeep = mode === "deep";
     const task: ResearchTaskRequest = {
       schemaVersion: 1,
       id: `report-${crypto.randomUUID()}`,
-      kind: "locate_passages",
+      kind: isDeep ? "deep_research" : "locate_passages",
       requestedMode: mode,
       objective: goal,
-      evidenceScope: "existing",
-      workflow: "single_step",
-      inputRefs: selected.map((id) => ({ kind: "report", id })),
-      outputFormat: "text",
+      evidenceScope: isDeep ? "open_discovery" : "existing",
+      workflow: isDeep ? "multi_step" : "single_step",
+      inputRefs: [...selected.map((id) => ({ kind: "report" as const, id })),
+        ...(isDeep ? [{ kind: "entity" as const, id: selectedSymbols[0]! }] : [])],
+      outputFormat: isDeep ? "document" : "text",
       operation: null,
     };
     setTaskBusy(true);
@@ -142,17 +165,34 @@ export function MyReports() {
       const routed = await backend.routeTask(task, controller.signal);
       if (controller.signal.aborted) return;
       setRouteDecision(routed.route);
-      if (routed.route.target === "deep") {
-        setTaskNotice("Deep 执行器将在 M3 接入，本次只完成路由判断，未启动长流程。");
+      // Auto 也可能因材料规模转入 Deep；在启动前把 Deep 的上下文上限明确告诉用户，
+      // 不让合法的界面操作走到后端才以通用配置错误失败。
+      if (routed.route.target === "deep" && selected.length > DEEP_REPORT_LIMIT) {
+        setTaskError(`系统判断需要 Deep，但 Deep 一次最多使用 ${DEEP_REPORT_LIMIT} 份资料；请缩小勾选范围后重试。`);
         return;
       }
       const result = await backend.runTask(task, routed.route.routeFingerprint, controller.signal);
       if (controller.signal.aborted) return;
       setRouteDecision(result.route);
-      const artifact = result.events.find((event) => event.type === "artifact");
-      const failed = result.events.find((event) => event.type === "failed");
-      if (result.status === "completed" && typeof artifact?.payload?.answer === "string") {
+      let taskStatus = result.status;
+      let taskEvents = result.events;
+      const started = result.events.find((event) => event.type === "started");
+      if (result.status === "running" && routed.route.target === "deep" && started) {
+        setTaskNotice("完整六阶段研究已启动。当前页面会持续更新；即使离开页面，研究仍会在本机继续运行，并进入「个股研究」的历史记录。");
+        while (!controller.signal.aborted && taskStatus === "running") {
+          await waitFor(2_000, controller.signal);
+          const snapshot = await backend.resumeTask(started.runId, routed.route.routeFingerprint, controller.signal);
+          taskStatus = snapshot.status;
+          taskEvents = snapshot.events;
+        }
+      }
+      const artifact = taskEvents.find((event) => event.type === "artifact");
+      const failed = taskEvents.find((event) => event.type === "failed");
+      if (taskStatus === "completed" && typeof artifact?.payload?.answer === "string") {
         setTaskAnswer(artifact.payload.answer);
+      } else if (taskStatus === "completed" && typeof artifact?.payload?.report === "string") {
+        setTaskAnswer(artifact.payload.report);
+        setTaskNotice("Deep 六阶段研究已完成，正式报告已写入本机研究历史。");
       } else {
         setTaskError(typeof failed?.payload?.message === "string"
           ? failed.payload.message : "这次任务没有生成可交付结果，请检查模型配置后重试。");
@@ -194,7 +234,7 @@ export function MyReports() {
       </div>
       <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
         隐私说明：原文件不会上传。材料任务只读取勾选文件；Quick 会把这些文件已提取的正文随本轮请求发给在「接入 AI」中选择的直连模型。
-        Deep 在 M2 只判断路线，不会启动研究或发送正文。
+        Deep 会在所选资料能唯一确认一个 A 股代码时启动完整六阶段研究；只召回本次勾选的资料片段，并在本机生成正式报告。
         未识别出代码的文件仍可在对话中检索。A 股代码会用于个股研究自动召回；港股与美股代码用于归档分组和对话检索，当前六阶段个股研究底座仍只支持 A 股。
       </p>
 

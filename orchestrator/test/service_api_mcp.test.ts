@@ -165,7 +165,10 @@ test("service:startResearch 立即返回相对路径;子进程最小环境(resea
     (e: unknown) => e instanceof ServiceError && e.code === "unsupported_market",
     "美股没有完整必需取数链时不应空跑并消耗模型额度",
   );
-  const env = researchEnv(ctx, { PATH: "/bin", HOME: "/h", OPENAI_API_KEY: "sk-prov", VRA_SEC_CONTACT: "c", AWS_SECRET_ACCESS_KEY: "leak", GITHUB_TOKEN: "leak", CODEX_API_KEY: "leak", HTTPS_PROXY: "p" });
+  const env = researchEnv(ctx, { PATH: "/bin", HOME: "/h", OPENAI_API_KEY: "sk-prov", VRA_SEC_CONTACT: "c",
+    VRA_TASK_OBJECTIVE: "上一条请求的关注点", VRA_TASK_REPORT_IDS: "a".repeat(32),
+    VRA_TASK_REPORT_REVISIONS: JSON.stringify({ ["a".repeat(32)]: "b".repeat(64) }),
+    AWS_SECRET_ACCESS_KEY: "leak", GITHUB_TOKEN: "leak", CODEX_API_KEY: "leak", HTTPS_PROXY: "p" });
   assert.deepEqual(Object.keys(env).sort(), ["HOME", "HTTPS_PROXY", "OPENAI_API_KEY", "PATH", "VRA_SEC_CONTACT"]);
   assert.throws(() => startResearch(ctx, { symbol: "300308", market: "XX" }), (e: unknown) => e instanceof ServiceError && e.code === "bad_market");
   assert.throws(() => startResearch(ctx, { symbol: "300308", stages: ["nope"] }), (e: unknown) => e instanceof ServiceError && e.code === "bad_stage");
@@ -236,7 +239,10 @@ test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 
     assert.equal(routed.code, 200);
     assert.equal((routed.json as { status: string }).status, "routed");
     assert.equal((routed.json as { route: { target: string } }).route.target, "deep");
+    assert.equal((routed.json as { executionAvailable: boolean }).executionAvailable, true, "M3 Deep 已有正式执行器");
     assert.ok(!routed.text.includes(ctx.dataRoot) && !routed.text.includes("text_file"));
+    assert.equal((await call("POST", "/tasks/resume", { runId: "missing", routeFingerprint: "0".repeat(64) })).code, 404,
+      "不存在的 Deep 绑定必须明确返回未找到，不能伪装成排队中");
     const dl = await call("GET", `/reports/${reportId}/download`);
     assert.equal(dl.code, 200); assert.equal(dl.text, reportBody.toString("utf8"));
     const del = await call("POST", `/reports/${reportId}/delete`, { id: "ffffffffffffffffffffffffffffffff" });

@@ -7,7 +7,9 @@ import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
 import { addReport } from "../src/report_library.ts";
-import { runUnifiedTask } from "../src/task_service.ts";
+import { resumeUnifiedTask, runUnifiedTask } from "../src/task_service.ts";
+import type { DeepResearchBackend } from "../src/engines/codex_deep_engine.ts";
+import { FinanceDeepTargetResolver } from "../src/finance/deep_target.ts";
 import { ServiceError, type ServiceContext } from "../src/service.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -43,14 +45,35 @@ test("统一任务入口用真实研报适配器路由并执行 Quick，响应�
   assert.equal(JSON.stringify(result).includes("secret-test-key"), false);
 });
 
-test("Deep 在 M2 只返回透明路由结果，不伪装成已经执行；旧研究入口不受影响", async () => {
+test("Deep 在 M3 通过统一入口启动现有六阶段流程，并可按指纹恢复状态", async () => {
   const dataRoot = tmp();
-  const rec = await addReport(dataRoot, { name: "深研.md", content: Buffer.from("正文。", "utf8").toString("base64") });
-  const result = await runUnifiedTask(ctx(dataRoot), { task: task(rec.id, "deep"), execute: false });
-  assert.equal(result.status, "routed");
-  assert.equal(result.executionAvailable, false);
-  assert.equal(result.route.target, "deep");
-  assert.deepEqual(result.events, []);
+  const rec = await addReport(dataRoot, { name: "300308-深研.md", content: Buffer.from("公司代码 300308。正文。", "utf8").toString("base64") });
+  const deepTask = { ...task(rec.id, "deep"), kind: "deep_research", evidenceScope: "open_discovery",
+    workflow: "multi_step", outputFormat: "document", inputRefs: [{ kind: "report", id: rec.id }, { kind: "entity", id: "300308" }] };
+  let runId = "";
+  let terminal = false;
+  const deepBackend: DeepResearchBackend = {
+    start(request) { runId = request.run_id!; return { run_id: runId, run_dir: `runs/${runId}`, log: `logs/${runId}.log`, pid: 3 }; },
+    status() { return { run_id: runId, exists: true, status: terminal ? "complete" : "running", exit_code: terminal ? 0 : null,
+      stages: terminal ? [{ stage: "profile", status: "complete", attempts: 1 }] : [], evidence_count: terminal ? 9 : 0,
+      calculation_count: terminal ? 2 : 0, finished_at: terminal ? "2026-09-04T12:00:00Z" : null,
+      last_events: [], report: terminal, viewer: terminal ? `runs/${runId}/viewer.html` : null }; },
+    report() { return { run_id: runId, report: "# 完成", appendix: null }; },
+  };
+  const deepDeps = { deepBackend, deepTargetResolver: new FinanceDeepTargetResolver(dataRoot) };
+  const routed = await runUnifiedTask(ctx(dataRoot), { task: deepTask, execute: false }, undefined, deepDeps);
+  assert.equal(routed.status, "routed");
+  assert.equal(routed.executionAvailable, true);
+  const started = await runUnifiedTask(ctx(dataRoot), { task: deepTask, execute: true,
+    expectedRouteFingerprint: routed.route.routeFingerprint }, undefined, deepDeps);
+  assert.equal(started.status, "running");
+  assert.equal(started.events.at(-1)?.type, "started");
+  terminal = true;
+  const resumed = await resumeUnifiedTask(ctx(dataRoot), {
+    runId, routeFingerprint: routed.route.routeFingerprint,
+  }, undefined, deepDeps);
+  assert.equal(resumed.status, "completed");
+  assert.deepEqual(resumed.events.map((event) => event.type), ["progress", "artifact", "completed"]);
 });
 
 test("确定性计算由统一任务入口真实执行，不把成功路由冒充成已处理", async () => {

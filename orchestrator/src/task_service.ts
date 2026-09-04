@@ -1,5 +1,6 @@
-/** 统一任务 API 的 composition：真实路由适配器 + Quick 执行器。Deep 执行器在 M3 接入。 */
+/** 统一任务 API 的 composition：真实路由适配器 + deterministic / Quick / Deep 执行器。 */
 import type { ChatReply, ChatRequest } from "./engines/direct_transport.ts";
+import { CodexDeepEngine, DeepExecutionError, type DeepResearchBackend, type DeepTargetResolver } from "./engines/codex_deep_engine.ts";
 import { DeterministicEngine } from "./engines/deterministic_engine.ts";
 import { QuickEngine, type QuickProvider } from "./engines/quick_engine.ts";
 import { directCapabilityOf } from "./providers.ts";
@@ -17,7 +18,7 @@ export interface UnifiedTaskRequest {
   readonly expectedRouteFingerprint?: string;
 }
 export interface UnifiedTaskResult {
-  readonly status: "routed" | "completed" | "failed";
+  readonly status: "routed" | "running" | "completed" | "failed";
   readonly executionAvailable: boolean;
   readonly route: RouteDecision;
   readonly events: readonly TaskEvent[];
@@ -27,6 +28,14 @@ export interface TaskServiceDependencies {
   /** 仅用于测试或受控传输替换；HTTP 请求不能注入。 */
   readonly quickProvider?: QuickProvider;
   readonly complete?: (request: ChatRequest) => Promise<ChatReply>;
+  readonly deepBackend?: DeepResearchBackend;
+  /** 由具体产品的 composition root 注入；Core 不猜对象代码或范围。 */
+  readonly deepTargetResolver?: DeepTargetResolver;
+}
+
+export interface UnifiedTaskResumeResult {
+  readonly status: "running" | "completed" | "failed";
+  readonly events: readonly TaskEvent[];
 }
 
 function requestOf(value: unknown): UnifiedTaskRequest {
@@ -110,16 +119,59 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   if (req.expectedRouteFingerprint !== undefined && route.routeFingerprint !== req.expectedRouteFingerprint) {
     throw new ServiceError("route_changed", "所选材料在路由后发生变化，请重新开始任务");
   }
-  const executionAvailable = route.target !== "deep";
-  if (req.execute === false || !executionAvailable) {
+  const executionAvailable = route.target !== "deep" || dependencies.deepTargetResolver !== undefined;
+  if (req.execute === false) {
     return Object.freeze({ status: "routed", executionAvailable, route, events: Object.freeze([]) });
+  }
+  if (route.target === "deep" && req.llm !== undefined) {
+    throw new ServiceError("invalid_task_request", "Deep 使用产品隔离的 Codex Harness，不接收 Quick 直连模型配置");
+  }
+  if (route.target === "deep" && !dependencies.deepTargetResolver) {
+    throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");
   }
   const engine = route.target === "deterministic"
     ? new DeterministicEngine(operations)
-    : new QuickEngine({ provider: dependencies.quickProvider ?? quickProviderOf(ctx, req.llm),
-        materials, requestTimeoutMs: 120_000, ...(dependencies.complete ? { complete: dependencies.complete } : {}) });
+    : route.target === "quick"
+      ? new QuickEngine({ provider: dependencies.quickProvider ?? quickProviderOf(ctx, req.llm),
+          materials, requestTimeoutMs: 120_000, ...(dependencies.complete ? { complete: dependencies.complete } : {}) })
+      : new CodexDeepEngine({ ctx, materials: dependencies.deepTargetResolver!,
+          ...(dependencies.deepBackend ? { backend: dependencies.deepBackend } : {}) });
   const events: TaskEvent[] = [];
   for await (const event of engine.run(route, signal)) events.push(event);
-  const status = events.at(-1)?.type === "completed" ? "completed" : "failed";
+  const last = events.at(-1)?.type;
+  const status = last === "completed" ? "completed" : last === "failed" ? "failed" : "running";
   return Object.freeze({ status, executionAvailable: true, route, events: Object.freeze(events) });
+}
+
+function resumeRequest(value: unknown): { runId: string; routeFingerprint: string } {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new ServiceError("invalid_task_resume", "恢复请求必须是对象");
+  }
+  const raw = value as Record<string, unknown>;
+  if (Object.keys(raw).some((key) => key !== "runId" && key !== "routeFingerprint") ||
+      typeof raw.runId !== "string" || !/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(raw.runId) ||
+      typeof raw.routeFingerprint !== "string" || !/^[a-f0-9]{64}$/.test(raw.routeFingerprint)) {
+    throw new ServiceError("invalid_task_resume", "恢复请求缺少合法运行编号或路由指纹");
+  }
+  return { runId: raw.runId, routeFingerprint: raw.routeFingerprint };
+}
+
+/** 从已有六阶段运行账本生成当前统一事件快照；不重启、不复制状态机。 */
+export async function resumeUnifiedTask(ctx: ServiceContext, input: unknown, signal?: AbortSignal,
+  dependencies: Pick<TaskServiceDependencies, "deepBackend" | "deepTargetResolver"> = {}): Promise<UnifiedTaskResumeResult> {
+  if (signal?.aborted) throw new ServiceError("cancelled", "任务状态读取已取消");
+  const request = resumeRequest(input);
+  if (!dependencies.deepTargetResolver) throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");
+  const engine = new CodexDeepEngine({ ctx, materials: dependencies.deepTargetResolver,
+    ...(dependencies.deepBackend ? { backend: dependencies.deepBackend } : {}) });
+  const events: TaskEvent[] = [];
+  try {
+    for await (const event of engine.resume!(request, signal)) events.push(event);
+  } catch (error) {
+    if (error instanceof DeepExecutionError) throw new ServiceError(error.code, error.message);
+    throw error;
+  }
+  const last = events.at(-1)?.type;
+  const status = last === "completed" ? "completed" : last === "failed" ? "failed" : "running";
+  return Object.freeze({ status, events: Object.freeze(events) });
 }

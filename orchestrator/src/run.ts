@@ -84,9 +84,30 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   const repoRoot = str(args["repo-root"]) ?? repoRootFromHere();
   const pc = loadProductConfig(repoRoot, { userConfigPath: str(args.config), env, providerOverride: str(args.provider), authOverride: str(args.auth) });
   const d = pc.defaults;
+  const taskObjective = String(env.VRA_TASK_OBJECTIVE ?? "").trim();
+  if (taskObjective.length > 8_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(taskObjective)) {
+    throw new Error("VRA_TASK_OBJECTIVE 格式无效");
+  }
+  const reportIds = String(env.VRA_TASK_REPORT_IDS ?? "").split(",").map((id) => id.trim()).filter(Boolean);
+  if (reportIds.length > 16 || new Set(reportIds).size !== reportIds.length ||
+      reportIds.some((id) => !/^[0-9a-f]{32}$/.test(id))) throw new Error("VRA_TASK_REPORT_IDS 格式无效");
+  let reportRevisions: Record<string, string> = {};
+  try {
+    const parsed = JSON.parse(String(env.VRA_TASK_REPORT_REVISIONS ?? "{}")) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new TypeError("not object");
+    reportRevisions = { ...(parsed as Record<string, string>) };
+  } catch { throw new Error("VRA_TASK_REPORT_REVISIONS 格式无效"); }
+  if (Object.keys(reportRevisions).length !== reportIds.length ||
+      reportIds.some((id) => !Object.hasOwn(reportRevisions, id) || !/^[a-f0-9]{64}$/.test(String(reportRevisions[id] ?? ""))) ||
+      Object.keys(reportRevisions).some((id) => !reportIds.includes(id))) {
+    throw new Error("VRA_TASK_REPORT_REVISIONS 格式无效");
+  }
   const cfg = makeConfig({
     symbol: str(args.symbol)!,
     companyName: str(args["company-name"]),
+    ...(taskObjective ? { taskObjective } : {}),
+    ...(reportIds.length ? { reportIds } : {}),
+    ...(reportIds.length ? { reportRevisions } : {}),
     market: str(args.market) ?? "",
     repoRoot,
     dataRoot: pc.resolved.dataRoot,

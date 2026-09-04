@@ -24,6 +24,8 @@ export class ReportTaskMaterials implements TaskMaterialResolver, QuickMaterialL
   constructor(dataRoot: string) { this.#dataRoot = dataRoot; }
 
   async resolve(_task: ResearchTask, ref: TaskInputRef): Promise<MaterialResolutionEntry> {
+    if (ref.kind === "entity") return Object.freeze({ ...ref, status: "ready" as const,
+      revision: `entity-v1-${revisionOf(ref.id)}`, contentMode: "non_text" as const, contentChars: 0 });
     if (ref.kind !== "report" && ref.kind !== "document") return { ...ref, status: "missing" };
     const found = reportText(this.#dataRoot, ref.id);
     if (!found) return { ...ref, status: "missing" };
@@ -42,6 +44,7 @@ export class ReportTaskMaterials implements TaskMaterialResolver, QuickMaterialL
     return Object.freeze({ kind: expected.kind, id: expected.id, revision: expected.revision!,
       title: found.record.name, excerpts: splitQuickPassages(found.text) });
   }
+
 }
 
 /** 按原文边界确定性分段；只裁外侧空白，不让模型自己截句。 */

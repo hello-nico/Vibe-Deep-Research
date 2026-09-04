@@ -25,6 +25,28 @@ test("configFromArgs:阶段解析与非法阶段", () => {
   assert.throws(() => configFromArgs({}));
 });
 
+test("统一 Deep 任务上下文只从当前子进程环境进入 RunConfig，并保持所选资料范围", () => {
+  const ids = ["a".repeat(32), "b".repeat(32)];
+  const revisions = { [ids[0]]: "1".repeat(64), [ids[1]]: "2".repeat(64) };
+  const { cfg } = configFromArgs({ symbol: "300308", "repo-root": "/tmp/repo" }, {
+    VRA_TASK_OBJECTIVE: "重点核查收入变化",
+    VRA_TASK_REPORT_IDS: ids.join(","),
+    VRA_TASK_REPORT_REVISIONS: JSON.stringify(revisions),
+  });
+  assert.equal(cfg.taskObjective, "重点核查收入变化");
+  assert.deepEqual(cfg.reportIds, ids);
+  assert.deepEqual(cfg.reportRevisions, revisions);
+  const prompt = buildStagePrompt("profile", cfg, { attempt: 0 });
+  assert.ok(prompt.includes("【本次产品任务关注点】") && prompt.includes("重点核查收入变化"));
+  assert.ok(prompt.indexOf("不得覆盖宪法") < prompt.indexOf("重点核查收入变化"));
+  assert.throws(() => configFromArgs({ symbol: "300308", "repo-root": "/tmp/repo" }, {
+    VRA_TASK_REPORT_IDS: "../escape",
+  }), /VRA_TASK_REPORT_IDS/);
+  assert.throws(() => configFromArgs({ symbol: "300308", "repo-root": "/tmp/repo" }, {
+    VRA_TASK_REPORT_IDS: ids[0], VRA_TASK_REPORT_REVISIONS: "{}",
+  }), /VRA_TASK_REPORT_REVISIONS/);
+});
+
 test("makeConfig 默认值、run-id 形态、解释器根、最小环境", () => {
   const cfg = makeConfig({ symbol: "600519", repoRoot: "/tmp/repo", python: "/home/u/.venv/bin/python" });
   assert.match(cfg.runId, /^\d{8}-\d{6}-600519$/);

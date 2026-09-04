@@ -68,7 +68,7 @@ export function friendlyAgentError(error: unknown): string {
 }
 
 const isAgentPath = (path: string): boolean =>
-  path === "/chat" || path === "/tasks" || path === "/llm-probe" || path === "/translate-headlines" || path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
+  path === "/chat" || path.startsWith("/tasks") || path === "/llm-probe" || path === "/translate-headlines" || path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
 
 export type TaskMode = "auto" | "quick" | "deep";
 export type TaskRouteTarget = "deterministic" | "quick" | "deep";
@@ -76,13 +76,13 @@ export type TaskRouteTarget = "deterministic" | "quick" | "deep";
 export interface ResearchTaskRequest {
   schemaVersion: 1;
   id: string;
-  kind: "locate_passages";
+  kind: "locate_passages" | "deep_research";
   requestedMode: TaskMode;
   objective: string;
-  evidenceScope: "existing";
-  workflow: "single_step";
-  inputRefs: { kind: "report"; id: string }[];
-  outputFormat: "text";
+  evidenceScope: "existing" | "open_discovery";
+  workflow: "single_step" | "multi_step";
+  inputRefs: { kind: "report" | "entity"; id: string }[];
+  outputFormat: "text" | "document";
   operation: null;
 }
 
@@ -104,7 +104,7 @@ export interface UnifiedTaskEvent {
 }
 
 export interface UnifiedTaskResult {
-  status: "routed" | "completed" | "failed";
+  status: "routed" | "running" | "completed" | "failed";
   executionAvailable: boolean;
   route: TaskRouteDecision;
   events: UnifiedTaskEvent[];
@@ -259,6 +259,11 @@ export const backend = {
       signal,
     });
   },
+
+  resumeTask: (runId: string, routeFingerprint: string, signal?: AbortSignal) =>
+    call<{ status: "running" | "completed" | "failed"; events: UnifiedTaskEvent[] }>("/tasks/resume", {
+      method: "POST", body: JSON.stringify({ runId, routeFingerprint }), signal,
+    }),
 
   /**
    * 取一个端点。**默认读上次的快照**(见 service.fetchEndpoint):

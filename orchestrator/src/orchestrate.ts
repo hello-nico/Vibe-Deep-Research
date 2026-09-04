@@ -27,7 +27,7 @@ import { currentPlugin } from "./plugin.ts";
 import { rawHashes, writeConflicts, writeManifest, writeMergedArtifacts, type Manifest, type StageRecord } from "./merge.ts";
 import type { AgentRunner } from "./runner.ts";
 import { turnReplySchema, validateManifest } from "./schemas.ts";
-import { reportsForSymbol } from "./report_library.ts";
+import { reportContext, reportsForSymbol, type ReportContext } from "./report_library.ts";
 import { allCriticalFetchFailed, checkAgentTrace, deriveQuoteDecision, deriveStageStatus, loadRun, summarizeErrorsForAgent, validateFetchIntegrity, validateFinalArtifacts, validateProtectedArtifacts, validateReport, validateStage, type AgentTrace, type CalcVerifier, type ProtectedExpectation, type ValidationResult, isUpstreamContractError } from "./validator.ts";
 
 export interface Deps {
@@ -253,7 +253,7 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   // M2 知识层召回:只在未由 scenario 注入且开启时;注入文本进全阶段提示词,由 knowledge_conflicts 裁决
   if (shouldRecall(cfg)) {
     const k = recallKnowledge(cfg);
-    const reports = reportsForSymbol(cfg.dataRoot, cfg.symbol, { maxChars: 10_000, companyName: cfg.companyName });
+    const reports = researchReportContext(cfg);
     manifest.user_reports = reports?.hits.map((x) => ({ id: x.id, name: x.name, page: x.page })) ?? [];
     if (k || reports) {
       const reportText = reports ? `\n\n## 用户资料库命中（上传时间不是资料期）\n${reports.text}` : "";
@@ -267,7 +267,11 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
     } else { manifest.knowledge_recalled = null; runner.log("orchestrator", "knowledge.none", { dir: path.join(cfg.dataRoot, "knowledge") }); }
   } else manifest.knowledge_recalled = null;
   persistManifest();
-  runner.log("orchestrator", "run.start", { config: { ...cfg, endpoints: Object.keys(cfg.endpoints).length }, codex_version: sdk.version, codex_binary: sdk.binary, calc_version: calcVersion, repo_version: repoVersion, stages: stagesToRun });
+  const loggedConfig: Record<string, unknown> = { ...cfg, endpoints: Object.keys(cfg.endpoints).length };
+  delete loggedConfig.taskObjective;
+  delete loggedConfig.reportIds;
+  delete loggedConfig.reportRevisions;
+  runner.log("orchestrator", "run.start", { config: loggedConfig, codex_version: sdk.version, codex_binary: sdk.binary, calc_version: calcVersion, repo_version: repoVersion, stages: stagesToRun });
   // 领域事件(v2.1 §5 ④,供 API / UI 消费):research.started / stage.completed / gate.failed / report.ready / research.finished
   runner.log("orchestrator", "research.started", { run_id: cfg.runId, symbol: cfg.symbol, market: cfg.market, stages: stagesToRun, run_dir: cfg.runDir });
 
@@ -497,4 +501,16 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   runner.log("orchestrator", "run.done", { status, exit_code: manifest.exit_code, evidence: merged.evidence.length, calculations: merged.calcs.length, conflicts: manifest.evidence_conflicts.length });
   console.error(`[orchestrator] done status=${status} exit=${manifest.exit_code} evidence=${merged.evidence.length} calcs=${merged.calcs.length} conflicts=${manifest.evidence_conflicts.length}`);
   return { status, exitCode: manifest.exit_code, manifest };
+}
+
+/** Deep 任务圈选了资料时只使用这份白名单；旧研究入口仍沿用按对象召回。 */
+export function researchReportContext(cfg: Pick<RunConfig, "dataRoot" | "symbol" | "companyName" | "taskObjective" | "reportIds" | "reportRevisions">): ReportContext | null {
+  return cfg.reportIds?.length
+    ? reportContext(cfg.dataRoot, cfg.taskObjective ?? cfg.symbol, {
+        // Deep 最多允许 16 份；单份检索片段上限约 1,780 字，40K 足以让每份至少进入一个片段。
+        // 不能沿用普通对话的 10K，否则明确圈选的后几份会被静默截掉。
+        limit: Math.min(cfg.reportIds.length, 16), maxChars: 40_000, reportIds: cfg.reportIds, mustInclude: true,
+        expectedRevisions: cfg.reportRevisions,
+      })
+    : reportsForSymbol(cfg.dataRoot, cfg.symbol, { maxChars: 10_000, companyName: cfg.companyName });
 }

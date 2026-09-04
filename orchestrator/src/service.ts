@@ -148,7 +148,8 @@ export function redact(s: string, max = 300): string {
 export function researchEnv(ctx: Pick<ServiceContext, "providerEnvKey">, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of FETCH_ENV_KEYS) if (env[k] !== undefined) out[k] = env[k] as string;
-  for (const [k, v] of Object.entries(env)) if (k.startsWith("VRA_") && v !== undefined) out[k] = v;
+  const requestScoped = new Set(["VRA_TASK_OBJECTIVE", "VRA_TASK_REPORT_IDS", "VRA_TASK_REPORT_REVISIONS"]);
+  for (const [k, v] of Object.entries(env)) if (k.startsWith("VRA_") && !requestScoped.has(k) && v !== undefined) out[k] = v;
   if (ctx.providerEnvKey && env[ctx.providerEnvKey]) out[ctx.providerEnvKey] = env[ctx.providerEnvKey] as string;
   return out;
 }
@@ -377,6 +378,14 @@ function runFetchProcess(
 
 // ---------------- 研究运行 ----------------
 export interface StartResult { run_id: string; run_dir: string; log: string; pid: number | undefined }
+export interface ResearchTaskContext {
+  /** 统一任务层传入的本次研究关注点；只进当前子进程，不写公开启动参数。 */
+  taskObjective?: string;
+  /** Deep 只能召回用户明确圈选的资料，不能按同代码扩到整库。 */
+  reportIds?: readonly string[];
+  /** 与 reportIds 一一对应的路由时正文 sha256。 */
+  reportRevisions?: Readonly<Record<string, string>>;
+}
 
 /** 认不出的引擎名一律拒绝 —— 静默落回默认会让用户以为在用自己选的那个,而产出与账单来自另一个 */
 function assertEngine(v: unknown): "codex" | "direct" | undefined {
@@ -385,7 +394,7 @@ function assertEngine(v: unknown): "codex" | "direct" | undefined {
   throw new ServiceError("bad_engine", `engine 只能是 codex 或 direct,收到 ${show(String(v))}`);
 }
 
-export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean; engine?: "codex" | "direct" }): StartResult {
+export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean; engine?: "codex" | "direct" }, internal: ResearchTaskContext = {}): StartResult {
   const symbol = assertSymbol(req.symbol, "cn6");
   const market = assertMarket(req.market);
   const companyName = typeof req.company_name === "string" ? req.company_name.trim() : "";
@@ -423,8 +432,27 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
   // 引擎:不传就沿用 run.ts 的默认(codex)。传了就必须是认得出的那两个之一,乱值当场拒。
   const engine = assertEngine(req.engine);
   if (engine) argv.push("--engine", engine);
+  const taskObjective = String(internal.taskObjective ?? "").trim();
+  if (taskObjective.length > 8_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(taskObjective)) {
+    throw new ServiceError("invalid_task_context", "Deep 任务关注点格式无效");
+  }
+  const reportIds = internal.reportIds === undefined ? [] : [...internal.reportIds];
+  if (reportIds.length > 16 || new Set(reportIds).size !== reportIds.length ||
+      reportIds.some((id) => !/^[0-9a-f]{32}$/.test(id))) {
+    throw new ServiceError("invalid_task_context", "Deep 圈选资料范围无效");
+  }
+  const reportRevisions = internal.reportRevisions === undefined ? {} : { ...internal.reportRevisions };
+  if (Object.keys(reportRevisions).length !== reportIds.length ||
+      reportIds.some((id) => !Object.hasOwn(reportRevisions, id) || !/^[a-f0-9]{64}$/.test(String(reportRevisions[id] ?? ""))) ||
+      Object.keys(reportRevisions).some((id) => !reportIds.includes(id))) {
+    throw new ServiceError("invalid_task_context", "Deep 资料版本范围无效");
+  }
   const out = fs.openSync(log, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | NOFOLLOW_FLAG, 0o600);
-  const child = spawn(ctx.node, argv, { cwd: ctx.repoRoot, detached: true, windowsHide: true, stdio: ["ignore", out, out], env: researchEnv(ctx) });
+  const childEnv = researchEnv(ctx);
+  if (taskObjective) childEnv.VRA_TASK_OBJECTIVE = taskObjective;
+  if (reportIds.length) childEnv.VRA_TASK_REPORT_IDS = reportIds.join(",");
+  if (reportIds.length) childEnv.VRA_TASK_REPORT_REVISIONS = JSON.stringify(reportRevisions);
+  const child = spawn(ctx.node, argv, { cwd: ctx.repoRoot, detached: true, windowsHide: true, stdio: ["ignore", out, out], env: childEnv });
   child.unref();
   fs.closeSync(out);
   return { run_id: runId, run_dir: rel(ctx, runDir), log: rel(ctx, log), pid: child.pid };

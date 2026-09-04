@@ -69,11 +69,34 @@ test("runTask 的 Quick 配置直接发给统一任务入口，不预检本地�
   } finally { globalThis.fetch = oldFetch; }
 });
 
-test("我的研报展示 Auto / Quick / Deep、路由理由与 M2 Deep 未执行边界", () => {
+test("resumeTask 只按运行编号与路由指纹读取 Deep 状态，不发送 engine", async () => {
+  const oldFetch = globalThis.fetch;
+  let url = "";
+  let body: Record<string, unknown> = {};
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    url = String(input);
+    body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+    return new Response(JSON.stringify({ status: "running", events: [] }), {
+      status: 200, headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  try {
+    await backend.resumeTask("task-run-1", "b".repeat(64));
+    assert.equal(url, "/api/tasks/resume");
+    assert.deepEqual(body, { runId: "task-run-1", routeFingerprint: "b".repeat(64) });
+    assert.equal("engine" in body, false);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test("我的研报展示 Auto / Quick / Deep，并由统一入口启动与恢复六阶段 Deep", () => {
   assert.match(page, /auto: "Auto", quick: "Quick", deep: "Deep"/);
   assert.match(page, /routeDecision\.reason/);
-  assert.match(page, /Deep 执行器将在 M3 接入/);
-  assert.match(page, /本次只完成路由判断，未启动长流程/);
+  assert.match(page, /Deep 六阶段研究一次只处理一个 A 股标的/);
+  assert.match(page, /DEEP_REPORT_LIMIT = 16/);
+  assert.match(page, /系统判断需要 Deep，但 Deep 一次最多使用/);
+  assert.match(page, /kind: isDeep \? "deep_research"/);
+  assert.match(page, /backend\.resumeTask\(/);
+  assert.match(page, /Deep 六阶段研究已完成/);
   assert.match(page, /backend\.routeTask\(task/);
   assert.match(page, /backend\.runTask\(task/);
   assert.doesNotMatch(page, /backend\.startResearch/);
