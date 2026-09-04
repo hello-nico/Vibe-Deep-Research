@@ -14,6 +14,11 @@ export interface FetchEnvelope {
   symbol: string;
   market: string;
   status: "ok" | "partial" | "failed";
+  /**
+   * 取数时刻(ISO)。**Schema 里是 required**,却一直没写进这个接口 ——
+   * 于是它在磁盘上必须存在,在代码里却没有类型提示、写漏了也没人拦(键集棘轮抓出来的)。
+   */
+  fetched_at: string;
   primary_source?: string | null;
   used_sources: string[];
   evidence: EvidenceItem[];
