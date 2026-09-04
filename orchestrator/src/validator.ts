@@ -320,7 +320,13 @@ export function validateStage(stage: Stage, run: RunView): ValidationResult {
   for (const c of run.calcs) {
     if (!c.record) { errors.push(`${path.basename(c.file)} 不是合法 JSON`); continue; }
     const ce = validateCalcRecord(c.record);
-    if (ce.length) errors.push(`${path.basename(c.file)} 不符 calculation 契约:${ce.slice(0, 3).join("; ")}`);
+    // 🔴 不合契约就**到此为止**,不能继续拿它当计算记录用。
+    //    少了这个 continue,下面 `c.record.output.status` 会对畸形记录抛 TypeError,
+    //    于是整次运行崩在 validator 里、只留一句 "Cannot read properties of undefined" ——
+    //    而真正的问题(某个 calc 文件根本不是计算记录)一个字都没说。
+    //    2026-09-04 真踩:模型把 `calculate` 的 function 传成 "list",cli 打印的是函数清单
+    //    (合法 JSON、退出码 0),文件照写,validator 一读就崩。与用哪个引擎无关。
+    if (ce.length) { errors.push(`${path.basename(c.file)} 不符 calculation 契约:${ce.slice(0, 3).join("; ")}`); continue; }
     for (const r of c.record.inputs_refs ?? []) {
       if (r.ref_type === "evidence" && !run.evidenceIds.has(r.ref_id)) errors.push(`${path.basename(c.file)} 引用了不存在的 evidence ${r.ref_id}`);
       if (r.ref_type === "calculation" && !run.calcIds.has(r.ref_id)) errors.push(`${path.basename(c.file)} 引用了不存在的 calculation ${r.ref_id}`);

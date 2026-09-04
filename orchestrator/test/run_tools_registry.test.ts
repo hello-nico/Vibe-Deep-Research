@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -20,6 +21,8 @@ import { RUN_TOOLS, RunToolsError, callRunTool, runToolsAsFunctionSpecs, type Ru
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MCP_ENTRY = path.join(HERE, "..", "src", "finance", "run_tools_mcp.ts");
+/** 产品根:calc/cli.py 在它下面 */
+const REPO = path.resolve(HERE, "..", "..");
 
 /** 不碰磁盘:参数校验发生在触碰文件系统之前 */
 const fakeCtx: RunToolsContext = { runDir: path.join(HERE, "__no_such_run__"), repoRoot: HERE, python: "python3" };
@@ -67,6 +70,28 @@ test("callRunTool 按 registry 的 schema 校验参数(谁也别想绕开这次�
   // 参数合法则放行到实现层(这里因为路径不在白名单里被实现层拒 —— 说明确实走过了 schema 这一关)
   assert.throws(() => callRunTool(fakeCtx, "read_run_file", { path: "../../etc/passwd" }),
     (e: unknown) => e instanceof RunToolsError && e.code === "path_not_allowed");
+});
+
+test("🔴 calculate 的 function=list 要被拒,并把可用函数清单告诉模型", () => {
+  // 2026-09-04 真踩:模型想知道有哪些计算函数,就把 function 传成了 "list"。
+  // calc/cli.py 对 list 打印的是**函数清单**(合法 JSON、退出码 0),于是那份"不是计算记录"的
+  // 东西被写进 calcs/,validator 读到它直接崩。模型的意图是正当的,缺口在我们这边 ——
+  // 所以不是简单拒绝,而是**把清单给它**,只是不写盘。
+  const runDir = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "vra-calclist-"));
+  fs.mkdirSync(path.join(runDir, ".vibe"), { recursive: true });
+  fs.writeFileSync(path.join(runDir, ".vibe", "hook-context.json"), JSON.stringify({
+    stage: "profile", attempt: 1, run_id: "t", repo_root: REPO, data_root: runDir, run_dir: runDir,
+    python: "python3", scripts_rel: "scripts", forbidden_path_patterns: [], allowed_path_prefixes: [], written_at: new Date().toISOString(),
+  }));
+  try {
+    const ctx = { runDir, repoRoot: REPO, python: process.env.VRA_PYTHON ?? "python3" };
+    assert.throws(
+      () => callRunTool(ctx, "calculate", { function: "list", args: {}, output_file: "00_list.json" }),
+      (e: unknown) => e instanceof RunToolsError && e.code === "not_a_calculation" && /可用的计算函数/.test(e.message),
+      "list 不是计算函数,必须拒绝并给出可用清单");
+    assert.ok(!fs.existsSync(path.join(runDir, "calcs", "00_list.json")),
+      "被拒的调用不许留下文件 —— 那份文件正是让 validator 崩掉的元凶");
+  } finally { fs.rmSync(runDir, { recursive: true, force: true }); }
 });
 
 test("工具集稳定:名字唯一,且只有这五件事", () => {

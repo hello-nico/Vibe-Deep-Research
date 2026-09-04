@@ -517,3 +517,22 @@ test("🔴 取数层的契约违约要能被认出来 —— agent 改不了它,
     assert.ok(!isUpstreamContractError(e), `不该判成取数层:${e}`);
   }
 });
+
+test("🔴 calc 文件不是计算记录时:报清楚的错,而不是崩在 validator 里", () => {
+  const d = tmpRun();
+  // 2026-09-04 真踩:模型把 calculate 的 function 传成 "list",calc/cli.py 打印的是**函数清单**
+  // (合法 JSON、退出码 0),文件照写。validator 读到它、访问 record.output.status → TypeError,
+  // 整次运行崩掉,只留一句 "Cannot read properties of undefined" —— 真正的问题一个字都没说。
+  // 与用哪个引擎无关:任何写出畸形 calc 的 agent 都会触发。
+  writeJson(path.join(d, "calcs", "00_list.json"), { calc_version: "0.3.2", functions: { forward_pe: "远期市盈率" } });
+  // 阶段产物要在,否则 validateStage 在"缺少 stages/xxx.json"就早退,根本走不到 calc 循环
+  writeJson(path.join(d, "stages", "profile.json"), {
+    stage: "profile", status: "complete", summary: "s", evidence_ids: [], calculation_ids: [], gaps: [],
+    quote_decision: "normal", quote_decision_reason: "r", moat_tag: "待补",
+  });
+  let r: ReturnType<typeof validateStage>;
+  assert.doesNotThrow(() => { r = validateStage("profile", loadRun(d)); }, "畸形 calc 记录不该让 validator 抛异常");
+  const joined = r!.errors.join(" | ");
+  assert.match(joined, /00_list\.json/, "错误里必须点名是哪个文件");
+  assert.match(joined, /calculation 契约/, "要说清是不符计算记录契约,而不是别的什么毛病");
+});

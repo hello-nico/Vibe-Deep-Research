@@ -102,6 +102,22 @@ export function runCalculation(ctx: RunToolsContext, input: {
 }): Record<string, unknown> {
   const stage = currentStage(ctx);
   if (!CALC_FUNCTION_RE.test(input.function)) throw new RunToolsError("bad_function", "计算函数名格式非法");
+  // 🔴 `list` 是计算器的**元命令**,不是计算函数:它打印函数清单(合法 JSON、退出码 0),
+  //    照写进 calcs/ 就是一份没有 output 字段的假记录,validator 读到它会当场崩。
+  //    ⇒ 拒绝写盘,但**把清单给模型** —— 它想知道有哪些函数是正当需求,尤其在拿不到
+  //      方法论说明的通道里(2026-09-04 真踩:模型正是这么试探的)。
+  if (input.function === "list") {
+    let available = "(清单获取失败)";
+    try {
+      const probe = spawnSync(ctx.python, [path.join(ctx.repoRoot, "calc", "cli.py"), "list"],
+        { cwd: ctx.runDir, encoding: "utf8", timeout: 30_000, maxBuffer: 2 * 1024 * 1024, windowsHide: true });
+      const fns = (JSON.parse(probe.stdout || "{}") as { functions?: Record<string, string> }).functions;
+      if (fns) available = Object.keys(fns).join(", ");
+    } catch { /* 拿不到就如实说拿不到,不编 */ }
+    throw new RunToolsError("not_a_calculation",
+      `list 是计算器的元命令,不产生计算记录,因此不会写入 calcs/。可用的计算函数:${available}。` +
+      "请改用其中一个具体函数,并给出它需要的 args 与 evidence_ids。");
+  }
   if (!CALC_FILE_RE.test(input.output_file)) throw new RunToolsError("bad_output_file", "output_file 必须形如 NN_name.json(两位数字 + 下划线 + 小写标识符)");
   const calcDir = path.join(ctx.runDir, "calcs");
   fs.mkdirSync(calcDir, { recursive: true });
