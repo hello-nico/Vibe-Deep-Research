@@ -16,6 +16,8 @@
  *    这不是省事:providers/deepseek.json 自己写着无状态、忽略 previous_response_id、超上下文直接 400,
  *    长线程在那类 provider 上根本不成立;而磁盘产物本来就是 validator 校验的那份真理源。
  */
+import path from "node:path";
+
 import { nowIso } from "../fsutil.ts";
 import { withOutputSchema, type DirectCapability } from "../providers.ts";
 import { RUN_TOOLS, RunToolsError, callRunTool, runToolsAsFunctionSpecs, type RunToolsContext } from "../run_tools.ts";
@@ -128,20 +130,22 @@ export class DirectStageAgent implements AgentRunner {
 
     this.log(stage, "direct.turn_start", { attempt, model, structured_output: capability.structuredOutput, max_tool_rounds: maxRounds });
 
-    for (let round = 1; round <= maxRounds + 1; round += 1) {
-      // 最后一轮:禁用工具,逼它用现有材料收尾(否则整个 turn 颗粒无收)
-      const lastCall = round === maxRounds + 1;
-      if (lastCall) {
-        messages.push({ role: "user", content: "工具调用轮数已达上限。请**不要再调用工具**，用现在已有的材料给出最终回复。" });
-        this.log(stage, "direct.tool_rounds_exhausted", { attempt, rounds: maxRounds });
-      }
+    /** 工具循环是否已自然结束(模型不再要工具);false = 撞了轮数上限 */
+    let settled = false;
 
+    // ⚠️ **工具循环期间绝不带 response_format**。
+    //    实测(2026-09-04,MiMo):`response_format=json_schema` 与 `tools` 同时给,
+    //    模型会**直接输出那个 JSON、一个工具都不调** —— 5 秒收工、零工具调用、
+    //    阶段产物根本没写,而 finish_reason 还是正正经经的 "stop"。
+    //    强制结构化输出的语义就是"立刻产出这个结构",它和"先干活再汇报"天然冲突。
+    //    ⇒ 干活的时候只给工具;要格式化的汇报,等干完再单独要一轮(见下面的 finalize)。
+    //    Codex 路径没这个问题:outputSchema 由引擎在 turn 层面处理。
+    for (let round = 1; round <= maxRounds; round += 1) {
       let reply;
       try {
         reply = await chatCompletion({
           baseURL: capability.baseURL ?? "", apiKey, model, messages,
-          tools: lastCall ? undefined : toolSpecs,
-          responseFormat,
+          tools: toolSpecs,
           timeoutMs: this.opts.requestTimeoutMs,
           signal: this.opts.signal,
         });
@@ -158,9 +162,9 @@ export class DirectStageAgent implements AgentRunner {
       const calls = reply.message.tool_calls ?? [];
       this.log(stage, "direct.model_reply", { attempt, round, finish_reason: reply.finishReason, tool_calls: calls.length, duration_ms: reply.durationMs });
 
-      if (calls.length === 0 || lastCall) {
+      if (calls.length === 0) {
+        settled = true;
         finalResponse = reply.message.content ?? "";
-        if (!finalResponse.trim()) failed = "模型给出了空回复";
         break;
       }
 
@@ -180,7 +184,7 @@ export class DirectStageAgent implements AgentRunner {
           // fileChanges 只收**agent 产物**(calcs / stages / report.md)。
           // ⚠️ 不要把工具内部簿记(.vibe/calc-owners.json)算进来 —— validator 会把它判成
           //    "改写了受保护的编排产物",于是每次计算都变成违规。
-          for (const rel of writtenPathsOf(name, args, value)) if (!fileChanges.includes(rel)) fileChanges.push(rel);
+          for (const abs of writtenPathsOf(this.opts.toolCtx.runDir, name, args, value)) if (!fileChanges.includes(abs)) fileChanges.push(abs);
           this.log(stage, "direct.tool_ok", { attempt, round, tool: name });
           messages.push({ role: "tool", tool_call_id: call.id, content: toolResultText(value) });
         } catch (e) {
@@ -193,6 +197,39 @@ export class DirectStageAgent implements AgentRunner {
       }
     }
 
+    // ── 收尾:要一份规定格式的汇报 ──
+    // 两种情况需要单独再要一轮:
+    //  ① 服务端 schema 模式 —— 干活那几轮刻意没带 response_format,汇报格式还没约束过;
+    //  ② 撞了轮数上限 —— 模型还想继续调工具,得叫停并让它用现有材料收尾,否则整个 turn 颗粒无收。
+    // (提示词模式下若模型已自然收尾,它的回复本身就该是那个 JSON,不必多花一次调用。)
+    const needFinalize = !failed && (responseFormat ? true : !settled);
+    if (needFinalize) {
+      if (!settled) this.log(stage, "direct.tool_rounds_exhausted", { attempt, rounds: maxRounds });
+      messages.push({
+        role: "user",
+        content: settled
+          ? "现在请**不要再调用工具**，只用规定的 JSON 格式汇报本轮结果。"
+          : "工具调用轮数已达上限。请**不要再调用工具**，用现在已有的材料，按规定的 JSON 格式汇报本轮结果。",
+      });
+      try {
+        const reply = await chatCompletion({
+          baseURL: capability.baseURL ?? "", apiKey, model, messages,
+          responseFormat,   // 此时没有 tools,强制结构化才不会挤掉工具调用
+          timeoutMs: this.opts.requestTimeoutMs,
+          signal: this.opts.signal,
+        });
+        itemCount += 1;
+        usage = mergeUsage(usage, reply.usage);
+        finalResponse = reply.message.content ?? "";
+        this.log(stage, "direct.finalized", { attempt, finish_reason: reply.finishReason, duration_ms: reply.durationMs, after_tool_rounds: settled ? "settled" : "exhausted" });
+      } catch (e) {
+        const err = e instanceof DirectTransportError ? e : null;
+        failed = err ? `${err.code}: ${err.message}` : (e instanceof Error ? e.message : String(e));
+        this.log(stage, "direct.finalize_failed", { attempt, code: err?.code ?? "unknown", message: failed });
+      }
+    }
+    if (!failed && !finalResponse.trim()) failed = "模型给出了空回复";
+
     const durationMs = Date.now() - t0;
     this.log(stage, "direct.turn_end", { attempt, item_count: itemCount, file_changes: fileChanges.length, duration_ms: durationMs, failed });
     return { finalResponse, usage, commands, fileChanges, itemCount, durationMs, failed, threadId: null };
@@ -200,15 +237,24 @@ export class DirectStageAgent implements AgentRunner {
 }
 
 /**
- * 从工具调用推出**它写了哪些 agent 产物**(相对运行目录)。
+ * 从工具调用推出**它写了哪些 agent 产物**,返回**绝对路径**。
  * 只认 registry 里那几个写类工具;读类工具不产生变更。
+ *
+ * 🔴 **必须是绝对路径**。validator 用 `path.resolve(f)` 判越界,而 `path.resolve` 是相对
+ *    **当前工作目录**解析的 —— 给它相对路径 `stages/profile.json`,会被解析成 `<cwd>/stages/profile.json`,
+ *    于是**合法产物被判成"写入了运行目录之外的文件"**,阶段直接失败。
+ *    (2026-09-04 真踩:单元测试全绿,只有真跑一次才暴露 —— 单测只断言了本函数的返回值,
+ *     没测它与 validator 之间的接口契约。)
  */
-export function writtenPathsOf(name: string, args: unknown, value: unknown): string[] {
+export function writtenPathsOf(runDir: string, name: string, args: unknown, value: unknown): string[] {
   const a = (args ?? {}) as Record<string, unknown>;
   const v = (value ?? {}) as Record<string, unknown>;
-  if (name === "calculate") return typeof a.output_file === "string" ? [`calcs/${a.output_file}`] : [];
-  if (name === "write_stage") return typeof v.written === "string" ? [v.written] : [];
-  if (name === "write_report") return Array.isArray(v.written) ? (v.written as unknown[]).filter((x): x is string => typeof x === "string") : [];
+  const abs = (rel: string) => path.resolve(runDir, ...rel.split("/"));
+  if (name === "calculate") return typeof a.output_file === "string" ? [abs(`calcs/${a.output_file}`)] : [];
+  if (name === "write_stage") return typeof v.written === "string" ? [abs(v.written)] : [];
+  if (name === "write_report") {
+    return Array.isArray(v.written) ? (v.written as unknown[]).filter((x): x is string => typeof x === "string").map(abs) : [];
+  }
   return [];
 }
 

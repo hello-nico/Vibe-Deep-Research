@@ -8,7 +8,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
-import { stages as packStages, STATUS_PRIORITY, type RunConfig, type RunStatus, type Stage, gateProbeLine } from "./config.ts";
+import { stages as packStages, STATUS_PRIORITY, needsTurnContext, type RunConfig, type RunStatus, type Stage, gateProbeLine } from "./config.ts";
 import { ledgerSummary, loadLedgerFromDisk, type FetchExecutor, type Ledger } from "./fetchrun.ts";
 import { PLAN_REL, planFileOf } from "./registry.ts";
 import { archiveRun, recallKnowledge, shouldRecall } from "./knowledge.ts";
@@ -232,8 +232,9 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   manifest.engine.capabilities = lifecycle.capabilities;
   if (!cfg.noAgent) lifecycle.prepare(lifecycleCtx);
   const hookCtx = (stage: Stage, attempt: number) => {
-    // Windows 受控 MCP 也复用这份逐 turn 上下文；它不执行 hook，只用 stage/attempt 约束工具写入范围。
-    if (!cfg.hooksEnabled && cfg.executionMode !== "controlled_mcp") return;
+    // 受控工具(Windows 的 MCP 链路、直连引擎)都复用这份逐 turn 上下文;它们不执行 hook,
+    // 只用 stage/attempt 判当前阶段、约束写入范围。判据见 config.ts 的 needsTurnContext。
+    if (!needsTurnContext(cfg)) return;
     lifecycle.beforeTurn(lifecycleCtx, stage, attempt);
     if (cfg.scenario?.hook_fault === "context_missing" && stage === (cfg.scenario.probe_stage ?? "profile")) {
       // 故障注入:本阶段不写钩子上下文 → 钩子应放行但出声(hooks.log error),编排器 validator 兜底

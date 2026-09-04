@@ -145,6 +145,47 @@ test("轮数用尽:最后一次请求**不带工具**,逼模型用现有材料�
   } finally { await ep.close(); fs.rmSync(runDir, { recursive: true, force: true }); }
 });
 
+test("🔴 服务端 schema 模式:干活的几轮**不许带 response_format**,只在收尾那轮带", async () => {
+  const runDir = makeRunDir();
+  const ep = await scriptedEndpoint([
+    toolCallReply("list_run_files", "{}"),
+    textReply("材料够了"),                                   // 模型自然收尾
+    textReply('{"stage_file_written":true,"status":"complete","notes":"ok"}'),   // 收尾轮的格式化汇报
+  ]);
+  try {
+    const agent = new DirectStageAgent({
+      runId: "t1", toolCtx: { runDir, repoRoot: runDir, python: "python3" },
+      capability: { ...directCapabilityOf(null), supported: true, unverified: false, baseURL: ep.baseURL, structuredOutput: "server_schema", model: "m", reason: "test" },
+      apiKey: "sk-test-abcdefghijklmnop", model: "m",
+      eventsPath: path.join(runDir, "events.jsonl"), requestTimeoutMs: 5_000,
+    });
+    const out = await agent.runTurn(STAGE, 1, "p", { type: "object", properties: { status: { type: "string" } } });
+
+    // 实测过的坑:response_format 与 tools 同时给,模型会直接吐 JSON、一个工具都不调,
+    // 5 秒收工、阶段产物没写,而 finish_reason 还是 "stop"(看起来一切正常)。
+    assert.equal(ep.seen[0].response_format, undefined, "第 1 轮(要调工具)不许带 response_format");
+    assert.ok(ep.seen[0].tools, "第 1 轮必须带工具");
+    assert.equal(ep.seen[1].response_format, undefined, "工具循环中的每一轮都不许带");
+    // 收尾轮:带 schema、不带工具
+    assert.ok(ep.seen[2].response_format, "收尾轮必须带 response_format,否则汇报格式没有任何约束");
+    assert.equal(ep.seen[2].tools, undefined, "收尾轮不许再带工具");
+    assert.equal(out.failed, null);
+    assert.match(out.finalResponse, /stage_file_written/, "最终回复应当是收尾轮那份格式化汇报");
+  } finally { await ep.close(); fs.rmSync(runDir, { recursive: true, force: true }); }
+});
+
+test("提示词模式下模型已自然收尾:不再多花一次调用(schema 本就写在提示词里)", async () => {
+  const runDir = makeRunDir();
+  const ep = await scriptedEndpoint([textReply('{"stage_file_written":false,"status":"skipped","notes":"n"}')]);
+  try {
+    // capability.structuredOutput = "prompt" → withOutputSchema 把 schema 写进提示词
+    const out = await makeAgent(runDir, ep.baseURL).runTurn(STAGE, 1, "p", { type: "object" });
+    assert.equal(ep.seen.length, 1, "提示词模式 + 自然收尾 = 一次调用就够,不该再补一轮");
+    assert.match(String((ep.seen[0].messages as { content: string }[])[0].content), /JSON Schema/, "schema 应当已写进提示词");
+    assert.equal(out.failed, null);
+  } finally { await ep.close(); fs.rmSync(runDir, { recursive: true, force: true }); }
+});
+
 test("端点失败:turn 判失败并带上原因,而不是抛异常炸穿编排器", async () => {
   const runDir = makeRunDir();
   const server = http.createServer((_q, s) => { s.writeHead(500); s.end('{"error":"boom"}'); });
@@ -183,16 +224,46 @@ test("事件流:关键节点都要落盘,且摘要随之变化(审计账本)", a
   } finally { await ep.close(); fs.rmSync(runDir, { recursive: true, force: true }); }
 });
 
-test("🔴 fileChanges 只收 agent 产物,绝不含工具的内部簿记", () => {
-  assert.deepEqual(writtenPathsOf("calculate", { output_file: "01_x.json" }, {}), ["calcs/01_x.json"]);
-  assert.deepEqual(writtenPathsOf("write_stage", {}, { written: "stages/profile.json" }), ["stages/profile.json"]);
-  assert.deepEqual(writtenPathsOf("write_report", {}, { written: ["report.md", "stages/report.json"] }), ["report.md", "stages/report.json"]);
-  assert.deepEqual(writtenPathsOf("list_run_files", {}, {}), [], "读类工具不产生变更");
+test("🔴 fileChanges 必须是绝对路径,且落在运行目录内(这是与 validator 的契约)", () => {
+  const runDir = "/tmp/some-run";
+  // validator 用 path.resolve(f) 判越界,而 path.resolve 是**相对当前工作目录**解析的。
+  // 给相对路径的话,`stages/profile.json` 会被解析成 <cwd>/stages/profile.json,
+  // 于是合法产物被判成"写入了运行目录之外的文件",阶段直接失败。
+  // 🔴 2026-09-04 真踩:9 条单元测试全绿,只有真跑一次才暴露 —— 当时单测只断言了本函数的
+  //    返回值长什么样,没断言它与 validator 之间的这条契约。
+  const cases = [
+    writtenPathsOf(runDir, "calculate", { output_file: "01_x.json" }, {}),
+    writtenPathsOf(runDir, "write_stage", {}, { written: "stages/profile.json" }),
+    writtenPathsOf(runDir, "write_report", {}, { written: ["report.md", "stages/report.json"] }),
+  ].flat();
+  assert.ok(cases.length >= 4, "样例太少,下面的断言会变成空转");
+  for (const p of cases) {
+    assert.ok(path.isAbsolute(p), `不是绝对路径:${p}`);
+    assert.ok(p === runDir || p.startsWith(runDir + path.sep), `落在运行目录之外:${p}`);
+  }
+  assert.deepEqual(writtenPathsOf(runDir, "calculate", { output_file: "01_x.json" }, {}), [path.join(runDir, "calcs", "01_x.json")]);
+  assert.deepEqual(writtenPathsOf(runDir, "list_run_files", {}, {}), [], "读类工具不产生变更");
   // calculate 内部还会写 .vibe/calc-owners.json —— 那是簿记不是 agent 产物。
   // 一旦混进来,validator 会判"agent 改写了受保护的编排产物",于是每次计算都变成违规。
-  const all = [
-    ...writtenPathsOf("calculate", { output_file: "01_x.json" }, {}),
-    ...writtenPathsOf("write_stage", {}, { written: "stages/profile.json" }),
-  ];
-  assert.ok(!all.some((p) => p.includes(".vibe")), "内部簿记混进了 fileChanges");
+  assert.ok(!cases.some((p) => p.includes(".vibe")), "内部簿记混进了 fileChanges");
+});
+
+test("🔴 真跑一次工具:fileChanges 里的路径要能直接过 validator 的越界判定", async () => {
+  const runDir = makeRunDir();
+  // 让模型调一次真实的写类工具,再拿实际产出的 fileChanges 做 validator 同款判定。
+  // 上一条测的是纯函数,这一条测的是**接线** —— 真 bug 就出在这两者之间。
+  const stageOutput = { stage: STAGE, evidence_ids: [], calculation_ids: [], gaps: [], findings: [] };
+  const ep = await scriptedEndpoint([
+    toolCallReply("write_stage", JSON.stringify({ stage_output: stageOutput })),
+    textReply("写好了"),
+  ]);
+  try {
+    const out = await makeAgent(runDir, ep.baseURL).runTurn(STAGE, 1, "p");
+    // write_stage 可能因 schema 不合被拒——那没关系,这条测的是"若写成了,路径形态对不对"
+    for (const f of out.fileChanges) {
+      const resolved = path.resolve(f);   // ← validator 就是这么做的
+      assert.ok(resolved === path.resolve(runDir) || resolved.startsWith(path.resolve(runDir) + path.sep),
+        `validator 会把它判成运行目录之外的文件:${f}`);
+    }
+  } finally { await ep.close(); fs.rmSync(runDir, { recursive: true, force: true }); }
 });

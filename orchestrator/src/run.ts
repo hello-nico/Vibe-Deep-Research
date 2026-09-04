@@ -19,7 +19,13 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { makeConfig, type RunConfig, type Scenario, type Stage } from "./config.ts";
+import { makeConfig, secretsFor, type RunConfig, type Scenario, type Stage } from "./config.ts";
+import type { EngineLifecycle } from "./engine.ts";
+import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
+import { DirectEngineLifecycle, directCapabilities } from "./engines/direct_lifecycle.ts";
+import { DirectStageAgent } from "./engines/direct_stage_agent.ts";
+import { directCapabilityOf, structuredOutputMode } from "./providers.ts";
+import type { AgentRunner } from "./runner.ts";
 import { runFetchScripts } from "./fetchrun.ts";
 import { ProgressReporter } from "./progress.ts";
 import { runResearch } from "./orchestrate.ts";
@@ -55,6 +61,13 @@ function parseExecutionMode(v: string | undefined): "shell_hooks" | "controlled_
   if (v === undefined) return undefined;
   if (v === "shell_hooks" || v === "controlled_mcp") return v;
   throw new Error(`--execution-mode 只能是 shell_hooks 或 controlled_mcp,收到 ${v}`);
+}
+
+/** 认不出的引擎名一律报错 —— 静默落回默认会让用户以为在用自己选的那个,而账单和产出来自另一个 */
+function parseEngine(v: string | undefined): "codex" | "direct" | undefined {
+  if (v === undefined) return undefined;
+  if (v === "codex" || v === "direct") return v;
+  throw new Error(`--engine 只能是 codex 或 direct,收到 ${v}`);
 }
 
 /** 配置优先级:内置默认 ← 产品配置文件 ← 用户配置文件 ← 环境变量 ← CLI 参数 */
@@ -95,6 +108,7 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
     noAgent: args["no-agent"] === true,
     hooksEnabled: args["no-hooks"] !== true,
     executionMode: parseExecutionMode(str(args["execution-mode"])),
+    engine: parseEngine(str(args.engine)),
     overwrite: args.overwrite === true,
     scenario,
     endpointScope: parseScope(str(args.endpoints)),
@@ -110,6 +124,40 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   return { cfg, stages, sources: pc.sources, progress: str(args.progress) !== "off" };
 }
 
+/**
+ * **组装根**:按 `--engine` 挑引擎。两个引擎的 runner 与 lifecycle 都在这里配好,
+ * 编排器只认契约、不认具体实现。
+ *
+ * 🔴 直连的前置条件一律**当场抛错、绝不回落到 Codex** —— 用户以为在用自己选的模型,
+ *    账单和产出却来自另一个引擎,而界面上一个字都看不出来。
+ */
+export function makeEngine(cfg: RunConfig, eventsPath: string, observer?: (ev: Record<string, unknown>) => void): { runner: AgentRunner; lifecycle: EngineLifecycle } {
+  if (cfg.engine === "direct") {
+    const cap = directCapabilityOf(cfg.providerProfile);
+    if (!cap.supported) {
+      throw new Error(`--engine direct 用不了 provider「${cfg.provider.name}」:${cap.reason}\n` +
+        "改法:换一个已实测支持直连的 provider,或先给它的模板补上 direct 段(见 providers/README.md)。");
+    }
+    if (!cap.baseURL) throw new Error(`--engine direct 需要显式的 base_url,provider「${cfg.provider.name}」的模板里没有`);
+    const apiKey = process.env[cfg.provider.env_key];
+    if (!apiKey) throw new Error(`--engine direct 需要密钥:环境变量 ${cfg.provider.env_key} 是空的(密钥只从环境变量读,不进配置文件)`);
+    const model = cfg.model ?? cap.model;
+    if (!model) throw new Error(`--engine direct 需要模型名:既没给 --model,provider 模板里也没有 default_model`);
+    const runner = new DirectStageAgent({
+      runId: cfg.runId,
+      toolCtx: { runDir: cfg.runDir, repoRoot: cfg.repoRoot, python: cfg.python },
+      capability: cap, apiKey, model, eventsPath,
+      secrets: secretsFor(cfg),
+      requestTimeoutMs: cfg.turnTimeoutMs,
+      observer,
+    });
+    return { runner, lifecycle: new DirectEngineLifecycle(directCapabilities(cap.structuredOutput)) };
+  }
+  const runner = new CodexRunner(cfg, eventsPath, undefined, observer);
+  const structured = structuredOutputMode(cfg.providerProfile) === "prompt" ? "prompt" : "server_schema";
+  return { runner, lifecycle: new CodexEngineLifecycle(cfg, codexCapabilities(cfg, structured)) };
+}
+
 async function main(): Promise<number> {
   let cfg: RunConfig, stages: Stage[] | undefined, sources: string[], progress: boolean;
   try { ({ cfg, stages, sources, progress } = configFromArgs(parseArgs(process.argv.slice(2)))); }
@@ -122,8 +170,8 @@ async function main(): Promise<number> {
     try { reporter = new ProgressReporter({ runDir: cfg.runDir }); }
     catch (e) { console.error(`[orchestrator] 进度显示未启用(不影响研究):${e instanceof Error ? e.message : String(e)}`); }
   }
-  const runner = new CodexRunner(cfg, path.join(cfg.runDir, "events.jsonl"), undefined, reporter ? (ev) => reporter.onEvent(ev) : undefined);
-  const res = await runResearch(cfg, { runner, fetchRunner: runFetchScripts, verify: verifyCalcs, sdkVersion: () => sdkCodexVersion(cfg.codexPath) }, stages);
+  const { runner, lifecycle } = makeEngine(cfg, path.join(cfg.runDir, "events.jsonl"), reporter ? (ev) => reporter.onEvent(ev) : undefined);
+  const res = await runResearch(cfg, { runner, lifecycle, fetchRunner: runFetchScripts, verify: verifyCalcs, sdkVersion: () => sdkCodexVersion(cfg.codexPath) }, stages);
   console.log(JSON.stringify({ run_id: cfg.runId, run_dir: cfg.runDir, status: res.status, exit_code: res.exitCode,
     stages: res.manifest.stages.map((s) => ({ stage: s.stage, status: s.status, attempts: s.attempts, validator_ok: s.validator_ok })) }, null, 2));
   return res.exitCode;

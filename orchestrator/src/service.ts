@@ -372,7 +372,14 @@ function runFetchProcess(
 // ---------------- 研究运行 ----------------
 export interface StartResult { run_id: string; run_dir: string; log: string; pid: number | undefined }
 
-export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean }): StartResult {
+/** 认不出的引擎名一律拒绝 —— 静默落回默认会让用户以为在用自己选的那个,而产出与账单来自另一个 */
+function assertEngine(v: unknown): "codex" | "direct" | undefined {
+  if (v === undefined || v === null) return undefined;
+  if (v === "codex" || v === "direct") return v;
+  throw new ServiceError("bad_engine", `engine 只能是 codex 或 direct,收到 ${show(String(v))}`);
+}
+
+export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean; engine?: "codex" | "direct" }): StartResult {
   const symbol = assertSymbol(req.symbol, "cn6");
   const market = assertMarket(req.market);
   const companyName = typeof req.company_name === "string" ? req.company_name.trim() : "";
@@ -407,6 +414,9 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
   if (stages.length) argv.push("--stages", stages.join(","));
   if (req.overwrite === true) argv.push("--overwrite");
   if (req.no_agent === true) argv.push("--no-agent");
+  // 引擎:不传就沿用 run.ts 的默认(codex)。传了就必须是认得出的那两个之一,乱值当场拒。
+  const engine = assertEngine(req.engine);
+  if (engine) argv.push("--engine", engine);
   const out = fs.openSync(log, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | NOFOLLOW_FLAG, 0o600);
   const child = spawn(ctx.node, argv, { cwd: ctx.repoRoot, detached: true, windowsHide: true, stdio: ["ignore", out, out], env: researchEnv(ctx) });
   child.unref();
