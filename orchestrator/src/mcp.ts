@@ -59,7 +59,7 @@ export function buildServer(ctx: ServiceContext): McpServer {
       return fetchEndpoint(ctx, { ...rest, consistency: { mode: consistency ?? "fresh" } });
     }));
   server.registerTool("start_research", { title: "启动研究运行", description: "后台拉起六阶段研究(编排器执行取数 → agent 解释 → validator → gate),立即返回 run_id;用 research_status 轮询。", 
-    inputSchema: { symbol: z.string(), market: z.string().optional(), stages: z.array(z.string()).optional(), endpoints: z.enum(["full", "core"]).optional(), knowledge: z.enum(["on", "off"]).optional(), run_id: z.string().optional(), overwrite: z.boolean().optional(), no_agent: z.boolean().optional() } },
+    inputSchema: { symbol: z.string(), market: z.string().optional(), stages: z.array(z.string()).optional(), endpoints: z.enum(["full", "core"]).optional(), knowledge: z.enum(["on", "off"]).optional(), run_id: z.string().optional(), overwrite: z.boolean().optional(), no_agent: z.boolean().optional(), engine: z.literal("codex").optional() } },
     (a) => wrap(() => startResearch(ctx, a)));
   server.registerTool("research_status", { title: "研究运行状态", description: "读 manifest 与最近事件:状态 / 各阶段 / 证据数 / 是否有报告与查看器。", inputSchema: { run_id: z.string(), last_events: z.number().int().min(1).max(50).optional() } },
     (a) => wrap(() => researchStatus(ctx, a.run_id, a.last_events)));

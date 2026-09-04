@@ -4,6 +4,19 @@
 
 ## [Unreleased]
 
+- 完成双引擎任务架构 M4 收口：公开产品固定为 Browse / Quick / Deep，Deep 仍由 Codex 六阶段承载；
+  既有 Direct 六阶段只保留为显式 `--experimental-direct-deep` 开发者入口，公共 `/research` 与 MCP 均拒绝它。
+- 把通用 `AgentRunner / EventsLog` 从 Codex 专属 runner 抽离，Codex SDK 只在 Codex 分支动态加载；阻断全部
+  `@openai/codex*` import 的子进程探针仍可加载 Direct 路径，Direct 也不再探测 Codex 二进制。
+- 运行清单如实区分能力：Codex 为 `constitution_and_skills`，Direct 为 `stage_prompt_only`；Direct 记录真实
+  provider / model 并把 Codex 路径与二进制置空，Codex 使用 provider 默认模型时也记录实际解析值。
+- 修复 MCP 静默剥掉 `engine=direct` 后启动默认 Codex、调用方注入环境的 Direct 密钥可能漏入事件账本，
+  以及 `user_reports` 16 份产品上限与 schema 不一致。真实 Direct + MiMo 单阶段运行得到 23 条证据、
+  profile 完成且 validator 通过；整次因刻意只跑单阶段如实为 `incomplete / exit 2`。
+- M4 独立 Codex 审计确认并修复 3 个 P2，自查修复 1 个密钥脱敏问题；一条 hooks 意见经真实构造链与
+  运行清单证伪，最终复审为 `No actionable P1/P2 findings`。
+- M4 最终验证：orchestrator 670 项（669 通过、1 项 Windows ACL 在 macOS 跳过）、desktop 30/30、
+  Python 577/577；两端类型检查、Vite 生产构建与 Core 纯净度 0（60/60）全部通过。
 - 完成双引擎任务架构 M3：统一 `/tasks` 现可把 Deep 路由交给既有 Codex 六阶段研究，并通过
   `/tasks/resume` 按运行 ID 与路由指纹恢复；没有新增第二套研究状态机，旧 `/research` 保持兼容。
 - Deep 任务把关注点、唯一 A 股标的和最多 16 份圈选资料的版本绑定到运行，实际读取时再次核对版本；缺失、

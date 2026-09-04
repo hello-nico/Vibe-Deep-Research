@@ -30,6 +30,7 @@ export function directCapabilities(structuredOutput: "server_schema" | "prompt")
     contextStrategy: "per_stage_session",
     structuredOutput,
     auditLevel: "host_events",
+    methodology: "stage_prompt_only",
   };
 }
 

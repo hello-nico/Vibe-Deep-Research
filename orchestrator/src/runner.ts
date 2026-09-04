@@ -11,33 +11,13 @@ import path from "node:path";
 
 import { Codex, type CodexOptions, type Thread, type ThreadEvent, type ThreadItem } from "@openai/codex-sdk";
 
+import { EventsLog, type AgentRunner, type TurnOutcome } from "./agent_runner.ts";
 import { CODEX_SHELL_ENV_POLICY, codexEnvFor, secretsFor, type RunConfig, type Stage } from "./config.ts";
 import { nowIso } from "./fsutil.ts";
 import { codexProviderConfig, structuredOutputMode, withOutputSchema } from "./providers.ts";
 
-export interface CommandRecord { command: string; exit_code: number | null; status: string }
-
-export interface TurnOutcome {
-  finalResponse: string;
-  usage: Record<string, number> | null;
-  commands: CommandRecord[];
-  fileChanges: string[];
-  itemCount: number;
-  durationMs: number;
-  failed: string | null;
-  threadId: string | null;
-}
-
-/** 可注入的运行器接口(测试用假运行器实现同一接口) */
-export interface AgentRunner {
-  runTurn(stage: Stage, attempt: number, prompt: string, outputSchema?: unknown): Promise<TurnOutcome>;
-  readonly threadId: string | null;
-  log(stage: Stage | "orchestrator", type: string, payload?: Record<string, unknown>): void;
-  /** events.jsonl 全部已写内容的 sha256(用于认证审计日志未被 agent 改动);null = 不校验 */
-  eventsDigest(): string | null;
-}
-
-const GENERIC_KEY_RE = /\bsk-[A-Za-z0-9_-]{12,}\b/g;
+export { EventsLog, redactEnvironment } from "./agent_runner.ts";
+export type { AgentRunner, CommandRecord, TurnOutcome } from "./agent_runner.ts";
 
 function tomlValue(value: unknown): string {
   if (typeof value === "string") return JSON.stringify(value);
@@ -127,40 +107,6 @@ export function mcpIsolationOverride(cfg: RunConfig, ownServer?: Record<string, 
  * ⚠️ 这是**纵深防御不是安全边界**:自由文本里的敏感信息不可能靠正则枚举干净
  *    (与 core/retrieval 那次同一口径:第三方凭据只能模式匹配,所以文档不承诺"绝不回显")。
  */
-const HOME_USER_RE = /(\/Users\/|\/home\/|C:\\\\Users\\\\)([^/\\\\"'\s:]+)/g;
-const PRIVATE_HOST_RE = /\b(?:10(?:\.\d{1,3}){3}|192\.168(?:\.\d{1,3}){2}|172\.(?:1[6-9]|2\d|3[01])(?:\.\d{1,3}){2}|127(?:\.\d{1,3}){3})\b/g;
-const USERINFO_RE = /\b([a-z][a-z0-9+.-]*:\/\/)[^/@\s:]+:[^/@\s]*@/gi;
-const INTERNAL_HOST_RE = /\b([a-z][a-z0-9+.-]*:\/\/)(localhost|[a-z0-9-]+\.(?:local|internal|lan|corp|intranet))\b/gi;
-
-export function redactEnvironment(text: string): string {
-  return text
-    .replace(USERINFO_RE, "$1[REDACTED_USERINFO]@")
-    .replace(HOME_USER_RE, "$1[USER]")
-    .replace(PRIVATE_HOST_RE, "[PRIVATE_IP]")
-    .replace(INTERNAL_HOST_RE, "$1[INTERNAL_HOST]");
-}
-
-export class EventsLog {
-  private readonly hash = crypto.createHash("sha256");
-  private readonly path: string;
-  private readonly secrets: string[];
-  constructor(p: string, secrets: string[] = []) { this.path = p; this.secrets = secrets.filter((x) => x.length >= 8); }
-  redact(text: string): string {
-    let out = text;
-    for (const sec of this.secrets) out = out.split(sec).join("[REDACTED]");
-    out = out.replace(GENERIC_KEY_RE, "[REDACTED_KEY]");
-    return redactEnvironment(out);
-  }
-  append(obj: unknown): void {
-    const line = this.redact(JSON.stringify(obj)) + "\n";
-    this.hash.update(line);
-    fs.mkdirSync(path.dirname(this.path), { recursive: true });
-    const fd = fs.openSync(this.path, "a");
-    try { fs.writeSync(fd, line); fs.fsyncSync(fd); } finally { fs.closeSync(fd); }
-  }
-  digest(): string { return this.hash.copy().digest("hex"); }
-}
-
 /**
  * Codex SDK 选项(v2.1 §5 ①②):引擎路径 codexPathOverride(空 = SDK 内置);env 只含显式 CODEX_HOME(+ api_key 模式的 CODEX_API_KEY);
  * config 注入工具执行环境策略——agent 的 shell 命令不继承任何密钥类变量(主防线;Codex 默认 ignore_default_excludes=true 即会继承)。

@@ -100,8 +100,8 @@ export function commonHeader(cfg: RunConfig, ledger?: Ledger): string {
   }
   return `你正在执行 A 股个股研究(run-id=${cfg.runId},标的 ${cfg.symbol}${cfg.market ? " / " + cfg.market : ""})。
 你的工作目录(cwd)= 运行目录 RUN = ${cfg.runDir}(已有 raw/ fetch/ calcs/ stages/);沙箱只允许写 RUN 内。仓库根目录 = ${cfg.repoRoot}(**只读**:代码 / 契约 / skills 都在这里,用绝对路径读)。
-宪法 = ${cfg.constitutionPath}(引擎已自动加载;与本说明冲突时以宪法为准)。
-硬规则(AGENTS.md 与 company-research skill 为准,这里只是路径说明):
+宪法 = ${cfg.constitutionPath}(${cfg.engine === "codex" ? "引擎已自动加载;与本说明冲突时以宪法为准" : "Direct Deep 实验适配器不会自动加载该文件;本阶段只受下方提示与机器校验约束，不得声称与正式 Deep 方法论等价"})。
+硬规则(${cfg.engine === "codex" ? "AGENTS.md 与 company-research skill 为准,这里只是路径说明" : "Direct Deep 实验路径的显式受控提示"}):
 1. **取数已由编排器执行完毕**(账本 RUN/fetch/_ledger.json;本次状态:${fetched})。你只读 RUN/fetch/<script>.json;**不得运行任何 data-access 脚本**,不得改写 fetch/ 或 raw/ 下任何文件。取数 status=failed 就是数据缺口:如实写进 gaps,不得凭记忆补、不得用其他来源替代。
 2. 计算**只能**运行 calc:\`${cfg.python} ${calc} <函数> --args '<JSON>' --evidence <ev-id ...> [--calc <calc-id ...>] --run-dir ${cfg.runDir} > ${cfg.runDir}/calcs/<两位序号>_<函数>[_<字段>].json\`
    每次计算一个文件;--evidence / --calc 必须列出该计算用到的全部输入 id(计算 DAG);金额参数带单位原样传入,由 calc 归一;禁止自己算任何数、禁止自己换算单位;契约见 calc/SPEC.md(可 \`${cfg.python} ${calc} list\`)。

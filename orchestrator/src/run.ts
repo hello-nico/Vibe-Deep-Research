@@ -13,6 +13,7 @@
  *      [--seed-from <夹具目录>] [--allow-stale-fixture](**仅硬测试用**:播种前几个阶段的产物并跳过它们,省约一半墙钟;播种运行按测试运行隔离,不进知识层,不能替代发布前的完整运行)
  *      [--provider <id>](providers/<id>.json;默认 openai;非 openai 只能 api_key,未显式指定 auth 时自动选模板唯一支持的模式;也可用环境变量 VRA_PROVIDER)
  *      [--auth api_key|chatgpt_login](显式指定认证方式,优先级最高;也可用环境变量 VRA_PROVIDER_AUTH)
+ *      [--experimental-direct-deep](开发者实验入口；必须与 --engine direct 同时使用，不是产品 Quick)
  * 退出码:0 complete / 2 incomplete|stale / 3 failed 或编排异常。
  */
 import fs from "node:fs";
@@ -20,17 +21,16 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { makeConfig, secretsFor, type RunConfig, type Scenario, type Stage } from "./config.ts";
-import type { EngineLifecycle } from "./engine.ts";
+import type { EngineLifecycle, EngineRuntime } from "./engine.ts";
 import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
 import { DirectEngineLifecycle, directCapabilities } from "./engines/direct_lifecycle.ts";
 import { DirectStageAgent } from "./engines/direct_stage_agent.ts";
 import { directCapabilityOf, structuredOutputMode } from "./providers.ts";
-import type { AgentRunner } from "./runner.ts";
+import type { AgentRunner } from "./agent_runner.ts";
 import { runFetchScripts } from "./fetchrun.ts";
 import { ProgressReporter } from "./progress.ts";
 import { runResearch } from "./orchestrate.ts";
 import { loadProductConfig } from "./productConfig.ts";
-import { CodexRunner, sdkCodexVersion } from "./runner.ts";
 import { isStage } from "./schemas.ts";
 import { verifyCalcs } from "./validator.ts";
 
@@ -102,6 +102,13 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
       Object.keys(reportRevisions).some((id) => !reportIds.includes(id))) {
     throw new Error("VRA_TASK_REPORT_REVISIONS 格式无效");
   }
+  const engine = parseEngine(str(args.engine));
+  if (engine === "direct" && args["experimental-direct-deep"] !== true) {
+    throw new Error("--engine direct 是实验性 Direct Deep，不是产品 Quick；开发验证必须同时显式传 --experimental-direct-deep");
+  }
+  if (args["experimental-direct-deep"] === true && engine !== "direct") {
+    throw new Error("--experimental-direct-deep 只能与 --engine direct 同时使用");
+  }
   const cfg = makeConfig({
     symbol: str(args.symbol)!,
     companyName: str(args["company-name"]),
@@ -129,7 +136,7 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
     noAgent: args["no-agent"] === true,
     hooksEnabled: args["no-hooks"] !== true,
     executionMode: parseExecutionMode(str(args["execution-mode"])),
-    engine: parseEngine(str(args.engine)),
+    engine,
     overwrite: args.overwrite === true,
     scenario,
     endpointScope: parseScope(str(args.endpoints)),
@@ -152,7 +159,12 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
  * 🔴 直连的前置条件一律**当场抛错、绝不回落到 Codex** —— 用户以为在用自己选的模型,
  *    账单和产出却来自另一个引擎,而界面上一个字都看不出来。
  */
-export function makeEngine(cfg: RunConfig, eventsPath: string, observer?: (ev: Record<string, unknown>) => void): { runner: AgentRunner; lifecycle: EngineLifecycle } {
+export async function makeEngine(cfg: RunConfig, eventsPath: string, observer?: (ev: Record<string, unknown>) => void,
+  env: NodeJS.ProcessEnv = process.env): Promise<{
+  runner: AgentRunner;
+  lifecycle: EngineLifecycle;
+  runtime: EngineRuntime;
+}> {
   if (cfg.engine === "direct") {
     const cap = directCapabilityOf(cfg.providerProfile);
     if (!cap.supported) {
@@ -160,7 +172,7 @@ export function makeEngine(cfg: RunConfig, eventsPath: string, observer?: (ev: R
         "改法:换一个已实测支持直连的 provider,或先给它的模板补上 direct 段(见 providers/README.md)。");
     }
     if (!cap.baseURL) throw new Error(`--engine direct 需要显式的 base_url,provider「${cfg.provider.name}」的模板里没有`);
-    const apiKey = process.env[cfg.provider.env_key];
+    const apiKey = env[cfg.provider.env_key];
     if (!apiKey) throw new Error(`--engine direct 需要密钥:环境变量 ${cfg.provider.env_key} 是空的(密钥只从环境变量读,不进配置文件)`);
     const model = cfg.model ?? cap.model;
     if (!model) throw new Error(`--engine direct 需要模型名:既没给 --model,provider 模板里也没有 default_model`);
@@ -168,22 +180,41 @@ export function makeEngine(cfg: RunConfig, eventsPath: string, observer?: (ev: R
       runId: cfg.runId,
       toolCtx: { runDir: cfg.runDir, repoRoot: cfg.repoRoot, python: cfg.python },
       capability: cap, apiKey, model, eventsPath,
-      secrets: secretsFor(cfg),
+      secrets: secretsFor(cfg, env),
       requestTimeoutMs: cfg.turnTimeoutMs,
       observer,
     });
-    return { runner, lifecycle: new DirectEngineLifecycle(directCapabilities(cap.structuredOutput)) };
+    return {
+      runner,
+      lifecycle: new DirectEngineLifecycle(directCapabilities(cap.structuredOutput)),
+      runtime: {
+        kind: "direct", version: `direct-api/${cfg.provider.name}/${model}`, binary: null, model,
+        codexPath: null, codexHome: null,
+      },
+    };
   }
+  // Codex SDK 只在 Codex 分支加载。Direct 的模块图可在 Codex 包完全不存在时启动；
+  // 这不是把 Direct Deep 对外开放，只是消除“直连路径暗中依赖 Codex”的技术谎言。
+  const { CodexRunner, sdkCodexVersion } = await import("./runner.ts");
   const runner = new CodexRunner(cfg, eventsPath, undefined, observer);
   const structured = structuredOutputMode(cfg.providerProfile) === "prompt" ? "prompt" : "server_schema";
-  return { runner, lifecycle: new CodexEngineLifecycle(cfg, codexCapabilities(cfg, structured)) };
+  const codexRuntime = sdkCodexVersion(cfg.codexPath);
+  return {
+    runner,
+    lifecycle: new CodexEngineLifecycle(cfg, codexCapabilities(cfg, structured)),
+    runtime: {
+      kind: "codex", ...codexRuntime, model: cfg.model ?? cfg.providerProfile?.default_model ?? null,
+      codexPath: cfg.codexPath, codexHome: cfg.codexHome,
+    },
+  };
 }
 
 async function main(): Promise<number> {
   let cfg: RunConfig, stages: Stage[] | undefined, sources: string[], progress: boolean;
   try { ({ cfg, stages, sources, progress } = configFromArgs(parseArgs(process.argv.slice(2)))); }
   catch (e) { console.error(`参数 / 配置错误:${e instanceof Error ? e.message : String(e)}`); return 3; }
-  console.error(`[orchestrator] run ${cfg.runId} → ${cfg.runDir}\n[orchestrator] config sources: ${sources.join(" ← ")}; CODEX_HOME=${cfg.codexHome}; engine=${cfg.codexPath ?? "sdk-bundled"}; provider=${cfg.provider.name}/${cfg.provider.auth}`);
+  const engineLabel = cfg.engine === "direct" ? "direct-api(experimental)" : (cfg.codexPath ?? "sdk-bundled");
+  console.error(`[orchestrator] run ${cfg.runId} → ${cfg.runDir}\n[orchestrator] config sources: ${sources.join(" ← ")}; CODEX_HOME=${cfg.codexHome}; engine=${engineLabel}; provider=${cfg.provider.name}/${cfg.provider.auth}`);
   // 进度只写 stderr:六阶段要跑十几分钟,没有它用户全程看不到任何内容(见 progress.ts 顶部)。
   // **连构造也要保护**:显示层任何环节出问题都只是"没有进度显示",绝不能让一次真实研究起不来(Codex progress-r1 P2)。
   let reporter: ProgressReporter | null = null;
@@ -191,8 +222,8 @@ async function main(): Promise<number> {
     try { reporter = new ProgressReporter({ runDir: cfg.runDir }); }
     catch (e) { console.error(`[orchestrator] 进度显示未启用(不影响研究):${e instanceof Error ? e.message : String(e)}`); }
   }
-  const { runner, lifecycle } = makeEngine(cfg, path.join(cfg.runDir, "events.jsonl"), reporter ? (ev) => reporter.onEvent(ev) : undefined);
-  const res = await runResearch(cfg, { runner, lifecycle, fetchRunner: runFetchScripts, verify: verifyCalcs, sdkVersion: () => sdkCodexVersion(cfg.codexPath) }, stages);
+  const { runner, lifecycle, runtime } = await makeEngine(cfg, path.join(cfg.runDir, "events.jsonl"), reporter ? (ev) => reporter.onEvent(ev) : undefined);
+  const res = await runResearch(cfg, { runner, lifecycle, fetchRunner: runFetchScripts, verify: verifyCalcs, sdkVersion: () => runtime }, stages);
   console.log(JSON.stringify({ run_id: cfg.runId, run_dir: cfg.runDir, status: res.status, exit_code: res.exitCode,
     stages: res.manifest.stages.map((s) => ({ stage: s.stage, status: s.status, attempts: s.attempts, validator_ok: s.validator_ok })) }, null, 2));
   return res.exitCode;

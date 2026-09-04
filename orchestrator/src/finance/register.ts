@@ -10,11 +10,8 @@
  * 现状是过渡形态 —— 单垂类进程里成立,多垂类要等实例级 PluginRuntime。
  */
 import { registerPlugin } from "../plugin.ts";
-import { registerDeepTargetResolver } from "../deep_target_registry.ts";
-import { FinanceDeepTargetResolver } from "./deep_target.ts";
 import { FINANCE_LEXICON } from "./lexicon.ts";
 import { FINANCE_PLUGIN } from "./plugin.ts";
 
 registerPlugin(FINANCE_PLUGIN);
-registerDeepTargetResolver((dataRoot) => new FinanceDeepTargetResolver(dataRoot));
 export { FINANCE_LEXICON, FINANCE_PLUGIN };

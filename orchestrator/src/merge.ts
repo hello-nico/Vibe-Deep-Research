@@ -199,7 +199,7 @@ export interface Manifest {
    * 两个引擎产出相同格式的产物,但沙箱 / hooks / 上下文策略 / 审计视角并不相同。
    * 界面必须分两行讲,不能合并成一个 ✅(见 engine.ts 文件头)。
    */
-  engine: { codex_path: string | null; codex_home: string; binary: string | null; capabilities?: EngineCapabilities };
+  engine: { codex_path: string | null; codex_home: string | null; binary: string | null; capabilities?: EngineCapabilities };
   constitution: { path: string; sha256: string };
   hooks: { enabled: boolean; installed: boolean; hooks_json: string | null; invocations: number; stop_blocks: number; stop_terminations: number; pre_tool_use_blocks: number; errors: number; log_trust: "diagnostic_untrusted" };
   /** 指令发现链(instructions_root.ts):宪法与项目技能所在的根、以及分离安装时同步了多少文件;noAgent 运行不写 */

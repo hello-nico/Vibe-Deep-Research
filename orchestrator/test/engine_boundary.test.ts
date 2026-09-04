@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 import type { EngineLifecycle, LifecycleContext } from "../src/engine.ts";
 import { codexCapabilities } from "../src/engines/codex_lifecycle.ts";
@@ -124,6 +125,7 @@ test("直连不得把执行保障往高了报(如实声明是产品承诺,不是
   assert.equal(c.sandbox, "model_has_no_host_access", "直连没有操作系统级沙箱,不许报成 seatbelt");
   assert.equal(c.auditLevel, "host_events", "直连拿不到引擎内部视角,不许报成 engine_events");
   assert.equal(c.contextStrategy, "per_stage_session");
+  assert.equal(c.methodology, "stage_prompt_only", "Direct Deep 没有加载宪法和行业 skills，不许报成完整方法论");
 });
 
 test("两个引擎的能力声明必须真的不同(全都一样 = 这层声明是摆设)", () => {
@@ -135,4 +137,25 @@ test("两个引擎的能力声明必须真的不同(全都一样 = 这层声明�
   assert.ok(differing.length >= 5,
     `两个引擎的能力声明只有 ${differing.length} 项不同(${differing.join(", ")})。` +
     "若它们几乎一致,说明有一侧没有如实声明 —— 而界面正是靠这份声明告诉用户执行保障的差别。");
+});
+
+test("Direct CLI 模块图在 Codex 包被明确禁止时仍能加载", () => {
+  const tmp = fs.mkdtempSync(path.join(fs.realpathSync(os.tmpdir()), "vra-no-codex-"));
+  try {
+    const loader = path.join(tmp, "deny-codex.mjs");
+    fs.writeFileSync(loader, `
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier.startsWith("@openai/codex")) throw new Error("CODEX_IMPORT_FORBIDDEN:" + specifier + ":from:" + context.parentURL);
+  return nextResolve(specifier, context);
+}
+`);
+    const entry = pathToFileURL(path.join(SRC, "run.ts")).href;
+    const child = spawnSync(process.execPath, [
+      "--experimental-strip-types", "--experimental-loader", loader,
+      "--input-type=module", "-e", `await import(${JSON.stringify(entry)});`,
+    ], { cwd: tmp, encoding: "utf8", timeout: 30_000 });
+    assert.equal(child.status, 0,
+      `Direct 入口仍静态加载 Codex 包。stdout=${child.stdout}\nstderr=${child.stderr}`);
+    assert.doesNotMatch(`${child.stdout}\n${child.stderr}`, /CODEX_IMPORT_FORBIDDEN/);
+  } finally { fs.rmSync(tmp, { recursive: true, force: true }); }
 });

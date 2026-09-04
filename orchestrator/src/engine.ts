@@ -2,7 +2,7 @@
  * **引擎契约**(Core)。
  *
  * 一次运行 = 六阶段状态机 + 一个引擎。状态机、取数、校验、gate、归档全部与引擎无关且只有一份;
- * 引擎负责的只有两件事:**准备/拆除它自己需要的环境**(EngineLifecycle)与**跑一个 turn**(见 runner.ts 的 AgentRunner)。
+ * 引擎负责的只有两件事:**准备/拆除它自己需要的环境**(EngineLifecycle)与**跑一个 turn**(见 agent_runner.ts 的 AgentRunner)。
  *
  * 🔴 **为什么要有 capabilities 这一层**:两个引擎产出**相同的产物**,但**执行保障等级不同**。
  *    Codex 有引擎级线程、沙箱、lifecycle hooks;直连只能保证"模型只够得着那几个受控工具"。
@@ -41,6 +41,18 @@ export interface EngineCapabilities {
    * - `host_events`:事件由本产品在宿主侧记录(拿不到引擎内部视角)
    */
   auditLevel: "engine_events" | "host_events";
+  /** 方法论来源；Direct 六阶段只有阶段提示，不能冒充已加载产品宪法与专用 skills。 */
+  methodology: "constitution_and_skills" | "stage_prompt_only";
+}
+
+/** 一次运行实际选中的引擎信息；用于写 manifest，不能再从配置默认值反推。 */
+export interface EngineRuntime {
+  kind: EngineCapabilities["kind"];
+  version: string;
+  binary: string | null;
+  model: string | null;
+  codexPath: string | null;
+  codexHome: string | null;
 }
 
 /** lifecycle 能碰的编排器内部能力(只给这些,不把整个编排器交出去) */

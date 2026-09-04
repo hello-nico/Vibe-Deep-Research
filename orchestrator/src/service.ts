@@ -28,6 +28,9 @@ import { ReportLibraryError, addReport, listReports as listStoredReports, remove
 import { GuidedToolError, guidedToolTurn as guidedToolTurnCore, type GuidedToolReply } from "./guided_tool.ts";
 import { LocalAgentError, probeClaude, probeCodex, startCodexLogin, type LocalAgentStatus } from "./local_agent_runtime.ts";
 import { sdkCodexVersion } from "./runner.ts";
+import { redact } from "./service_redact.ts";
+
+export { redact } from "./service_redact.ts";
 
 
 export interface ServiceContext { repoRoot: string; dataRoot: string; python: string; node: string; providerEnvKey: string | null }
@@ -137,12 +140,6 @@ export function safePath(ctx: Pick<ServiceContext, "dataRoot">, ...segments: str
 }
 
 const rel = (ctx: Pick<ServiceContext, "dataRoot">, p: string) => path.relative(path.resolve(ctx.dataRoot), p).split(path.sep).join("/");
-
-/** 错误 / stderr 脱敏:去 URL 查询串、遮蔽 key/token/secret/password 赋值、截断 */
-export function redact(s: string, max = 300): string {
-  return String(s ?? "").replace(/([?&][^=\s&]*(key|token|secret|sig|signature|password|access)[^=\s&]*=)[^&\s]+/gi, "$1***").replace(/(https?:\/\/[^\s?#]+)\?[^\s]*/g, "$1?…")
-    .replace(/((api[_-]?key|secret|token|password|authorization)\s*[:=]\s*)\S+/gi, "$1***").slice(-max);
-}
 
 /** 研究子进程 / 批量子进程的最小环境:基础 + VRA_* + provider 的 env_key(若设置);不透传其它 *KEY* / *TOKEN* */
 export function researchEnv(ctx: Pick<ServiceContext, "providerEnvKey">, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
@@ -390,7 +387,13 @@ export interface ResearchTaskContext {
 /** 认不出的引擎名一律拒绝 —— 静默落回默认会让用户以为在用自己选的那个,而产出与账单来自另一个 */
 function assertEngine(v: unknown): "codex" | "direct" | undefined {
   if (v === undefined || v === null) return undefined;
-  if (v === "codex" || v === "direct") return v;
+  if (v === "codex") return v;
+  if (v === "direct") {
+    throw new ServiceError(
+      "experimental_engine_not_public",
+      "Direct 六阶段仍是开发实验适配器，不是产品 Quick；公开研究请使用统一 /tasks 的 Auto / Quick / Deep",
+    );
+  }
   throw new ServiceError("bad_engine", `engine 只能是 codex 或 direct,收到 ${show(String(v))}`);
 }
 
@@ -429,7 +432,8 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
   if (stages.length) argv.push("--stages", stages.join(","));
   if (req.overwrite === true) argv.push("--overwrite");
   if (req.no_agent === true) argv.push("--no-agent");
-  // 引擎:不传就沿用 run.ts 的默认(codex)。传了就必须是认得出的那两个之一,乱值当场拒。
+  // 公开研究只接受 Codex Deep。Direct 六阶段没有加载完整宪法 / 专用 skills，
+  // 只保留在 CLI 的显式实验开关后；产品 Quick 走统一 /tasks，不经过这里。
   const engine = assertEngine(req.engine);
   if (engine) argv.push("--engine", engine);
   const taskObjective = String(internal.taskObjective ?? "").trim();

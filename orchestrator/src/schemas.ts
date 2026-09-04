@@ -199,11 +199,11 @@ export const manifestSchema = () => ({
     skills_isolation: { type: "object", additionalProperties: false, required: ["installed", "config_toml", "disabled_user_skills", "bundled_disabled", "max_context_tokens"],
       properties: { installed: { type: "boolean" }, config_toml: { type: "string" }, disabled_user_skills: { type: "integer", minimum: 0 }, bundled_disabled: { type: "boolean" }, max_context_tokens: { type: "integer", minimum: 1, maximum: 10000 }, truncated: { type: "boolean" } } },
     engine: { type: "object", additionalProperties: false, required: ["codex_path", "codex_home", "binary"],
-      properties: { codex_path: { type: ["string", "null"] }, codex_home: { type: "string" }, binary: { type: ["string", "null"] },
+      properties: { codex_path: { type: ["string", "null"] }, codex_home: { type: ["string", "null"] }, binary: { type: ["string", "null"] },
         // 执行保障等级(engine.ts)。**不进 required**:旧运行的 manifest 里没有这段,viewer / 知识层仍要读得动。
         // 编排器则是无条件写入的,"忘了写"由 orchestrate 测试兜底 —— 光靠 schema 可选会让漏写变成静默的。
         capabilities: { type: "object", additionalProperties: false,
-          required: ["kind", "protocol", "sandbox", "hooks", "contextStrategy", "structuredOutput", "auditLevel"],
+          required: ["kind", "protocol", "sandbox", "hooks", "contextStrategy", "structuredOutput", "auditLevel", "methodology"],
           properties: {
             kind: { type: "string", enum: ["codex", "direct"] },
             protocol: { type: "string", enum: ["responses", "chat_completions"] },
@@ -212,6 +212,7 @@ export const manifestSchema = () => ({
             contextStrategy: { type: "string", enum: ["thread", "per_stage_session"] },
             structuredOutput: { type: "string", enum: ["server_schema", "prompt"] },
             auditLevel: { type: "string", enum: ["engine_events", "host_events"] },
+            methodology: { type: "string", enum: ["constitution_and_skills", "stage_prompt_only"] },
           } } } },
     run_id: { type: "string", pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$" }, symbol: { type: "string", minLength: 1 }, // ⚠️ 必须与 evidence / fetch 用同一份枚举。写死沪深四项时:插件声明支持 US/HK/TW,
     //    取数与每条证据都能过动态 schema、阶段全部完成,**收尾却因 manifest.market 不在旧枚举里整轮判 failed**
@@ -229,7 +230,7 @@ export const manifestSchema = () => ({
     quote_decision: { type: ["string", "null"] },
     endpoint_scope: { type: "string", enum: ["core", "full"] }, registry_version: { type: ["string", "null"] },
     knowledge_recalled: { type: ["object", "null"], additionalProperties: false, required: ["path", "as_of", "status", "truncated"], properties: { path: { type: "string" }, as_of: { type: "string" }, status: { type: "string" }, truncated: { type: "boolean" } } },
-    user_reports: { type: "array", maxItems: 5, items: { type: "object", additionalProperties: false, required: ["id", "name", "page"],
+    user_reports: { type: "array", maxItems: 16, items: { type: "object", additionalProperties: false, required: ["id", "name", "page"],
       properties: { id: { type: "string", pattern: "^[0-9a-f]{32}$" }, name: { type: "string", minLength: 1, maxLength: 240 }, page: { type: ["integer", "null"], minimum: 1 } } } },
     test_scenario: { type: "boolean" },
     // 夹具播种运行:非 null 即**不是**一次完整的真实研究(见 fixture.ts)

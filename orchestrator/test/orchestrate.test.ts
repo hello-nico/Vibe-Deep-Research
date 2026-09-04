@@ -14,6 +14,9 @@ import { saveLedger, type FetchExecutor } from "../src/fetchrun.ts";
 import { sha256File, writeJson } from "../src/fsutil.ts";
 import { hooksIneffectiveReason, deriveRunStatus, exitCodeFor, prepareRunDir, runResearch } from "../src/orchestrate.ts";
 import { CodexRunner, EventsLog, codexOptionsFor, type AgentRunner, type TurnOutcome } from "../src/runner.ts";
+import { noopLifecycle } from "../src/engine.ts";
+import { codexCapabilities } from "../src/engines/codex_lifecycle.ts";
+import { directCapabilities } from "../src/engines/direct_lifecycle.ts";
 import { currentPlugin } from "../src/plugin.ts";
 import { validateManifest } from "../src/schemas.ts";
 
@@ -78,7 +81,7 @@ type Behaviour = (stage: Stage, attempt: number, cfg: RunConfig, prompt: string)
 
 /** 假 agent:按回调在运行目录写产物 */
 class FakeRunner implements AgentRunner {
-  threadId = "fake-thread";
+  threadId: string | null = "fake-thread";
   calls: { stage: Stage; attempt: number; prompt: string }[] = [];
   logs: { stage: string; type: string }[] = [];
   private readonly behave: Behaviour;
@@ -183,6 +186,60 @@ test("happy path:六阶段一次通过 → complete,exit 0,manifest 过 schema",
   assert.ok(types.includes("research.started") && types.includes("report.ready") && types.includes("research.finished"));
   assert.equal(types.filter((t) => t === "stage.completed").length, 6);
   assert.ok(!types.includes("gate.failed"));
+});
+
+test("Direct manifest 必须记录解析后的真实模型，并把未使用的 Codex 路径置空", async () => {
+  const repo = tmpRepo();
+  const cfg = makeConfig({ symbol: "300308", market: "SZ", repoRoot: repo, runId: "direct-runtime", python: "false", engine: "direct" });
+  const runner = new FakeRunner(goodAgent, cfg);
+  runner.threadId = null;
+  const r = await runResearch(cfg, {
+    runner,
+    lifecycle: noopLifecycle(directCapabilities("server_schema")),
+    fetchRunner: fakeFetch(),
+    verify: okVerify,
+    sdkVersion: () => ({
+      kind: "direct" as const,
+      version: "direct-api/mimo/mimo-v2.5",
+      binary: null,
+      model: "mimo-v2.5",
+      codexPath: null,
+      codexHome: null,
+    }),
+  });
+  assert.equal(r.manifest.model, "mimo-v2.5");
+  assert.equal(r.manifest.model_note, "provider 默认模型，已由 Direct 运行时解析");
+  assert.equal(r.manifest.engine.codex_path, null);
+  assert.equal(r.manifest.engine.codex_home, null);
+  assert.equal(r.manifest.codex_version, "direct-api/mimo/mimo-v2.5");
+  assert.equal(r.manifest.hooks.enabled, false);
+  assert.equal(r.manifest.hooks.installed, false);
+  assert.equal(r.manifest.engine.capabilities?.hooks, false);
+  assert.deepEqual(validateManifest(r.manifest), []);
+});
+
+test("Codex manifest 必须记录 provider 默认模型，而不是退回未知模型口径", async () => {
+  const repo = tmpRepo();
+  const base = makeConfig({ symbol: "300308", market: "SZ", repoRoot: repo, runId: "codex-runtime", python: "false" });
+  const cfg = { ...base, providerProfile: { ...base.providerProfile!, default_model: "codex-test-default" } };
+  const runner = new FakeRunner(goodAgent, cfg);
+  const r = await runResearch(cfg, {
+    runner,
+    lifecycle: noopLifecycle(codexCapabilities(cfg, "server_schema")),
+    fetchRunner: fakeFetch(),
+    verify: okVerify,
+    sdkVersion: () => ({
+      kind: "codex" as const,
+      version: "codex-test-version",
+      binary: "/test/codex",
+      model: "codex-test-default",
+      codexPath: "/test/codex",
+      codexHome: "/test/codex-home",
+    }),
+  });
+  assert.equal(r.manifest.model, "codex-test-default");
+  assert.equal(r.manifest.model_note, "provider 默认模型，已由 Codex 运行时解析");
+  assert.deepEqual(validateManifest(r.manifest), []);
 });
 
 test("必需取数失败 → 阶段 incomplete → 运行 incomplete(exit 2);三个关键脚本全失败 → failed", async () => {

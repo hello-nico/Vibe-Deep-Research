@@ -21,7 +21,7 @@ import path from "node:path";
 import { nowIso } from "../fsutil.ts";
 import { withOutputSchema, type DirectCapability } from "../providers.ts";
 import { RUN_TOOLS, RunToolsError, callRunTool, runToolsAsFunctionSpecs, type RunToolsContext } from "../run_tools.ts";
-import { EventsLog, type AgentRunner, type CommandRecord, type TurnOutcome } from "../runner.ts";
+import { EventsLog, type AgentRunner, type CommandRecord, type TurnOutcome } from "../agent_runner.ts";
 import type { Stage } from "../config.ts";
 import { DirectTransportError, chatCompletion, type ChatMessage } from "./direct_transport.ts";
 

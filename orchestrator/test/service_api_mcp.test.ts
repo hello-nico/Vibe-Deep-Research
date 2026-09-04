@@ -175,6 +175,11 @@ test("service:startResearch 立即返回相对路径;子进程最小环境(resea
   assert.throws(() => startResearch(ctx, { symbol: "300308", company_name: `中际旭创\n${"x".repeat(80)}` }), (e: unknown) => e instanceof ServiceError && e.code === "bad_company_name");
   assert.throws(() => startResearch(ctx, { symbol: "300308", run_id: "../x" }), (e: unknown) => e instanceof ServiceError && e.code === "bad_run_id");
   assert.throws(() => startResearch(ctx, { symbol: "300308", endpoints: "all" as never }), (e: unknown) => e instanceof ServiceError && e.code === "bad_scope");
+  assert.throws(
+    () => startResearch(ctx, { symbol: "300308", engine: "direct" }),
+    (e: unknown) => e instanceof ServiceError && e.code === "experimental_engine_not_public",
+    "公开 /research 与 MCP 不能把 Direct Deep 实验适配器暴露成产品 Quick",
+  );
 });
 
 test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 415 / 路由 / 无绝对路径 / 500 脱敏", async () => {
@@ -324,6 +329,13 @@ test("MCP:stdio 起真实 server(SDK Client),tools/list 含 8 个工具,list_end
     assert.equal(bad.isError, true);
     const badText = (bad.content as { text: string }[])[0].text;
     assert.ok(!badText.includes("abc123") && badText.includes("bad_symbol") && !badText.includes(ctx.dataRoot), badText);
+    const directRun = "mcp-direct-must-reject";
+    const direct = await client.callTool({ name: "start_research", arguments: {
+      symbol: "300308", engine: "direct", run_id: directRun, no_agent: true,
+      stages: ["profile"], endpoints: "core", knowledge: "off",
+    } });
+    assert.equal(direct.isError, true, "MCP 不能先剥掉 engine=direct 再静默启动默认 Codex Deep");
+    assert.equal(fs.existsSync(path.join(ctx.dataRoot, "runs", directRun)), false, "被拒请求不能留下研究运行");
     const st = await client.callTool({ name: "research_status", arguments: { run_id: "r1" } });
     const stText = (st.content as { text: string }[])[0].text;
     assert.equal(JSON.parse(stText).status, "complete"); assert.ok(!stText.includes(ctx.dataRoot));

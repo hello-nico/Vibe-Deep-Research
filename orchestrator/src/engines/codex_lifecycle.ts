@@ -24,6 +24,7 @@ export function codexCapabilities(cfg: RunConfig, structuredOutput: "server_sche
     contextStrategy: "thread",   // 一次运行 = 一个引擎线程,每阶段一个 turn
     structuredOutput,
     auditLevel: "engine_events",
+    methodology: "constitution_and_skills",
   };
 }
 

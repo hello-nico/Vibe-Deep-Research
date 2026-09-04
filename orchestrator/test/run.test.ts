@@ -1,12 +1,16 @@
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import path from "node:path";
 import { test } from "node:test";
+import { fileURLToPath } from "node:url";
 
-import { configFromArgs, parseArgs } from "../src/run.ts";
+import { configFromArgs, makeEngine, parseArgs } from "../src/run.ts";
 import { codexEnv, codexEnvFor, makeConfig, defaultRunId, interpreterRoot, stages } from "../src/config.ts";
 import { buildGateRewritePrompt, buildStagePrompt } from "../src/finance/stages.ts";
 
 
 import "../src/finance/register.ts";   // 测试文件也是入口:插件要先注册
+const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 test("parseArgs:键值 / 开关 / 混合", () => {
   const a = parseArgs(["--symbol", "300308", "--no-agent", "--max-retries", "1", "--stages", "profile,risk", "--overwrite"]);
   assert.equal(a.symbol, "300308");
@@ -104,4 +108,44 @@ test("CLI 执行层:controlled_mcp 强制关 hooks，非法值当场拒绝", () 
   assert.equal(cfg.executionMode, "controlled_mcp");
   assert.equal(cfg.hooksEnabled, false);
   assert.throws(() => configFromArgs({ symbol: "300308", "repo-root": "/tmp/repo", "execution-mode": "powershell" }), /--execution-mode/);
+});
+
+test("Direct 六阶段只保留为显式实验入口，不能被普通 CLI 误当成 Quick", () => {
+  assert.throws(
+    () => configFromArgs({ symbol: "300308", "repo-root": "/tmp/repo", engine: "direct" }),
+    /experimental-direct-deep/,
+  );
+  const cfg = configFromArgs({
+    symbol: "300308", "repo-root": "/tmp/repo", engine: "direct", "experimental-direct-deep": true,
+  }).cfg;
+  assert.equal(cfg.engine, "direct");
+});
+
+test("Direct 实验运行信息不探测 Codex 二进制", async () => {
+  const env = { MIMO_API_KEY: "test-key-only" };
+  const cfg = configFromArgs({
+    symbol: "300308", "repo-root": REPO, provider: "mimo", engine: "direct", "experimental-direct-deep": true,
+  }, env).cfg;
+  const events = path.join(REPO, ".local", "test-direct-events.jsonl");
+  fs.rmSync(events, { force: true });
+  const built = await makeEngine(cfg, events, undefined, env);
+  assert.equal(built.runtime.binary, null);
+  assert.match(built.runtime.version, /^direct-api\/mimo\//);
+  assert.equal(built.lifecycle.capabilities.methodology, "stage_prompt_only");
+  built.runner.log("orchestrator", "test.secret", { value: env.MIMO_API_KEY });
+  assert.doesNotMatch(fs.readFileSync(events, "utf8"), /test-key-only/,
+    "makeEngine 注入的同一份 env 也必须交给日志脱敏；只给请求层会把测试/嵌入式调用的 key 写进 events");
+  fs.rmSync(events, { force: true });
+});
+
+test("Codex 运行信息使用与线程一致的 provider 默认模型", async () => {
+  const base = configFromArgs({ symbol: "300308", "repo-root": REPO, engine: "codex" }).cfg;
+  const cfg = { ...base, providerProfile: { ...base.providerProfile!, default_model: "codex-test-default" } };
+  const events = path.join(REPO, ".local", "test-codex-runtime-events.jsonl");
+  fs.rmSync(events, { force: true });
+  const built = await makeEngine(cfg, events);
+  assert.ok(cfg.model == null, "用例必须走 provider 默认模型，而不是显式 --model");
+  assert.equal(built.runtime.model, cfg.providerProfile?.default_model,
+    "manifest runtime 必须与 CodexRunner.ensureThread 实际选模规则一致");
+  fs.rmSync(events, { force: true });
 });

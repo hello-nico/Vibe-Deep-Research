@@ -20,12 +20,12 @@ import { complianceGate, normalizeReportStatus, probeReportLine } from "./gate.t
 // Codex 专属的那半(指令根 / skills 隔离 / hooks 安装与汇总)已移入 engines/codex_lifecycle.ts。
 import { HOOK_CONTEXT_REL, writeHookContext } from "./hooks.ts";
 import { CONSTITUTION_FILENAME } from "./instructions_root.ts";
-import type { EngineLifecycle, LifecycleContext } from "./engine.ts";
+import type { EngineLifecycle, EngineRuntime, LifecycleContext } from "./engine.ts";
 import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
 import { structuredOutputMode } from "./providers.ts";
 import { currentPlugin } from "./plugin.ts";
 import { rawHashes, writeConflicts, writeManifest, writeMergedArtifacts, type Manifest, type StageRecord } from "./merge.ts";
-import type { AgentRunner } from "./runner.ts";
+import type { AgentRunner } from "./agent_runner.ts";
 import { turnReplySchema, validateManifest } from "./schemas.ts";
 import { reportContext, reportsForSymbol, type ReportContext } from "./report_library.ts";
 import { allCriticalFetchFailed, checkAgentTrace, deriveQuoteDecision, deriveStageStatus, loadRun, summarizeErrorsForAgent, validateFetchIntegrity, validateFinalArtifacts, validateProtectedArtifacts, validateReport, validateStage, type AgentTrace, type CalcVerifier, type ProtectedExpectation, type ValidationResult, isUpstreamContractError } from "./validator.ts";
@@ -40,7 +40,8 @@ export interface Deps {
    *    不要让它变成"忘了传就静默用 Codex"——那正是本产品最不该有的那类静默失败。
    */
   lifecycle?: EngineLifecycle;
-  sdkVersion: () => { version: string; binary: string | null };
+  /** 实际运行时信息；历史字段名保留到下一次 manifest 版本迁移。 */
+  sdkVersion: () => EngineRuntime | ({ version: string; binary: string | null } & Partial<EngineRuntime>);
 }
 
 export interface RunResult { status: RunStatus; exitCode: number; manifest: Manifest }
@@ -187,6 +188,8 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   const REPORT_STAGE = currentPlugin().reportStage as Stage;   // 报告阶段由契约给,Core 不写死阶段名(全审 r4)
   const { runner } = deps;
   const sdk = deps.sdkVersion();
+  const runtimeKind = sdk.kind ?? cfg.engine;
+  const actualModel = sdk.model ?? cfg.model ?? null;
   let calcVersion = "unknown";
   try { calcVersion = JSON.parse(sh(cfg.python, [path.join(cfg.repoRoot, cfg.calcCliRel), "list"], cfg.repoRoot)).calc_version ?? "unknown"; } catch { /* unknown */ }
   const headOk = spawnSync("git", ["rev-parse", "--verify", "-q", "HEAD"], { cwd: cfg.repoRoot, encoding: "utf8" }).status === 0;
@@ -203,9 +206,19 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
 
   const manifest: Manifest = {
     run_id: cfg.runId, symbol: cfg.symbol, market: cfg.market, started_at: nowIso(), finished_at: null, status: "running", stages: [],
-    codex_version: sdk.version, model: cfg.model ?? null, model_note: cfg.model ? "显式指定" : "未指定:使用 provider 的默认模型(事件流不回报实际模型名)",
+    codex_version: sdk.version,
+    model: actualModel,
+    model_note: cfg.model
+      ? "显式指定"
+      : actualModel
+        ? `provider 默认模型，已由 ${runtimeKind === "direct" ? "Direct" : "Codex"} 运行时解析`
+        : "未指定:使用 provider 的默认模型(事件流不回报实际模型名)",
     provider: { name: cfg.provider.name, wire_api: cfg.provider.wire_api, base_url: cfg.provider.base_url, env_key: cfg.provider.env_key, auth: cfg.provider.auth, profile: cfg.providerProfile?.id ?? null, matrix_status: cfg.providerProfile?.matrix?.status ?? null },
-    engine: { codex_path: cfg.codexPath, codex_home: cfg.codexHome, binary: sdk.binary },
+    engine: {
+      codex_path: runtimeKind === "direct" ? null : (sdk.codexPath ?? cfg.codexPath),
+      codex_home: runtimeKind === "direct" ? null : (sdk.codexHome ?? cfg.codexHome),
+      binary: sdk.binary,
+    },
     constitution: { path: cfg.constitutionPath, sha256: sha256File(cfg.constitutionPath) },
     hooks: { enabled: cfg.hooksEnabled, installed: false, hooks_json: null, invocations: 0, stop_blocks: 0, stop_terminations: 0, pre_tool_use_blocks: 0, errors: 0, log_trust: "diagnostic_untrusted" },
     calc_version: calcVersion, repo_version: repoVersion, config_hash: configHash, raw_hashes: {}, execution_scope: [...stagesToRun], partial_run: partial,

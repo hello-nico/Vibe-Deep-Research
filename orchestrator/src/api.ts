@@ -24,7 +24,7 @@ import { deepTargetResolverFor } from "./deep_target_registry.ts";
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
 // (Core 消费者靠副作用 import 硬接某个包,换垂类时靠入口 import 恢复不了 —— ESM 会缓存)。
-import "./finance/register.ts";
+import "./finance/register_tasks.ts";
 const MAX_BODY = 256 * 1024;
 
 function send(res: http.ServerResponse, code: number, body: unknown, type = "application/json; charset=utf-8"): void {
