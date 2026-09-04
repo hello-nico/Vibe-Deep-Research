@@ -211,8 +211,10 @@ export async function fetchEndpoint(
     /** 兼容写法:`true` 等价于 `consistency: {mode:"fresh"}` */
     refresh?: boolean;
     consistency?: Consistency;
+    signal?: AbortSignal;
   },
 ): Promise<FetchResult> {
+  if (req.signal?.aborted) throw new ServiceError("cancelled", "取数已取消");
   const ep = endpointDef(ctx, req.endpoint);
   const session = String(req.session ?? "default");
   if (!SESSION_RE.test(session)) throw new ServiceError("bad_session", `非法 session ${show(session)}`);
@@ -271,7 +273,7 @@ export async function fetchEndpoint(
     //    某个自报 132ms 的请求实际等了 1.83s(全在排队)。看板一屏要打五六个端点,这是致命的。
     //    并发安全性已核实:取数器把信封原子写到 fetch/<script>.json,raw 文件名带时间戳+pid+随机,
     //    且调用方拿的是 stdout 不是文件 —— 同端点并发不会互相污染。
-    const p = await runFetchProcess(ctx.python, argv, { cwd: ctx.repoRoot, env: fetchEnv(extra), timeout });
+    const p = await runFetchProcess(ctx.python, argv, { cwd: ctx.repoRoot, env: fetchEnv(extra), timeout, signal: req.signal });
     const dur = Date.now() - t0;
     let envelope: Record<string, unknown>;
     try { envelope = JSON.parse(p.stdout) as Record<string, unknown>; }
@@ -311,7 +313,7 @@ const KILL_GRACE_MS = 2_000;
 function runFetchProcess(
   cmd: string,
   argv: string[],
-  opts: { cwd: string; env: Record<string, string>; timeout: number; input?: string },
+  opts: { cwd: string; env: Record<string, string>; timeout: number; input?: string; signal?: AbortSignal },
 ): Promise<{ status: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     // stdin 只在**真要喂东西**时才开管道:取数那条路一直是 "ignore",
@@ -329,10 +331,10 @@ function runFetchProcess(
     const err: Buffer[] = [];
     let outLen = 0;
     let errLen = 0;
-    let aborted: "timeout" | "overflow" | null = null;
+    let aborted: "timeout" | "overflow" | "cancelled" | null = null;
     let hardKill: NodeJS.Timeout | null = null;
 
-    const stop = (why: "timeout" | "overflow") => {
+    const stop = (why: "timeout" | "overflow" | "cancelled") => {
       if (aborted) return;
       aborted = why;
       child.kill("SIGTERM");
@@ -341,6 +343,9 @@ function runFetchProcess(
     };
     const timer = setTimeout(() => stop("timeout"), opts.timeout);
     timer.unref();
+    const abort = () => stop("cancelled");
+    opts.signal?.addEventListener("abort", abort, { once: true });
+    if (opts.signal?.aborted) stop("cancelled");
 
     const take = (buf: Buffer[], chunk: Buffer, len: number): number => {
       const next = len + chunk.length;
@@ -351,7 +356,7 @@ function runFetchProcess(
     child.stdout?.on("data", (c: Buffer) => { outLen = take(out, c, outLen); });
     child.stderr?.on("data", (c: Buffer) => { errLen = take(err, c, errLen); });
 
-    const done = () => { clearTimeout(timer); if (hardKill) clearTimeout(hardKill); };
+    const done = () => { clearTimeout(timer); if (hardKill) clearTimeout(hardKill); opts.signal?.removeEventListener("abort", abort); };
     child.on("error", (e) => {
       done();
       reject(new ServiceError("spawn_failed", `取数进程失败:${redact(e.message, 120)}`));
@@ -364,6 +369,7 @@ function runFetchProcess(
       if (aborted === "overflow") {
         return reject(new ServiceError("spawn_failed", `取数进程输出超过 ${FETCH_MAX_BUFFER / 1024 / 1024} MB 已终止`));
       }
+      if (aborted === "cancelled") return reject(new ServiceError("cancelled", "取数已取消"));
       resolve({ status: code, stdout: Buffer.concat(out).toString("utf8"), stderr: Buffer.concat(err).toString("utf8") });
     });
   });
@@ -680,7 +686,7 @@ function selectInject(src: Record<string, unknown>, map?: Readonly<Record<string
 
 export async function pageQuery(
   ctx: ServiceContext,
-  req: { query: string; symbol?: string; refresh?: boolean; blockArgs?: Record<string, Record<string, unknown>> },
+  req: { query: string; symbol?: string; refresh?: boolean; blockArgs?: Record<string, Record<string, unknown>>; signal?: AbortSignal },
 ): Promise<PageResult> {
   const defs = currentPlugin().pageQueries ?? {};
   const name = String(req.query ?? "");
@@ -703,6 +709,7 @@ export async function pageQuery(
       endpoint: ctxDef.endpoint,
       ...(ctxDef.symbol ?? req.symbol ? { symbol: ctxDef.symbol ?? req.symbol } : {}),
       consistency: { mode: "fresh" },
+      signal: req.signal,
     });
     const resolved = ctxDef.resolve(probe.envelope);
     if (resolved) {
@@ -737,6 +744,7 @@ export async function pageQuery(
           // 注入前先按块声明的改名表改键(端点之间同一概念参数名不同 —— 见 injectAs)
           args: { ...(b.args ?? {}), ...(b.injectContext ? selectInject(injected, b.injectAs) : {}), ...used },
           consistency,
+          signal: req.signal,
         });
         const userArgs = b.userArgs?.length ? { user_args: b.userArgs, applied_args: { ...(b.args ?? {}), ...used } } : {};
         const st = blockStatusFromEnvelope(r.envelope);

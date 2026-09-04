@@ -330,6 +330,13 @@ def main() -> None:
         print(_dump({"calculation_id": None, "function": a.function, "calc_version": CALC_VERSION, "inputs": None,
                      "inputs_resolved": {}, "inputs_refs": [], "output": _error_out(f"参数解析失败:{e}", "bad_args")}))
         sys.exit(3)
+    if a.function == "validate":
+        from calc.contracts import validate_contract
+        target = args.get("function")
+        target_args = args.get("args")
+        error = validate_contract(target if isinstance(target, str) else "", target_args, FUNCTIONS)
+        print(_dump({"valid": error is None, **({} if error is None else {"error": error})}))
+        sys.exit(0 if error is None else 3)
     result = run(a.function, args, list(a.evidence), list(a.calc), a.run_dir)
     print(_dump(result))
     st = result["output"]["status"]

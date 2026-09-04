@@ -228,6 +228,15 @@ test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 
     assert.equal(reportList.code, 200);
     assert.equal((reportList.json as unknown[]).length, 1);
     assert.ok(!reportList.text.includes(ctx.dataRoot) && !reportList.text.includes("sha256") && !reportList.text.includes("text_file"));
+    const routed = await call("POST", "/tasks", { execute: false, task: {
+      schemaVersion: 1, id: "api-task-1", kind: "locate_passages", requestedMode: "deep",
+      objective: "定位光模块需求原文", evidenceScope: "existing", workflow: "single_step",
+      inputRefs: [{ kind: "report", id: reportId }], outputFormat: "text", operation: null,
+    } });
+    assert.equal(routed.code, 200);
+    assert.equal((routed.json as { status: string }).status, "routed");
+    assert.equal((routed.json as { route: { target: string } }).route.target, "deep");
+    assert.ok(!routed.text.includes(ctx.dataRoot) && !routed.text.includes("text_file"));
     const dl = await call("GET", `/reports/${reportId}/download`);
     assert.equal(dl.code, 200); assert.equal(dl.text, reportBody.toString("utf8"));
     const del = await call("POST", `/reports/${reportId}/delete`, { id: "ffffffffffffffffffffffffffffffff" });

@@ -43,6 +43,8 @@ const SAFE_AGENT_MESSAGE_CODES = new Set([
   "agent_bad_output", "agent_failed", "agent_empty_output", "agent_cancelled", "agent_start_failed",
   "tool_context_too_large", "bad_agent_output", "guided_output_blocked", "bad_tool_args", "bad_tool",
   "bad_agent_state", "not_found", "tool_failed",
+  "invalid_task_request", "invalid_task", "invalid_material_resolution", "material_resolution_failed",
+  "operation_not_available", "quick_not_eligible", "quick_provider_unsupported", "route_changed", "cancelled",
 ]);
 
 /**
@@ -66,7 +68,47 @@ export function friendlyAgentError(error: unknown): string {
 }
 
 const isAgentPath = (path: string): boolean =>
-  path === "/chat" || path === "/llm-probe" || path === "/translate-headlines" || path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
+  path === "/chat" || path === "/tasks" || path === "/llm-probe" || path === "/translate-headlines" || path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
+
+export type TaskMode = "auto" | "quick" | "deep";
+export type TaskRouteTarget = "deterministic" | "quick" | "deep";
+
+export interface ResearchTaskRequest {
+  schemaVersion: 1;
+  id: string;
+  kind: "locate_passages";
+  requestedMode: TaskMode;
+  objective: string;
+  evidenceScope: "existing";
+  workflow: "single_step";
+  inputRefs: { kind: "report"; id: string }[];
+  outputFormat: "text";
+  operation: null;
+}
+
+export interface TaskRouteDecision {
+  target: TaskRouteTarget;
+  requestedMode: TaskMode;
+  reasonCode: string;
+  reason: string;
+  routeFingerprint: string;
+  materialState: "not_needed" | "ready" | "partial" | "missing";
+}
+
+export interface UnifiedTaskEvent {
+  runId: string;
+  taskId: string;
+  sequence: number;
+  type: "started" | "progress" | "artifact" | "completed" | "failed";
+  payload?: Record<string, unknown>;
+}
+
+export interface UnifiedTaskResult {
+  status: "routed" | "completed" | "failed";
+  executionAvailable: boolean;
+  route: TaskRouteDecision;
+  events: UnifiedTaskEvent[];
+}
 
 /** 一条证据。所有端点的 evidence 元素都是这个形状,所以一套读法能服务全部端点。 */
 export interface Evidence {
@@ -202,6 +244,21 @@ export const backend = {
   reportDelete: (id: string) => call<{ removed: boolean }>(`/reports/${encodeURIComponent(id)}/delete`, {
     method: "POST", body: JSON.stringify({ id }),
   }),
+
+  /** 只判断 Auto / Quick / Deep 路径，不调用模型，也不把模型配置发给后端。 */
+  routeTask: (task: ResearchTaskRequest, signal?: AbortSignal) => call<UnifiedTaskResult>("/tasks", {
+    method: "POST", body: JSON.stringify({ task, execute: false }), signal,
+  }),
+
+  /** 执行已由同一高层任务描述过的任务。Quick 只接受直连 API，订阅登录留给 Deep。 */
+  runTask: (task: ResearchTaskRequest, expectedRouteFingerprint: string, signal?: AbortSignal, llm?: unknown) => {
+    const use = requestLlm(llm);
+    return call<UnifiedTaskResult>("/tasks", {
+      method: "POST",
+      body: JSON.stringify({ task, execute: true, expectedRouteFingerprint, ...(use !== undefined ? { llm: use } : {}) }),
+      signal,
+    });
+  },
 
   /**
    * 取一个端点。**默认读上次的快照**(见 service.fetchEndpoint):

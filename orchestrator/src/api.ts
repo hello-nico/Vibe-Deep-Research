@@ -18,6 +18,7 @@ import crypto from "node:crypto";
 import { IMPORT_MAX_TOTAL_BYTES, ServiceError, chatSend, llmProbe, translateHeadlines, evidenceAlerts, guidedToolTurn, listTools, runTool, fetchEndpoint, ingestFiles, debateAdvance, debateStart, ledgerKinds, ledgerLabels, ledgerList, localAgents, productInfo, ledgerRemove, ledgerSnapshot, ledgerUpsert, pageQuery, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, readRunFile, redact, reportDelete, reportDownload, reportUpload, reportsList, researchStatus, safePath, serviceContext, startCodexSubscriptionLogin, startResearch, thermoSeries, type ServiceContext } from "./service.ts";
 import { REPORT_MAX_BYTES } from "./report_library.ts";
 import { NOFOLLOW_FLAG, restrictPrivateFile } from "./fsutil.ts";
+import { runUnifiedTask } from "./task_service.ts";
 
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
@@ -230,6 +231,14 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         return send(res, 200, await debateAdvance(ctx, { id: parts[1] }));
       }
       if (req.method === "POST" && url.pathname === "/fetch") { const b = await readBody(req); return send(res, 200, await fetchEndpoint(ctx, b as never)); }
+      // 统一任务入口：客户端只提交高层 task；路由器自行决定 deterministic / Quick / Deep。
+      // M2 真正执行 Quick；Deep 先返回透明路由结果，M3 再接长流程适配器。旧 /research 保持兼容。
+      if (req.method === "POST" && url.pathname === "/tasks") {
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = await readBody(req);
+          return send(res, 200, await runUnifiedTask(ctx, b, signal));
+        });
+      }
       // 自由对话:一问一答。**只读沙箱 + 不联网 + 过合规 gate**(见 chat.ts),不产出证据、不写台账。
       if (req.method === "POST" && url.pathname === "/chat") {
         // body 里可带 `llm`(界面上选的模型 + 用户自己的 key)。

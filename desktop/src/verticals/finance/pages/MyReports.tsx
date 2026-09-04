@@ -1,16 +1,25 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Upload, FileText, Trash2, Download, Loader2, FolderOpen, Bot, Search } from "lucide-react";
+import { Upload, FileText, Trash2, Download, Loader2, FolderOpen, Bot, Search, Play, Route } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, ApiError, downloadReport, type MyReport } from "@/lib/api";
+import {
+  backend, friendlyAgentError, type ResearchTaskRequest, type TaskMode, type TaskRouteDecision,
+} from "@/lib/backend";
 import { cn } from "@/lib/utils";
 
 const fmtSize = (b: number) =>
   b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(0)}KB` : `${(b / 1048576).toFixed(1)}MB`;
 const fmtDate = (ts: number) =>
   new Date(ts).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
+const MODE_LABELS: Record<TaskMode, string> = { auto: "Auto", quick: "Quick", deep: "Deep" };
+const TARGET_LABELS: Record<TaskRouteDecision["target"], string> = {
+  deterministic: "确定性处理", quick: "Quick", deep: "Deep",
+};
 
 // 读文件为 dataURL（含 base64）；后端会剥掉 data: 前缀。
 const fileToB64 = (file: File): Promise<string> =>
@@ -24,9 +33,19 @@ const fileToB64 = (file: File): Promise<string> =>
 export function MyReports() {
   const [reports, setReports] = useState<MyReport[]>([]);
   const [busy, setBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  const [selected, setSelected] = useState<string[]>([]);
+  const [objective, setObjective] = useState("");
+  const [mode, setMode] = useState<TaskMode>("auto");
+  const [taskBusy, setTaskBusy] = useState(false);
+  const [taskError, setTaskError] = useState("");
+  const [routeDecision, setRouteDecision] = useState<TaskRouteDecision | null>(null);
+  const [taskAnswer, setTaskAnswer] = useState("");
+  const [taskNotice, setTaskNotice] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const taskAbortRef = useRef<AbortController | null>(null);
 
   const load = async () => {
     try {
@@ -39,8 +58,10 @@ export function MyReports() {
   useEffect(() => {
     load();
   }, []);
+  useEffect(() => () => taskAbortRef.current?.abort(), []);
 
   const upload = async (files: FileList | File[]) => {
+    if (taskBusy || deleting) return;
     setBusy(true);
     setErr(null);
     try {
@@ -57,13 +78,16 @@ export function MyReports() {
   };
 
   const remove = async (r: MyReport) => {
+    if (taskBusy || busy || deleting) return;
     if (!confirm(`删除「${r.name}」？（同时从本地归档目录移除）`)) return;
+    setDeleting(true);
     try {
       await api.deleteReport(r.id);
+      setSelected((ids) => ids.filter((id) => id !== r.id));
       await load();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "删除失败");
-    }
+    } finally { setDeleting(false); }
   };
 
   const download = async (r: MyReport) => {
@@ -85,6 +109,63 @@ export function MyReports() {
       a[0] === "未识别标的" ? 1 : b[0] === "未识别标的" ? -1 : b[1].length - a[1].length,
     );
   }, [reports]);
+
+  const toggleReport = (id: string) => {
+    setSelected((ids) => ids.includes(id) ? ids.filter((item) => item !== id) : [...ids, id]);
+  };
+
+  const submitTask = async () => {
+    const goal = objective.trim();
+    if (!goal || !selected.length || taskBusy || busy || deleting) return;
+    const controller = new AbortController();
+    taskAbortRef.current?.abort();
+    taskAbortRef.current = controller;
+    const task: ResearchTaskRequest = {
+      schemaVersion: 1,
+      id: `report-${crypto.randomUUID()}`,
+      kind: "locate_passages",
+      requestedMode: mode,
+      objective: goal,
+      evidenceScope: "existing",
+      workflow: "single_step",
+      inputRefs: selected.map((id) => ({ kind: "report", id })),
+      outputFormat: "text",
+      operation: null,
+    };
+    setTaskBusy(true);
+    setTaskError("");
+    setTaskAnswer("");
+    setTaskNotice("");
+    setRouteDecision(null);
+    try {
+      // 先只路由，让 Auto 的选择理由可见；即使 Quick 尚未配置直连 API，理由也不会被配置错误盖住。
+      const routed = await backend.routeTask(task, controller.signal);
+      if (controller.signal.aborted) return;
+      setRouteDecision(routed.route);
+      if (routed.route.target === "deep") {
+        setTaskNotice("Deep 执行器将在 M3 接入，本次只完成路由判断，未启动长流程。");
+        return;
+      }
+      const result = await backend.runTask(task, routed.route.routeFingerprint, controller.signal);
+      if (controller.signal.aborted) return;
+      setRouteDecision(result.route);
+      const artifact = result.events.find((event) => event.type === "artifact");
+      const failed = result.events.find((event) => event.type === "failed");
+      if (result.status === "completed" && typeof artifact?.payload?.answer === "string") {
+        setTaskAnswer(artifact.payload.answer);
+      } else {
+        setTaskError(typeof failed?.payload?.message === "string"
+          ? failed.payload.message : "这次任务没有生成可交付结果，请检查模型配置后重试。");
+      }
+    } catch (e) {
+      if (!controller.signal.aborted) setTaskError(friendlyAgentError(e));
+    } finally {
+      if (taskAbortRef.current === controller) {
+        taskAbortRef.current = null;
+        setTaskBusy(false);
+      }
+    }
+  };
 
   useAiPage({
     key: "my-reports",
@@ -112,9 +193,62 @@ export function MyReports() {
         </div>
       </div>
       <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
-        隐私说明：原文件不会上传；只有与问题或研究标的命中的正文片段，会随本轮请求发给在「接入 AI」中选择的模型。
+        隐私说明：原文件不会上传。材料任务只读取勾选文件；Quick 会把这些文件已提取的正文随本轮请求发给在「接入 AI」中选择的直连模型。
+        Deep 在 M2 只判断路线，不会启动研究或发送正文。
         未识别出代码的文件仍可在对话中检索。A 股代码会用于个股研究自动召回；港股与美股代码用于归档分组和对话检索，当前六阶段个股研究底座仍只支持 A 股。
       </p>
+
+      <GlassCard className="mb-4 border-primary/25">
+        <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4 text-primary" /> 材料任务</h2>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">勾选下方资料，描述要找的内容。Auto 会先说明为什么选择 Quick 或 Deep。</p>
+          </div>
+          <button type="button" disabled={!reports.length || taskBusy || busy || deleting}
+            onClick={() => setSelected(selected.length === reports.length ? [] : reports.map((report) => report.id))}
+            className="rounded-lg border border-border/70 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40">
+            {selected.length === reports.length && reports.length ? "取消全选" : "选择全部"}
+          </button>
+        </div>
+
+        <div className="mb-3 inline-flex rounded-xl border border-border/70 bg-background/45 p-1" aria-label="任务模式">
+          {(Object.keys(MODE_LABELS) as TaskMode[]).map((item) => (
+            <button key={item} type="button" aria-pressed={mode === item} disabled={taskBusy || busy || deleting}
+              onClick={() => setMode(item)}
+              className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
+                mode === item ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+              {MODE_LABELS[item]}
+            </button>
+          ))}
+        </div>
+
+        <textarea value={objective} onChange={(e) => setObjective(e.target.value)} disabled={taskBusy || busy || deleting} rows={3}
+          maxLength={8000} placeholder="例如：找出这些研报中关于收入变化、原因和风险提示的原文段落"
+          className="w-full resize-y rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/65 focus:border-primary/60 disabled:opacity-50" />
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-muted-foreground">已选 {selected.length} 份 · {mode === "auto" ? "由系统判断" : `${MODE_LABELS[mode]} 优先`}</p>
+          <button type="button" onClick={() => void submitTask()} disabled={!selected.length || !objective.trim() || taskBusy || busy || deleting}
+            className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-35">
+            {taskBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+            {taskBusy ? "正在判断并处理…" : "开始任务"}
+          </button>
+        </div>
+
+        {routeDecision && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
+          <p className="flex items-center gap-2 text-sm font-medium"><Route className="h-4 w-4 text-primary" />
+            {MODE_LABELS[routeDecision.requestedMode]}{routeDecision.requestedMode === "auto" ? ` → ${TARGET_LABELS[routeDecision.target]}` : ` · ${TARGET_LABELS[routeDecision.target]}`}
+          </p>
+          <p className="mt-1 text-xs leading-5 text-muted-foreground">{routeDecision.reason}</p>
+        </div>}
+        {taskNotice && <div className="mt-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-foreground/80">{taskNotice}</div>}
+        {taskError && <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{taskError}</div>}
+        {taskAnswer && <div className="mt-3 rounded-xl border border-border/70 bg-background/50 p-4">
+          <p className="mb-3 text-xs font-semibold text-muted-foreground">定位结果</p>
+          <div className="prose prose-sm dark:prose-invert max-w-none prose-blockquote:border-primary/40 prose-blockquote:text-foreground/85">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{taskAnswer}</ReactMarkdown>
+          </div>
+        </div>}
+      </GlassCard>
 
       {/* 上传区 */}
       <GlassCard className="mb-4">
@@ -127,25 +261,27 @@ export function MyReports() {
           onDrop={(e) => {
             e.preventDefault();
             setDrag(false);
-            if (e.dataTransfer.files.length) upload(e.dataTransfer.files);
+            if (!taskBusy && !deleting && e.dataTransfer.files.length) upload(e.dataTransfer.files);
           }}
-          onClick={() => inputRef.current?.click()}
           className={cn(
-            "flex cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-10 text-center transition-colors",
+            "rounded-xl border-2 border-dashed text-center transition-colors",
             drag ? "border-primary bg-primary/10" : "border-border hover:border-primary/50 hover:bg-primary/5",
           )}
         >
-          {busy ? (
-            <Loader2 className="h-7 w-7 animate-spin text-primary" />
-          ) : (
-            <Upload className="h-7 w-7 text-primary" />
-          )}
-          <p className="text-sm font-medium">
-            {busy ? "上传中…" : "把研报拖到这里，或点击选择文件"}
-          </p>
-          <p className="text-xs text-muted-foreground/70">
-            支持 PDF / DOCX / TXT / MD / CSV，单个 ≤ 25MB，可一次多选
-          </p>
+          <button type="button" onClick={() => inputRef.current?.click()} disabled={busy || deleting || taskBusy}
+            className="flex w-full flex-col items-center justify-center gap-2 rounded-[inherit] py-10 disabled:cursor-not-allowed disabled:opacity-50">
+            {busy ? (
+              <Loader2 className="h-7 w-7 animate-spin text-primary" />
+            ) : (
+              <Upload className="h-7 w-7 text-primary" />
+            )}
+            <span className="text-sm font-medium">
+              {busy ? "上传中…" : taskBusy ? "材料任务进行中，暂不能更换资料" : "把研报拖到这里，或点击选择文件"}
+            </span>
+            <span className="text-xs text-muted-foreground/70">
+              支持 PDF / DOCX / TXT / MD / CSV，单个 ≤ 25MB，可一次多选
+            </span>
+          </button>
           <input
             ref={inputRef}
             type="file"
@@ -185,6 +321,9 @@ export function MyReports() {
               <div className="divide-y divide-border/30">
                 {items.map((r) => (
                   <div key={r.id} className="flex items-center gap-3 py-2.5">
+                    <input type="checkbox" checked={selected.includes(r.id)} onChange={() => toggleReport(r.id)}
+                      aria-label={`选择 ${r.name}`} disabled={taskBusy || busy || deleting}
+                      className="h-4 w-4 shrink-0 accent-primary" />
                     <FileText className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium">{r.name}</p>
@@ -202,7 +341,8 @@ export function MyReports() {
                     </button>
                     <button
                       onClick={() => remove(r)}
-                      className="shrink-0 text-muted-foreground/50 hover:text-destructive"
+                      disabled={taskBusy || busy || deleting}
+                      className="shrink-0 text-muted-foreground/50 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-35"
                       title="删除"
                     >
                       <Trash2 className="h-3.5 w-3.5" />

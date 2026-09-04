@@ -14,7 +14,7 @@ import path from "node:path";
 import mammoth from "mammoth";
 import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
-import { atomicWrite } from "./fsutil.ts";
+import { atomicWrite, NOFOLLOW_FLAG } from "./fsutil.ts";
 
 export const REPORT_MAX_BYTES = 25 * 1024 * 1024;
 export const REPORT_MAX_TEXT_CHARS = 1_000_000;
@@ -343,6 +343,35 @@ export function reportFile(dataRoot: string, id: unknown): { record: ReportRecor
   const p = inside(dataRoot, rec.file);
   if (!fs.existsSync(p) || !fs.lstatSync(p).isFile()) throw new ReportLibraryError("report_file_missing", `资料原文件缺失：${rec.name}`);
   return { record: rec, path: p };
+}
+
+/**
+ * 读取已经提取、净化过的正文。调用方只拿到内容和受控元数据，不拿磁盘路径。
+ * 记录的 chars 与实际正文必须一致；索引正文被改坏时明确失败，不能继续用旧 revision。
+ */
+export function reportText(dataRoot: string, id: unknown): { record: ReportRecord; text: string } | null {
+  const reportId = String(id ?? "");
+  if (!REPORT_ID_RE.test(reportId)) throw new ReportLibraryError("bad_report_id", "资料 id 无效");
+  const rec = loadIndex(dataRoot).reports.find((r) => r.id === reportId);
+  if (!rec) return null;
+  const p = inside(dataRoot, rec.text_file);
+  if (!fs.existsSync(p) || !fs.lstatSync(p).isFile()) {
+    throw new ReportLibraryError("report_text_missing", `资料正文索引缺失：${rec.name}`);
+  }
+  const fd = fs.openSync(p, fs.constants.O_RDONLY | NOFOLLOW_FLAG);
+  let stored: string;
+  try {
+    const stat = fs.fstatSync(fd);
+    if (!stat.isFile()) throw new ReportLibraryError("report_text_missing", `资料正文索引不是普通文件：${rec.name}`);
+    stored = fs.readFileSync(fd, "utf8");
+  } finally {
+    fs.closeSync(fd);
+  }
+  const text = stored.endsWith("\n") ? stored.slice(0, -1) : stored;
+  if (!text || text.length !== rec.chars) {
+    throw new ReportLibraryError("report_text_corrupt", `资料正文索引与清单不一致：${rec.name}`);
+  }
+  return { record: rec, text };
 }
 
 function normalized(s: string): string {

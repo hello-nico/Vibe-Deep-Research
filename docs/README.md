@@ -1,5 +1,6 @@
 # docs
 
+- [双引擎任务架构_v3_2026-09-04.md](双引擎任务架构_v3_2026-09-04.md) — 当前双引擎任务分层的权威方案：Browse / Quick / Deep、ResearchTask、Auto 路由和分阶段验收。
 - [release-checklist.md](release-checklist.md) — 发布前清单:只能由维护者拍板 / 提供的事项(License、仓库地址、国产模型矩阵真测、模板易变字段核实)与发布时序(审计在 push 之前)。
 - [model-access.md](model-access.md) — 模型接入指南:ChatGPT 订阅 / OpenAI API key / 第三方 provider 三步接入、10 项兼容矩阵怎么读、怎么加一家新的 provider、常见问题。
 - 编排器细节(状态机 / validator / hooks / 配置 / MCP / HTTP API / 批量 / 提醒 / 矩阵):[../orchestrator/README.md](../orchestrator/README.md)
