@@ -11,8 +11,8 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v1.0.3-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
-  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-681%20checks-passing">
-  <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-25%20tests-passing">
+  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-691%20checks-passing">
+  <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-34%20tests-passing">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
 
@@ -111,7 +111,7 @@ model guesses.
 | Operating system | Windows 11, macOS, or Linux; Windows runs natively and does not require WSL |
 | Node.js | ≥ 22.18; Node 24 LTS recommended |
 | Python | ≥ 3.11; Python 3.12 recommended and currently verified |
-| Codex CLI | Version 0.149.0 verified; see `codex-version.json` |
+| Agent engine | Codex Harness is installed with the product dependencies; version 0.149.0 verified; no global Codex install required |
 | Model access | ChatGPT or Claude.ai subscription login, or a provider that supports the Responses API |
 
 > Node must be a build with TypeScript support enabled (the official nodejs.org installers and anything installed via nvm / fnm / Volta are): `node -p process.features.typescript` should print `strip` or `transform`. Some Linux distribution packages ship Node compiled without it; starting the app or running tests then fails with `ERR_UNKNOWN_FILE_EXTENSION ".ts"` / `ERR_NO_TYPESCRIPT` — switch to an official build. `npm test` runs this check first and prints the same guidance.
@@ -136,16 +136,13 @@ macOS / Linux:
 ```bash
 git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
 cd vibe-research-agent
-
-npm install --prefix orchestrator
-npm install --prefix desktop
-
-python3 -m venv .venv
-.venv/bin/pip install -r .agents/skills/data-access/scripts/requirements.txt
-
-npm install -g @openai/codex@0.149.0
-scripts/init --python "$(pwd)/.venv/bin/python"
+scripts/setup
+scripts/start
 ```
+
+`scripts/setup` creates `.venv`, installs the bundled Agent engine and all Node/Python dependencies, initializes the
+private data directory, and runs diagnostics. `scripts/start` checks the installation and fixed ports, starts both
+services, and opens the browser only after both are healthy. No global Codex install or second terminal is required.
 
 ### Connect AI
 
@@ -156,10 +153,8 @@ capability check.
 For ChatGPT subscription access, start the UI, open **Connect AI → Subscription**, and click **Log in to Codex**.
 Complete authorization on the official OpenAI page that opens, return to Settings, and click **Test and save**
 after the login status turns ready. The product uses its own `.local/codex-home` and never reads or overwrites
-`~/.codex`. If the browser does not open automatically, use
-`CODEX_HOME="$(pwd)/.local/codex-home" codex login` as a fallback.
-On Windows, the fallback is
-`$env:CODEX_HOME="$PWD\.local\codex-home"; codex login`.
+`~/.codex`. If the authorization page does not open, return to Settings and click **Log in to Codex** again. If the
+local status is still unclear, run `scripts/doctor` (or `scripts\doctor.ps1` on Windows) for an actionable diagnosis.
 
 For Claude.ai subscription access, install and log in to Claude Code. The settings page detects it automatically;
 no Claude API key needs to be entered into Vibe Research.
@@ -172,20 +167,9 @@ itself has not failed.
 
 ### Start the browser UI
 
-On Windows, `scripts\start.cmd` handles both processes. On macOS / Linux, open two terminals:
-
-```bash
-# Terminal 1: local API
-node scripts/check-node.mjs   # optional runtime self-check, see the Node note above
-node orchestrator/src/api.ts --port 8765
-```
-
-```bash
-# Terminal 2: React UI
-npm run dev --prefix desktop
-```
-
-Open [http://127.0.0.1:5930](http://127.0.0.1:5930).
+Run `scripts\start.cmd` on Windows or `scripts/start` on macOS / Linux. Both commands manage the local API and UI
+together at [http://127.0.0.1:5930](http://127.0.0.1:5930). On macOS / Linux, use `scripts/start --no-open` to skip
+opening the browser automatically; Ctrl+C stops both processes.
 
 Vite proxies `/api/*` locally and adds authentication on the server side. If `VRA_DATA_ROOT` is set, both
 processes must use the same value.
@@ -329,7 +313,7 @@ npm run build --prefix desktop
 
 Current verified baseline:
 
-- orchestrator: **681 checks** (680 passed locally plus one Windows-only ACL check skipped off Windows), Core industry-term count **0**, TypeScript typecheck passed.
+- orchestrator: **691 checks** (690 passed locally plus one Windows-only ACL check skipped off Windows), Core industry-term count **0**, TypeScript typecheck passed.
 - desktop: **34/34**, TypeScript typecheck and Vite production build passed.
 - Python (calculation library, backtest, and data scripts): **577/577**.
 - The current unreleased changes passed an independent Codex re-review with `No actionable P1/P2 findings`.
@@ -339,7 +323,8 @@ and re-review. A component is not described as complete and is not committed or 
 
 ## Current boundaries
 
-- V1.0.1 is distributed as open-source code plus a local browser UI. The local API and browser UI are started separately.
+- Distribution remains open-source code plus a local browser UI, not a DMG or EXE. The current unreleased changes use
+  one `scripts/start` command to manage the local API and browser UI together.
 - MiMo API has passed an end-to-end run from an empty configuration to a real business report. Other third-party
   providers still require the user's own keys and are not marked verified without real compatibility-matrix runs.
 - Native Windows 11 support includes PowerShell setup/start scripts, Windows path and process handling, and the

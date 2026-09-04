@@ -97,6 +97,17 @@ test("产品界面不展示 Phoenix Tree 官网入口", () => {
   assert.ok(!/phoenixtree\.ai/i.test(layoutSrc), "本产品不进入官网产品系统，侧栏不得展示 Phoenix Tree 网址");
 });
 
+test("首屏后端失败态给普通用户一键启动命令与重试入口", () => {
+  const mainSrc = fs.readFileSync(path.join(SRC, "main.tsx"), "utf8");
+  const viteSrc = fs.readFileSync(path.join(REPO, "desktop", "vite.config.ts"), "utf8");
+  assert.match(mainSrc, /macOS \/ Linux 请运行 scripts\/start/);
+  assert.match(mainSrc, /Windows 请运行 scripts\\\\start\.cmd/);
+  assert.match(mainSrc, /retry\.textContent = "重新连接"/);
+  assert.match(mainSrc, /window\.location\.reload\(\)/);
+  assert.match(viteSrc, /本机服务没有启动或已经关闭/);
+  assert.doesNotMatch(viteSrc, /先执行 node orchestrator\/src\/api\.ts/);
+});
+
 test("根路径是极简功能首页,首屏可直接与 Agent 交流", () => {
   const routerSrc = fs.readFileSync(path.join(FINANCE, "router.tsx"), "utf8");
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");

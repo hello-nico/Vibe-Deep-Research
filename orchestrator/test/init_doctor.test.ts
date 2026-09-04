@@ -51,7 +51,8 @@ test("init:幂等建 .local 目录 + 配置骨架 + .gitignore;已有配置不�
   const cfg = JSON.parse(fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8"));
   assert.equal(cfg.python, null); assert.deepEqual(cfg.provider, { profile: "openai" }, "骨架不写 auth(写了会被当成用户显式指定)");
   assert.ok(fs.readFileSync(path.join(repo, ".gitignore"), "utf8").split("\n").includes(".local/"));
-  assert.ok(r1.next.some((n) => n.includes("codex login")) && r1.next.every((n) => !n.includes("~/.codex")));
+  assert.ok(r1.next.some((n) => n.includes("scripts/start")) && r1.next.some((n) => n.includes("接入 AI")));
+  assert.ok(r1.next.every((n) => !n.includes("codex login") && !n.includes("~/.codex")));
   // 第二次:全部 exists / kept,文件不变
   const before = fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8");
   const r2 = runInit({ repoRoot: repo });

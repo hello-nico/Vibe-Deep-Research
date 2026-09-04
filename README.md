@@ -11,8 +11,8 @@
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v1.0.3-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
-  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-681%20checks-passing">
-  <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-25%20tests-passing">
+  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-691%20checks-passing">
+  <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-34%20tests-passing">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
 
@@ -107,7 +107,7 @@ Qwen Code 与 DeepSeek CLI 当前仍需各自的 API key，也归入 API 接入�
 | 操作系统 | Windows 11、macOS 或 Linux；Windows 原生运行，不要求 WSL |
 | Node.js | ≥ 22.18，推荐 24 LTS |
 | Python | ≥ 3.11，推荐并已验证 3.12 |
-| Codex CLI | 已验证 0.149.0；版本锚点见 `codex-version.json` |
+| Agent 引擎 | Codex Harness 随依赖安装，已验证 0.149.0；用户无需另装全局 Codex |
 | 模型 | ChatGPT / Claude.ai 订阅登录，或支持 Responses API 的模型服务 |
 
 > Node 必须是启用了 TypeScript 支持的构建（nodejs.org 官方安装包、nvm / fnm / Volta 装的都是）：`node -p process.features.typescript` 应输出 `strip` 或 `transform`。部分 Linux 发行版仓库打包的 Node 编译时关闭了这一项，启动或跑测试会报 `ERR_UNKNOWN_FILE_EXTENSION ".ts"` / `ERR_NO_TYPESCRIPT`，请换官方构建。`npm test` 前会先做这项检查并给出同样的提示。
@@ -131,16 +131,13 @@ macOS / Linux：
 ```bash
 git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
 cd vibe-research-agent
-
-npm install --prefix orchestrator
-npm install --prefix desktop
-
-python3 -m venv .venv
-.venv/bin/pip install -r .agents/skills/data-access/scripts/requirements.txt
-
-npm install -g @openai/codex@0.149.0
-scripts/init --python "$(pwd)/.venv/bin/python"
+scripts/setup
+scripts/start
 ```
+
+`scripts/setup` 会创建 `.venv`、安装本产品自带的 Agent 引擎与 Node/Python 依赖、初始化私有目录并运行
+体检；`scripts/start` 会检查安装状态和端口，同时启动两端，确认都可用后才打开浏览器。无需全局安装 Codex，
+也无需打开两个终端。
 
 ### 连接 AI
 
@@ -149,10 +146,8 @@ scripts/init --python "$(pwd)/.venv/bin/python"
 
 使用 ChatGPT 订阅：启动界面后进入“接入 AI”→“订阅接入”，点击“登录 Codex”，在自动打开的
 OpenAI 官方页面完成授权；页面自动识别登录结果后，点击“测试并保存”。产品使用独立的
-`.local/codex-home`，不会读取或覆盖用户的 `~/.codex`。浏览器未自动打开时，可用
-`CODEX_HOME="$(pwd)/.local/codex-home" codex login` 作为后备方式。
-Windows 后备命令为
-`$env:CODEX_HOME="$PWD\.local\codex-home"; codex login`。
+`.local/codex-home`，不会读取或覆盖用户的 `~/.codex`。授权页没有自动打开时，回到设置页重新点击
+“登录 Codex”；本地状态仍不明确时运行 `scripts/doctor`（Windows 为 `scripts\doctor.ps1`）查看修复提示。
 
 使用 Claude.ai 订阅：先安装并登录 Claude Code；设置页会自动检测，不需要把 Claude 的 key 填进产品。
 
@@ -162,20 +157,9 @@ API 接入：进入“接入 AI”→“API 接入”，选择供应商并填写
 
 ### 启动浏览器 UI
 
-Windows 已由 `scripts\start.cmd` 一键启动。macOS / Linux 打开两个终端：
-
-```bash
-# 终端 1：本地 API（第一行是可选的运行时自检，见上文 Node 说明）
-node scripts/check-node.mjs
-node orchestrator/src/api.ts --port 8765
-```
-
-```bash
-# 终端 2：React 界面
-npm run dev --prefix desktop
-```
-
-浏览器打开 [http://127.0.0.1:5930](http://127.0.0.1:5930)。
+Windows 运行 `scripts\start.cmd`，macOS / Linux 运行 `scripts/start`。两者都会同时管理本机 API 与界面，
+浏览器地址为 [http://127.0.0.1:5930](http://127.0.0.1:5930)。macOS / Linux 如不想自动打开浏览器，
+可运行 `scripts/start --no-open`；按 Ctrl+C 会同时关闭两端。
 
 Vite 只在本机代理 `/api/*`，并在服务端补上鉴权信息。若设置了 `VRA_DATA_ROOT`，两个进程必须使用
 同一个值。
@@ -313,7 +297,7 @@ npm run build --prefix desktop
 
 当前验证基线：
 
-- orchestrator：**681 项**（本机 680 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
+- orchestrator：**691 项**（本机 690 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
 - desktop：**34/34**，TypeScript 类型检查与 Vite 生产构建通过。
 - Python（计算库、回测、数据脚本）：**577/577**。
 - 当前未发布改动经 Codex 独立复审，末轮为 `No actionable P1/P2 findings`。
@@ -323,7 +307,8 @@ npm run build --prefix desktop
 
 ## 当前边界
 
-- V1.0.1 的交付形态是开源源码 + 本地浏览器 UI，需要分别启动本地 API 与浏览器界面。
+- 交付形态仍是开源源码 + 本地浏览器 UI，不是 DMG / EXE；当前未发布改动已用一个 `scripts/start`
+  同时管理本地 API 与浏览器界面。
 - MiMo API 已完成从空配置到真实业务报告的端到端验证；其他第三方模型仍需使用者自己的 key，
   没有真实跑过兼容矩阵的模板不会标成“已实测”。
 - Windows 11 原生支持已接入：PowerShell 初始化/启动脚本、Windows 路径与进程处理、受控研究工具链，

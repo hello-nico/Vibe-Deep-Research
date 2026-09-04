@@ -38,6 +38,8 @@ export default defineConfig({
     // 🔴 必须写死 IPv4:默认 localhost 在本机解析成 [::1],而后端绑的是 127.0.0.1,对不上会 502
     host: "127.0.0.1",
     port: 5930,
+    // 启动器和 README 都只打开 5930；被占用时必须明确失败，不能静默漂到 5931 让用户看到旧页面。
+    strictPort: true,
     proxy: {
       "/api": {
         target: "http://127.0.0.1:8765",
@@ -52,7 +54,7 @@ export default defineConfig({
           proxy.on("error", (err, _req, res) => {
             // 默认错误页是一段 HTML,前端 res.json() 会炸在"Unexpected token <",把真正原因埋掉
             const msg = /ECONNREFUSED/.test(String(err))
-              ? "编排器 API 没在跑:先执行 node orchestrator/src/api.ts"
+              ? "本机服务没有启动或已经关闭。请按页面提示重新启动。"
               : `代理失败:${err.message}`;
             if ("writeHead" in res && !res.headersSent) {
               res.writeHead(502, { "Content-Type": "application/json; charset=utf-8" });
