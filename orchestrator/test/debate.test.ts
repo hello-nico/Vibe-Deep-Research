@@ -48,6 +48,28 @@ test("开场后阶段按契约排好、全部 pending;gaps 原样带着", () => 
   assert.equal((getDebate("d1") as unknown as Record<string, unknown>).dossier, undefined);
 });
 
+test("🔴 一场辩论开始后不许中途换 AI 来源", async () => {
+  resetDebates();
+  startDebate({
+    id: "d-source",
+    symbol: "300308",
+    envelopes: [ENV([{ id: "ev-source", field: "price", value: 1, unit: "元", period: "2026-08-26" }])],
+    gaps: [],
+    sourceFingerprint: "source-a",
+  });
+  await assert.rejects(
+    () => advanceDebate({ repoRoot: process.cwd() }, { id: "d-source", sourceFingerprint: "source-b" }, async () => "不应执行"),
+    (e: unknown) => e instanceof DebateError && e.code === "debate_source_changed",
+  );
+  assert.equal(getDebate("d-source")?.stages[0]?.status, "pending", "换源被拒后不得占用或改写阶段");
+  const continued = await advanceDebate(
+    { repoRoot: process.cwd() },
+    { id: "d-source", sourceFingerprint: "source-a" },
+    async () => "多方论据…",
+  );
+  assert.equal(continued.stages[0]?.status, "done", "原 AI 来源仍能正常继续");
+});
+
 test("🔴 契约:sees 只能指向排在自己前面的阶段", () => {
   // 指向后面的阶段永远读不到内容,而产出照样是一篇像样的文章 —— 看不出这一环是瞎写的
   const stages = currentPlugin().debate!.stages;

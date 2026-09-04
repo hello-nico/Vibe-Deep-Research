@@ -10,9 +10,10 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 import { createApiServer, resolveToken, isLoopbackHost } from "../src/api.ts";
-import { ServiceError, assertArgs, chatSend, fetchEndpoint, ledgerList, ledgerSnapshot, ledgerUpsert, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, redact, researchEnv, researchStatus, safePath, startResearch, type ServiceContext, displayUrl } from "../src/service.ts";
+import { ServiceError, assertArgs, chatSend, debateStart, fetchEndpoint, guidedToolTurn, ingestFiles, ledgerList, ledgerSnapshot, ledgerUpsert, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, listTools, runToolRequest, redact, researchEnv, researchStatus, safePath, startResearch, translateHeadlines, type ServiceContext, displayUrl } from "../src/service.ts";
 import { writeJson } from "../src/fsutil.ts";
 import { detectPython } from "../src/init.ts";
+import { addReport } from "../src/report_library.ts";
 
 
 import "../src/finance/register.ts";   // 测试文件也是入口:插件要先注册
@@ -212,6 +213,15 @@ test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 
     const eps = await call("GET", "/endpoints?market=US&q=yahoo");
     assert.equal(eps.code, 200);
     assert.ok((eps.json as unknown[]).length >= 1);
+    const toolsResponse = await call("GET", "/tools");
+    const toolName = (toolsResponse.json as { tools: { name: string }[] }).tools[0]?.name;
+    assert.ok(toolName, "HTTP 工具清单必须至少有一项");
+    const legacyTool = await call("POST", `/tool/${toolName}`, { action: "catalog" });
+    assert.equal(legacyTool.code, 400);
+    assert.equal((legacyTool.json as { error: string }).error, "bad_tool_request", "旧请求不能被默认为 Agent 后执行");
+    const directTool = await call("POST", `/tool/${toolName}`, { input: { action: "catalog" }, executionMode: "direct" });
+    assert.equal(directTool.code, 400);
+    assert.equal((directTool.json as { error: string }).error, "agent_required", "直连模式不能通过原始 HTTP 工具入口起脚本");
     const f = await call("POST", "/fetch", { endpoint: "em_reports", symbol: "300308", session: "api" });
     assert.equal(f.code, 200);
     assert.equal((f.json as { envelope: { status: string } }).envelope.status, "ok");
@@ -516,6 +526,156 @@ test("🔴 /chat 的 llm 在**边界**上校验形状 —— 畸形负载给可�
     );
   }
   fs.rmSync(ctx.dataRoot, { recursive: true, force: true });
+});
+
+test("全局 direct 模式让普通对话与标题翻译走同一份已验证 API，不启动 Agent", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-direct-service-"));
+  const ctx: ServiceContext = { repoRoot: REPO, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
+  const calls: { url: string; auth: string; body: Record<string, unknown> }[] = [];
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
+    calls.push({
+      url: String(input),
+      auth: String(new Headers(init?.headers).get("authorization") ?? ""),
+      body,
+    });
+    const messages = body.messages as { content?: string }[];
+    const translating = String(messages?.[0]?.content ?? "").includes("只能翻译新闻标题");
+    const content = translating
+      ? JSON.stringify({ items: [{ id: "h1", zh: "人工智能公司发布新模型" }] })
+      : "这是一次不使用工具的直接回答。";
+    return new Response(JSON.stringify({ choices: [{ message: { role: "assistant", content }, finish_reason: "stop" }] }), {
+      status: 200,
+      headers: { "content-type": "application/json" },
+    });
+  }) as typeof fetch;
+  const llm = { provider: "mimo", baseURL: "https://direct.invalid/v1", apiKey: "test-direct-key", model: "mimo-v2.5" };
+  try {
+    const chat = await chatSend(ctx, { session: "direct-chat", message: "解释这个概念", llm, executionMode: "direct" });
+    assert.equal(chat.reply, "这是一次不使用工具的直接回答。");
+    assert.equal(chat.report_sources.length, 0);
+
+    const translated = await translateHeadlines(ctx, {
+      items: [{ id: "h1", title: "AI company releases a new model" }], llm, executionMode: "direct",
+    });
+    assert.deepEqual(translated.items, [{ id: "h1", zh: "人工智能公司发布新模型" }]);
+    assert.equal(calls.length, 2);
+    assert.ok(calls.every((x) => x.url === "https://direct.invalid/v1/chat/completions"));
+    assert.ok(calls.every((x) => x.auth === "Bearer test-direct-key"));
+    assert.equal(calls[0]?.body.tools, undefined, "直连对话不能偷偷启动 Agent 工具循环");
+    assert.ok(calls[1]?.body.response_format, "已验证的结构化直连翻译必须把 schema 发给 provider");
+  } finally {
+    globalThis.fetch = oldFetch;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("🔴 直连资料问答只接受本轮真实 id 与页码", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-direct-citation-"));
+  const ctx: ServiceContext = { repoRoot: REPO, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
+  const report = await addReport(root, { name: "独特收入变化.md", content: Buffer.from("独特收入变化的原文。", "utf8").toString("base64") });
+  const oldFetch = globalThis.fetch;
+  let reply = `伪造引用 [资料:${"b".repeat(32)} p.-]`;
+  globalThis.fetch = (async () => new Response(JSON.stringify({
+    choices: [{ message: { role: "assistant", content: reply }, finish_reason: "stop" }],
+  }), { status: 200, headers: { "content-type": "application/json" } })) as typeof fetch;
+  const llm = { provider: "mimo", baseURL: "https://direct.invalid/v1", apiKey: "test-direct-key", model: "mimo-v2.5" };
+  try {
+    await assert.rejects(
+      () => chatSend(ctx, { message: "请根据独特收入变化报告回答", llm, executionMode: "direct" }),
+      (error: unknown) => error instanceof ServiceError && error.code === "report_citation_invalid",
+    );
+    reply = `真实引用 [资料:${report.id} p.-]`;
+    const ok = await chatSend(ctx, { message: "请根据独特收入变化报告回答", llm, executionMode: "direct" });
+    assert.deepEqual(ok.report_sources, [{ id: report.id, name: report.name, page: null }]);
+  } finally {
+    globalThis.fetch = oldFetch;
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("全局 direct 模式在任何副作用前拒绝需要 Agent 的能力", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-direct-boundary-"));
+  const ctx: ServiceContext = { repoRoot: REPO, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
+  const isAgentRequired = (error: unknown) => error instanceof ServiceError && error.code === "agent_required";
+  try {
+    assert.throws(
+      () => startResearch(ctx, { symbol: "300308", executionMode: "direct" }),
+      isAgentRequired,
+      "六阶段研究必须在建运行目录前拒绝",
+    );
+    await assert.rejects(
+      () => debateStart(ctx, { symbol: "300308", executionMode: "direct" }),
+      isAgentRequired,
+      "多空辩论必须在拉取资料包前拒绝",
+    );
+    await assert.rejects(
+      () => ingestFiles(ctx, { kind: "position", files: [], executionMode: "direct" }),
+      isAgentRequired,
+      "资料转写必须在读取文件前拒绝",
+    );
+    const tool = listTools()[0]?.name;
+    assert.ok(tool, "金融插件必须至少声明一个对话式工具");
+    await assert.rejects(
+      () => runToolRequest(ctx, tool, { fn: "legacy-body" }),
+      (error: unknown) => error instanceof ServiceError && error.code === "bad_tool_request",
+      "旧工具请求不能被默认为 Agent 后继续执行",
+    );
+    await assert.rejects(
+      () => runToolRequest(ctx, tool, { input: {}, executionMode: "direct" }),
+      isAgentRequired,
+      "原始工具 HTTP 入口也必须在起脚本前拒绝直连模式",
+    );
+    await assert.rejects(
+      () => guidedToolTurn(ctx, tool, { message: "开始", executionMode: "direct" }),
+      isAgentRequired,
+      "需要工具的任务必须在模型或工具调用前拒绝",
+    );
+    const calc = await runToolRequest(ctx, "calc", {
+      input: { fn: "forward_pe", args: { price: 100, eps_forecast: 5 } },
+      executionMode: "direct",
+    }) as { ok?: boolean; result?: { value?: number } };
+    assert.equal(calc.ok, true, "不联网、不落盘的确定性计算在直连模式下仍应可用");
+    assert.equal(calc.result?.value, 20);
+    assert.deepEqual(fs.readdirSync(root), [], "被拒绝的直连请求不能留下运行产物");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("Claude 的能力边界在取数、读文件或起工具前生效", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-claude-boundary-"));
+  const ctx: ServiceContext = { repoRoot: REPO, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
+  const llm = { provider: "cli-claude" };
+  const unsupported = (error: unknown) => error instanceof ServiceError && error.code === "agent_runtime_unsupported";
+  const tool = listTools()[0]?.name;
+  assert.ok(tool, "金融插件必须至少声明一个工具");
+  try {
+    await assert.rejects(
+      () => debateStart(ctx, { symbol: "300308", llm, executionMode: "agent" }),
+      unsupported,
+      "Claude 多空辩论必须在拉取资料包前拒绝",
+    );
+    await assert.rejects(
+      () => ingestFiles(ctx, { kind: "position", files: [], llm, executionMode: "agent" }),
+      unsupported,
+      "Claude 资料转写必须在读取文件前拒绝",
+    );
+    await assert.rejects(
+      () => runToolRequest(ctx, tool, { input: {}, llm, executionMode: "agent" }),
+      unsupported,
+      "Claude 原始工具必须在起脚本前拒绝",
+    );
+    await assert.rejects(
+      () => guidedToolTurn(ctx, tool, { message: "开始", llm, executionMode: "agent" }),
+      unsupported,
+      "Claude 对话式工具必须在模型或工具调用前拒绝",
+    );
+    assert.deepEqual(fs.readdirSync(root), [], "被拒绝的 Claude 请求不能留下运行产物");
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("浏览器断开 /chat 后，API 会把取消信号传到底层并结束本机 Claude 进程", async () => {

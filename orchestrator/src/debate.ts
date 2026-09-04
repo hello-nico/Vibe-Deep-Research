@@ -89,6 +89,11 @@ export interface DebateState {
  */
 interface Session extends Omit<DebateState, "outcome"> {
   dossier: string;
+  /**
+   * 创建这场辩论时的 AI 来源指纹。只存不可逆摘要，不存 provider 配置或 key；
+   * 每次推进都必须带同一指纹，避免一场辩论中途换模型后仍冒充同一条连续任务。
+   */
+  sourceFingerprint?: string;
   /** 资料包里所有数值。用来判「产出里这个数字是引来的,还是它自己算的」 */
   dossierValues: number[];
   lastUsed: number;
@@ -204,6 +209,8 @@ export function startDebate(req: {
   gaps: string[];
   /** 深度档位(见 `Plugin.debate.depths`)。不给 / 认不出 = 跑全部阶段 */
   depth?: string;
+  /** 服务层生成的 AI 来源摘要；Core 不解释它，只保证后续推进不换源。 */
+  sourceFingerprint?: string;
 }): DebateState {
   sweep();
   const def = debateDef();
@@ -227,6 +234,7 @@ export function startDebate(req: {
     stages: pickStages(def, req.depth).map((st) => ({ id: st.id, label: st.label, status: "pending" as const, text: "" })),
     done: false,
     dossier: text,
+    ...(req.sourceFingerprint ? { sourceFingerprint: req.sourceFingerprint } : {}),
     lastUsed: Date.now(),
   };
   sessions.set(req.id, s);
@@ -239,11 +247,14 @@ export type ChatFn = (message: string, session: string) => Promise<string>;
 
 export async function advanceDebate(
   opts: { repoRoot: string; dataRoot?: string; python?: string },
-  req: { id: string },
+  req: { id: string; sourceFingerprint?: string },
   chat?: ChatFn,
 ): Promise<DebateState> {
   const s = sessions.get(String(req.id));
   if (!s) throw new DebateError("unknown_debate", "没有这场辩论(可能已超时清掉),重开一场");
+  if (s.sourceFingerprint !== req.sourceFingerprint) {
+    throw new DebateError("debate_source_changed", "这场辩论创建后 AI 来源已经变化，请使用当前 AI 重新开一场");
+  }
   s.lastUsed = Date.now();
   const def = debateDef();
   // 🔴 已经有一个阶段在跑就直接拒 —— 双击"下一阶段"、客户端重试、两个页面同时开着,

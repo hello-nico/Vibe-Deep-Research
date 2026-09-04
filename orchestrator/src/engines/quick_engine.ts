@@ -43,6 +43,8 @@ export interface QuickEngineOptions {
   readonly requestTimeoutMs: number;
   /** 测试或受控网关适配器可替换传输；产品组装默认使用 chatCompletion。 */
   readonly complete?: (request: ChatRequest) => ReturnType<typeof chatCompletion>;
+  /** 同一份有界材料任务可由 Agent 或直连模型执行，路由必须与实际一致。 */
+  readonly engineFamily?: "direct_api" | "codex_harness";
 }
 
 export interface QuickCitation {
@@ -96,8 +98,8 @@ function exactKeys(value: Record<string, unknown>, allowed: readonly string[]): 
   return Object.keys(value).every((key) => allowed.includes(key));
 }
 
-function validateRoute(route: RouteDecision): void {
-  if (!isTrustedRouteDecision(route) || route.target !== "quick" || route.engineFamily !== "direct_api" ||
+function validateRoute(route: RouteDecision, expectedFamily: "direct_api" | "codex_harness"): void {
+  if (!isTrustedRouteDecision(route) || route.target !== "quick" || route.engineFamily !== expectedFamily ||
       !/^[a-f0-9]{64}$/.test(route.routeFingerprint)) {
     throw new QuickExecutionError("invalid_route", "Quick 执行器只接受已路由并绑定指纹的 Quick 任务");
   }
@@ -287,12 +289,13 @@ function safeTransportMessage(error: DirectTransportError): string {
 }
 
 export class QuickEngine implements ExecutionEngine {
-  readonly id = "quick-direct-v1";
+  readonly id: string;
   readonly target = "quick" as const;
   readonly #provider: QuickProvider;
   readonly #requestTimeoutMs: number;
   readonly #loadMaterial: QuickMaterialLoader["load"];
   readonly #complete: NonNullable<QuickEngineOptions["complete"]>;
+  readonly #engineFamily: "direct_api" | "codex_harness";
 
   constructor(options: QuickEngineOptions) {
     if (!options || typeof options.materials?.load !== "function" ||
@@ -301,6 +304,8 @@ export class QuickEngine implements ExecutionEngine {
       throw new TypeError("QuickEngine 缺少有效的 provider、材料加载器或超时配置");
     }
     this.#provider = checkedProvider(options.provider);
+    this.#engineFamily = options.engineFamily ?? "direct_api";
+    this.id = this.#engineFamily === "direct_api" ? "quick-direct-v1" : "quick-agent-v1";
     this.#requestTimeoutMs = options.requestTimeoutMs;
     this.#loadMaterial = options.materials.load.bind(options.materials);
     this.#complete = (options.complete ?? chatCompletion).bind(undefined);
@@ -317,7 +322,7 @@ export class QuickEngine implements ExecutionEngine {
       provider: this.#provider.name, model: this.#provider.model,
     });
     try {
-      validateRoute(route);
+      validateRoute(route, this.#engineFamily);
       let materials: QuickMaterial[];
       try {
         materials = await Promise.all(route.materials.inputs.map(async (item) =>

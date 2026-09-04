@@ -3,15 +3,15 @@
 <h1 align="center">Vibe Research</h1>
 
 <p align="center">
-  <b>A local financial research workbench built on the Codex Harness</b><br>
-  Codex and Claude Code subscriptions connected · live local login detection · most compatible model APIs supported
+  <b>Connect your AI once, then use a local financial research agent by default</b><br>
+  Codex / Claude Code subscriptions or model APIs · Agent on by default · verified APIs can switch to direct mode
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v1.0.3-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
-  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-540%20checks-passing">
+  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-681%20checks-passing">
   <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-25%20tests-passing">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
@@ -42,29 +42,34 @@ Contact: [simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)
 
 ## What it is
 
-Vibe Research is a **local financial research workbench built on the
-[OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform)**. The Harness maintains context,
-selects tools, advances tasks, handles failures, and preserves execution state on the local machine. Vibe Research
-adds financial data, research procedures, deterministic calculations, evidence checks, and compliance boundaries.
+Vibe Research is a **local financial research workbench**. On first launch, the user makes one decision: connect an
+existing Codex / Claude Code subscription, or provide a model API. After the connection succeeds, Vibe Research
+Agent is enabled by default. No understanding of harnesses, scripts, or routing modes is required.
 
-The previous version called model APIs directly to produce individual analyses. The current version is a local
-financial agent built on Codex: it can understand a task, call tools over multiple steps, request missing
-information, run the research workflow, and preserve the full process. Compared with a single API request, this
-substantially improves long-task execution, tool use, context retention, and reasoning quality.
+Agent mode maintains local context, calls tools, advances tasks, handles failures, and preserves the research
+process. A Codex subscription runs through the
+[OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform); a Claude.ai subscription runs through
+the local Claude Code Agent. Vibe Research applies the same financial data, research procedures, deterministic
+calculations, evidence checks, and compliance boundaries above those runtimes.
 
-| Previous version: direct model API | Current version: local Codex financial agent |
+The Claude Code Agent currently supports chat and bounded document tasks. Full six-stage research requires the
+Codex Harness, or a model API connected in Agent mode. The UI states this boundary for the selected runtime.
+
+API users may turn the Agent off in Settings and use direct model mode. This switch is available only to provider
+profiles that have passed the direct-mode capability check.
+
+| Agent mode (default, recommended) | Direct model mode |
 |---|---|
-| One request produces one analysis | Advances a complete research task over multiple steps |
-| The app decides the calls in advance | The agent reads the live tool catalog and chooses the appropriate tool |
-| The page temporarily holds context and state | The Harness maintains local context, progress, and failure recovery |
-| Usually returns a block of prose | Preserves reports, evidence, calculations, gaps, and run status |
-| Model output is displayed directly | Validators, sandboxing, hooks, and a compliance gate review the result |
+| Maintains context and task state | Handles each request independently |
+| Can call local data, calculation, and research tools | Does not call Agent tools |
+| Supports six-stage research, debate, and Agent-guided backtesting | Suited to light chat, translation, and passage location |
+| Preserves progress, evidence, reports, and failures | Does not preserve Agent task memory |
+| Accepts either a subscription or an API as its reasoning source | Requires a verified API provider |
 
-The architecture supports both subscription runtimes and model APIs. Codex and Claude Code are connected end to
-end. The settings page detects each local CLI, version, and login state. If Codex is not authenticated, the user
-can open the official authorization page with **Log in to Codex** and the page detects completion automatically. Qwen Code and the
-DeepSeek CLI currently require their own API key, so they remain API paths rather than pretending to be keyless
-subscriptions. The API side supports most providers that expose the Responses API.
+Codex and Claude Code subscription runtimes are connected today, with live CLI, version, and login detection. Users
+who only have WorkBuddy / CodeBuddy currently need to connect a model API; its local Agent adapter is not yet
+implemented and is not presented as supported. Qwen Code and DeepSeek CLI also remain API paths because they require
+their own API key.
 
 ## Features
 
@@ -81,7 +86,7 @@ subscriptions. The API side supports most providers that expose the Responses AP
 | Bull/bear review | Bull, bear, rebuttal, and neutral-referee stages share the same factual dossier |
 | Watchlist and portfolio | Recognises A-share, US, and Hong Kong symbols; stores records locally and refreshes quotes |
 | Research records | Stores research, backtest, and debate reports with search, timestamps, expansion, and deletion |
-| Connect AI | Uses a subscription login or a user-supplied model API configuration across the entire agent UI |
+| Connect AI | First connects a subscription or model API, then shows the global Agent switch, enabled by default |
 
 ### Research output is inspectable
 
@@ -142,7 +147,11 @@ npm install -g @openai/codex@0.149.0
 scripts/init --python "$(pwd)/.venv/bin/python"
 ```
 
-### Connect a model
+### Connect AI
+
+Opening any feature for the first time takes the user to **Connect AI**. Choose one source and test and save it once;
+the Agent is then enabled automatically. The second card only permits Agent-off mode after an API passes the direct
+capability check.
 
 For ChatGPT subscription access, start the UI, open **Connect AI → Subscription**, and click **Log in to Codex**.
 Complete authorization on the official OpenAI page that opens, return to Settings, and click **Test and save**
@@ -157,7 +166,7 @@ no Claude API key needs to be entered into Vibe Research.
 
 For API access, open **Connect AI → API access**, choose a provider, enter the API base URL, model name, and key,
 then click **Test and save**. A real model request must succeed before the new configuration is saved and shared
-by the agent pages.
+across the product. The same probe records whether the provider supports the verified direct-mode contract.
 If the agent asks you to reconnect there, the local login session has expired; the research or backtest workflow
 itself has not failed.
 
@@ -244,19 +253,23 @@ the official CLI and SDK.
 
 ## Model access
 
-The **Connect AI** page separates the agent runtime from the model provider:
+The **Connect AI** page asks two separate questions: first where the AI comes from, then whether to use the Agent.
+The second answer defaults to on, so most users never need to change it.
 
-- The Codex Harness manages local context, tool calls, task state, progress, and failure handling.
-- The Local Agent Runtime connects subscription logins to the workbench. It currently supports the product Codex runtime and the locally installed Claude Code CLI, with live version and login detection. Codex login can be launched from Settings and is detected automatically after authorization.
-- The model provider supplies reasoning only. Changing models does not replace tools, memory, evidence, or research rules.
+- The Agent Runtime manages local context, tool calls, task state, progress, and failure handling. Codex subscriptions use the Codex Harness; Claude subscriptions use the Claude Code Agent. They are not presented as the same runtime.
+- The Claude Code Agent currently supports chat and bounded document tasks. Full six-stage research requires the Codex Harness, or a model API connected in Agent mode.
+- The AI source can be a subscription login or the user's Model Provider API. Changing the source does not automatically disable the Agent.
+- Direct mode does not run the Agent, call tools, or preserve Agent task memory. Six-stage research, bull/bear debate, and Agent-guided backtesting clearly ask the user to re-enable the Agent instead of silently degrading.
 - Codex subscription mode uses the product's own `CODEX_HOME` and never reads or writes the user's `~/.codex`. Claude subscription mode reuses the local Claude Code login while forcing local tools, MCP, web-search tools, and CLI session persistence off.
 - Both subscription and API configurations must pass a real conversation probe before **Test and save** updates the active configuration.
-- In API mode, the key remains in the current browser's `localStorage`. It is sent to the local backend per request
-  and is not written to the repository, configuration files, run ledger, or logs.
+- In API mode, the key persists in the current browser profile's local `localStorage` so it does not need to be entered again.
+  It is not an OS keychain and encryption is not guaranteed, so use it only on a trusted personal computer and clear it after
+  use on a shared machine. It is sent to the local backend per request and is not written to the repository, backend
+  configuration, run ledger, or logs.
 
-Built-in provider templates: OpenAI, DeepSeek, Qwen, GLM, Kimi, and MiMo. The engine supports the Responses API
-only. A template's presence does not mean it passed the compatibility matrix; the UI distinguishes verified
-providers from unverified templates.
+Built-in provider templates: OpenAI, DeepSeek, Qwen, GLM, Kimi, and MiMo. The Agent engine supports the Responses
+API; the direct channel uses the separately declared and verified protocol in each provider profile. A template's
+presence does not mean it passed the compatibility matrix. Unverified profiles do not unlock the direct switch.
 
 See [docs/model-access.md](docs/model-access.md) and [providers/README.md](providers/README.md).
 
@@ -290,7 +303,7 @@ See [datasources/CATALOG.md](datasources/CATALOG.md) for the endpoint catalog.
 
 - Original research documents stay on the local machine. The model receives only passages selected by server-side search.
 - Keys for the backend's default provider come only from environment variables and are not written to product configuration or the repository.
-- An API key entered in the browser stays in that browser's `localStorage` and is sent through the local backend to the selected model provider only when used.
+- An API key entered in the browser persists in that browser profile's local `localStorage`; it is not an OS keychain and encryption is not guaranteed. It is sent through the local backend to the selected model provider only when used and is not written to backend configuration or logs.
 - Document chat disables shell access, image reading, subagents, plugins, apps, and network access.
 - Document citations use `[资料:<id> p.<page>]`. Missing, incorrect, or unknown citations are rejected by code.
 - Research-stage agents have no network access. The orchestrator fetches data through controlled scripts and stores
@@ -316,10 +329,10 @@ npm run build --prefix desktop
 
 Current verified baseline:
 
-- orchestrator: **539 checks** (538 passed locally plus one Windows-only ACL check skipped off Windows), Core industry-term count **0**, TypeScript typecheck passed.
-- desktop: **25/25**, TypeScript typecheck and Vite production build passed.
-- Python (calculation library, backtest, and data scripts): **575/575**.
-- The V1.0.1 release changes passed an independent Codex re-review with no actionable P1/P2 findings.
+- orchestrator: **681 checks** (680 passed locally plus one Windows-only ACL check skipped off Windows), Core industry-term count **0**, TypeScript typecheck passed.
+- desktop: **34/34**, TypeScript typecheck and Vite production build passed.
+- Python (calculation library, backtest, and data scripts): **577/577**.
+- The current unreleased changes passed an independent Codex re-review with `No actionable P1/P2 findings`.
 
 Project rule: test each completed component, run an independent Codex review, verify every finding, fix valid issues,
 and re-review. A component is not described as complete and is not committed or pushed before that loop closes.

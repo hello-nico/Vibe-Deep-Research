@@ -31,6 +31,7 @@ import { runFetchScripts } from "./fetchrun.ts";
 import { ProgressReporter } from "./progress.ts";
 import { runResearch } from "./orchestrate.ts";
 import { loadProductConfig } from "./productConfig.ts";
+import { resolveRuntimeProvider, type LlmOverride } from "./runtime_provider.ts";
 import { isStage } from "./schemas.ts";
 import { verifyCalcs } from "./validator.ts";
 
@@ -82,7 +83,29 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   let scenario: Scenario | null = null;
   if (str(args.scenario)) scenario = JSON.parse(fs.readFileSync(str(args.scenario)!, "utf8")) as Scenario;
   const repoRoot = str(args["repo-root"]) ?? repoRootFromHere();
-  const pc = loadProductConfig(repoRoot, { userConfigPath: str(args.config), env, providerOverride: str(args.provider), authOverride: str(args.auth) });
+  const requestMeta = String(env.VRA_REQUEST_LLM_META ?? "").trim();
+  const pc = loadProductConfig(repoRoot, { userConfigPath: str(args.config), env,
+    providerOverride: str(args.provider), authOverride: str(args.auth), ...(requestMeta ? { requireAuth: false as const } : {}) });
+  let requestRuntime: ReturnType<typeof resolveRuntimeProvider> | null = null;
+  if (requestMeta) {
+    let llm: LlmOverride;
+    try {
+      const parsed = JSON.parse(requestMeta) as Record<string, unknown>;
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+          Object.keys(parsed).some((key) => !["provider", "baseURL", "model", "envKey"].includes(key)) ||
+          typeof parsed.provider !== "string" ||
+          typeof parsed.envKey !== "string" || !/^[A-Z][A-Z0-9_]{0,79}$/.test(parsed.envKey) ||
+          ["baseURL", "model"].some((key) => parsed[key] !== undefined && typeof parsed[key] !== "string")) {
+        throw new TypeError("shape");
+      }
+      llm = { provider: parsed.provider, baseURL: parsed.baseURL as string | undefined,
+        model: parsed.model as string | undefined, apiKey: String(env[parsed.envKey] ?? "") };
+    } catch { throw new Error("VRA_REQUEST_LLM_META 格式无效"); }
+    requestRuntime = resolveRuntimeProvider(repoRoot, pc.resolved.dataRoot, llm, env);
+    if (requestRuntime.runtime !== "codex") {
+      throw new Error("当前六阶段研究还不支持这个本地 Agent 运行时");
+    }
+  }
   const d = pc.defaults;
   const taskObjective = String(env.VRA_TASK_OBJECTIVE ?? "").trim();
   if (taskObjective.length > 8_000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(taskObjective)) {
@@ -122,12 +145,15 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
     python: str(args.python) ?? pc.python ?? undefined,
     codexPath: str(args["codex-path"]) ?? pc.resolved.codexPath,
     codexHome: str(args["codex-home"]) ?? pc.resolved.codexHome,
-    provider: pc.provider,
-    providerProfile: pc.providerProfile,
+    provider: requestRuntime?.runtime === "codex"
+      ? { ...pc.provider, auth: requestRuntime.auth, env_key: requestRuntime.profile.env_key, name: requestRuntime.profile.id,
+          wire_api: requestRuntime.profile.wire_api, base_url: requestRuntime.profile.base_url }
+      : pc.provider,
+    providerProfile: requestRuntime?.runtime === "codex" ? requestRuntime.profile : pc.providerProfile,
     scriptsRel: pc.resolved.scriptsRel,
     calcCliRel: pc.paths.calc_cli,
     constitutionPath: pc.resolved.constitution,
-    model: str(args.model) ?? d.model ?? undefined,
+    model: str(args.model) ?? (requestRuntime?.runtime === "codex" ? requestRuntime.model ?? undefined : d.model ?? undefined),
     reasoning: str(args.reasoning) ?? d.reasoning ?? undefined,
     maxRetries: str(args["max-retries"]) !== undefined ? Number(args["max-retries"]) : d.max_retries,
     gateRetries: str(args["gate-retries"]) !== undefined ? Number(args["gate-retries"]) : d.gate_retries,
@@ -149,7 +175,7 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   if (str(args.stages)) {
     stages = str(args.stages)!.split(",").map((s) => s.trim()).filter(Boolean).map((s) => { if (!isStage(s)) throw new Error(`未知阶段 ${s}`); return s; });
   }
-  return { cfg, stages, sources: pc.sources, progress: str(args.progress) !== "off" };
+  return { cfg, stages, sources: requestRuntime ? [...pc.sources, "request-runtime"] : pc.sources, progress: str(args.progress) !== "off" };
 }
 
 /**

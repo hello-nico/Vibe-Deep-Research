@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType } from "react";
+import { type ComponentType } from "react";
 import { Link } from "react-router-dom";
 import {
   Activity,
@@ -19,8 +19,7 @@ import {
 
 import { FinanceHomeAgent } from "@/components/ui/FinanceAiDock";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { backend } from "@/lib/backend";
-import { hasLlm } from "@/lib/llm";
+import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { useAiPage } from "../../../core/ai/pageContext";
 
 type Feature = {
@@ -59,13 +58,9 @@ const GROUPS: { title: string; features: Feature[] }[] = [
 ];
 
 export function Home() {
-  const [modelReady, setModelReady] = useState(hasLlm);
-
-  useEffect(() => {
-    backend.product()
-      .then((info) => setModelReady(hasLlm() || info.provider.key_present))
-      .catch(() => setModelReady(hasLlm()));
-  }, []);
+  const runtime = useAiRuntime();
+  const modelReady = runtime.status === "ok";
+  const agentEnabled = runtime.config?.executionMode !== "direct";
 
   useAiPage({
     key: "home",
@@ -81,11 +76,11 @@ export function Home() {
         <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="inline-flex items-center gap-2 text-[11px] font-semibold tracking-wide text-primary">
-              <Sparkles className="h-3.5 w-3.5" /> Built on Codex Harness
+              <Sparkles className="h-3.5 w-3.5" /> {agentEnabled ? "Vibe Research Agent 已开启" : "模型直连模式"}
             </div>
             <h1 className="mt-3 text-3xl font-black tracking-tight sm:text-4xl">本地金融研究 Agent</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground sm:text-base">
-              看市场、做研究、留证据。Codex Harness 驱动完整流程，AI 模型自由接入。
+              {agentEnabled ? "看市场、做研究、留证据。Agent 驱动完整流程，AI 来源自由接入。" : "当前直接连接所选模型；确定性数据功能照常可用，深度任务需要重新开启 Agent。"}
             </p>
           </div>
           <Link
@@ -100,7 +95,7 @@ export function Home() {
       </section>
 
       <div className="mt-5">
-        <FinanceHomeAgent configured={modelReady} />
+        <FinanceHomeAgent />
       </div>
 
       <section className="mt-7" aria-labelledby="feature-heading">

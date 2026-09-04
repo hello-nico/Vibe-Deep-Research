@@ -541,20 +541,16 @@ const HEADLINE_TRANSLATION_SCHEMA = {
   },
 } as const;
 
-/**
- * 一次性标题翻译：developer 指令与 RSS 数据分层、固定 schema、每批新线程。
- * 返回值仍逐字段复核；结构化输出只是提高命中率，不是安全边界。
- */
-export async function translateHeadlines(
-  opts: { repoRoot: string; dataRoot?: string; python?: string; signal?: AbortSignal },
-  req: { items: HeadlineTranslationItem[]; llm?: LlmOverride },
-  codexFactory: (o: CodexOptions) => Codex = (o) => new Codex(o),
-): Promise<HeadlineTranslationResult> {
-  if (!Array.isArray(req.items) || req.items.length < 1 || req.items.length > 16) {
+export function prepareHeadlineTranslation(itemsInput: HeadlineTranslationItem[]): {
+  items: HeadlineTranslationItem[];
+  developerInstructions: string;
+  schema: typeof HEADLINE_TRANSLATION_SCHEMA;
+} {
+  if (!Array.isArray(itemsInput) || itemsInput.length < 1 || itemsInput.length > 16) {
     throw new ChatError("bad_translation_items", "标题翻译每批只接受 1–16 条");
   }
   const seen = new Set<string>();
-  const items = req.items.map((row) => {
+  const items = itemsInput.map((row) => {
     if (!row || typeof row !== "object" || Array.isArray(row)) throw new ChatError("bad_translation_items", "标题条目必须是对象");
     const id = String(row.id ?? "");
     const title = String(row.title ?? "").trim();
@@ -563,26 +559,15 @@ export async function translateHeadlines(
     seen.add(id);
     return { id, title };
   });
-  const turn = await chatSend(
-    {
-      ...opts,
-      maxMessage: 12_000,
-      developerInstructions: HEADLINE_TRANSLATION_INSTRUCTIONS,
-      outputSchema: HEADLINE_TRANSLATION_SCHEMA,
-      persistent: false,
-      preambleText: "",
-      skipGate: true,
-    },
-    { session: "headline-translation", message: JSON.stringify({ items }), ...(req.llm ? { llm: req.llm } : {}) },
-    codexFactory,
-  );
+  return { items, developerInstructions: HEADLINE_TRANSLATION_INSTRUCTIONS, schema: HEADLINE_TRANSLATION_SCHEMA };
+}
 
+export function parseHeadlineTranslationReply(
+  reply: string, items: readonly HeadlineTranslationItem[], durationMs: number,
+): HeadlineTranslationResult {
   let parsed: unknown;
-  try {
-    parsed = JSON.parse(turn.reply);
-  } catch {
-    throw new ChatError("bad_translation_output", "模型没有返回可读的标题翻译 JSON");
-  }
+  try { parsed = JSON.parse(reply); }
+  catch { throw new ChatError("bad_translation_output", "模型没有返回可读的标题翻译 JSON"); }
   const rows = (parsed as { items?: unknown } | null)?.items;
   if (!Array.isArray(rows)) throw new ChatError("bad_translation_output", "模型返回里缺少 items 数组");
   const allowed = new Set(items.map((x) => x.id));
@@ -599,12 +584,42 @@ export async function translateHeadlines(
     if (!complianceGate(zh).ok) { redacted += 1; continue; }
     out.push({ id, zh });
   }
-  return { items: out, redacted, duration_ms: turn.duration_ms };
+  return { items: out, redacted, duration_ms: durationMs };
+}
+
+/**
+ * 一次性标题翻译：developer 指令与 RSS 数据分层、固定 schema、每批新线程。
+ * 返回值仍逐字段复核；结构化输出只是提高命中率，不是安全边界。
+ */
+export async function translateHeadlines(
+  opts: { repoRoot: string; dataRoot?: string; python?: string; signal?: AbortSignal },
+  req: { items: HeadlineTranslationItem[]; llm?: LlmOverride },
+  codexFactory: (o: CodexOptions) => Codex = (o) => new Codex(o),
+): Promise<HeadlineTranslationResult> {
+  const prepared = prepareHeadlineTranslation(req.items);
+  const { items } = prepared;
+  const turn = await chatSend(
+    {
+      ...opts,
+      maxMessage: 12_000,
+      developerInstructions: prepared.developerInstructions,
+      outputSchema: prepared.schema,
+      persistent: false,
+      preambleText: "",
+      skipGate: true,
+    },
+    { session: "headline-translation", message: JSON.stringify({ items }), ...(req.llm ? { llm: req.llm } : {}) },
+    codexFactory,
+  );
+
+  return parseHeadlineTranslationReply(turn.reply, items, turn.duration_ms);
 }
 
 export interface LlmProbeResult {
   ok: true;
   duration_ms: number;
+  direct_supported?: boolean;
+  direct_reason?: string;
 }
 
 const LLM_PROBE_INSTRUCTIONS = [
@@ -681,7 +696,7 @@ function publicAgentFailure(error: unknown, rt: ResolvedRuntimeProvider | null):
  *    整段拦下会把一个有用的回答变成一句空话,而用户看不出是误判还是真违规。
  *    被移除的行**显式标出来**,让用户知道这里少了东西、以及为什么。
  */
-function applyGate(text: string): { reply: string; redacted: number } {
+export function applyGate(text: string): { reply: string; redacted: number } {
   if (!text.trim()) return { reply: "(没有拿到回答)", redacted: 0 };
   const g = complianceGate(text);
   if (g.ok) return { reply: text, redacted: 0 };

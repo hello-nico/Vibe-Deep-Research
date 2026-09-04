@@ -4,6 +4,22 @@
 
 ## [Unreleased]
 
+- 重构 AI 接入与执行方式：第一次打开只选择订阅或 API，连接成功后默认开启 Vibe Research Agent；
+  设置页用第二张独立卡控制 Agent / 模型直连，全站共用同一份来源与执行方式。
+- 只有通过真实能力探针的 API provider 可以关闭 Agent。订阅登录与未验证 API 不会被伪装成裸模型直连；
+  直连普通对话和标题翻译走受限 API 传输层，研究、辩论、资料转写和工具任务在副作用前返回 `agent_required`。
+- 「我的研报」移除 Auto / Quick / Deep 三选一，系统继续在内部按任务语义路由；路由指纹同时绑定 AI 来源
+  与 Agent 开关，不允许路由与执行阶段偷换 provider 或模式。全新浏览器无明确配置时进入“接入 AI”，
+  不再借后端默认值替用户做选择。
+- 设置页、README 与官网如实区分 Codex Harness、Claude Code Agent 和模型 API；WorkBuddy / CodeBuddy
+  本地 Agent 适配器尚未完成时明确引导使用 API，不冒充已经支持。
+- 本轮独立 Codex 审计发现并修复 3 个真实 P2：原始工具入口绕过执行方式、Claude 订阅进入尚不支持的
+  辩论 / 转写 / 引导工具流程，以及默认模型来源指纹没有绑定后端实际配置；末轮复审为
+  `No actionable P1/P2 findings`。
+- 最终验证：orchestrator **681 项**（680 通过、1 项 Windows ACL 在 macOS 跳过）、desktop **34/34**、
+  Python **577/577**；两端类型检查、Vite 生产构建、Core 纯净度 0（60/60）与真实浏览器首次接入 / Agent
+  默认开启 / 直连开关 / 官网入口断言全部通过。
+
 - 完成双引擎任务架构 M4 收口：公开产品固定为 Browse / Quick / Deep，Deep 仍由 Codex 六阶段承载；
   既有 Direct 六阶段只保留为显式 `--experimental-direct-deep` 开发者入口，公共 `/research` 与 MCP 均拒绝它。
 - 把通用 `AgentRunner / EventsLog` 从 Codex 专属 runner 抽离，Codex SDK 只在 Codex 分支动态加载；阻断全部

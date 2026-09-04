@@ -47,7 +47,7 @@ async function quickRoute(kind: ResearchTaskKind = "locate_passages", refs: Task
     id: "quick-task-1", kind, requestedMode: "auto", objective: "定位材料里关于收入变化的原文",
     evidenceScope: "existing", workflow: "single_step", inputRefs: refs,
     outputFormat: "text", operation: null,
-  }));
+  }), undefined, "direct");
 }
 
 function materialOf(ref: TaskInputRef, content: string | readonly string[] = "本期资料显示收入同比增长。"): QuickMaterial {

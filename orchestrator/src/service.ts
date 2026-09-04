@@ -13,8 +13,9 @@ import { fileURLToPath } from "node:url";
 import { FETCH_ENV_KEYS, RUN_ID_RE, stages as packStages, fetchEnv } from "./config.ts";
 import { runAlerts, type AlertDiff } from "./alerts.ts";
 import { NOFOLLOW_FLAG, nowIso, readJsonIfExists } from "./fsutil.ts";
-import { ChatError, chatSend as chatSendCore, llmProbe as llmProbeCore, translateHeadlines as translateHeadlinesCore, type ChatTurnResult, type HeadlineTranslationResult, type LlmProbeResult } from "./chat.ts";
-import { templateMatrix, type LlmOverride } from "./runtime_provider.ts";
+import { ChatError, applyGate, chatSend as chatSendCore, llmProbe as llmProbeCore, parseHeadlineTranslationReply, prepareHeadlineTranslation, translateHeadlines as translateHeadlinesCore, type ChatTurnResult, type HeadlineTranslationResult, type LlmProbeResult } from "./chat.ts";
+import { DirectTransportError, chatCompletion } from "./engines/direct_transport.ts";
+import { assertExecutionMode, resolveDirectProvider, resolveRuntimeProvider, resolveSelectedRuntime, runtimeSourceFingerprint, RuntimeProviderError, templateMatrix, type LlmOverride } from "./runtime_provider.ts";
 import { DebateError, advanceDebate, startDebate, type DebateState } from "./debate.ts";
 import { IngestError, MAX_TOTAL_BYTES, ingestFiles as ingestFilesCore, type IngestFileInput, type IngestResult } from "./ingest.ts";
 import { LedgerError, kinds as ledgerKindDefs, labels as ledgerLabelDefs, listRecordsChecked, listRecords as listRecordsOf, removeRecord as removeLedgerRecord, upsertRecord as upsertLedgerRecord, type LedgerIssue, type LedgerRecord } from "./ledger.ts";
@@ -24,7 +25,7 @@ import { REGISTRY_REL, buildStagePlan, fetchArgv, loadRegistry, type EndpointDef
 import { productVersion } from "./version.ts";
 import { DEFAULT_CONSISTENCY, readSnapshot, snapshotKey, snapshotUsable, writeSnapshot, type Consistency } from "./snapshot.ts";
 import { currentPlugin } from "./plugin.ts";
-import { ReportLibraryError, addReport, listReports as listStoredReports, removeReport, reportCitations, reportContext, reportFile, reportRecallPlan, type ReportRecord } from "./report_library.ts";
+import { ReportLibraryError, addReport, listReports as listStoredReports, removeReport, reportCitationErrors, reportCitations, reportContext, reportFile, reportRecallPlan, type ReportRecord } from "./report_library.ts";
 import { GuidedToolError, guidedToolTurn as guidedToolTurnCore, type GuidedToolReply } from "./guided_tool.ts";
 import { LocalAgentError, probeClaude, probeCodex, startCodexLogin, type LocalAgentStatus } from "./local_agent_runtime.ts";
 import { sdkCodexVersion } from "./runner.ts";
@@ -382,6 +383,8 @@ export interface ResearchTaskContext {
   reportIds?: readonly string[];
   /** 与 reportIds 一一对应的路由时正文 sha256。 */
   reportRevisions?: Readonly<Record<string, string>>;
+  /** 请求级 AI 来源；密钥只进子进程 env，不进 argv / binding / manifest。 */
+  runtimeLlm?: LlmOverride;
 }
 
 /** 认不出的引擎名一律拒绝 —— 静默落回默认会让用户以为在用自己选的那个,而产出与账单来自另一个 */
@@ -391,13 +394,21 @@ function assertEngine(v: unknown): "codex" | "direct" | undefined {
   if (v === "direct") {
     throw new ServiceError(
       "experimental_engine_not_public",
-      "Direct 六阶段仍是开发实验适配器，不是产品 Quick；公开研究请使用统一 /tasks 的 Auto / Quick / Deep",
+      "Direct 六阶段仍是开发实验适配器；公开研究请开启 Vibe Research Agent，由系统内部选择执行路径",
     );
   }
   throw new ServiceError("bad_engine", `engine 只能是 codex 或 direct,收到 ${show(String(v))}`);
 }
 
-export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean; engine?: "codex" | "direct" }, internal: ResearchTaskContext = {}): StartResult {
+export function startResearch(ctx: ServiceContext, req: { symbol: string; company_name?: string; market?: string; stages?: string[]; endpoints?: "full" | "core"; knowledge?: "on" | "off"; run_id?: string; overwrite?: boolean; no_agent?: boolean; engine?: "codex" | "direct"; executionMode?: unknown; llm?: unknown }, internal: ResearchTaskContext = {}): StartResult {
+  let executionMode: "agent" | "direct";
+  try { executionMode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  if (executionMode === "direct") {
+    throw new ServiceError("agent_required", "六阶段深度研究需要 Agent，请先开启 Vibe Research Agent");
+  }
+  const requestLlm = checkLlmShape(req.llm);
+  const runtimeLlm = internal.runtimeLlm ?? requestLlm;
   const symbol = assertSymbol(req.symbol, "cn6");
   const market = assertMarket(req.market);
   const companyName = typeof req.company_name === "string" ? req.company_name.trim() : "";
@@ -451,15 +462,33 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
       Object.keys(reportRevisions).some((id) => !reportIds.includes(id))) {
     throw new ServiceError("invalid_task_context", "Deep 资料版本范围无效");
   }
-  const out = fs.openSync(log, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | NOFOLLOW_FLAG, 0o600);
   const childEnv = researchEnv(ctx);
+  if (runtimeLlm) {
+    let runtime: ReturnType<typeof resolveRuntimeProvider>;
+    try { runtime = resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, runtimeLlm, childEnv); }
+    catch (error) {
+      throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_llm", error instanceof Error ? error.message : String(error));
+    }
+    if (runtime.runtime !== "codex") {
+      throw new ServiceError("agent_runtime_unsupported", "当前六阶段研究还不支持这个本地 Agent；可继续用它进行对话与材料定位");
+    }
+    Object.assign(childEnv, runtime.env);
+    childEnv.VRA_REQUEST_LLM_META = JSON.stringify({ provider: runtimeLlm.provider,
+      ...(runtimeLlm.baseURL !== undefined ? { baseURL: runtimeLlm.baseURL } : {}),
+      ...(runtimeLlm.model !== undefined ? { model: runtimeLlm.model } : {}),
+      envKey: runtime.profile.env_key });
+  }
   if (taskObjective) childEnv.VRA_TASK_OBJECTIVE = taskObjective;
   if (reportIds.length) childEnv.VRA_TASK_REPORT_IDS = reportIds.join(",");
   if (reportIds.length) childEnv.VRA_TASK_REPORT_REVISIONS = JSON.stringify(reportRevisions);
-  const child = spawn(ctx.node, argv, { cwd: ctx.repoRoot, detached: true, windowsHide: true, stdio: ["ignore", out, out], env: childEnv });
-  child.unref();
-  fs.closeSync(out);
-  return { run_id: runId, run_dir: rel(ctx, runDir), log: rel(ctx, log), pid: child.pid };
+  const out = fs.openSync(log, fs.constants.O_WRONLY | fs.constants.O_APPEND | fs.constants.O_CREAT | NOFOLLOW_FLAG, 0o600);
+  try {
+    const child = spawn(ctx.node, argv, { cwd: ctx.repoRoot, detached: true, windowsHide: true, stdio: ["ignore", out, out], env: childEnv });
+    child.unref();
+    return { run_id: runId, run_dir: rel(ctx, runDir), log: rel(ctx, log), pid: child.pid };
+  } finally {
+    fs.closeSync(out);
+  }
 }
 
 export interface RunStatus { run_id: string; exists: boolean; status: string | null; exit_code: number | null; stages: { stage: string; status: string; attempts: number }[]; evidence_count: number | null; calculation_count: number | null; finished_at: string | null; last_events: Record<string, unknown>[]; report: boolean; viewer: string | null }
@@ -923,7 +952,14 @@ export function startCodexSubscriptionLogin(
  * ⚠️ 单个端点取失败**不中止**:记进 gaps 一起交给双方("这些没取到,别当它们不存在")。
  *    全部失败才拒开(见 debate.startDebate)。
  */
-export async function debateStart(ctx: ServiceContext, req: { symbol: string; session?: string; depth?: string }): Promise<DebateState> {
+export async function debateStart(ctx: ServiceContext, req: { symbol: string; session?: string; depth?: string; llm?: unknown; executionMode?: unknown }): Promise<DebateState> {
+  let mode: "agent" | "direct";
+  try { mode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Research Agent");
+  const llm = checkLlmShape(req.llm);
+  assertCodexAgentRuntime(ctx, llm);
+  const sourceFingerprint = sourceFingerprintOf(ctx, llm);
   const def = currentPlugin().debate;
   if (!def) throw new ServiceError("not_supported", "这个垂类没有声明辩论");
   const symbol = assertSymbol(req.symbol, "cn6");
@@ -945,7 +981,7 @@ export async function debateStart(ctx: ServiceContext, req: { symbol: string; se
     }
   }
   try {
-    return startDebate({ id, symbol, envelopes, gaps, ...(req.depth ? { depth: req.depth } : {}) });
+    return startDebate({ id, symbol, envelopes, gaps, sourceFingerprint, ...(req.depth ? { depth: req.depth } : {}) });
   } catch (e) {
     if (e instanceof DebateError) throw new ServiceError(e.code, e.message);
     throw e;
@@ -953,9 +989,23 @@ export async function debateStart(ctx: ServiceContext, req: { symbol: string; se
 }
 
 /** 跑下一个待跑的阶段(一次一个,界面据此逐段显示) */
-export async function debateAdvance(ctx: ServiceContext, req: { id: string }): Promise<DebateState> {
+export async function debateAdvance(ctx: ServiceContext, req: { id: string; llm?: unknown; executionMode?: unknown }): Promise<DebateState> {
+  let mode: "agent" | "direct";
+  try { mode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Research Agent");
+  const llm = checkLlmShape(req.llm);
+  assertCodexAgentRuntime(ctx, llm);
+  const sourceFingerprint = sourceFingerprintOf(ctx, llm);
   try {
-    return await advanceDebate({ repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python }, { id: String(req.id) });
+    return await advanceDebate(
+      { repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python },
+      { id: String(req.id), sourceFingerprint },
+      llm ? async (message, session) => (await chatSendCore(
+        { repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python, persistent: false },
+        { message, session, llm },
+      )).reply : undefined,
+    );
   } catch (e) {
     if (e instanceof DebateError) throw new ServiceError(e.code, e.message);
     throw e;
@@ -1075,16 +1125,44 @@ function checkLlmShape(llm: unknown): LlmOverride | undefined {
   return o as unknown as LlmOverride;
 }
 
+function selectedRuntimeOf(ctx: ServiceContext, llm?: LlmOverride) {
+  try {
+    return resolveSelectedRuntime(ctx.repoRoot, ctx.dataRoot, llm);
+  } catch (error) {
+    if (error instanceof RuntimeProviderError) throw new ServiceError(error.code, error.message);
+    throw new ServiceError("bad_llm", error instanceof Error ? error.message : String(error));
+  }
+}
+
+/** Claude 当前只开放对话与有界材料任务；会取数、读文件或跑工具的入口必须先挡在副作用外。 */
+function assertCodexAgentRuntime(ctx: ServiceContext, llm?: LlmOverride): void {
+  if (selectedRuntimeOf(ctx, llm).runtime !== "codex") {
+    throw new ServiceError("agent_runtime_unsupported", "当前 Claude Code Agent 支持对话和有界材料任务；多空辩论、资料转写与工具任务请改用 Codex 或 API Agent");
+  }
+}
+
+function sourceFingerprintOf(ctx: ServiceContext, llm?: LlmOverride): string {
+  try {
+    return runtimeSourceFingerprint(ctx.repoRoot, ctx.dataRoot, llm);
+  } catch (error) {
+    if (error instanceof RuntimeProviderError) throw new ServiceError(error.code, error.message);
+    throw new ServiceError("bad_llm", error instanceof Error ? error.message : String(error));
+  }
+}
+
 export interface ChatServiceResult extends ChatTurnResult {
   report_sources: { id: string; name: string; page: number | null }[];
 }
 
 export async function chatSend(
   ctx: ServiceContext,
-  req: { session?: string; message: string; llm?: LlmOverride },
+  req: { session?: string; message: string; llm?: LlmOverride; executionMode?: unknown },
   signal?: AbortSignal,
 ): Promise<ChatServiceResult> {
   const llm = checkLlmShape(req.llm);
+  let executionMode: "agent" | "direct";
+  try { executionMode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
   try {
     const message = String(req.message ?? "");
     // 🔴 不再对每条消息全库检索：泛词会误召回无关报告并把资料发给模型（#39，判据见 reportRecallPlan）。
@@ -1109,6 +1187,51 @@ export async function chatSend(
         ? `${reports.text}\n\n⚠️ 本轮只放进了 ${reports.hits.length} 份资料${selected ? `(明确选中 ${selected} 份)` : ""};回答里要明确说明比较 / 汇总不完整,不要装作看全了。`
         : reports.text)
       : undefined;
+    if (executionMode === "direct") {
+      if (!llm) throw new ServiceError("direct_provider_unsupported", "直连模式需要已验证的 API 配置");
+      let provider: ReturnType<typeof resolveDirectProvider>;
+      try { provider = resolveDirectProvider(ctx.repoRoot, ctx.dataRoot, llm); }
+      catch (error) {
+        throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "direct_provider_unsupported",
+          error instanceof Error ? error.message : String(error));
+      }
+      let raw: Awaited<ReturnType<typeof chatCompletion>>;
+      try {
+        raw = await chatCompletion({
+          baseURL: provider.baseURL, apiKey: provider.apiKey, model: provider.model, timeoutMs: 120_000, signal,
+          messages: [
+            { role: "system", content: [
+              "你在 Vibe Research 的模型直连模式中回答一次性问题。",
+              "不得声称调用了 Agent、工具、网络或持久记忆；只能根据本请求给出的内容作答。",
+              "若提供了本地资料，使用资料时保留 [资料:<id> p.<页码>] 引用；没有页码写 p.-，没看到的不猜。",
+              "只报可核实信息、分析框架与概率，不给操作建议。",
+            ].join("\n") },
+            { role: "user", content: contextText ? `${contextText}\n\n---\n\n【问题】\n${message}` : message },
+          ],
+        });
+      } catch (error) {
+        if (error instanceof DirectTransportError) {
+          const msg = error.code === "cancelled" ? "直连请求已取消"
+            : error.code === "timeout" ? "直连模型请求超时"
+              : error.status !== null ? `直连模型返回 ${error.status}` : "无法连接直连模型";
+          throw new ServiceError(error.code, msg);
+        }
+        throw error;
+      }
+      const gated = applyGate(String(raw.message.content ?? ""));
+      const citationErrors = reportCitationErrors(gated.reply, reports?.hits ?? []);
+      if (citationErrors.length) {
+        throw new ServiceError("report_citation_invalid", citationErrors.join("；"));
+      }
+      const citations = reportCitations(gated.reply);
+      const used = new Set(citations.map((x) => `${x.id}\u0000${x.page ?? "-"}`));
+      return {
+        session: String(req.session ?? "direct"), reply: gated.reply, redacted: gated.redacted,
+        duration_ms: raw.durationMs,
+        report_sources: reports?.hits.filter((x) => used.has(`${x.id}\u0000${x.page ?? "-"}`))
+          .map((x) => ({ id: x.id, name: x.name, page: x.page })) ?? [],
+      };
+    }
     const turn = await chatSendCore(
       {
         repoRoot: ctx.repoRoot,
@@ -1171,18 +1294,42 @@ export function reportDownload(ctx: ServiceContext, id: unknown): { report: Repo
 /** 标题翻译专用入口：固定 developer 指令 + schema + 一次性线程，不能退化成普通对话。 */
 export async function translateHeadlines(
   ctx: ServiceContext,
-  req: { items: { id: string; title: string }[]; llm?: LlmOverride },
+  req: { items: { id: string; title: string }[]; llm?: LlmOverride; executionMode?: unknown },
   signal?: AbortSignal,
 ): Promise<HeadlineTranslationResult> {
   if (!req || typeof req !== "object" || Array.isArray(req)) throw new ServiceError("bad_translation_items", "标题翻译请求必须是对象");
   const llm = checkLlmShape(req.llm);
+  let executionMode: "agent" | "direct";
+  try { executionMode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
   try {
+    if (executionMode === "direct") {
+      if (!llm) throw new ServiceError("direct_provider_unsupported", "直连翻译需要已验证的 API 配置");
+      const provider = resolveDirectProvider(ctx.repoRoot, ctx.dataRoot, llm);
+      const prepared = prepareHeadlineTranslation(req.items);
+      const reply = await chatCompletion({
+        baseURL: provider.baseURL, apiKey: provider.apiKey, model: provider.model,
+        timeoutMs: 120_000, signal,
+        messages: [
+          { role: "system", content: prepared.developerInstructions },
+          { role: "user", content: JSON.stringify({ items: prepared.items }) },
+        ],
+        responseFormat: provider.structuredOutput === "server_schema"
+          ? { type: "json_schema", json_schema: { name: "headline_translation", strict: true, schema: prepared.schema } }
+          : undefined,
+      });
+      return parseHeadlineTranslationReply(String(reply.message.content ?? ""), prepared.items, reply.durationMs);
+    }
     return await translateHeadlinesCore(
       { repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python, signal },
       { items: req.items, ...(llm ? { llm } : {}) },
     );
   } catch (e) {
-    if (e instanceof ChatError) throw new ServiceError(e.code, e.message);
+    if (e instanceof ChatError || e instanceof RuntimeProviderError) throw new ServiceError(e.code, e.message);
+    if (e instanceof DirectTransportError) {
+      const message = e.code === "cancelled" ? "直连翻译已取消" : e.code === "timeout" ? "直连翻译超时" : "直连翻译失败";
+      throw new ServiceError(e.code, message);
+    }
     throw e;
   }
 }
@@ -1195,10 +1342,18 @@ export async function llmProbe(ctx: ServiceContext, req: { llm?: LlmOverride }, 
   if (!req || typeof req !== "object" || Array.isArray(req)) throw new ServiceError("bad_probe_request", "连接检测请求必须是对象");
   const llm = checkLlmShape(req.llm);
   try {
-    return await llmProbeCore(
+    const result = await llmProbeCore(
       { repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python, signal },
       llm ? { llm } : {},
     );
+    if (!llm) return { ...result, direct_supported: false, direct_reason: "当前没有请求级 API 配置" };
+    try {
+      resolveDirectProvider(ctx.repoRoot, ctx.dataRoot, llm);
+      return { ...result, direct_supported: true, direct_reason: "该 API 已通过直连能力契约" };
+    } catch (error) {
+      return { ...result, direct_supported: false,
+        direct_reason: error instanceof RuntimeProviderError ? error.message : "该 AI 来源只支持 Agent 模式" };
+    }
   } catch (e) {
     if (e instanceof ChatError) throw new ServiceError(e.code, e.message);
     throw e;
@@ -1210,12 +1365,18 @@ export async function llmProbe(ctx: ServiceContext, req: { llm?: LlmOverride }, 
 
 export { MAX_TOTAL_BYTES as IMPORT_MAX_TOTAL_BYTES };
 
-export async function ingestFiles(ctx: ServiceContext, req: { kind: string; files: IngestFileInput[]; note?: string }): Promise<IngestResult> {
+export async function ingestFiles(ctx: ServiceContext, req: { kind: string; files: IngestFileInput[]; note?: string; llm?: unknown; executionMode?: unknown }): Promise<IngestResult> {
+  let executionMode: "agent" | "direct";
+  try { executionMode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  if (executionMode === "direct") throw new ServiceError("agent_required", "资料转写需要 Agent 读取文件，请先开启 Vibe Research Agent");
+  const llm = checkLlmShape(req.llm);
+  assertCodexAgentRuntime(ctx, llm);
   // 与台账同一把尺子:kind 先过 guard(白名单 + safePath),再进转写
   ledgerGuard(ctx, req.kind);
   safePath(ctx, "import");
   try {
-    return await ingestFilesCore({ repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python }, req);
+    return await ingestFilesCore({ repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python, ...(llm ? { llm } : {}) }, req);
   } catch (e) {
     if (e instanceof IngestError) throw new ServiceError(e.code, e.message);
     throw e;
@@ -1262,6 +1423,39 @@ export async function runTool(
   }
 }
 
+/** HTTP 的原始工具入口也必须带全局执行上下文；不能让旧页面绕过 Agent 开关直接起脚本。 */
+export async function runToolRequest(
+  ctx: ServiceContext,
+  name: string,
+  request: unknown,
+): Promise<unknown> {
+  if (!request || typeof request !== "object" || Array.isArray(request)) {
+    throw new ServiceError("bad_tool_request", "工具请求必须是对象");
+  }
+  const req = request as { input?: unknown; llm?: unknown; executionMode?: unknown };
+  const extras = Object.keys(request).filter((key) => !["input", "llm", "executionMode"].includes(key));
+  if (extras.length || !Object.prototype.hasOwnProperty.call(request, "input")) {
+    throw new ServiceError("bad_tool_request", "工具请求必须只包含 input、executionMode 和可选 llm");
+  }
+  // 旧客户端只发送工具参数，没有任何全局模式信息。把它默认为 Agent 会让直连页面静默绕过开关。
+  if (req.executionMode === undefined) throw new ServiceError("bad_execution_mode", "工具请求必须明确提供 executionMode");
+  let mode: "agent" | "direct";
+  try { mode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  const llm = checkLlmShape(req.llm);
+  const spec = Object.prototype.hasOwnProperty.call(currentPlugin().tools ?? {}, name)
+    ? currentPlugin().tools?.[name]
+    : undefined;
+  if (!spec) throw new ServiceError("not_found", `没有这个工具:${name}`);
+  if (spec.requiresAgent !== false) {
+    if (mode === "direct") {
+      throw new ServiceError("agent_required", "这个工具需要 Agent，请先开启 Vibe Research Agent");
+    }
+    assertCodexAgentRuntime(ctx, llm);
+  }
+  return await runTool(ctx, name, req.input);
+}
+
 /** 界面要用的工具清单(名字 + 显示名),由垂类下发 —— 前端不写死一份 */
 export function listTools(): { name: string; label: string }[] {
   return Object.entries(currentPlugin().tools ?? {}).map(([name, t]) => ({ name, label: t.label }));
@@ -1271,14 +1465,21 @@ export function listTools(): { name: string; label: string }[] {
 export async function guidedToolTurn(
   ctx: ServiceContext,
   name: string,
-  req: { session?: unknown; message?: unknown; llm?: unknown },
+  req: { session?: unknown; message?: unknown; llm?: unknown; executionMode?: unknown },
   signal?: AbortSignal,
 ): Promise<GuidedToolReply> {
   const spec = Object.prototype.hasOwnProperty.call(currentPlugin().tools ?? {}, name)
     ? currentPlugin().tools?.[name]
     : undefined;
   if (!spec) throw new ServiceError("not_found", `没有这个工具:${name}`);
+  let mode: "agent" | "direct";
+  try { mode = assertExecutionMode(req.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  if (mode === "direct") {
+    throw new ServiceError("agent_required", "这个功能需要 Agent 调用工具并维持任务状态，请先开启 Vibe Research Agent");
+  }
   const llm = checkLlmShape(req.llm);
+  assertCodexAgentRuntime(ctx, llm);
   try {
     return await guidedToolTurnCore(
       { repoRoot: ctx.repoRoot, dataRoot: ctx.dataRoot, python: ctx.python, signal },

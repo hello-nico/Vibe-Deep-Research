@@ -1,16 +1,30 @@
 # 模型接入指南
 
-本文讲清三件事:用哪条通道接模型、怎么验证一个 provider 能不能用、怎么加一家新的 provider。
-后端默认 provider 的密钥只放环境变量；浏览器里由用户填写的 key 只存在当前浏览器 `localStorage`，
-随本轮请求交给本机后端，用完即弃，不写配置、日志或台账。
+本文讲清四件事:第一次打开怎么选 AI、Agent 开关是什么、怎么验证一个 provider 能不能用、怎么加一家新的 provider。
+后端默认 provider 的密钥只放环境变量；浏览器里由用户填写的 key 会持久保存在当前浏览器的本机
+`localStorage`，以免每次重填。它不是系统钥匙串，也不承诺加密，只建议在可信个人电脑使用；共享电脑
+用完应主动清除。调用时 key 随本轮请求交给本机后端，但不会写入产品配置、日志、事件账本或研究产物。
 
-## 1. 两条通道
+## 1. 第一次只选 AI 来源
 
 | 通道 | 适用 | 怎么配 | 说明 |
 |---|---|---|---|
 | ChatGPT 订阅登录(默认) | OpenAI 模型,Plus / Pro / Team 订阅 | “接入 AI”→“订阅接入”→“登录 Codex” | 产品打开 OpenAI 官方登录页；登录态存在**产品自己的 CODEX_HOME**,与 `~/.codex` 隔离;不需要任何 API key |
 | Claude.ai 订阅登录 | 本机 Claude Code 已安装并登录 | 在 Claude Code 里完成 `/login`，设置页自动检测 | 复用本机订阅；调用时强制关闭本地工具、MCP、联网搜索工具、插件与 CLI 会话落盘 |
-| API key | OpenAI 或第三方(DeepSeek / 通义千问 / 智谱 GLM / Kimi …) | 浏览器“接入 AI”填写，或 `export <ENV_KEY>=...` + `--provider <id>` | 浏览器 key 只走本轮内存；命令行/后端默认 key 从模板声明的环境变量读取 |
+| API key | OpenAI 或第三方(DeepSeek / 通义千问 / 智谱 GLM / Kimi …) | 浏览器“接入 AI”填写，或 `export <ENV_KEY>=...` + `--provider <id>` | 浏览器 key 持久保存在本机浏览器配置，调用时才发给本机后端；命令行/后端默认 key 从模板声明的环境变量读取 |
+
+连接成功后，产品自动进入 **Vibe Research Agent（默认开启）**，不再追问执行引擎、Quick 或 Deep。
+系统会按任务语义在内部选择确定性程序、轻量材料定位或六阶段研究。设置页第二张卡可以关闭 Agent，
+切到模型直连；这个开关只对已经通过直连能力探针的 API provider 开放，订阅登录不能被伪装成裸模型 API。
+
+| 执行方式 | 能做什么 | 明确边界 |
+|---|---|---|
+| Agent（默认） | 本地上下文、工具调用、任务状态、研究进度、资料转写与六阶段研究 | Codex 订阅走 Codex Harness；Claude 订阅走 Claude Code Agent，不混叫 |
+| 模型直连 | 普通对话、标题翻译、现有材料定位等轻量任务 | 不调用工具、不保留 Agent 任务记忆；研究、辩论、Agent 回测与资料转写会要求重新开启 Agent |
+
+当前 Claude Code Agent 已支持对话和有界材料任务，但完整六阶段研究仍由 Codex Harness 承载；选择 Claude
+后发起这类任务会明确提示当前边界，不会暗中换成 Codex。WorkBuddy / CodeBuddy 的本地 Agent 适配器尚未完成，
+只有该产品时请先使用模型 API 接入；界面不会把它显示成已经支持。
 
 设置页的订阅卡片不是静态开关。后端会实时检测 Codex / Claude Code 的 CLI、版本与登录状态。
 Codex 未登录时会显示“登录 Codex”：点击后由产品使用自己的 `CODEX_HOME` 启动官方 `codex login`，
@@ -38,8 +52,9 @@ auth 的解析规则:用户没在 `.local/config.json` / `VRA_PROVIDER_AUTH` / `
 ## 2. 从全新版本接入第三方模型
 
 普通用户不需要先写环境变量：进入“接入 AI”→“API 接入”，选择供应商，填写 API 地址、模型名与
-key，然后点击“测试并保存”。页面会先通过本机后端向所选供应商发起一次真实对话；成功才保存，失败
-则保留当前已生效配置并显示可行动提示。保存后，首页 Agent、每日复盘、回测与研究页面共用这份配置。
+key，然后点击“测试并保存”。页面会先通过本机后端向所选供应商发起一次真实对话，并同时记录它是否
+支持模型直连；成功才保存，失败则保留当前已生效配置并显示可行动提示。保存后，全站只使用这一份 AI 来源，
+默认交给 Agent 运行。只有探针确认支持直连时，设置页的 Agent 开关才允许关闭。
 
 下面的命令行流程用于开发者跑完整兼容矩阵：
 
@@ -60,14 +75,18 @@ node orchestrator/src/run.ts --symbol 300308 --market SZ --provider deepseek --m
 
 优先级:`.local/config.json` ← 环境变量 `VRA_PROVIDER` / `VRA_PROVIDER_AUTH` ← CLI `--provider` / `--auth`。环境变量层整体生效(`VRA_PROVIDER` 与 `VRA_CODEX_HOME` / `VRA_PYTHON` 等可同时用)。
 
-### 🔴 只能是 Responses 协议 —— `wire_api="chat"` 已被引擎彻底移除
+### Agent 引擎走 Responses；模型直连走 provider 单独验证的协议
 
-引擎(`codex-rs/model-provider-info`)对 `wire_api = "chat"` **直接硬报错**。所以模板里没有、也不可能再有 chat 协议的 provider:
-一家厂商要接进来,**必须自己提供 OpenAI 兼容的 `/responses` 端点**,或者你在中间架一个 Responses→Chat Completions 的网关
-(那时填 `responses_support: "gateway"`,`base_url` 指向网关)。契约层在选用时就会拒掉 chat 并把这两条出路写在报错里,
-不会让你配到跑起来才炸。
+Codex Agent 引擎(`codex-rs/model-provider-info`)对 `wire_api = "chat"` **直接硬报错**。所以一家厂商要作为
+Agent 的模型来源，必须自己提供 OpenAI 兼容的 `/responses` 端点，或者在中间架一个
+Responses→Chat Completions 网关（此时填 `responses_support: "gateway"`，`base_url` 指向网关）。
+契约层会在选用时拒绝不兼容配置，不会让它跑到研究中途才失败。
 
-内置模板与对应环境变量(**均为 responses 协议**,供应商信息核实于 2026-08-26):
+模型直连不经过 Codex Agent 引擎。它读取 provider 模板里独立的 `direct` 声明，并在保存配置时做真实探针；
+因此直连可以使用已验证的 Chat Completions 端点。`direct.supported=true` 只说明这个独立通道已经验证，
+不能由顶层 Responses 配置自动推导，也不能靠模板存在就开放开关。
+
+内置模板与对应环境变量（下表是 **Agent / Responses 通道**，供应商信息核实于 2026-08-26）：
 
 | id | 厂商 / 通道 | env_key | 默认模型 | base_url |
 |---|---|---|---|---|

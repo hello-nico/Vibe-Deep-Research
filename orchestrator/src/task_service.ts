@@ -1,11 +1,10 @@
 /** 统一任务 API 的 composition：真实路由适配器 + deterministic / Quick / Deep 执行器。 */
 import type { ChatReply, ChatRequest } from "./engines/direct_transport.ts";
+import { chatSend as chatSendCore } from "./chat.ts";
 import { CodexDeepEngine, DeepExecutionError, type DeepResearchBackend, type DeepTargetResolver } from "./engines/codex_deep_engine.ts";
 import { DeterministicEngine } from "./engines/deterministic_engine.ts";
 import { QuickEngine, type QuickProvider } from "./engines/quick_engine.ts";
-import { directCapabilityOf } from "./providers.ts";
-import { loadProductConfig } from "./productConfig.ts";
-import { resolveRuntimeProvider, RuntimeProviderError, type LlmOverride } from "./runtime_provider.ts";
+import { assertExecutionMode, resolveDirectProvider, resolveRuntimeProvider, runtimeSourceFingerprint, RuntimeProviderError, type ExecutionMode, type LlmOverride } from "./runtime_provider.ts";
 import { ServiceError, type ServiceContext } from "./service.ts";
 import { ProductTaskOperations, ReportTaskMaterials } from "./task_adapters.ts";
 import { TaskRouteError, TaskRouter, type RouteDecision, type TaskEvent } from "./task_router.ts";
@@ -14,6 +13,7 @@ export interface UnifiedTaskRequest {
   readonly task: unknown;
   readonly execute?: boolean;
   readonly llm?: LlmOverride;
+  readonly executionMode: ExecutionMode;
   /** 两段式 UI 把 route-only 的决定绑定到执行请求；材料变化时拒绝，不得悄悄换路线。 */
   readonly expectedRouteFingerprint?: string;
 }
@@ -43,7 +43,7 @@ function requestOf(value: unknown): UnifiedTaskRequest {
     throw new ServiceError("invalid_task_request", "任务请求必须是对象");
   }
   const raw = value as Record<string, unknown>;
-  const extra = Object.keys(raw).filter((key) => !["task", "execute", "llm", "expectedRouteFingerprint"].includes(key));
+  const extra = Object.keys(raw).filter((key) => !["task", "execute", "llm", "executionMode", "expectedRouteFingerprint"].includes(key));
   if (extra.length) throw new ServiceError("invalid_task_request", `任务请求含契约外字段:${extra.join(",")}`);
   if (!("task" in raw)) throw new ServiceError("invalid_task_request", "任务请求缺少 task");
   if (raw.execute !== undefined && typeof raw.execute !== "boolean") {
@@ -64,40 +64,55 @@ function requestOf(value: unknown): UnifiedTaskRequest {
       throw new ServiceError("invalid_task_request", "llm 配置字段无效");
     }
   }
-  if (raw.execute === false && raw.llm !== undefined) {
-    throw new ServiceError("invalid_task_request", "只路由时不得携带 llm 配置");
-  }
-  return { task: raw.task, ...(raw.execute === undefined ? {} : { execute: raw.execute }),
+  let executionMode: ExecutionMode;
+  try { executionMode = assertExecutionMode(raw.executionMode); }
+  catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
+  return { task: raw.task, executionMode, ...(raw.execute === undefined ? {} : { execute: raw.execute }),
     ...(raw.llm === undefined ? {} : { llm: raw.llm as LlmOverride }),
     ...(raw.expectedRouteFingerprint === undefined ? {} : { expectedRouteFingerprint: raw.expectedRouteFingerprint as string }) };
 }
 
 function quickProviderOf(ctx: ServiceContext, llm?: LlmOverride): QuickProvider {
   try {
-    const resolved = llm
-      ? resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, llm)
-      : (() => {
-          const pc = loadProductConfig(ctx.repoRoot, { dataRootOverride: ctx.dataRoot, requireAuth: false });
-          return { runtime: "codex" as const, profile: pc.providerProfile!, auth: pc.provider.auth,
-            model: pc.providerProfile?.default_model ?? null, env: process.env };
-        })();
-    if (resolved.runtime !== "codex" || resolved.auth !== "api_key") {
-      throw new ServiceError("quick_provider_unsupported", "Quick 需要已配置的直连 API；当前订阅登录只用于 Deep。");
-    }
-    const capability = directCapabilityOf(resolved.profile);
-    if (!capability.supported || !capability.baseURL) {
-      throw new ServiceError("quick_provider_unsupported", `当前模型尚未通过 Quick 直连验证：${capability.reason}`);
-    }
-    const apiKey = resolved.env[resolved.profile.env_key];
-    const model = resolved.model ?? capability.model;
-    if (!apiKey || !model) throw new ServiceError("quick_provider_unsupported", "Quick 直连缺少 API key 或模型名");
-    return Object.freeze({ name: resolved.profile.id, baseURL: capability.baseURL, apiKey, model,
-      structuredOutput: capability.structuredOutput });
+    if (!llm) throw new ServiceError("quick_provider_unsupported", "直连模式缺少 AI 来源配置");
+    return resolveDirectProvider(ctx.repoRoot, ctx.dataRoot, llm);
   } catch (error) {
     if (error instanceof ServiceError) throw error;
     if (error instanceof RuntimeProviderError) throw new ServiceError(error.code, error.message);
     throw new ServiceError("quick_provider_unsupported", error instanceof Error ? error.message : "Quick 模型配置不可用");
   }
+}
+
+function agentQuickProvider(llm?: LlmOverride): QuickProvider {
+  const label = String(llm?.provider ?? "vibe-research-agent").trim() || "vibe-research-agent";
+  return Object.freeze({
+    name: label,
+    // 下面的 complete 被 Agent 适配器完整接管，这些字段只用于 QuickEngine 的结构与事件投影。
+    baseURL: "https://agent.invalid",
+    apiKey: "agent-adapter-not-sent",
+    model: String(llm?.model ?? label).trim() || label,
+    structuredOutput: "server_schema",
+  });
+}
+
+function agentQuickComplete(ctx: ServiceContext, llm?: LlmOverride): (request: ChatRequest) => Promise<ChatReply> {
+  return async (request) => {
+    const system = request.messages.find((x) => x.role === "system")?.content ?? "";
+    const message = [...request.messages].reverse().find((x) => x.role === "user")?.content ?? "";
+    const schema = (request.responseFormat as { json_schema?: { schema?: unknown } } | undefined)?.json_schema?.schema;
+    const turn = await chatSendCore({
+      repoRoot: ctx.repoRoot,
+      dataRoot: ctx.dataRoot,
+      python: ctx.python,
+      developerInstructions: String(system),
+      ...(schema !== undefined ? { outputSchema: schema } : {}),
+      persistent: false,
+      preambleText: "",
+      skipGate: true,
+      signal: request.signal,
+    }, { session: "bounded-task", message: String(message), ...(llm ? { llm } : {}) });
+    return { message: { role: "assistant", content: turn.reply }, finishReason: "stop", usage: null, durationMs: turn.duration_ms };
+  };
 }
 
 export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal?: AbortSignal,
@@ -107,10 +122,14 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   const operations = new ProductTaskOperations(ctx);
   const router = new TaskRouter({ materials, operations });
   let route: RouteDecision;
-  try { route = await router.route(req.task, signal); }
+  try {
+    const sourceFingerprint = runtimeSourceFingerprint(ctx.repoRoot, ctx.dataRoot, req.llm);
+    route = await router.route(req.task, signal, req.executionMode, sourceFingerprint);
+  }
   catch (error) {
     if (signal?.aborted) throw new ServiceError("cancelled", "任务已取消");
     if (error instanceof TaskRouteError) throw new ServiceError(error.code, error.message);
+    if (error instanceof RuntimeProviderError) throw new ServiceError(error.code, error.message);
     throw error;
   }
   if (req.execute !== false && req.expectedRouteFingerprint === undefined) {
@@ -119,12 +138,24 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   if (req.expectedRouteFingerprint !== undefined && route.routeFingerprint !== req.expectedRouteFingerprint) {
     throw new ServiceError("route_changed", "所选材料在路由后发生变化，请重新开始任务");
   }
-  const executionAvailable = route.target !== "deep" || dependencies.deepTargetResolver !== undefined;
+  let deepRuntimeAvailable = true;
+  if (route.target === "deep" && req.llm) {
+    try { deepRuntimeAvailable = resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, req.llm).runtime === "codex"; }
+    catch (error) {
+      throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_llm",
+        error instanceof Error ? error.message : String(error));
+    }
+  }
+  const executionAvailable = route.target !== "deep" ||
+    (req.executionMode === "agent" && deepRuntimeAvailable && dependencies.deepTargetResolver !== undefined);
   if (req.execute === false) {
     return Object.freeze({ status: "routed", executionAvailable, route, events: Object.freeze([]) });
   }
-  if (route.target === "deep" && req.llm !== undefined) {
-    throw new ServiceError("invalid_task_request", "Deep 使用产品隔离的 Codex Harness，不接收 Quick 直连模型配置");
+  if (route.target === "deep" && req.executionMode === "direct") {
+    throw new ServiceError("agent_required", "这个任务需要长流程取证与工具调用，请先开启 Vibe Research Agent");
+  }
+  if (route.target === "deep" && !deepRuntimeAvailable) {
+    throw new ServiceError("agent_runtime_unsupported", "当前 Claude Code Agent 支持对话和有界材料任务；完整六阶段研究请改用 Codex 或 API Agent");
   }
   if (route.target === "deep" && !dependencies.deepTargetResolver) {
     throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");
@@ -132,9 +163,15 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
   const engine = route.target === "deterministic"
     ? new DeterministicEngine(operations)
     : route.target === "quick"
-      ? new QuickEngine({ provider: dependencies.quickProvider ?? quickProviderOf(ctx, req.llm),
-          materials, requestTimeoutMs: 120_000, ...(dependencies.complete ? { complete: dependencies.complete } : {}) })
+      ? req.executionMode === "direct"
+        ? new QuickEngine({ provider: dependencies.quickProvider ?? quickProviderOf(ctx, req.llm),
+            materials, requestTimeoutMs: 120_000, engineFamily: "direct_api",
+            ...(dependencies.complete ? { complete: dependencies.complete } : {}) })
+        : new QuickEngine({ provider: dependencies.quickProvider ?? agentQuickProvider(req.llm),
+            materials, requestTimeoutMs: 120_000, engineFamily: "codex_harness",
+            complete: dependencies.complete ?? agentQuickComplete(ctx, req.llm) })
       : new CodexDeepEngine({ ctx, materials: dependencies.deepTargetResolver!,
+          ...(req.llm ? { runtimeLlm: req.llm } : {}),
           ...(dependencies.deepBackend ? { backend: dependencies.deepBackend } : {}) });
   const events: TaskEvent[] = [];
   for await (const event of engine.run(route, signal)) events.push(event);

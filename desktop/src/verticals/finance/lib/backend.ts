@@ -11,7 +11,7 @@
  *    底座 token 浏览器永远拿不到;模型 key 是**用户自己的**,存在他自己的 localStorage 里,
  *    随请求发给本机后端、用完即弃(见 llmStore.ts 与「接入 AI」页)。
  */
-import { readUserLlm } from "./llmStore.ts";
+import { readAiRuntime, type ExecutionMode } from "./llmStore.ts";
 
 export class ApiError extends Error {
   readonly status: number;
@@ -42,9 +42,11 @@ const SAFE_AGENT_MESSAGE_CODES = new Set([
   "agent_quota", "agent_not_installed", "agent_busy", "agent_timeout", "agent_output_too_large",
   "agent_bad_output", "agent_failed", "agent_empty_output", "agent_cancelled", "agent_start_failed",
   "tool_context_too_large", "bad_agent_output", "guided_output_blocked", "bad_tool_args", "bad_tool",
-  "bad_agent_state", "not_found", "tool_failed",
+  "bad_agent_state", "not_found", "tool_failed", "debate_source_changed",
   "invalid_task_request", "invalid_task", "invalid_material_resolution", "material_resolution_failed",
   "operation_not_available", "quick_not_eligible", "quick_provider_unsupported", "route_changed", "cancelled",
+  "ai_not_configured", "agent_required", "agent_runtime_unsupported", "direct_provider_unsupported", "bad_execution_mode",
+  "network_error", "http_error", "bad_json", "upstream_error", "empty_choice",
 ]);
 
 /**
@@ -68,7 +70,9 @@ export function friendlyAgentError(error: unknown): string {
 }
 
 const isAgentPath = (path: string): boolean =>
-  path === "/chat" || path.startsWith("/tasks") || path === "/llm-probe" || path === "/translate-headlines" || path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
+  path === "/chat" || path.startsWith("/tasks") || path === "/research" || path.startsWith("/debate") ||
+  path === "/import" || path === "/llm-probe" || path === "/translate-headlines" ||
+  path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
 
 export type TaskMode = "auto" | "quick" | "deep";
 export type TaskRouteTarget = "deterministic" | "quick" | "deep";
@@ -89,6 +93,8 @@ export interface ResearchTaskRequest {
 export interface TaskRouteDecision {
   target: TaskRouteTarget;
   requestedMode: TaskMode;
+  executionMode: ExecutionMode;
+  runtimeFingerprint: string;
   reasonCode: string;
   reason: string;
   routeFingerprint: string;
@@ -159,16 +165,22 @@ export type GuidedToolReply =
       hypothesis: string; logic: string[]; report: string; tool_result: unknown;
     };
 
-function requestLlm(llm: unknown): unknown {
-  if (llm !== undefined) return llm;
-  const r = readUserLlm();
+function requestRuntime(llm?: unknown, executionMode?: ExecutionMode): { llm: unknown; executionMode: ExecutionMode } {
+  const r = readAiRuntime();
+  if (llm !== undefined) return {
+    llm,
+    executionMode: executionMode ?? (r.status === "ok" && r.config ? r.config.executionMode : "agent"),
+  };
   if (r.status === "broken") {
     throw new ApiError("本机存的模型配置读不懂了 —— 请到「接入 AI」重新选一次", 400, "llm_broken");
   }
   if (r.status === "unavailable") {
     throw new ApiError("浏览器不让读本地存储（隐私模式？）—— 「接入 AI」的配置这一轮用不了", 400, "llm_unavailable");
   }
-  return r.config ?? undefined;
+  if (r.status === "none" || !r.config) {
+    throw new ApiError("请先到「接入 AI」选择订阅或 API，连接成功后再使用 AI 功能", 409, "ai_not_configured");
+  }
+  return { llm: r.config.source, executionMode: r.config.executionMode };
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -245,17 +257,20 @@ export const backend = {
     method: "POST", body: JSON.stringify({ id }),
   }),
 
-  /** 只判断 Auto / Quick / Deep 路径，不调用模型，也不把模型配置发给后端。 */
-  routeTask: (task: ResearchTaskRequest, signal?: AbortSignal) => call<UnifiedTaskResult>("/tasks", {
-    method: "POST", body: JSON.stringify({ task, execute: false }), signal,
-  }),
+  /** 只做内部路由；后端把 AI 来源做成不可逆指纹，执行时换源必须重新路由。 */
+  routeTask: (task: ResearchTaskRequest, signal?: AbortSignal) => {
+    const runtime = requestRuntime();
+    return call<UnifiedTaskResult>("/tasks", {
+      method: "POST", body: JSON.stringify({ task, execute: false, executionMode: runtime.executionMode, llm: runtime.llm }), signal,
+    });
+  },
 
-  /** 执行已由同一高层任务描述过的任务。Quick 只接受直连 API，订阅登录留给 Deep。 */
+  /** 执行已由同一高层任务描述过的任务；内部 Quick / Deep 都服从全局 Agent 开关。 */
   runTask: (task: ResearchTaskRequest, expectedRouteFingerprint: string, signal?: AbortSignal, llm?: unknown) => {
-    const use = requestLlm(llm);
+    const runtime = requestRuntime(llm);
     return call<UnifiedTaskResult>("/tasks", {
       method: "POST",
-      body: JSON.stringify({ task, execute: true, expectedRouteFingerprint, ...(use !== undefined ? { llm: use } : {}) }),
+      body: JSON.stringify({ task, execute: true, expectedRouteFingerprint, executionMode: runtime.executionMode, llm: runtime.llm }),
       signal,
     });
   },
@@ -299,22 +314,20 @@ export const backend = {
    *    而界面上每页各自干净，这种不一致从界面上完全看不出来。
    */
   /**
-   * 一轮对话。`llm` = 用户自己在「接入 AI」里配的那一份（不给则走后端默认）。
+   * 一轮对话。`llm` = 用户自己在「接入 AI」里配的那一份；不给则读取全局 AI 来源。
    * 🔴 key 随请求发给**本机**后端，用完即弃：不写配置文件、不进日志、不入账本。
    */
   chat: async (message: string, session = "default", signal?: AbortSignal, llm?: unknown) => {
     // 🔴 **默认就带上用户那份**，不靠调用方记得传。
     //    上一版要求每个入口自己传 —— 结果三个入口里有两个（Agent 面板、agents.ts）漏了，
     //    表现是"用户在界面上选的模型没生效"，而对话照常成功、界面上看不出任何异常。
-    const use = requestLlm(llm);
-    await ensureSelectedLocalAgentReady(use);
+    const runtime = requestRuntime(llm);
+    if (runtime.executionMode === "agent") await ensureSelectedLocalAgentReady(runtime.llm);
     return await call<{ session: string; reply: string; redacted: number; duration_ms: number }>("/chat", {
       method: "POST",
-      // 🔴 判据是 `!== undefined`，不是真值。用真值判的话，显式传进来的 `null`（以及 ""/0/false）
-      //    会在这里被悄悄丢掉、请求体里根本没有 llm ⇒ 后端的形状校验压根不会执行，
-      //    照样回落到后端默认。后端刚把这条堵上，前端这个**兄弟编译点**不能漏
-      //    （Codex 复审 r4：同一根因，两处各判各的）。
-      body: JSON.stringify({ session, message, ...(use !== undefined ? { llm: use } : {}) }),
+      // requestRuntime 已按 `!== undefined` 处理调用方覆盖，显式 null 会继续传给后端形状校验，
+      // 不会被真值判断吃掉。AI 来源与 Agent 开关必须在同一请求体里一起发送。
+      body: JSON.stringify({ session, message, executionMode: runtime.executionMode, llm: runtime.llm }),
       signal,
     });
   },
@@ -324,22 +337,22 @@ export const backend = {
    * 🔴 别再用 chat() 做连接检测 —— 那会把资料库片段发给正在测试的 provider（#40）。
    */
   llmProbe: async (llm: unknown, signal?: AbortSignal) => {
-    const use = requestLlm(llm);
-    await ensureSelectedLocalAgentReady(use);
-    return await call<{ ok: true; duration_ms: number }>("/llm-probe", {
+    const runtime = requestRuntime(llm);
+    await ensureSelectedLocalAgentReady(runtime.llm);
+    return await call<{ ok: true; duration_ms: number; direct_supported: boolean; direct_reason: string }>("/llm-probe", {
       method: "POST",
-      body: JSON.stringify(use !== undefined ? { llm: use } : {}),
+      body: JSON.stringify({ llm: runtime.llm }),
       signal,
     });
   },
 
   /** RSS 标题走专用受限转换入口，不借用会记上下文的自由对话。 */
   translateHeadlines: async (items: { id: string; title: string }[], signal?: AbortSignal, llm?: unknown) => {
-    const use = requestLlm(llm);
-    await ensureSelectedLocalAgentReady(use);
+    const runtime = requestRuntime(llm);
+    if (runtime.executionMode === "agent") await ensureSelectedLocalAgentReady(runtime.llm);
     return await call<{ items: { id: string; zh: string }[]; redacted: number; duration_ms: number }>("/translate-headlines", {
       method: "POST",
-      body: JSON.stringify({ items, ...(use !== undefined ? { llm: use } : {}) }),
+      body: JSON.stringify({ items, executionMode: runtime.executionMode, llm: runtime.llm }),
       signal,
     });
   },
@@ -351,22 +364,37 @@ export const backend = {
    * ⚠️ 这类工具要先取数再算,**几十秒**很正常 —— 调用方要自己给足耐心与进度反馈。
    * 🔴 返回的 JSON 由工具自己定形状(比如"被拦住"与"出错了"分开),这里原样透传。
    */
-  runTool: <T>(name: string, body: unknown, signal?: AbortSignal) =>
-    call<T>(`/tool/${encodeURIComponent(name)}`, { method: "POST", body: JSON.stringify(body), signal }),
-  /** Agent 先补问，条件齐备后由后端调用同一个真实工具，并返回可归档报告。 */
-  guidedTool: async (name: string, session: string, message: string, signal?: AbortSignal, llm?: unknown) => {
-    const use = requestLlm(llm);
-    await ensureSelectedLocalAgentReady(use);
-    return await call<GuidedToolReply>(`/guided-tool/${encodeURIComponent(name)}`, {
+  runTool: async <T>(name: string, body: unknown, signal?: AbortSignal) => {
+    const runtime = requestRuntime();
+    return await call<T>(`/tool/${encodeURIComponent(name)}`, {
       method: "POST",
-      body: JSON.stringify({ session, message, ...(use !== undefined ? { llm: use } : {}) }),
+      body: JSON.stringify({ input: body, executionMode: runtime.executionMode, llm: runtime.llm }),
       signal,
     });
   },
-  debateStart: (symbol: string, depth?: string) =>
-    call<DebateState>("/debate", { method: "POST", body: JSON.stringify({ symbol, ...(depth ? { depth } : {}) }) }),
-  debateAdvance: (id: string) =>
-    call<DebateState>(`/debate/${encodeURIComponent(id)}/advance`, { method: "POST", body: "{}" }),
+  /** Agent 先补问，条件齐备后由后端调用同一个真实工具，并返回可归档报告。 */
+  guidedTool: async (name: string, session: string, message: string, signal?: AbortSignal, llm?: unknown) => {
+    const runtime = requestRuntime(llm);
+    if (runtime.executionMode === "direct") {
+      throw new ApiError("这个功能需要 Agent 调用工具并维持任务状态，请先开启 Vibe Research Agent", 409, "agent_required");
+    }
+    await ensureSelectedLocalAgentReady(runtime.llm);
+    return await call<GuidedToolReply>(`/guided-tool/${encodeURIComponent(name)}`, {
+      method: "POST",
+      body: JSON.stringify({ session, message, executionMode: runtime.executionMode, llm: runtime.llm }),
+      signal,
+    });
+  },
+  debateStart: (symbol: string, depth?: string) => {
+    const runtime = requestRuntime();
+    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要 Agent，请先开启 Vibe Research Agent", 409, "agent_required");
+    return call<DebateState>("/debate", { method: "POST", body: JSON.stringify({ symbol, ...(depth ? { depth } : {}), executionMode: runtime.executionMode, llm: runtime.llm }) });
+  },
+  debateAdvance: (id: string) => {
+    const runtime = requestRuntime();
+    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要 Agent，请先开启 Vibe Research Agent", 409, "agent_required");
+    return call<DebateState>(`/debate/${encodeURIComponent(id)}/advance`, { method: "POST", body: JSON.stringify({ executionMode: runtime.executionMode, llm: runtime.llm }) });
+  },
 
   /** 端点观测序列(跨运行累积)。⚠️ 只在**完整研究运行**时追加,手动点看板不写 —— 稀疏是正常的 */
   series: (endpoint: string) =>
@@ -400,8 +428,13 @@ export const backend = {
    *    带证据链、确定性计算、数据缺口与裁决点的正式研究；「我的研报」只是上传外部文件的归档柜。
    * ⚠️ 它会真的花模型额度、跑十几分钟，所以必须由用户显式点，不能页面一打开就跑。
    */
-  startResearch: (body: { symbol: string; company_name?: string; market?: string; endpoints?: "core" | "full"; knowledge?: "on" | "off"; stages?: string[] }) =>
-    call<{ run_id: string; log: string; pid?: number }>("/research", { method: "POST", body: JSON.stringify(body) }),
+  startResearch: (body: { symbol: string; company_name?: string; market?: string; endpoints?: "core" | "full"; knowledge?: "on" | "off"; stages?: string[] }) => {
+    const runtime = requestRuntime();
+    if (runtime.executionMode === "direct") throw new ApiError("六阶段深度研究需要 Agent，请先开启 Vibe Research Agent", 409, "agent_required");
+    return call<{ run_id: string; log: string; pid?: number }>("/research", {
+      method: "POST", body: JSON.stringify({ ...body, executionMode: runtime.executionMode, llm: runtime.llm }),
+    });
+  },
 
   researchStatus: (id: string) => call<ResearchStatus>(`/runs/${encodeURIComponent(id)}/status`),
 

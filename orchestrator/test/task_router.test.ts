@@ -86,13 +86,30 @@ test("Auto：三种确定性任务经注册表验证且一律不调模型", asyn
   }
 });
 
-test("Auto：服务端确认材料完备的有界任务走 Quick", async () => {
+test("Auto：服务端确认材料完备的有界任务走 Quick，默认由 Agent 执行", async () => {
   const result = await route({ kind: "locate_passages" });
   assert.equal(result.target, "quick");
-  assert.equal(result.engineFamily, "direct_api");
+  assert.equal(result.engineFamily, "codex_harness");
   assert.equal(result.reasonCode, "prepared_bounded_task");
   assert.equal(result.materialState, "ready");
   assert.match(result.materials.inputs[0]?.revision ?? "", /^rev-/);
+});
+
+test("直连模式的有界任务才使用 direct_api", async () => {
+  const result = await router().route(task({ kind: "locate_passages" }), undefined, "direct");
+  assert.equal(result.target, "quick");
+  assert.equal(result.engineFamily, "direct_api");
+  assert.equal(result.executionMode, "direct");
+});
+
+test("Auto 深研意图由服务端判定，不被普通子串误触发", async () => {
+  const deep = await route({ kind: "locate_passages", objective: "深入分析并核验最新数据" });
+  assert.equal(deep.target, "deep");
+  assert.equal(deep.reasonCode, "explicit_deep");
+
+  const locate = await route({ kind: "locate_passages", objective: "找出报告中对完整六阶段研究的描述" });
+  assert.equal(locate.target, "quick");
+  assert.equal(locate.reasonCode, "prepared_bounded_task");
 });
 
 test("尚未接入 Quick 执行器的通用任务先走 Deep，显式 Quick 则拒绝", async () => {

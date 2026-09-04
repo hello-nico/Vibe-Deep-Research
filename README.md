@@ -3,15 +3,15 @@
 <h1 align="center">Vibe Research</h1>
 
 <p align="center">
-  <b>基于 Codex Harness 打造的本地金融研究工作台</b><br>
-  已接通 Codex 与 Claude Code 订阅 · 自动检测本机登录状态 · 支持大多数兼容模型 API
+  <b>接入自己的 AI，默认直接使用本地金融研究 Agent</b><br>
+  Codex / Claude Code 订阅或模型 API 一次接入 · Agent 默认开启 · 已验证 API 可切换模型直连
 </p>
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
   <img alt="Version" src="https://img.shields.io/badge/version-v1.0.3-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
-  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-540%20checks-passing">
+  <img alt="Orchestrator tests" src="https://img.shields.io/badge/orchestrator-681%20checks-passing">
   <img alt="Desktop tests" src="https://img.shields.io/badge/desktop-25%20tests-passing">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
@@ -42,26 +42,31 @@
 
 ## 这是什么
 
-Vibe Research 是一个**基于 [OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform)
-打造的本地金融研究工作台**。Codex Harness 在本机维持上下文、选择工具、推进任务、处理失败并保留
-过程；Vibe Research 再叠加金融数据源、研究 SOP、确定性计算、证据校验和合规边界。
+Vibe Research 是一个**本地金融研究工作台**。第一次打开时只需要决定 AI 从哪里来：使用已经登录的
+Codex / Claude Code 订阅，或者填写自己的模型 API。连接成功后，Vibe Research Agent 默认开启，普通
+使用者不需要再理解 Harness、脚本或路由模式。
 
-上一版 Vibe Research 主要由应用直接调用模型 API 完成分析。现在它被改造升级为一个基于 Codex 的
-本地金融 Agent：能够理解任务、连续调用工具、补充缺失信息、执行多步研究并保存完整过程。相比单次
-API 问答，长任务能力、工具使用、上下文保持和推理质量都会显著提升。
+Agent 模式会在本机维持上下文、调用工具、推进任务、处理失败并保存研究过程。Codex 订阅由
+[OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform) 承载；Claude.ai 订阅由
+本机 Claude Code Agent 承载。Vibe Research 在这些运行时之上统一叠加金融数据、研究 SOP、确定性计算、
+证据校验和合规边界。
 
-| 上一版：直接调用模型 API | 当前版：Codex 本地金融 Agent |
+Claude Code Agent 当前支持对话和有界材料任务；完整六阶段研究需要 Codex Harness，或在 Agent
+模式下接入模型 API。界面会按当前运行时明确展示这个边界。
+
+API 用户还可以在设置里关闭 Agent，改成模型直连。这个开关只对通过直连能力验证的 provider 开放：
+
+| Agent 模式（默认、推荐） | 模型直连模式 |
 |---|---|
-| 一次请求完成一次分析 | 持续推进完整研究任务 |
-| 应用预先决定调用什么 | Agent 读取真实工具目录后自主选择 |
-| 上下文和任务状态由页面临时维护 | Harness 在本机维护上下文、进度和失败恢复 |
-| 结果通常只有一段回答 | 保留报告、证据、计算过程、缺口和运行状态 |
-| 模型输出直接展示 | validator、沙箱、hooks 与合规 gate 共同把关 |
+| 维持上下文和任务状态 | 每次请求独立完成 |
+| 可调用本地数据、计算和研究工具 | 不调用 Agent 工具 |
+| 支持六阶段研究、辩论和 Agent 回测 | 适合轻量对话、翻译和材料定位 |
+| 保留进度、证据链、报告与失败状态 | 不保留 Agent 任务记忆 |
+| 订阅或 API 都可作为推理来源 | 只支持已验证的 API provider |
 
-架构同时支持订阅型 AI 与模型 API 两类接入。当前已接通 Codex 与 Claude Code 两个订阅入口；设置页会
-实时检测本机 CLI、版本与登录状态。Codex 未登录时可直接点击“登录 Codex”打开官方授权页，授权完成后
-自动识别；Qwen Code 与 DeepSeek CLI 当前仍需
-各自的 API key，因此归入 API 接入，不冒充免 key 订阅。API 侧支持大多数提供 Responses API 的模型服务。
+当前订阅入口已接通 Codex 与 Claude Code，设置页会实时检测 CLI、版本与登录状态。只有 WorkBuddy /
+CodeBuddy 时，目前请使用模型 API 接入；它的本地 Agent 适配器尚未完成，因此不会在界面里冒充“已支持”。
+Qwen Code 与 DeepSeek CLI 当前仍需各自的 API key，也归入 API 接入。
 
 ## 功能
 
@@ -78,7 +83,7 @@ API 问答，长任务能力、工具使用、上下文保持和推理质量都�
 | 多空辩论 | 多方、空方、反驳与中立主持共用同一份真实资料包 |
 | 自选股与持仓 | 支持 A 股、美股和港股代码识别、本地保存与行情刷新 |
 | 研究记录 | 保存研究、回测和辩论报告，可搜索、按时间查看和删除 |
-| 接入 AI | 选择订阅登录或填写自己的模型 API；全站 Agent 共用这一份配置 |
+| 接入 AI | 第一步连接订阅或模型 API；第二张卡显示 Agent 开关，默认开启并全站生效 |
 
 ### 研究结果不是一段无法复核的文字
 
@@ -137,7 +142,10 @@ npm install -g @openai/codex@0.149.0
 scripts/init --python "$(pwd)/.venv/bin/python"
 ```
 
-### 连接模型
+### 连接 AI
+
+第一次打开任意功能都会进入“接入 AI”。只需先选一种来源并测试保存；连接成功后 Agent 自动开启，
+之后不必重复选择。API 通过直连能力验证后，才会允许在第二张卡里关闭 Agent。
 
 使用 ChatGPT 订阅：启动界面后进入“接入 AI”→“订阅接入”，点击“登录 Codex”，在自动打开的
 OpenAI 官方页面完成授权；页面自动识别登录结果后，点击“测试并保存”。产品使用独立的
@@ -149,8 +157,8 @@ Windows 后备命令为
 使用 Claude.ai 订阅：先安装并登录 Claude Code；设置页会自动检测，不需要把 Claude 的 key 填进产品。
 
 API 接入：进入“接入 AI”→“API 接入”，选择供应商并填写 API 地址、模型名和 key，再点击
-“测试并保存”。系统先发起一次真实模型对话，成功才保存并供所有 Agent 页面使用。出现“请先到接入 AI
-重新连接”时，表示本机登录态已失效，不是研究或回测逻辑失败。
+“测试并保存”。系统先发起一次真实模型对话，成功才保存并供全站使用；同时会记录该 provider 是否通过
+模型直连能力验证。出现“请先到接入 AI 重新连接”时，表示本机登录态已失效，不是研究或回测逻辑失败。
 
 ### 启动浏览器 UI
 
@@ -233,18 +241,22 @@ ChatGPT / Claude.ai 订阅 · OpenAI · DeepSeek · Qwen · GLM · Kimi · MiMo 
 
 ## 模型接入
 
-“接入 AI”把 Agent Runtime 与 Model Provider 分开：
+“接入 AI”在界面上按两个问题分开：先选 AI 来源，再决定是否使用 Agent。第二步默认已经替使用者选好
+“开启”，只有明确想做轻量直连的 API 用户才需要改。
 
-- Codex Harness 负责本地上下文、工具调用、任务状态、进度和失败处理。
-- Local Agent Runtime 把订阅登录接进工作台；当前支持产品内 Codex 与本机 Claude Code，并实时检测版本和登录状态。Codex 可从设置页启动官方登录，授权完成后自动检测。
-- Model Provider 只提供推理能力；换模型不会换掉工具、记忆、证据链或金融纪律。
+- Agent Runtime 负责本地上下文、工具调用、任务状态、进度和失败处理。Codex 订阅走 Codex Harness；Claude 订阅走 Claude Code Agent，两者不会混叫。
+- Claude Code Agent 当前支持对话和有界材料任务；完整六阶段研究需要 Codex Harness，或在 Agent 模式下接入模型 API。
+- AI 来源可以是订阅登录，也可以是用户自己的 Model Provider API。换来源不会自动关闭 Agent。
+- 模型直连不运行 Agent、不调用工具，也没有 Agent 任务记忆；六阶段研究、多空辩论和 Agent 回测会明确提示重新开启 Agent，不会静默降级。
 - Codex 订阅使用产品自己的 `CODEX_HOME`，不读写用户的 `~/.codex`；Claude 订阅复用本机 Claude Code 登录态，调用时强制关闭本地工具、MCP、联网搜索工具与会话落盘。
 - 无论订阅或 API，点击“测试并保存”都会先做一次真实对话探针；探针失败不覆盖当前已生效配置。
-- API 模式的 key 只保存在当前浏览器 `localStorage`，随请求交给本机后端，不写入仓库、配置文件、
-  运行账本或日志。
+- API 模式的 key 会持久保存在当前浏览器的本机 `localStorage`，方便下次直接使用；它不是系统钥匙串，
+  也不承诺加密，只建议在可信个人电脑使用。key 随请求交给本机后端，但不进入仓库、后端配置、运行账本
+  或日志；共享电脑用完请主动清除。
 
-内置 provider 模板：OpenAI、DeepSeek、Qwen、GLM、Kimi、MiMo。引擎只支持 Responses API；
-模板存在不等于已经通过兼容矩阵，界面会区分“已实测”和“有模板、未实测”。
+内置 provider 模板：OpenAI、DeepSeek、Qwen、GLM、Kimi、MiMo。Agent 引擎只支持 Responses API；
+直连通道使用 provider 模板中单独声明并验证的协议。模板存在不等于已经通过兼容矩阵，界面会区分
+“已实测”和“有模板、未实测”，未验证时不会开放直连开关。
 
 详细说明见 [docs/model-access.md](docs/model-access.md) 和 [providers/README.md](providers/README.md)。
 
@@ -301,10 +313,10 @@ npm run build --prefix desktop
 
 当前验证基线：
 
-- orchestrator：**539 项**（本机 538 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
-- desktop：**25/25**，TypeScript 类型检查与 Vite 生产构建通过。
-- Python（计算库、回测、数据脚本）：**575/575**。
-- V1.0.1 发布改动经 Codex 独立复审，末轮无可操作 P1/P2。
+- orchestrator：**681 项**（本机 680 通过 + 1 项 Windows ACL 专项按平台跳过），Core 行业词 **0**，TypeScript 类型检查通过。
+- desktop：**34/34**，TypeScript 类型检查与 Vite 生产构建通过。
+- Python（计算库、回测、数据脚本）：**577/577**。
+- 当前未发布改动经 Codex 独立复审，末轮为 `No actionable P1/P2 findings`。
 
 项目约定：每个环节完成后先测试，再做 Codex 独立审计、逐条核实、修复和复审；审计完成前不把
 该环节称为“建成”，也不提交或推送。

@@ -203,6 +203,13 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   const stagesToRun = allStages.filter((s) => (!onlyStages || onlyStages.includes(s)) && !seededStages.includes(s));
   const partial = stagesToRun.length !== allStages.length;
   const configHash = sha256Text(JSON.stringify({ ...cfg, runDir: undefined, repoRoot: undefined })).slice(0, 16);
+  const providerOrigin = (() => {
+    if (!cfg.provider.base_url) return null;
+    try {
+      const parsed = new URL(cfg.provider.base_url);
+      return `${parsed.protocol}//${parsed.host}`;
+    } catch { return null; }
+  })();
 
   const manifest: Manifest = {
     run_id: cfg.runId, symbol: cfg.symbol, market: cfg.market, started_at: nowIso(), finished_at: null, status: "running", stages: [],
@@ -213,7 +220,8 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
       : actualModel
         ? `provider 默认模型，已由 ${runtimeKind === "direct" ? "Direct" : "Codex"} 运行时解析`
         : "未指定:使用 provider 的默认模型(事件流不回报实际模型名)",
-    provider: { name: cfg.provider.name, wire_api: cfg.provider.wire_api, base_url: cfg.provider.base_url, env_key: cfg.provider.env_key, auth: cfg.provider.auth, profile: cfg.providerProfile?.id ?? null, matrix_status: cfg.providerProfile?.matrix?.status ?? null },
+    // 运行记账只需要识别 provider，不需要可能含租户路径或凭据的完整端点。
+    provider: { name: cfg.provider.name, wire_api: cfg.provider.wire_api, base_url: providerOrigin, env_key: cfg.provider.env_key, auth: cfg.provider.auth, profile: cfg.providerProfile?.id ?? null, matrix_status: cfg.providerProfile?.matrix?.status ?? null },
     engine: {
       codex_path: runtimeKind === "direct" ? null : (sdk.codexPath ?? cfg.codexPath),
       codex_home: runtimeKind === "direct" ? null : (sdk.codexHome ?? cfg.codexHome),
@@ -284,6 +292,13 @@ async function runResearchInner(cfg: RunConfig, deps: Deps, onlyStages?: Stage[]
   delete loggedConfig.taskObjective;
   delete loggedConfig.reportIds;
   delete loggedConfig.reportRevisions;
+  loggedConfig.provider = { ...cfg.provider, base_url: providerOrigin };
+  loggedConfig.providerProfile = cfg.providerProfile ? {
+    id: cfg.providerProfile.id,
+    wire_api: cfg.providerProfile.wire_api,
+    env_key: cfg.providerProfile.env_key,
+    matrix_status: cfg.providerProfile.matrix?.status ?? null,
+  } : null;
   runner.log("orchestrator", "run.start", { config: loggedConfig, codex_version: sdk.version, codex_binary: sdk.binary, calc_version: calcVersion, repo_version: repoVersion, stages: stagesToRun });
   // 领域事件(v2.1 §5 ④,供 API / UI 消费):research.started / stage.completed / gate.failed / report.ready / research.finished
   runner.log("orchestrator", "research.started", { run_id: cfg.runId, symbol: cfg.symbol, market: cfg.market, stages: stagesToRun, run_dir: cfg.runDir });

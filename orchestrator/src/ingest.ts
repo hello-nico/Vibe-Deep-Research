@@ -27,6 +27,7 @@ import { structuredOutputMode, withOutputSchema } from "./providers.ts";
 import { kinds as ledgerKinds } from "./ledger.ts";
 import { loadProductConfig } from "./productConfig.ts";
 import { codexOptionsFor } from "./runner.ts";
+import { resolveRuntimeProvider, type LlmOverride } from "./runtime_provider.ts";
 
 const AjvCtor = ((AjvModule as unknown as { default?: unknown }).default ?? AjvModule) as new (o: object) => {
   compile: (s: object) => ((d: unknown) => boolean) & { errors?: { instancePath?: string; message?: string }[] | null };
@@ -272,7 +273,7 @@ function outputSchema(kind: string): Record<string, unknown> {
 }
 
 export async function ingestFiles(
-  opts: { repoRoot: string; dataRoot?: string; python?: string },
+  opts: { repoRoot: string; dataRoot?: string; python?: string; llm?: LlmOverride },
   req: { kind: string; files: IngestFileInput[]; note?: string },
   codexFactory: (o: CodexOptions) => Codex = (o) => new Codex(o),
 ): Promise<IngestResult> {
@@ -291,7 +292,13 @@ export async function ingestFiles(
   const pc = loadProductConfig(opts.repoRoot, {
     env: process.env,
     ...(opts.dataRoot ? { dataRootOverride: opts.dataRoot } : {}),
+    ...(opts.llm ? { requireAuth: false as const } : {}),
   });
+  const runtime = opts.llm ? resolveRuntimeProvider(opts.repoRoot, opts.dataRoot ?? pc.resolved.dataRoot, opts.llm) : null;
+  if (runtime && runtime.runtime !== "codex") {
+    throw new IngestError("agent_runtime_unsupported", "当前资料转写还不支持这个本地 Agent；请选择 Codex 或模型 API");
+  }
+  const selectedModel = runtime?.runtime === "codex" ? runtime.model : pc.defaults.model;
   const cfg = makeConfig({
     symbol: "IMPORT",
     repoRoot: opts.repoRoot,
@@ -299,9 +306,12 @@ export async function ingestFiles(
     python: opts.python ?? pc.python ?? undefined,
     codexPath: pc.resolved.codexPath,
     codexHome: pc.resolved.codexHome,
-    provider: pc.provider,
-    providerProfile: pc.providerProfile,
-    ...(pc.defaults.model ? { model: pc.defaults.model } : {}),
+    provider: runtime?.runtime === "codex"
+      ? { ...pc.provider, auth: runtime.auth, env_key: runtime.profile.env_key, name: runtime.profile.id,
+          wire_api: runtime.profile.wire_api, base_url: runtime.profile.base_url }
+      : pc.provider,
+    providerProfile: runtime?.runtime === "codex" ? runtime.profile : pc.providerProfile,
+    ...(selectedModel ? { model: selectedModel } : {}),
     runId: "import",
   });
   const batch = `${new Date().toISOString().slice(0, 10)}-${crypto.randomBytes(4).toString("hex")}`;
@@ -313,7 +323,7 @@ export async function ingestFiles(
   //    这批文件都会永久留在盘上,而调用方拿不到 batch 路径、根本不知道要去清。
   // ⚠️ 成功**不删** —— 草稿要逐条确认,人得能回去看原件核对(这是刻意的留存,不是忘了清)。
   try {
-    return await ingestInto(dir, batch, kind, input, req, cfg, codexFactory);
+    return await ingestInto(dir, batch, kind, input, req, cfg, codexFactory, runtime?.runtime === "codex" ? runtime.env : undefined);
   } catch (e) {
     fs.rmSync(dir, { recursive: true, force: true });
     throw e;
@@ -328,6 +338,7 @@ async function ingestInto(
   req: { note?: string },
   cfg: RunConfig,
   codexFactory: (o: CodexOptions) => Codex,
+  runtimeEnv?: NodeJS.ProcessEnv,
 ): Promise<IngestResult> {
 
   const saved: { safe: string; orig: string; kind: "image" | "text" }[] = [];
@@ -365,7 +376,7 @@ async function ingestInto(
     saved.push({ safe, orig: String(f.name), kind: isImage ? "image" : "text" });
   }
 
-  const codex = codexFactory(codexOptionsFor(cfg));
+  const codex = codexFactory(codexOptionsFor(cfg, runtimeEnv));
   const thread = codex.startThread({
     workingDirectory: dir,
     sandboxMode: "read-only", // 🔴 转写只读:它读文件,写不了任何东西

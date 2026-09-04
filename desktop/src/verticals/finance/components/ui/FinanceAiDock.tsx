@@ -13,7 +13,7 @@ import { AiDock } from "../../../../core/ai/AiDock";
 import { AiComposer, AiMessages } from "../../../../core/ai/AiMessages";
 import { useAiChat } from "../../../../core/ai/useAiChat";
 import { backend } from "@/lib/backend";
-import { hasLlm } from "@/lib/llm";
+import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
 
 /** 发一轮对话 —— 两个入口共用同一条通道 */
@@ -50,7 +50,10 @@ const HOME_AGENT_SUGGESTIONS = [
 ];
 
 /** 首页里的主对话区：打开产品就能聊，不需要先找侧栏或浮动按钮。 */
-export function FinanceHomeAgent({ configured }: { configured: boolean }) {
+export function FinanceHomeAgent() {
+  const runtime = useAiRuntime();
+  const configured = runtime.status === "ok";
+  const agentEnabled = runtime.config?.executionMode !== "direct";
   const chat = useAiChat("home-agent", sendTurn);
   const [draft, setDraft] = useState("");
 
@@ -66,8 +69,8 @@ export function FinanceHomeAgent({ configured }: { configured: boolean }) {
             <Sparkles className="h-4 w-4" />
           </span>
           <div className="min-w-0">
-            <h2 className="font-bold">Agent</h2>
-            <p className="truncate text-[11px] text-muted-foreground">Codex Harness · 本地运行</p>
+            <h2 className="font-bold">{agentEnabled ? "Agent" : "AI 直连"}</h2>
+            <p className="truncate text-[11px] text-muted-foreground">{agentEnabled ? "Vibe Research Agent · 本地运行" : "单轮模型调用 · 不使用 Agent"}</p>
           </div>
         </div>
         {chat.msgs.length > 0 && (
@@ -118,17 +121,21 @@ export function FinanceHomeAgent({ configured }: { configured: boolean }) {
 
 /** 底部控制台：一条长期对话，跟着你翻页一起走 */
 export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const runtime = useAiRuntime();
+  const agentEnabled = runtime.config?.executionMode !== "direct";
   return (
     <AiConsole
       open={open}
       onClose={onClose}
-      configured={hasLlm()}
+      configured={runtime.status === "ok"}
       copy={{
-        title: "Vibe Research Agent",
-        runtime: "Codex Harness · 本地运行",
+        title: agentEnabled ? "Vibe Research Agent" : "模型直连",
+        runtime: agentEnabled ? "Agent · 本地运行" : "单轮模型调用 · 无 Agent 记忆",
         placeholder: "问点什么…（Shift+Enter 换行）",
         notice:
-          "这是一条由 Codex Harness 管理的长期对话，翻页也不会断。Agent 读得到本机已经跑出来的研究产物与你自己记的台账，但改不了任何东西。推理由你选择的模型完成——不构成投资建议。",
+          agentEnabled
+            ? "这是一条由 Vibe Research Agent 管理的长期对话，翻页也不会断。Agent 可读取本机研究产物与台账，但不能修改——不构成投资建议。"
+            : "当前直接调用所选模型，不运行 Agent、不调用工具，也不保留 Agent 任务记忆——不构成投资建议。",
         suggestions: ["帮我理一下最近在关注什么", "我该补哪些功课", "解释一下这个产品能干什么"],
       }}
       send={sendTurn}
@@ -139,16 +146,20 @@ export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: ()
 }
 
 export function FinanceAiDock() {
+  const runtime = useAiRuntime();
+  const agentEnabled = runtime.config?.executionMode !== "direct";
   return (
     <AiDock
-      configured={hasLlm()}
+      configured={runtime.status === "ok"}
       copy={{
-        trigger: "问 Agent",
-        panel: "Vibe Research Agent",
-        runtime: "Codex Harness · 本地运行",
+        trigger: agentEnabled ? "问 Agent" : "问模型",
+        panel: agentEnabled ? "Vibe Research Agent" : "模型直连",
+        runtime: agentEnabled ? "Agent · 本地运行" : "单轮模型调用 · 无 Agent 记忆",
         placeholder: "就这一页的内容问点什么…",
         notice:
-          "本地 Agent 读的是这一页当前显示的数据；Codex Harness 负责上下文与工具流程，推理由你选择的模型完成——本产品不背书、不构成投资建议。",
+          agentEnabled
+            ? "本地 Agent 读取这一页当前显示的数据，并负责上下文与工具流程——本产品不背书、不构成投资建议。"
+            : "当前页面内容会随本轮问题发送给所选模型；不运行 Agent、不调用工具——本产品不背书、不构成投资建议。",
       }}
       send={sendTurn}
       renderReplyActions={replyActions}

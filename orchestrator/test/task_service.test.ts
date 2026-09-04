@@ -76,6 +76,43 @@ test("Deep 在 M3 通过统一入口启动现有六阶段流程，并可按指�
   assert.deepEqual(resumed.events.map((event) => event.type), ["progress", "artifact", "completed"]);
 });
 
+test("直连模式可以先看见 Deep 路由，但不能执行，明确要求开启 Agent", async () => {
+  const dataRoot = tmp();
+  const rec = await addReport(dataRoot, { name: "300308-深研.md", content: Buffer.from("公司代码 300308。", "utf8").toString("base64") });
+  const deepTask = { ...task(rec.id, "deep"), kind: "deep_research", evidenceScope: "open_discovery",
+    workflow: "multi_step", outputFormat: "document", inputRefs: [{ kind: "report", id: rec.id }, { kind: "entity", id: "300308" }] };
+  const deps = { deepTargetResolver: new FinanceDeepTargetResolver(dataRoot) };
+  const llm = { provider: "deepseek", apiKey: "test-key", model: "deepseek-v4" };
+  const routed = await runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: false, executionMode: "direct", llm,
+  }, undefined, deps);
+  assert.equal(routed.route.target, "deep");
+  assert.equal(routed.executionAvailable, false);
+  await assert.rejects(() => runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: true, executionMode: "direct", expectedRouteFingerprint: routed.route.routeFingerprint,
+    llm,
+  }, undefined, deps), (error: unknown) => error instanceof ServiceError && error.code === "agent_required");
+});
+
+test("任务路由绑定 AI 来源，且 Claude 不冒充可执行六阶段", async () => {
+  const dataRoot = tmp();
+  const rec = await addReport(dataRoot, { name: "300308-深研.md", content: Buffer.from("公司代码 300308。", "utf8").toString("base64") });
+  const deepTask = { ...task(rec.id, "deep"), kind: "deep_research", evidenceScope: "open_discovery",
+    workflow: "multi_step", outputFormat: "document" };
+  const deps = { deepTargetResolver: new FinanceDeepTargetResolver(dataRoot) };
+  const claude = { provider: "cli-claude", model: "claude-subscription" };
+  const routed = await runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: false, executionMode: "agent", llm: claude,
+  }, undefined, deps);
+  assert.equal(routed.route.target, "deep");
+  assert.equal(routed.executionAvailable, false, "Claude 当前不能被标成六阶段可执行");
+
+  await assert.rejects(() => runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: true, executionMode: "agent", llm: { provider: "cli-codex", model: "codex-subscription" },
+    expectedRouteFingerprint: routed.route.routeFingerprint,
+  }, undefined, deps), (error: unknown) => error instanceof ServiceError && error.code === "route_changed");
+});
+
 test("确定性计算由统一任务入口真实执行，不把成功路由冒充成已处理", async () => {
   const dataRoot = tmp();
   const calcTask = {
@@ -121,7 +158,7 @@ test("两段式执行必须与第一次路由指纹一致，不一致时拒绝�
   const routed = await runUnifiedTask(ctx(dataRoot), { task: task(rec.id), execute: false });
   await assert.rejects(() => runUnifiedTask(ctx(dataRoot), {
     task: task(rec.id), execute: true, expectedRouteFingerprint: "f".repeat(64),
-    llm: { provider: "fixture", apiKey: "secret", model: "fixture" },
+    llm: { provider: "cli-claude" },
   }), (error: unknown) => error instanceof ServiceError && error.code === "route_changed");
   assert.match(routed.route.routeFingerprint, /^[a-f0-9]{64}$/);
 });
@@ -132,8 +169,8 @@ test("统一任务请求拒绝注入依赖、非法 llm 与契约外字段", asy
     { task: {}, materials: {} },
     { task: {}, execute: "yes" },
     { task: {}, expectedRouteFingerprint: "short" },
-    { task: {}, execute: false, llm: { provider: "mimo" } },
-    { task: {}, llm: { provider: "mimo", apiKey: "x", resolver: "evil" } },
+    { task: task("0".repeat(32)), execute: false, llm: { provider: "mimo", apiKey: 42 } },
+    { task: task("0".repeat(32)), llm: { provider: "mimo", apiKey: "x", resolver: "evil" } },
   ]) {
     await assert.rejects(() => runUnifiedTask(ctx(dataRoot), request),
       (error: unknown) => error instanceof ServiceError && error.code === "invalid_task_request");

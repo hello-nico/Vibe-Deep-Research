@@ -12,6 +12,7 @@ import { getReport, researchStatus, safePath, startResearch, type RunStatus, typ
   type StartResult } from "../service.ts";
 import { isTrustedRouteDecision, type ExecutionEngine, type ExecutionResumeRef, type RouteDecision,
   type TaskEvent } from "../task_router.ts";
+import type { LlmOverride } from "../runtime_provider.ts";
 
 export interface DeepResearchTarget {
   readonly symbol: string;
@@ -34,6 +35,8 @@ export interface CodexDeepEngineOptions {
   readonly ctx: ServiceContext;
   readonly materials: DeepTargetResolver;
   readonly backend?: DeepResearchBackend;
+  /** 本次请求的 AI 来源；只在内存中交给子进程，不写任务绑定。 */
+  readonly runtimeLlm?: LlmOverride;
   readonly now?: () => Date;
 }
 
@@ -113,6 +116,7 @@ export class CodexDeepEngine implements ExecutionEngine {
   readonly #resolveTarget: DeepTargetResolver["resolveDeepTarget"];
   readonly #backend: DeepResearchBackend;
   readonly #now: () => Date;
+  readonly #runtimeLlm?: LlmOverride;
 
   constructor(options: CodexDeepEngineOptions) {
     if (!options || typeof options.materials?.resolveDeepTarget !== "function") {
@@ -126,6 +130,7 @@ export class CodexDeepEngine implements ExecutionEngine {
       report: (runId) => getReport(options.ctx, runId),
     };
     this.#now = options.now ?? (() => new Date());
+    this.#runtimeLlm = options.runtimeLlm;
   }
 
   async *run(route: RouteDecision, signal?: AbortSignal): AsyncIterable<TaskEvent> {
@@ -146,7 +151,7 @@ export class CodexDeepEngine implements ExecutionEngine {
       try {
         this.#backend.start({ symbol: target.symbol, market: target.market, endpoints: "full", knowledge: "on",
           run_id: runId, engine: "codex" }, { taskObjective: route.task.objective, reportIds: target.reportIds,
-          reportRevisions: target.reportRevisions });
+          reportRevisions: target.reportRevisions, ...(this.#runtimeLlm ? { runtimeLlm: this.#runtimeLlm } : {}) });
       } catch (error) {
         try { fs.unlinkSync(bindingPath(this.#ctx, runId)); } catch { /* 启动失败清理尽力而为；原错误优先 */ }
         throw error;

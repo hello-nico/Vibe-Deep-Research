@@ -106,7 +106,7 @@ test("根路径是极简功能首页,首屏可直接与 Agent 交流", () => {
   assert.ok(!/Navigate\s+to="\/daily-review"/.test(routerSrc), "根路径仍在跳过首页");
   assert.match(layoutSrc, /to:\s*"\/",\s*icon:\s*Home,\s*label:\s*"首页"/);
   assert.match(layoutSrc, /to:\s*"\/settings",\s*icon:\s*Settings,\s*label:\s*"接入 AI"/);
-  assert.match(homeSrc, /<FinanceHomeAgent\s+configured=\{modelReady\}\s*\/>/);
+  assert.match(homeSrc, /<FinanceHomeAgent\s*\/>/);
   assert.match(homeSrc, /本地金融研究 Agent/);
   assert.match(homeSrc, /to="\/settings"/);
   assert.ok(!/Codex Harness 研究流程|全部功能，一页直达|先看清今天发生了什么/.test(homeSrc),
@@ -147,13 +147,14 @@ test("首页 Agent 是可发送的真实对话区,不是装饰输入框", () => 
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
   const llmSrc = fs.readFileSync(path.join(FINANCE, "lib", "llm.ts"), "utf8");
 
-  assert.match(homeSrc, /<FinanceHomeAgent\s+configured=\{modelReady\}\s*\/>/,
-    "首页状态与对话可用性必须共用同一个 modelReady，不能各判各的");
+  assert.match(homeSrc, /<FinanceHomeAgent\s*\/>/,
+    "首页对话可用性必须读取全局 AI 运行状态，不能另开一套后端回落判定");
   const homeAgent = dockSrc.slice(
     dockSrc.indexOf("export function FinanceHomeAgent"),
     dockSrc.indexOf("export function FinanceAiConsole"),
   );
-  assert.match(homeAgent, /FinanceHomeAgent\(\{ configured \}: \{ configured: boolean \}\)/);
+  assert.match(homeAgent, /FinanceHomeAgent\(\)/);
+  assert.match(homeAgent, /const configured = runtime\.status === "ok"/);
   assert.match(homeAgent, /useAiChat\("home-agent",\s*sendTurn\)/);
   assert.match(homeAgent, /!configured[\s\S]*<AiMessages[\s\S]*<AiComposer/);
   assert.match(homeAgent, /onPick=\{setDraft\}/,
@@ -164,30 +165,34 @@ test("首页 Agent 是可发送的真实对话区,不是装饰输入框", () => 
   assert.match(homeAgent, /onClick=\{chat\.clear\}/);
   assert.match(dockSrc, /backend\.chat\(message, session, signal\)/,
     "首页 submit 必须最终接到真实后端对话接口");
-  assert.match(dockSrc, /FinanceAiConsole[\s\S]*configured=\{hasLlm\(\)\}/);
-  assert.match(dockSrc, /FinanceAiDock[\s\S]*configured=\{hasLlm\(\)\}/);
+  assert.match(dockSrc, /FinanceAiConsole[\s\S]*configured=\{runtime\.status === "ok"\}/);
+  assert.match(dockSrc, /FinanceAiDock[\s\S]*configured=\{runtime\.status === "ok"\}/);
   const hasLlmBlock = llmSrc.slice(llmSrc.indexOf("export function hasLlm"), llmSrc.indexOf("export function loadLlm"));
-  assert.match(hasLlmBlock, /loadUserLlm\(\)/, "全局 Agent 必须识别浏览器里配置的模型");
-  assert.match(hasLlmBlock, /cached\s*\?\s*cached\.provider\.key_present\s*:\s*optimistic/,
-    "全局 Agent 必须识别只在后端配置的模型，不能与首页状态分叉");
+  assert.match(hasLlmBlock, /readAiRuntime\(\)/, "全局 Agent 必须识别浏览器里保存的 AI 来源与执行模式");
+  assert.doesNotMatch(hasLlmBlock, /cached|optimistic|backendProvider/,
+    "首次接入必须由用户明确选择，不能暗中回落到后端环境变量");
   assert.match(layoutSrc, /pathname !== "\/" && <FinanceAiDock/);
   assert.match(layoutSrc, /document\.getElementById\("home-agent"\)/);
 });
 
-test("Codex Harness 的产品身份在品牌区、Agent 面板与模型页三处同时可见", () => {
+test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三处口径一致", () => {
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
   const dockSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "FinanceAiDock.tsx"), "utf8");
   const settingsSrc = fs.readFileSync(path.join(FINANCE, "pages", "Settings.tsx"), "utf8");
 
   assert.match(layoutSrc, /本地金融研究 Agent/);
-  assert.match(layoutSrc, /Built on Codex Harness/);
+  assert.match(layoutSrc, /Vibe Research Agent/);
+  assert.match(layoutSrc, /Claude Code Agent/);
+  assert.match(layoutSrc, /模型直连/);
   assert.match(dockSrc, /Vibe Research Agent/);
-  assert.match(dockSrc, /Codex Harness · 本地运行/);
-  assert.match(dockSrc, /trigger: "问 Agent"/);
-  assert.match(settingsSrc, /Agent Runtime/);
-  assert.match(settingsSrc, /Model Provider/);
+  assert.match(dockSrc, /单轮模型调用 · 无 Agent 记忆/);
+  assert.match(dockSrc, /trigger: agentEnabled \? "问 Agent" : "问模型"/);
+  assert.match(settingsSrc, /一、连接 AI/);
+  assert.match(settingsSrc, /二、Vibe Research Agent/);
+  assert.match(settingsSrc, /等待连接 AI/, "未配置时不能冒充已经选中了 Codex Harness");
   assert.match(settingsSrc, /本地 API 已连接/);
-  assert.match(settingsSrc, /模型可以换|换模型不会换掉/);
+  assert.match(settingsSrc, /默认开启/);
+  assert.match(settingsSrc, /WorkBuddy \/ CodeBuddy/);
 });
 
 test("产品能力与密钥文案不许超过代码实际做到的范围", () => {

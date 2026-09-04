@@ -6,6 +6,15 @@ import { backend, type ResearchTaskRequest } from "../src/verticals/finance/lib/
 
 const page = readFileSync(new URL("../src/verticals/finance/pages/MyReports.tsx", import.meta.url), "utf8");
 
+const runtime = {
+  schemaVersion: 2, executionMode: "direct", directSupported: true, directReason: "verified",
+  source: { provider: "deepseek", apiKey: "test-key", baseURL: "https://api.example.test", model: "test-model" },
+};
+Object.defineProperty(globalThis, "localStorage", { configurable: true, value: {
+  getItem: (key: string) => key === "vr-llm" ? JSON.stringify(runtime) : null,
+  setItem() {}, removeItem() {},
+} });
+
 const task = (): ResearchTaskRequest => ({
   schemaVersion: 1,
   id: "report-task-test",
@@ -27,7 +36,7 @@ const routed = {
   },
 };
 
-test("routeTask 只提交高层任务与 execute=false，不发送模型配置或 engine", async () => {
+test("routeTask 提交高层任务与 AI 来源，让后端绑定路由指纹", async () => {
   const oldFetch = globalThis.fetch;
   const seen: { url: string; body: Record<string, unknown> }[] = [];
   globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
@@ -38,7 +47,8 @@ test("routeTask 只提交高层任务与 execute=false，不发送模型配置�
     await backend.routeTask(task());
     assert.equal(seen[0]?.url, "/api/tasks");
     assert.equal(seen[0]?.body.execute, false);
-    assert.equal("llm" in seen[0]!.body, false);
+    assert.equal(seen[0]?.body.executionMode, "direct");
+    assert.deepEqual(seen[0]?.body.llm, runtime.source);
     assert.equal("engine" in seen[0]!.body, false);
     assert.equal("engine" in (seen[0]!.body.task as Record<string, unknown>), false);
   } finally { globalThis.fetch = oldFetch; }
@@ -62,6 +72,7 @@ test("runTask 的 Quick 配置直接发给统一任务入口，不预检本地�
     assert.deepEqual(paths, ["/api/tasks"]);
     assert.equal(body.execute, true);
     assert.equal(body.expectedRouteFingerprint, "a".repeat(64));
+    assert.equal(body.executionMode, "direct");
     assert.deepEqual(body.llm, {
       provider: "deepseek", apiKey: "test-key", baseURL: "https://api.example.test", model: "test-model",
     });
@@ -88,15 +99,18 @@ test("resumeTask 只按运行编号与路由指纹读取 Deep 状态，不发送
   } finally { globalThis.fetch = oldFetch; }
 });
 
-test("我的研报展示 Auto / Quick / Deep，并由统一入口启动与恢复六阶段 Deep", () => {
-  assert.match(page, /auto: "Auto", quick: "Quick", deep: "Deep"/);
+test("我的研报隐藏内部档位，由系统自动选择并保留六阶段恢复能力", () => {
+  assert.doesNotMatch(page, /auto: "Auto", quick: "Quick", deep: "Deep"/);
+  assert.doesNotMatch(page, /aria-label="任务模式"/);
+  assert.match(page, /由系统自动判断/);
   assert.match(page, /routeDecision\.reason/);
-  assert.match(page, /Deep 六阶段研究一次只处理一个 A 股标的/);
+  assert.match(page, /请只选择同一个 A 股代码的资料/);
   assert.match(page, /DEEP_REPORT_LIMIT = 16/);
-  assert.match(page, /系统判断需要 Deep，但 Deep 一次最多使用/);
-  assert.match(page, /kind: isDeep \? "deep_research"/);
+  assert.match(page, /系统判断需要完整研究，但一次最多使用/);
+  assert.match(page, /kind: "locate_passages"/);
+  assert.doesNotMatch(page, /wantsDeep|\.test\(goal\)/);
   assert.match(page, /backend\.resumeTask\(/);
-  assert.match(page, /Deep 六阶段研究已完成/);
+  assert.match(page, /六阶段研究已完成/);
   assert.match(page, /backend\.routeTask\(task/);
   assert.match(page, /backend\.runTask\(task/);
   assert.doesNotMatch(page, /backend\.startResearch/);

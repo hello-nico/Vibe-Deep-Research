@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Navigate, Outlet, useLocation } from "react-router-dom";
 import {
   Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, FlaskConical, Gauge, Github, Home, LayoutGrid, LineChart, Microscope, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Sparkles, Star, Sun, Swords, Thermometer, TrendingUp, UserRound, Wallet,
 } from "lucide-react";
@@ -8,6 +8,7 @@ import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { FinanceAiConsole, FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { storageGet, storageSet } from "@/lib/storage";
+import { useAiRuntime } from "@/hooks/useAiRuntime";
 
 // 具名导入：只把 version 打进产物，不会把整个 package.json 塞进 bundle
 import { version as PKG_VERSION } from "../../../../../package.json";
@@ -68,6 +69,7 @@ const NAV_GROUPS: Record<string, { storageKey: string; links: typeof SIGNAL_LINK
 
 export function Layout() {
   const { pathname } = useLocation();
+  const aiRuntime = useAiRuntime();
   const { dark, toggle } = useDarkMode();
   const navRef = useRef<HTMLElement | null>(null);
   const [collapsed, setCollapsed] = useState(() => storageGet("vr-sidebar") === "collapsed");
@@ -119,6 +121,15 @@ export function Layout() {
     if (a.bottom > n.bottom - breathingRoom) nav.scrollTop += a.bottom - (n.bottom - breathingRoom);
   }, [pathname, collapsed]);
 
+  if (pathname !== "/settings" && aiRuntime.status !== "ok") {
+    return <Navigate to="/settings" replace state={{ onboarding: true }} />;
+  }
+
+  const agentEnabled = aiRuntime.config?.executionMode !== "direct";
+  const runtimeLabel = agentEnabled
+    ? aiRuntime.config?.source.provider === "cli-claude" ? "Claude Code Agent" : "Vibe Research Agent"
+    : "模型直连";
+
   return (
     <AiPageProvider>
     <div className="flex h-screen">
@@ -141,11 +152,11 @@ export function Layout() {
             <>
               <p className="mt-1 text-[11px] text-muted-foreground">本地金融研究 Agent · A股/美股/港股</p>
               <div
-                data-testid="codex-harness-badge"
+                data-testid="ai-runtime-badge"
                 className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/[0.07] px-2 py-1 text-[10px] font-medium tracking-wide text-muted-foreground"
               >
                 <span className="h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary)/0.8)]" />
-                Built on Codex Harness
+                {runtimeLabel}
               </div>
             </>
           )}
@@ -249,7 +260,7 @@ export function Layout() {
                 pathname === "/" || consoleOpen ? "animate-[pulse_2.4s_ease-in-out_infinite]" : "group-hover:scale-110",
               )}
             />
-            {!collapsed && <span className="text-glow">Agent</span>}
+            {!collapsed && <span className="text-glow">{agentEnabled ? "Agent" : "AI 直连"}</span>}
             {!collapsed && (
               // 小标做成一枚淡色胶囊,而不是压透明度的白字 —— 后者在浅色主题下几乎看不见
               <span className={cn(

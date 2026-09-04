@@ -7,6 +7,8 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import { backend, friendlyAgentError, type LocalAgentStatus, type ProductInfo } from "@/lib/backend";
 import { API_MODELS, PROVIDER_BASE, SUBSCRIPTION_MODELS, isCliProvider, providerOfModel, type ProviderId } from "@/lib/ai-models";
 import { clearLlm, loadUserLlm, saveLlm } from "@/lib/llm";
+import { saveExecutionMode } from "@/lib/llmStore";
+import { useAiRuntime } from "@/hooks/useAiRuntime";
 
 /**
  * 「接入 AI」—— Agent 运行时是产品的一部分；用户只在这里选择模型、填自己的 key。
@@ -16,8 +18,8 @@ import { clearLlm, loadUserLlm, saveLlm } from "@/lib/llm";
  *    **配置文件 / 日志 / 账本一个字节都碰不到。**
  *
  * ⚠️ 上一版这页是**只读**的，理由是"密钥只从环境变量读"。那在终端里启动没问题，
- *    但只依赖启动服务前配置 shell 环境，浏览器 UI 里就没有可操作的接入入口。
- *    现在两条路并存：用户配了走用户的，没配回落到后端默认。
+ *    但浏览器 UI 里没有可操作的接入入口。现在浏览器产品只认用户明确保存的配置，
+ *    不会在未选择时回落到后端默认模型。
  *
  * 🔴 **订阅档免 key**：用产品自带引擎的登录态，一个字都不用填 —— 浏览器端的首选。
  */
@@ -58,6 +60,7 @@ function ActionRow(
 }
 
 export function Settings() {
+  const runtime = useAiRuntime();
   const [info, setInfo] = useState<ProductInfo | null>(null);
   const [agents, setAgents] = useState<LocalAgentStatus[]>([]);
   const [err, setErr] = useState("");
@@ -154,9 +157,9 @@ export function Settings() {
     if (!cfg) return;
     setTesting(true); setMsg(""); setMsgErr("");
     try {
-      await backend.llmProbe(cfg);
-      saveLlm(cfg);
-      setConfigured(true); say("连接成功并已保存 —— 全站的 Agent 对话现在用这一份");
+      const probe = await backend.llmProbe(cfg);
+      saveLlm(cfg, { directSupported: probe.direct_supported, directReason: probe.direct_reason });
+      setConfigured(true); say("连接成功。Vibe Research Agent 已默认开启，可以直接使用。");
     } catch (e) {
       oops(friendlyAgentError(e));
     } finally { setTesting(false); }
@@ -169,9 +172,9 @@ export function Settings() {
     const cfg = { provider: m.provider, baseURL: "", apiKey: "", model: m.id };
     setTesting(true); setMsg(""); setMsgErr("");
     try {
-      await backend.llmProbe(cfg);
-      saveLlm(cfg);
-      setConfigured(true); say(`「${m.name}」连接成功并已保存 —— 免 key，使用本机订阅`);
+      const probe = await backend.llmProbe(cfg);
+      saveLlm(cfg, { directSupported: probe.direct_supported, directReason: probe.direct_reason });
+      setConfigured(true); say(`「${m.name}」连接成功。Vibe Research Agent 已默认开启。`);
     } catch (e) { oops(friendlyAgentError(e)); }
     finally { setTesting(false); }
   };
@@ -191,7 +194,7 @@ export function Settings() {
     // 🔴 清不掉要说出来：吞掉异常的话界面写"已清除"、旧 key 还在，下一次提问照样发出去
     try {
       clearLlm();
-      setApiKey(""); setConfigured(false); say("已清除 —— 回落到下面那份后端默认配置");
+      setApiKey(""); setConfigured(false); say("已清除。再次使用 AI 功能前需要重新连接。");
     } catch (e) { oops(e instanceof Error ? e.message : String(e)); }
   };
 
@@ -203,7 +206,7 @@ export function Settings() {
     context:
       (configured
         ? `用户自己配的模型：${mode === "subscription" ? cliId : modelName}（provider ${mode === "subscription" ? providerOfModel(cliId) : providerOfModel(apiId)}）。`
-        : "用户还没配自己的模型，走后端默认配置。") +
+        : "用户还没连接 AI。") +
       (info
         ? `后端默认：provider ${info.provider.name}｜模板 ${info.provider.profile ?? "—"}｜` +
           `协议 ${info.provider.wire_api}｜鉴权 ${info.provider.auth}｜密钥变量 ${info.provider.env_key} ` +
@@ -217,70 +220,42 @@ export function Settings() {
     : err
       ? { label: "本地 API 未连接", cls: "border-destructive/25 bg-destructive/[0.08] text-destructive" }
       : { label: "正在检测", cls: "border-border bg-muted/40 text-muted-foreground" };
+  const selectedRuntime = !configured
+    ? "等待连接 AI"
+    : runtime.config?.source.provider === "cli-claude" ? "Claude Code Agent" : "Codex Harness";
+  const isClaudeRuntime = configured && runtime.config?.source.provider === "cli-claude";
+  const runtimeFeatures = isClaudeRuntime
+    ? [
+        { icon: Terminal, title: "本地对话", text: "使用 Claude Code 订阅" },
+        { icon: Wrench, title: "受限执行", text: "本地工具与联网已关闭" },
+        { icon: Database, title: "材料上下文", text: "支持有界材料定位" },
+        { icon: ShieldCheck, title: "证据纪律", text: "回答经过校验与红线" },
+      ]
+    : [
+        { icon: Terminal, title: "本地任务", text: "任务状态留在本机" },
+        { icon: Wrench, title: "工具调用", text: "自动调用数据与计算" },
+        { icon: Database, title: "长期上下文", text: "可以继续追问和迭代" },
+        { icon: ShieldCheck, title: "证据纪律", text: "结果经过校验与红线" },
+      ];
+  const changeExecutionMode = (next: "agent" | "direct") => {
+    try {
+      saveExecutionMode(next);
+      say(next === "agent" ? "Vibe Research Agent 已开启" : "已切换为模型直连。深度研究和工具任务会提示重新开启 Agent。");
+    } catch (e) { oops(e instanceof Error ? e.message : String(e)); }
+  };
 
   return (
     <div>
       <PageHeader
         title="接入 AI"
-        subtitle="选择 Vibe Research 的本地 Agent 使用哪一个模型完成推理。"
+        subtitle="第一步只需连接订阅或 API。连接后默认使用 Agent，不必再做技术选择。"
       />
 
-      {/* Agent Runtime 与 Model Provider 刻意拆开：模型可换，工作流 / 工具 / 证据纪律不换。 */}
-      <div data-testid="agent-runtime-card">
-        <GlassCard glow className="relative mb-5 overflow-hidden border-primary/25">
-          <div className="relative z-[1]">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Agent Runtime</p>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <Cpu className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-extrabold tracking-tight">Codex Harness</h2>
-                </div>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground">
-                  这不是一次 API 问答。Codex Harness 在本机维持上下文、调用工具、推进任务、暴露进度并处理失败；
-                  Vibe Research 再叠加金融数据、确定性计算、证据校验与合规红线。
-                </p>
-              </div>
-              <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${runtimeState.cls}`}>
-                <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                {runtimeState.label}
-              </span>
-            </div>
-
-            <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              {[
-                { icon: Terminal, title: "本地执行", text: "研究工作区与任务状态留在本机" },
-                { icon: Wrench, title: "工具调用", text: "数据源、计算库与研究流程可执行" },
-                { icon: Database, title: "证据链", text: "数字能回到证据与计算过程" },
-                { icon: ShieldCheck, title: "边界与红线", text: "沙箱、校验与合规门共同约束" },
-              ].map(({ icon: Icon, title, text }) => (
-                <div key={title} className="rounded-xl border border-border/60 bg-background/25 p-3">
-                  <div className="flex items-center gap-2 text-sm font-semibold">
-                    <Icon className="h-4 w-4 text-primary" /> {title}
-                  </div>
-                  <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground">{text}</p>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-4 flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
-              {[
-                "理解任务", "调用数据工具", "执行计算", "校验证据", "生成研究结果",
-              ].map((step, i, all) => (
-                <span key={step} className="inline-flex items-center gap-1.5">
-                  <span className="rounded-full border border-primary/20 bg-primary/[0.07] px-2 py-1">{step}</span>
-                  {i < all.length - 1 && <span className="text-primary/60">→</span>}
-                </span>
-              ))}
-            </div>
-
-            <p className="mt-3 border-t border-border/50 pt-3 text-xs text-muted-foreground">
-              <b className="text-foreground">下面选择的是 Model Provider。</b>
-              它只为 Agent 提供推理能力；换模型不会换掉本地工作流、工具、记忆与证据纪律。
-            </p>
-          </div>
-        </GlassCard>
-      </div>
+      {!configured && <GlassCard glow className="mb-5 border-primary/35 bg-primary/[0.06]">
+        <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">首次使用</p>
+        <h2 className="mt-1 text-xl font-extrabold">先连接 AI</h2>
+        <p className="mt-1 text-sm text-muted-foreground">有 Codex 或 Claude Code 订阅就选订阅接入；只有模型 API 就选 API 接入。连接一次，以后直接使用。</p>
+      </GlassCard>}
 
       {err && (
         <GlassCard className="border-destructive/40">
@@ -291,11 +266,11 @@ export function Settings() {
         </GlassCard>
       )}
 
-      {/* ── Model Provider：只决定由谁推理，不替代上面的 Agent Runtime ── */}
+      {/* 第一张卡只解决“AI 从哪里来”。 */}
       <div className="mb-3 flex items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Model Provider</p>
-          <h2 className="mt-1 text-lg font-bold">为 Agent 选择模型</h2>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">AI Source</p>
+          <h2 className="mt-1 text-lg font-bold">一、连接 AI</h2>
         </div>
         <span className="text-xs text-muted-foreground">订阅登录或自带 API key</span>
       </div>
@@ -339,6 +314,12 @@ export function Settings() {
             <p className="text-xs leading-relaxed text-muted-foreground">
               状态来自本机实时检测，不再写死“已登录”。Codex 与 Claude Code 都会由各自的真实 CLI 作答，
               <b className="text-foreground">不会悄悄换成别家</b>。Qwen Code 当前需 API key / Coding Plan，DeepSeek CLI 也需 API key，放在右侧 API 接入。
+            </p>
+            <p className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              目前只接通 Codex 与 Claude Code 订阅。只有 WorkBuddy / CodeBuddy 时，请先使用模型 API 接入；它的本地 Agent 适配器尚未完成，不会显示成“已支持”。
+            </p>
+            <p className="rounded-lg border border-warning/25 bg-warning/[0.05] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+              Claude Code 当前支持对话和有界材料任务；完整六阶段研究目前需要 Codex Harness，或在 Agent 模式下接入模型 API。选择 Claude 后不会暗中换成 Codex。
             </p>
             {agentErr && <p className="rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-xs text-destructive">本机 Agent 状态检测失败：{agentErr}</p>}
             <div className="grid gap-2 sm:grid-cols-2">
@@ -431,14 +412,67 @@ export function Settings() {
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">API Key</label>
               <input type="password" value={apiKey} onChange={(e) => { setApiKey(e.target.value); setMsg(""); setMsgErr(""); }}
                 placeholder="sk-…" className={`${INPUT} font-mono text-xs`} />
+              <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                为避免每次重填，key 会保存在当前浏览器的本机配置中；它不是系统钥匙串，也不承诺加密。
+                只建议在可信的个人电脑使用，共享电脑用完请点击“忘记配置”。key 不进入仓库、后端配置、日志或研究产物。
+              </p>
             </div>
             <ActionRow onSave={testAndSaveApi} configured={configured} onForget={forget} msg={msg} msgErr={msgErr} busy={testing} />
           </div>
         )}
       </GlassCard>
 
+      {/* 第二张卡只解决“是否使用 Agent”。默认开启，普通用户无需修改。 */}
+      <div data-testid="agent-runtime-card">
+        <GlassCard glow className="relative mb-5 overflow-hidden border-primary/25">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="max-w-2xl">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Execution</p>
+              <div className="mt-1.5 flex items-center gap-2">
+                <Cpu className="h-5 w-5 text-primary" />
+                <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Research Agent</h2>
+              </div>
+              <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                {isClaudeRuntime
+                  ? "默认开启。Claude Code Agent 当前承载本地对话和有界材料任务；完整六阶段研究需改用 Codex 或 API Agent。"
+                  : "默认开启。Agent 会维持上下文、调用本地数据和计算工具、完成多步研究，并保留可继续迭代的任务记录。"}
+                当前运行时：<b className="text-foreground">{selectedRuntime}</b>。
+              </p>
+            </div>
+            <button type="button" role="switch" aria-checked={runtime.config?.executionMode !== "direct"}
+              disabled={!configured}
+              onClick={() => changeExecutionMode(runtime.config?.executionMode === "direct" ? "agent" : "direct")}
+              className={`relative h-8 w-14 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${runtime.config?.executionMode === "direct" ? "bg-muted" : "bg-primary"}`}>
+              <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${runtime.config?.executionMode === "direct" ? "translate-x-1" : "translate-x-7"}`} />
+              <span className="sr-only">切换 Agent</span>
+            </button>
+          </div>
+          <div className="mt-4 rounded-xl border border-border/60 bg-background/30 p-3 text-xs leading-5 text-muted-foreground">
+            {!configured ? (
+              <><b className="text-foreground">等待连接 AI。</b> 连接成功后 Agent 会自动开启，不需要再做一次选择。</>
+            ) : runtime.config?.executionMode === "direct" ? (
+              <><b className="text-foreground">当前：模型直连。</b> 适合轻量对话和材料定位；六阶段研究、多空辩论、Agent 回测与需要工具的任务会要求重新开启 Agent。</>
+            ) : isClaudeRuntime ? (
+              <><b className="text-foreground">当前：Claude Code Agent 已开启。</b> 可进行对话和有界材料任务；完整六阶段研究当前不支持这个运行时。</>
+            ) : (
+              <><b className="text-foreground">当前：Agent 已开启（推荐）。</b> 所有能力都走完整工作流；模型只是提供推理能力。</>
+            )}
+            {configured && !runtime.config?.directSupported && <p className="mt-1 text-warning">当前 AI 来源不能关闭 Agent：{runtime.config?.directReason}</p>}
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {runtimeFeatures.map(({ icon: Icon, title, text }) => <div key={title} className="rounded-xl border border-border/60 bg-background/25 p-3">
+              <div className="flex items-center gap-2 text-sm font-semibold"><Icon className="h-4 w-4 text-primary" />{title}</div>
+              <p className="mt-1 text-[11px] text-muted-foreground">{text}</p>
+            </div>)}
+          </div>
+          <div className="mt-3 flex justify-end"><span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-medium ${runtimeState.cls}`}><span className="h-1.5 w-1.5 rounded-full bg-current" />{runtimeState.label}</span></div>
+        </GlassCard>
+      </div>
+
       {info && (
-        <div className="space-y-4">
+        <details className="mb-4 rounded-xl border border-border/60 bg-card/20 p-3">
+          <summary className="cursor-pointer text-xs font-medium text-muted-foreground">高级运行信息</summary>
+          <div className="mt-3 space-y-4">
           <GlassCard>
             <div className="mb-3 flex items-center gap-2">
               <Terminal className="h-4 w-4 text-primary" />
@@ -499,7 +533,8 @@ export function Settings() {
             <Row k="Python" v={info.paths.python} mono />
             <Row k="配置来源" v={info.sources.join("  ←  ")} mono />
           </GlassCard>
-        </div>
+          </div>
+        </details>
       )}
 
       <Disclaimer />

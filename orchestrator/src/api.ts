@@ -15,7 +15,7 @@ import path from "node:path";
 
 import crypto from "node:crypto";
 
-import { IMPORT_MAX_TOTAL_BYTES, ServiceError, chatSend, llmProbe, translateHeadlines, evidenceAlerts, guidedToolTurn, listTools, runTool, fetchEndpoint, ingestFiles, debateAdvance, debateStart, ledgerKinds, ledgerLabels, ledgerList, localAgents, productInfo, ledgerRemove, ledgerSnapshot, ledgerUpsert, pageQuery, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, readRunFile, redact, reportDelete, reportDownload, reportUpload, reportsList, researchStatus, safePath, serviceContext, startCodexSubscriptionLogin, startResearch, thermoSeries, type ServiceContext } from "./service.ts";
+import { IMPORT_MAX_TOTAL_BYTES, ServiceError, chatSend, llmProbe, translateHeadlines, evidenceAlerts, guidedToolTurn, listTools, runToolRequest, fetchEndpoint, ingestFiles, debateAdvance, debateStart, ledgerKinds, ledgerLabels, ledgerList, localAgents, productInfo, ledgerRemove, ledgerSnapshot, ledgerUpsert, pageQuery, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, readRunFile, redact, reportDelete, reportDownload, reportUpload, reportsList, researchStatus, safePath, serviceContext, startCodexSubscriptionLogin, startResearch, thermoSeries, type ServiceContext } from "./service.ts";
 import { REPORT_MAX_BYTES } from "./report_library.ts";
 import { NOFOLLOW_FLAG, restrictPrivateFile } from "./fsutil.ts";
 import { resumeUnifiedTask, runUnifiedTask } from "./task_service.ts";
@@ -210,8 +210,8 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         return send(res, 200, { tools: listTools() });
       }
       if (req.method === "POST" && parts[0] === "tool" && parts[1] && parts.length === 2) {
-        const b = await readBody(req);
-        return send(res, 200, await runTool(ctx, parts[1], b));
+        const b = await readBody(req) as { input?: unknown; llm?: unknown; executionMode?: unknown };
+        return send(res, 200, await runToolRequest(ctx, parts[1], b));
       }
       // 对话式工具：Agent 负责补问和组参数；条件齐备后仍由上面的同一条工具执行链真实运行。
       if (req.method === "POST" && parts[0] === "guided-tool" && parts[1] && parts.length === 2) {
@@ -221,15 +221,20 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         });
       }
       if (req.method === "POST" && url.pathname === "/debate") {
-        const b = (await readBody(req)) as { symbol?: string; session?: string; depth?: string };
+        const b = (await readBody(req)) as { symbol?: string; session?: string; depth?: string; llm?: unknown; executionMode?: unknown };
         return send(res, 200, await debateStart(ctx, {
           symbol: String(b?.symbol ?? ""),
           ...(b?.session ? { session: b.session } : {}),
           ...(b?.depth ? { depth: String(b.depth) } : {}),
+          ...(b?.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
+          ...(b?.llm !== undefined ? { llm: b.llm } : {}),
         }));
       }
       if (req.method === "POST" && parts[0] === "debate" && parts[1] && parts[2] === "advance") {
-        return send(res, 200, await debateAdvance(ctx, { id: parts[1] }));
+        const b = await readBody(req);
+        return send(res, 200, await debateAdvance(ctx, { id: parts[1],
+          ...(b.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
+          ...(b.llm !== undefined ? { llm: b.llm } : {}) }));
       }
       if (req.method === "POST" && url.pathname === "/fetch") { const b = await readBody(req); return send(res, 200, await fetchEndpoint(ctx, b as never)); }
       // 统一任务入口：客户端只提交高层 task；路由器自行决定 deterministic / Quick / Deep。

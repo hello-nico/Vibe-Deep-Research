@@ -4,11 +4,12 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
+import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, ApiError, downloadReport, type MyReport } from "@/lib/api";
 import {
-  backend, friendlyAgentError, type ResearchTaskRequest, type TaskMode, type TaskRouteDecision,
+  backend, friendlyAgentError, type ResearchTaskRequest, type TaskRouteDecision,
 } from "@/lib/backend";
 import { cn } from "@/lib/utils";
 
@@ -16,9 +17,8 @@ const fmtSize = (b: number) =>
   b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(0)}KB` : `${(b / 1048576).toFixed(1)}MB`;
 const fmtDate = (ts: number) =>
   new Date(ts).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
-const MODE_LABELS: Record<TaskMode, string> = { auto: "Auto", quick: "Quick", deep: "Deep" };
 const TARGET_LABELS: Record<TaskRouteDecision["target"], string> = {
-  deterministic: "确定性处理", quick: "Quick", deep: "Deep",
+  deterministic: "确定性处理", quick: "轻量材料处理", deep: "完整 Agent 研究",
 };
 const DEEP_REPORT_LIMIT = 16;
 const waitFor = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -40,6 +40,8 @@ const fileToB64 = (file: File): Promise<string> =>
   });
 
 export function MyReports() {
+  const runtime = useAiRuntime();
+  const agentEnabled = runtime.config?.executionMode !== "direct";
   const [reports, setReports] = useState<MyReport[]>([]);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -47,7 +49,6 @@ export function MyReports() {
   const [drag, setDrag] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [objective, setObjective] = useState("");
-  const [mode, setMode] = useState<TaskMode>("auto");
   const [taskBusy, setTaskBusy] = useState(false);
   const [taskError, setTaskError] = useState("");
   const [routeDecision, setRouteDecision] = useState<TaskRouteDecision | null>(null);
@@ -131,28 +132,17 @@ export function MyReports() {
     taskAbortRef.current = controller;
     const selectedReports = reports.filter((report) => selected.includes(report.id));
     const selectedSymbols = [...new Set(selectedReports.flatMap((report) => report.symbols))];
-    if (mode === "deep" && selected.length > DEEP_REPORT_LIMIT) {
-      setTaskError(`Deep 六阶段研究一次最多使用 ${DEEP_REPORT_LIMIT} 份资料，请缩小勾选范围。`);
-      return;
-    }
-    if (mode === "deep" && (selectedSymbols.length !== 1 || !/^(?:0|3|4|6|8|9)\d{5}$/.test(selectedSymbols[0] ?? ""))) {
-      setTaskError(selectedSymbols.length > 1
-        ? "Deep 六阶段研究一次只处理一个 A 股标的，请只选择同一代码的资料。"
-        : "Deep 六阶段研究需要从所选资料中确认一个 A 股代码；请先选择已识别代码的资料。");
-      return;
-    }
-    const isDeep = mode === "deep";
+    // 界面只交“材料 + 目标”；是有界定位还是完整深研，由服务端路由器判定。
     const task: ResearchTaskRequest = {
       schemaVersion: 1,
       id: `report-${crypto.randomUUID()}`,
-      kind: isDeep ? "deep_research" : "locate_passages",
-      requestedMode: mode,
+      kind: "locate_passages",
+      requestedMode: "auto",
       objective: goal,
-      evidenceScope: isDeep ? "open_discovery" : "existing",
-      workflow: isDeep ? "multi_step" : "single_step",
-      inputRefs: [...selected.map((id) => ({ kind: "report" as const, id })),
-        ...(isDeep ? [{ kind: "entity" as const, id: selectedSymbols[0]! }] : [])],
-      outputFormat: isDeep ? "document" : "text",
+      evidenceScope: "existing",
+      workflow: "single_step",
+      inputRefs: selected.map((id) => ({ kind: "report" as const, id })),
+      outputFormat: "text",
       operation: null,
     };
     setTaskBusy(true);
@@ -161,14 +151,25 @@ export function MyReports() {
     setTaskNotice("");
     setRouteDecision(null);
     try {
-      // 先只路由，让 Auto 的选择理由可见；即使 Quick 尚未配置直连 API，理由也不会被配置错误盖住。
+      // 先只路由，让系统选择理由可见；AI 来源随请求发送，只用于绑定不可逆路由指纹，
+      // 不写入运行产物、配置或日志。执行阶段换来源会被拒绝。
       const routed = await backend.routeTask(task, controller.signal);
       if (controller.signal.aborted) return;
       setRouteDecision(routed.route);
-      // Auto 也可能因材料规模转入 Deep；在启动前把 Deep 的上下文上限明确告诉用户，
+      // 系统也可能因材料规模转入完整研究；在启动前把上下文上限明确告诉用户，
       // 不让合法的界面操作走到后端才以通用配置错误失败。
       if (routed.route.target === "deep" && selected.length > DEEP_REPORT_LIMIT) {
-        setTaskError(`系统判断需要 Deep，但 Deep 一次最多使用 ${DEEP_REPORT_LIMIT} 份资料；请缩小勾选范围后重试。`);
+        setTaskError(`系统判断需要完整研究，但一次最多使用 ${DEEP_REPORT_LIMIT} 份资料；请缩小勾选范围后重试。`);
+        return;
+      }
+      if (routed.route.target === "deep" && (selectedSymbols.length !== 1 || !/^(?:0|3|4|6|8|9)\d{5}$/.test(selectedSymbols[0] ?? ""))) {
+        setTaskError(selectedSymbols.length > 1
+          ? "系统判断需要完整研究；请只选择同一个 A 股代码的资料。"
+          : "系统判断需要完整研究，但所选资料中没有可确认的 A 股代码。");
+        return;
+      }
+      if (!routed.executionAvailable) {
+        setTaskError("这项任务需要 Agent 的多步研究能力。请到「接入 AI」开启 Vibe Research Agent 后重试。");
         return;
       }
       const result = await backend.runTask(task, routed.route.routeFingerprint, controller.signal);
@@ -192,7 +193,7 @@ export function MyReports() {
         setTaskAnswer(artifact.payload.answer);
       } else if (taskStatus === "completed" && typeof artifact?.payload?.report === "string") {
         setTaskAnswer(artifact.payload.report);
-        setTaskNotice("Deep 六阶段研究已完成，正式报告已写入本机研究历史。");
+        setTaskNotice("六阶段研究已完成，正式报告已写入本机研究历史。");
       } else {
         setTaskError(typeof failed?.payload?.message === "string"
           ? failed.payload.message : "这次任务没有生成可交付结果，请检查模型配置后重试。");
@@ -221,7 +222,7 @@ export function MyReports() {
     <div>
       <PageHeader
         title="我的研报"
-        subtitle="上传后自动提取正文并接入 Agent；对话会检索引用，A 股研报还能进入个股研究。原文件只保存在本机。"
+        subtitle={`上传后自动提取正文并进入本地资料库；${agentEnabled ? "Agent 对话会检索引用，A 股研报还能进入个股研究" : "模型直连可做轻量材料定位，完整研究需重新开启 Agent"}。原文件只保存在本机。`}
       />
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2">
@@ -229,12 +230,12 @@ export function MyReports() {
           <Search className="h-4 w-4 text-primary" /> 正文已建立本地检索索引
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground/80">
-          <Bot className="h-4 w-4 text-primary" /> Agent 回答会标注研报 id 与页码
+          <Bot className="h-4 w-4 text-primary" /> {agentEnabled ? "Agent" : "模型"}回答会标注研报 id 与页码
         </div>
       </div>
       <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
-        隐私说明：原文件不会上传。材料任务只读取勾选文件；Quick 会把这些文件已提取的正文随本轮请求发给在「接入 AI」中选择的直连模型。
-        Deep 会在所选资料能唯一确认一个 A 股代码时启动完整六阶段研究；只召回本次勾选的资料片段，并在本机生成正式报告。
+        隐私说明：原文件不会上传。材料任务只读取勾选文件；系统会根据目标自动选择处理方式，完整六阶段研究仅在 Agent 开启时执行。
+        模型只会收到本轮需要的已提取正文或命中片段，正式报告保存在本机。
         未识别出代码的文件仍可在对话中检索。A 股代码会用于个股研究自动召回；港股与美股代码用于归档分组和对话检索，当前六阶段个股研究底座仍只支持 A 股。
       </p>
 
@@ -242,7 +243,7 @@ export function MyReports() {
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4 text-primary" /> 材料任务</h2>
-            <p className="mt-1 text-xs leading-5 text-muted-foreground">勾选下方资料，描述要找的内容。Auto 会先说明为什么选择 Quick 或 Deep。</p>
+            <p className="mt-1 text-xs leading-5 text-muted-foreground">勾选下方资料，直接描述目标。系统会自动选择合适的处理方式，并说明原因。</p>
           </div>
           <button type="button" disabled={!reports.length || taskBusy || busy || deleting}
             onClick={() => setSelected(selected.length === reports.length ? [] : reports.map((report) => report.id))}
@@ -251,22 +252,11 @@ export function MyReports() {
           </button>
         </div>
 
-        <div className="mb-3 inline-flex rounded-xl border border-border/70 bg-background/45 p-1" aria-label="任务模式">
-          {(Object.keys(MODE_LABELS) as TaskMode[]).map((item) => (
-            <button key={item} type="button" aria-pressed={mode === item} disabled={taskBusy || busy || deleting}
-              onClick={() => setMode(item)}
-              className={cn("rounded-lg px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50",
-                mode === item ? "bg-primary text-primary-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-              {MODE_LABELS[item]}
-            </button>
-          ))}
-        </div>
-
         <textarea value={objective} onChange={(e) => setObjective(e.target.value)} disabled={taskBusy || busy || deleting} rows={3}
           maxLength={8000} placeholder="例如：找出这些研报中关于收入变化、原因和风险提示的原文段落"
           className="w-full resize-y rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/65 focus:border-primary/60 disabled:opacity-50" />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs text-muted-foreground">已选 {selected.length} 份 · {mode === "auto" ? "由系统判断" : `${MODE_LABELS[mode]} 优先`}</p>
+          <p className="text-xs text-muted-foreground">已选 {selected.length} 份 · 由系统自动判断</p>
           <button type="button" onClick={() => void submitTask()} disabled={!selected.length || !objective.trim() || taskBusy || busy || deleting}
             className="inline-flex items-center gap-2 rounded-xl bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-35">
             {taskBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
@@ -276,14 +266,14 @@ export function MyReports() {
 
         {routeDecision && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
           <p className="flex items-center gap-2 text-sm font-medium"><Route className="h-4 w-4 text-primary" />
-            {MODE_LABELS[routeDecision.requestedMode]}{routeDecision.requestedMode === "auto" ? ` → ${TARGET_LABELS[routeDecision.target]}` : ` · ${TARGET_LABELS[routeDecision.target]}`}
+            系统选择：{TARGET_LABELS[routeDecision.target]}
           </p>
           <p className="mt-1 text-xs leading-5 text-muted-foreground">{routeDecision.reason}</p>
         </div>}
         {taskNotice && <div className="mt-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-foreground/80">{taskNotice}</div>}
         {taskError && <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{taskError}</div>}
         {taskAnswer && <div className="mt-3 rounded-xl border border-border/70 bg-background/50 p-4">
-          <p className="mb-3 text-xs font-semibold text-muted-foreground">定位结果</p>
+          <p className="mb-3 text-xs font-semibold text-muted-foreground">任务结果</p>
           <div className="prose prose-sm dark:prose-invert max-w-none prose-blockquote:border-primary/40 prose-blockquote:text-foreground/85">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{taskAnswer}</ReactMarkdown>
           </div>
@@ -347,7 +337,7 @@ export function MyReports() {
         <GlassCard>
           <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <FolderOpen className="h-8 w-8 text-muted-foreground/40" />
-            还没有归档的研报。把研报拖进上面的框，正文提取成功后就会进入 Agent 的本地知识库。
+          还没有归档的研报。把研报拖进上面的框，正文提取成功后就会进入本地资料库。
           </div>
         </GlassCard>
       ) : (

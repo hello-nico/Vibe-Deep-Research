@@ -304,6 +304,8 @@ export interface Plugin {
     readonly label: string;
     /** `python -m <module>` 的模块名 */
     readonly module: string;
+    /** false 只用于不联网、不落盘、无需模型的确定性工具；省略或 true 都必须走 Codex Agent */
+    readonly requiresAgent?: boolean;
     /** 超时(毫秒)。不给则用 Core 默认 */
     readonly timeoutMs?: number;
   }>>;
@@ -560,6 +562,7 @@ const TOOLS = {
       label: NONBLANK,
       // 只许 python 模块名的合法形状:`a.b_c`。有 `/`、`..`、空格的一律拒
       module: { type: "string", pattern: "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)*$" },
+      requiresAgent: { type: "boolean" },
       timeoutMs: { type: "integer", minimum: 1000, maximum: 1800000 },
     },
   },
@@ -879,7 +882,7 @@ interface Decl {
   alertFields: string[];
   selfTestCalc: { fn: string; args: Record<string, unknown>; expect: number } | null;
   ledger?: { kinds: Record<string, { label: string; properties: Record<string, unknown>; required: string[] }> };
-  tools?: Record<string, { label: string; module: string; timeoutMs?: number }>;
+  tools?: Record<string, { label: string; module: string; requiresAgent?: boolean; timeoutMs?: number }>;
   pageQueries?: Plugin["pageQueries"];
   pageContext?: Plugin["pageContext"];
   debate?: Plugin["debate"];

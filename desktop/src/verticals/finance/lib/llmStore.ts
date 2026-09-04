@@ -1,5 +1,7 @@
 /**
- * 用户模型配置的**唯一存放处**（localStorage，不上传、不进仓库、不落盘）。
+ * 用户模型配置的**唯一存放处**（当前浏览器配置的 localStorage）。
+ * 它会随浏览器配置持久保存在本机磁盘，**不是系统钥匙串，也不承诺加密**；但不会写入
+ * 产品仓库、后端配置、日志、事件账本或研究产物。共享电脑上使用后应主动清除。
  *
  * 🔴 单独成一个模块，是为了让**传输层 `backend.chat` 自己**就能读到它 ——
  *    放在 `llm.ts` 里会与 `backend.ts` 形成循环依赖，于是只能由调用方逐个记得传，
@@ -17,6 +19,21 @@ export interface LlmConfig {
   baseURL: string;
   apiKey: string;
   model: string;
+}
+
+export type ExecutionMode = "agent" | "direct";
+
+export interface AiRuntimeConfig {
+  schemaVersion: 2;
+  source: LlmConfig;
+  executionMode: ExecutionMode;
+  directSupported: boolean;
+  directReason: string;
+}
+
+export interface AiRuntimeRead {
+  status: LlmStatus;
+  config: AiRuntimeConfig | null;
 }
 
 /** CLI 订阅档：用本机已登录的引擎，免 API key */
@@ -44,7 +61,7 @@ function isUsable(c: LlmConfig): boolean {
  * 本地这份配置的状态。
  *
  * 🔴 **三种情况必须分开**，不能都返回 null：
- *    - `none`（真没配）才允许回落到后端默认；
+ *    - `none`（真没配）要回到“接入 AI”，不能让后端默认替用户做选择；
  *    - `broken`（存着但读不懂 / 字段不全）当没配 = **静默换一家去打**，
  *      对话照常有答案，用户完全看不出自己选的模型没生效；
  *    - `unavailable`（隐私模式、存储被策略拒绝）同理，而且每次打开都会重演。
@@ -57,7 +74,7 @@ export interface LlmRead {
   config: LlmConfig | null;
 }
 
-export function readUserLlm(): LlmRead {
+export function readAiRuntime(): AiRuntimeRead {
   let raw: string | null;
   try {
     raw = localStorage.getItem(LLM_KEY);
@@ -66,15 +83,33 @@ export function readUserLlm(): LlmRead {
   }
   if (!raw) return { status: "none", config: null };
   try {
-    const c = JSON.parse(raw) as Partial<LlmConfig>;
+    const parsed = JSON.parse(raw) as Partial<LlmConfig> & Partial<AiRuntimeConfig>;
+    // v1 是平铺的模型配置。读到旧值时原地兼容，默认开 Agent；
+    // 只在用户下次保存时才写回 v2，避免打开页面就修改密钥存储。
+    const c = parsed.schemaVersion === 2 && parsed.source && typeof parsed.source === "object"
+      ? parsed.source as Partial<LlmConfig>
+      : parsed;
     const str = (v: unknown) => (typeof v === "string" ? v : "");
     const cfg: LlmConfig = {
       provider: str(c.provider), baseURL: str(c.baseURL), apiKey: str(c.apiKey), model: str(c.model),
     };
-    return isUsable(cfg) ? { status: "ok", config: cfg } : { status: "broken", config: null };
+    const directSupported = parsed.schemaVersion === 2 && parsed.directSupported === true;
+    const directReason = parsed.schemaVersion === 2 && typeof parsed.directReason === "string"
+      ? parsed.directReason : "请重新测试连接后查看直连能力";
+    const executionMode: ExecutionMode = parsed.schemaVersion === 2 && parsed.executionMode === "direct" && directSupported
+      ? "direct"
+      : "agent";
+    return isUsable(cfg)
+      ? { status: "ok", config: { schemaVersion: 2, source: cfg, executionMode, directSupported, directReason } }
+      : { status: "broken", config: null };
   } catch {
     return { status: "broken", config: null };
   }
+}
+
+export function readUserLlm(): LlmRead {
+  const runtime = readAiRuntime();
+  return { status: runtime.status, config: runtime.config?.source ?? null };
 }
 
 /** 用户自己配的那一份（没配 / 坏了都返回 null）。**要分清哪种，用 `readUserLlm`。** */
@@ -83,8 +118,27 @@ export function loadUserLlm(): LlmConfig | null {
 }
 
 /** 存不下时抛错 —— 静默失败会让用户以为配好了，下次打开又是空的 */
-export function saveUserLlm(cfg: LlmConfig): void {
-  localStorage.setItem(LLM_KEY, JSON.stringify(cfg));
+export function saveUserLlm(cfg: LlmConfig, capability?: { directSupported: boolean; directReason: string }): void {
+  const directSupported = capability?.directSupported ?? false;
+  const directReason = capability?.directReason ?? "请重新测试连接后查看直连能力";
+  localStorage.setItem(LLM_KEY, JSON.stringify({
+    schemaVersion: 2, source: cfg,
+    // 新连接是一次新选择：始终回到产品默认 Agent，不继承上一个来源的 direct 开关。
+    executionMode: "agent",
+    directSupported, directReason,
+  } satisfies AiRuntimeConfig));
+  notifyRuntimeChanged();
+}
+
+/** 切换执行方式只改同一份配置，不复制 API key。 */
+export function saveExecutionMode(executionMode: ExecutionMode): void {
+  const current = readAiRuntime();
+  if (current.status !== "ok" || !current.config) throw new Error("请先连接 AI");
+  if (executionMode === "direct" && (!current.config.directSupported || isCli(current.config.source.provider))) {
+    throw new Error(current.config.directReason || "当前 AI 来源不支持直连模式");
+  }
+  localStorage.setItem(LLM_KEY, JSON.stringify({ ...current.config, executionMode } satisfies AiRuntimeConfig));
+  notifyRuntimeChanged();
 }
 
 /**
@@ -95,4 +149,13 @@ export function saveUserLlm(cfg: LlmConfig): void {
 export function clearUserLlm(): void {
   localStorage.removeItem(LLM_KEY);
   if (localStorage.getItem(LLM_KEY) !== null) throw new Error("本地存储没能删掉这条配置");
+  notifyRuntimeChanged();
+}
+
+export const AI_RUNTIME_CHANGED = "vibe-research:ai-runtime-changed";
+
+function notifyRuntimeChanged(): void {
+  if (typeof globalThis.dispatchEvent === "function" && typeof CustomEvent === "function") {
+    globalThis.dispatchEvent(new CustomEvent(AI_RUNTIME_CHANGED));
+  }
 }
