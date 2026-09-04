@@ -24,7 +24,7 @@ import { Codex, type CodexOptions, type Thread } from "@openai/codex-sdk";
 import { gatePatterns, makeConfig, type RunConfig } from "./config.ts";
 import { complianceGate } from "./gate.ts";
 import { currentPlugin } from "./plugin.ts";
-import { LocalAgentError, runLocalAgent, type RunLocalAgentOptions } from "./local_agent_runtime.ts";
+import { LocalAgentError, runLocalAgent, type LocalAgentId, type RunLocalAgentOptions } from "./local_agent_runtime.ts";
 import { loadProductConfig } from "./productConfig.ts";
 import { structuredOutputMode, withOutputSchema } from "./providers.ts";
 import { reportCitationErrors, type ReportSourceRef } from "./report_library.ts";
@@ -250,7 +250,7 @@ export async function chatSend(
     /** 与 contextText 同源的可引用资料；最终可见回答必须至少保留一个真实 id / 页码。 */
     reportSources?: readonly ReportSourceRef[];
     /** 测试注入用；HTTP 请求体到不了 opts。 */
-    localAgentRunner?: (agent: "claude", opts: RunLocalAgentOptions) => Promise<string>;
+    localAgentRunner?: (agent: LocalAgentId, opts: RunLocalAgentOptions) => Promise<string>;
     /** HTTP 客户端断开或页面主动停止时，中止仍在运行的本机 Agent / Codex 轮次。 */
     signal?: AbortSignal;
   },
@@ -330,8 +330,8 @@ export async function chatSend(
     const opening = opts.preambleText ?? preamble();
     const systemPrompt = [opening, opts.developerInstructions ?? ""].filter(Boolean).join("\n\n---\n\n");
     const turnBody = context ? `${context}\n\n---\n\n【用户本轮问题】\n${message}` : message;
-    // Claude Code 的 `--no-session-persistence` 保证 CLI 不把会话写进自己的历史；
-    // 产品只在本进程内保留有限上下文，与 Codex 对话“API 重启即清空”的边界一致。
+    // 新版本机 CLI 用 `--no-session-persistence`；缺少该参数的 WorkBuddy 内置旧版改在
+    // 一次性用户目录中运行。产品只在本进程内保留有限上下文，API 重启即清空。
     const historyParts: string[] = [];
     let historyChars = 0;
     for (const x of local.turns.slice(-LOCAL_HISTORY_TURNS).reverse()) {

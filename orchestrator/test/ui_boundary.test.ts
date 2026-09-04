@@ -194,6 +194,7 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   assert.match(layoutSrc, /本地金融研究 Agent/);
   assert.match(layoutSrc, /Vibe Research Agent/);
   assert.match(layoutSrc, /Claude Code Agent/);
+  assert.match(layoutSrc, /WorkBuddy \/ CodeBuddy Agent/);
   assert.match(layoutSrc, /模型直连/);
   assert.match(dockSrc, /Vibe Research Agent/);
   assert.match(dockSrc, /单轮模型调用 · 无 Agent 记忆/);
@@ -204,6 +205,8 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   assert.match(settingsSrc, /本地 API 已连接/);
   assert.match(settingsSrc, /默认开启/);
   assert.match(settingsSrc, /WorkBuddy \/ CodeBuddy/);
+  assert.match(settingsSrc, /@tencent-ai\/codebuddy-code/);
+  assert.doesNotMatch(settingsSrc, /适配器尚未完成|目前只接通 Codex 与 Claude Code/);
 });
 
 test("产品能力与密钥文案不许超过代码实际做到的范围", () => {

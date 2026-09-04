@@ -19,6 +19,7 @@ import {
   type AuthMode, type ProviderProfileFile,
 } from "./providers.ts";
 import { loadProductConfig } from "./productConfig.ts";
+import type { LocalAgentId } from "./local_agent_runtime.ts";
 
 /** 界面传下来的那一份。字段名与开源版一致，便于上游页面直接复用。 */
 export interface LlmOverride {
@@ -55,7 +56,7 @@ export type ResolvedRuntimeProvider =
     }
   | {
       runtime: "local-agent";
-      agent: "claude";
+      agent: LocalAgentId;
       model: null;
       env: NodeJS.ProcessEnv;
     };
@@ -73,15 +74,18 @@ export class RuntimeProviderError extends Error {
 export const isCliProvider = (p: string): boolean => p.startsWith("cli-");
 
 /**
- * 订阅档必须明确映射到真实 runtime。当前是产品自带 Codex + 本机 Claude Code；
+ * 订阅档必须明确映射到真实 runtime。当前是产品自带 Codex + 本机 Claude Code / CodeBuddy；
  * 其余 CLI 没有安全适配器就拒绝。
  *
- * 🔴 界面只列已经有真实适配器的 Codex / Claude；旧 localStorage 或手工请求仍可能
+ * 🔴 界面只列已经有真实适配器的 Codex / Claude / CodeBuddy；旧 localStorage 或手工请求仍可能
  *    带来 Qwen / DeepSeek 等 `cli-*`。如果这里对所有 CLI 一律回落到自带引擎，
  *    用户选了 Claude、答案却出自 Codex —— 而且**界面上一个字都不会提示**。
  *    这正是本文件开头那条纪律说的"账单和产出来自别处"。⇒ 认不出的一律报错。
  */
-const LOCAL_AGENT_BY_PROVIDER = Object.freeze({ "cli-claude": "claude" } as const);
+const LOCAL_AGENT_BY_PROVIDER = Object.freeze({
+  "cli-claude": "claude",
+  "cli-codebuddy": "codebuddy",
+} as const satisfies Record<string, LocalAgentId>);
 
 /** 自定义端点用的固定 env 变量名 —— 只存在于内存里的这一份 env */
 const RUNTIME_KEY_VAR = "VRA_RUNTIME_API_KEY";
@@ -114,7 +118,7 @@ export function resolveRuntimeProvider(
       return { runtime: "local-agent", agent: LOCAL_AGENT_BY_PROVIDER[id as keyof typeof LOCAL_AGENT_BY_PROVIDER], model: null, env: baseEnv };
     }
     {
-      throw new RuntimeProviderError("unsupported_cli", `订阅档当前只支持 Codex 与 Claude Code，接不上 ${id}`);
+      throw new RuntimeProviderError("unsupported_cli", `订阅档当前只支持 Codex、Claude Code 与 WorkBuddy / CodeBuddy，接不上 ${id}`);
     }
   }
 

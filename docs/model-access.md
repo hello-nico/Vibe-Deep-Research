@@ -11,6 +11,7 @@
 |---|---|---|---|
 | ChatGPT 订阅登录(默认) | OpenAI 模型,Plus / Pro / Team 订阅 | “接入 AI”→“订阅接入”→“登录 Codex” | 产品打开 OpenAI 官方登录页；登录态存在**产品自己的 CODEX_HOME**,与 `~/.codex` 隔离;不需要任何 API key |
 | Claude.ai 订阅登录 | 本机 Claude Code 已安装并登录 | 在 Claude Code 里完成 `/login`，设置页自动检测 | 复用本机订阅；调用时强制关闭本地工具、MCP、联网搜索工具、插件与 CLI 会话落盘 |
+| WorkBuddy / CodeBuddy 登录 | WorkBuddy 桌面版或 CodeBuddy Code CLI 已安装并登录 | WorkBuddy 用户无需重复安装；独立 CLI 用户运行 `codebuddy` 登录，设置页自动检测 | 复用本机账号；调用时强制关闭工具、MCP、用户配置、自动记忆与后台任务；旧 CLI 在一次性临时用户目录中运行 |
 | API key | OpenAI 或第三方(DeepSeek / 通义千问 / 智谱 GLM / Kimi …) | 浏览器“接入 AI”填写，或 `export <ENV_KEY>=...` + `--provider <id>` | 浏览器 key 持久保存在本机浏览器配置，调用时才发给本机后端；命令行/后端默认 key 从模板声明的环境变量读取 |
 
 连接成功后，产品自动进入 **Vibe Research Agent（默认开启）**，不再追问执行引擎、Quick 或 Deep。
@@ -19,14 +20,13 @@
 
 | 执行方式 | 能做什么 | 明确边界 |
 |---|---|---|
-| Agent（默认） | 本地上下文、工具调用、任务状态、研究进度、资料转写与六阶段研究 | Codex 订阅走 Codex Harness；Claude 订阅走 Claude Code Agent，不混叫 |
+| Agent（默认） | 本地上下文、工具调用、任务状态、研究进度、资料转写与六阶段研究 | Codex 订阅走 Codex Harness；Claude 与 WorkBuddy 订阅走各自本机 Agent，不混叫 |
 | 模型直连 | 普通对话、标题翻译、现有材料定位等轻量任务 | 不调用工具、不保留 Agent 任务记忆；研究、辩论、Agent 回测与资料转写会要求重新开启 Agent |
 
-当前 Claude Code Agent 已支持对话和有界材料任务，但完整六阶段研究仍由 Codex Harness 承载；选择 Claude
-后发起这类任务会明确提示当前边界，不会暗中换成 Codex。WorkBuddy / CodeBuddy 的本地 Agent 适配器尚未完成，
-只有该产品时请先使用模型 API 接入；界面不会把它显示成已经支持。
+当前 Claude Code 与 WorkBuddy / CodeBuddy Agent 已支持对话和有界材料任务，但完整六阶段研究仍由 Codex
+Harness 承载；选择它们后发起这类任务会明确提示当前边界，不会暗中换成 Codex。
 
-设置页的订阅卡片不是静态开关。后端会实时检测 Codex / Claude Code 的 CLI、版本与登录状态。
+设置页的订阅卡片不是静态开关。后端会实时检测 Codex / Claude Code / CodeBuddy Code 的 CLI、版本与登录状态。
 Codex 未登录时会显示“登录 Codex”：点击后由产品使用自己的 `CODEX_HOME` 启动官方 `codex login`，
 浏览器授权完成后页面自动轮询并点亮；登录失败或超时会明确提示重试。Qwen Code 的旧免费 OAuth 已停止，
 DeepSeek CLI 也使用 API key，因此二者不列为
@@ -46,6 +46,14 @@ CODEX_HOME="$(pwd)/.local/codex-home" codex login
 ```
 
 设置页会实时检测这个产品专用登录态，无需重启或手工复制认证文件。
+
+### 从全新版本接入 WorkBuddy / CodeBuddy
+
+1. 已安装并登录 WorkBuddy 桌面版：直接回到“接入 AI”选择 WorkBuddy / CodeBuddy，产品会发现应用内置 CLI。
+2. 没有桌面版：运行 `npm install -g @tencent-ai/codebuddy-code`，再运行 `codebuddy` 完成登录。
+3. 等待状态显示“可用”，点击“测试并保存”。
+4. 产品只向页面返回“是否已登录”；账号、token 和 CLI 原始响应不进入浏览器、日志或配置。旧版内置 CLI
+   需要的订阅凭据只在进程内转交给一次性临时用户目录中的回答进程，结束后随临时目录删除。
 
 auth 的解析规则:用户没在 `.local/config.json` / `VRA_PROVIDER_AUTH` / `--auth` 显式写过 auth 时,切换到第三方 profile 会自动用模板唯一支持的 `api_key`;显式写过的永不被覆盖(不支持就报错,不静默降级)。产品配置 `vibe-research.config.json` 里的 auth 只是产品默认,不算显式。
 

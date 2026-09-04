@@ -35,6 +35,12 @@ function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) 
 
 const INPUT = "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm";
 
+function localRuntimeLabel(provider?: string): string {
+  if (provider === "cli-claude") return "Claude Code Agent";
+  if (provider === "cli-codebuddy") return "WorkBuddy / CodeBuddy Agent";
+  return "Codex Harness";
+}
+
 /** 保存 / 清除 / 提示 —— 两档共用，分开写迟早只改一边 */
 function ActionRow(
   { onSave, configured, onForget, msg, msgErr, busy }:
@@ -222,11 +228,12 @@ export function Settings() {
       : { label: "正在检测", cls: "border-border bg-muted/40 text-muted-foreground" };
   const selectedRuntime = !configured
     ? "等待连接 AI"
-    : runtime.config?.source.provider === "cli-claude" ? "Claude Code Agent" : "Codex Harness";
-  const isClaudeRuntime = configured && runtime.config?.source.provider === "cli-claude";
-  const runtimeFeatures = isClaudeRuntime
+    : localRuntimeLabel(runtime.config?.source.provider);
+  const boundedLocalRuntime = configured && ["cli-claude", "cli-codebuddy"].includes(runtime.config?.source.provider ?? "");
+  const localRuntimeName = runtime.config?.source.provider === "cli-codebuddy" ? "WorkBuddy / CodeBuddy" : "Claude Code";
+  const runtimeFeatures = boundedLocalRuntime
     ? [
-        { icon: Terminal, title: "本地对话", text: "使用 Claude Code 订阅" },
+        { icon: Terminal, title: "本地对话", text: `使用 ${localRuntimeName} 登录账号` },
         { icon: Wrench, title: "受限执行", text: "本地工具与联网已关闭" },
         { icon: Database, title: "材料上下文", text: "支持有界材料定位" },
         { icon: ShieldCheck, title: "证据纪律", text: "回答经过校验与红线" },
@@ -254,7 +261,7 @@ export function Settings() {
       {!configured && <GlassCard glow className="mb-5 border-primary/35 bg-primary/[0.06]">
         <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">首次使用</p>
         <h2 className="mt-1 text-xl font-extrabold">先连接 AI</h2>
-        <p className="mt-1 text-sm text-muted-foreground">有 Codex 或 Claude Code 订阅就选订阅接入；只有模型 API 就选 API 接入。连接一次，以后直接使用。</p>
+        <p className="mt-1 text-sm text-muted-foreground">有 Codex、Claude Code 或 WorkBuddy / CodeBuddy 就选订阅接入；只有模型 API 就选 API 接入。连接一次，以后直接使用。</p>
       </GlassCard>}
 
       {err && (
@@ -312,17 +319,17 @@ export function Settings() {
         {mode === "subscription" ? (
           <div className="space-y-3 text-sm">
             <p className="text-xs leading-relaxed text-muted-foreground">
-              状态来自本机实时检测，不再写死“已登录”。Codex 与 Claude Code 都会由各自的真实 CLI 作答，
+              状态来自本机实时检测，不再写死“已登录”。Codex、Claude Code 与 WorkBuddy / CodeBuddy 都会由各自的真实 CLI 作答，
               <b className="text-foreground">不会悄悄换成别家</b>。Qwen Code 当前需 API key / Coding Plan，DeepSeek CLI 也需 API key，放在右侧 API 接入。
             </p>
             <p className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              目前只接通 Codex 与 Claude Code 订阅。只有 WorkBuddy / CodeBuddy 时，请先使用模型 API 接入；它的本地 Agent 适配器尚未完成，不会显示成“已支持”。
+              已安装并登录 WorkBuddy 桌面版时会直接识别，不需要重复安装或登录 CLI；独立使用 CodeBuddy Code 的用户也可沿用现有 CLI 登录。
             </p>
             <p className="rounded-lg border border-warning/25 bg-warning/[0.05] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
-              Claude Code 当前支持对话和有界材料任务；完整六阶段研究目前需要 Codex Harness，或在 Agent 模式下接入模型 API。选择 Claude 后不会暗中换成 Codex。
+              Claude Code 与 WorkBuddy / CodeBuddy 当前支持对话和有界材料任务；完整六阶段研究目前需要 Codex Harness，或在 Agent 模式下接入模型 API。选择后不会暗中换成 Codex。
             </p>
             {agentErr && <p className="rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-xs text-destructive">本机 Agent 状态检测失败：{agentErr}</p>}
-            <div className="grid gap-2 sm:grid-cols-2">
+            <div className="grid gap-2 sm:grid-cols-3">
               {SUBSCRIPTION_MODELS.map((m) => {
                 const on = cliId === m.id;
                 const detected = agentOf(m.provider);
@@ -369,6 +376,22 @@ export function Settings() {
                     {pending ? "授权完成后本页会自动检测，无需刷新。" : "将打开 Codex 官方登录页，使用 ChatGPT 订阅授权；不需要 API key。"}
                   </span>
                 </div>
+              );
+            })()}
+            {(() => {
+              const codebuddy = agentOf("cli-codebuddy");
+              if (codebuddy?.status === "ready") return null;
+              const help = codebuddy?.status === "not_authenticated"
+                ? <>已检测到 CodeBuddy，但没有可用登录态：WorkBuddy 用户请打开应用完成登录；独立 CLI 用户请运行 <span className="font-mono">codebuddy</span> 登录。</>
+                : codebuddy?.status === "not_installed"
+                  ? <>尚未检测到 WorkBuddy 或 CodeBuddy Code：安装并登录 WorkBuddy 桌面版即可；也可运行 <span className="font-mono">npm install -g @tencent-ai/codebuddy-code</span> 安装腾讯官方 CLI。</>
+                  : codebuddy?.status === "probe_failed"
+                    ? <>已检测到 WorkBuddy / CodeBuddy，但当前版本无法建立受限连接：请先更新 WorkBuddy 或官方 CLI。</>
+                    : <>正在检测本机 CodeBuddy 状态…</>;
+              return (
+                <p className="rounded-lg border border-border/60 bg-muted/25 px-3 py-2 text-xs leading-relaxed text-muted-foreground">
+                  {help}
+                </p>
               );
             })()}
             <ActionRow onSave={testAndSaveCli} configured={configured} onForget={forget} msg={msg} msgErr={msgErr} busy={testing} />
@@ -433,8 +456,8 @@ export function Settings() {
                 <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Research Agent</h2>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-                {isClaudeRuntime
-                  ? "默认开启。Claude Code Agent 当前承载本地对话和有界材料任务；完整六阶段研究需改用 Codex 或 API Agent。"
+                {boundedLocalRuntime
+                  ? `默认开启。${localRuntimeName} Agent 当前承载本地对话和有界材料任务；完整六阶段研究需改用 Codex 或 API Agent。`
                   : "默认开启。Agent 会维持上下文、调用本地数据和计算工具、完成多步研究，并保留可继续迭代的任务记录。"}
                 当前运行时：<b className="text-foreground">{selectedRuntime}</b>。
               </p>
@@ -452,8 +475,8 @@ export function Settings() {
               <><b className="text-foreground">等待连接 AI。</b> 连接成功后 Agent 会自动开启，不需要再做一次选择。</>
             ) : runtime.config?.executionMode === "direct" ? (
               <><b className="text-foreground">当前：模型直连。</b> 适合轻量对话和材料定位；六阶段研究、多空辩论、Agent 回测与需要工具的任务会要求重新开启 Agent。</>
-            ) : isClaudeRuntime ? (
-              <><b className="text-foreground">当前：Claude Code Agent 已开启。</b> 可进行对话和有界材料任务；完整六阶段研究当前不支持这个运行时。</>
+            ) : boundedLocalRuntime ? (
+              <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话和有界材料任务；完整六阶段研究当前不支持这个运行时。</>
             ) : (
               <><b className="text-foreground">当前：Agent 已开启（推荐）。</b> 所有能力都走完整工作流；模型只是提供推理能力。</>
             )}

@@ -126,8 +126,11 @@ export function Layout() {
   }
 
   const agentEnabled = aiRuntime.config?.executionMode !== "direct";
+  const provider = aiRuntime.config?.source.provider;
   const runtimeLabel = agentEnabled
-    ? aiRuntime.config?.source.provider === "cli-claude" ? "Claude Code Agent" : "Vibe Research Agent"
+    ? provider === "cli-claude" ? "Claude Code Agent"
+      : provider === "cli-codebuddy" ? "WorkBuddy / CodeBuddy Agent"
+        : "Vibe Research Agent"
     : "模型直连";
 
   return (

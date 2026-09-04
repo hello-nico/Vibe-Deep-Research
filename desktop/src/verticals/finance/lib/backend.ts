@@ -226,9 +226,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 async function ensureSelectedLocalAgentReady(llm: unknown): Promise<void> {
   if (!llm || typeof llm !== "object" || Array.isArray(llm)) return;
   const provider = String((llm as { provider?: unknown }).provider ?? "");
-  // 只预检**已经有真实适配器**的两种订阅。未知 cli-* 必须交给后端返回 unsupported_cli，
+  // 只预检**已经有真实适配器**的三种订阅。未知 cli-* 必须交给后端返回 unsupported_cli，
   // 不能在这里误报成“没登录”，否则坏配置会被掩盖。
-  if (provider !== "cli-codex" && provider !== "cli-claude") return;
+  if (provider !== "cli-codex" && provider !== "cli-claude" && provider !== "cli-codebuddy") return;
   const status = (await call<LocalAgentStatus[]>("/local-agents")).find((x) => x.provider === provider);
   if (status?.available) return;
   const name = status?.name ?? (provider === "cli-codex" ? "Codex" : "本地 Agent");
@@ -487,8 +487,8 @@ export interface ProductInfo {
 }
 
 export interface LocalAgentStatus {
-  provider: "cli-codex" | "cli-claude";
-  name: "Codex" | "Claude Code";
+  provider: "cli-codex" | "cli-claude" | "cli-codebuddy";
+  name: "Codex" | "Claude Code" | "WorkBuddy / CodeBuddy";
   installed: boolean;
   authenticated: boolean;
   available: boolean;

@@ -139,8 +139,15 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
     throw new ServiceError("route_changed", "所选材料在路由后发生变化，请重新开始任务");
   }
   let deepRuntimeAvailable = true;
+  let localAgentName = "本机 Agent";
   if (route.target === "deep" && req.llm) {
-    try { deepRuntimeAvailable = resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, req.llm).runtime === "codex"; }
+    try {
+      const runtime = resolveRuntimeProvider(ctx.repoRoot, ctx.dataRoot, req.llm);
+      deepRuntimeAvailable = runtime.runtime === "codex";
+      if (runtime.runtime === "local-agent") {
+        localAgentName = runtime.agent === "codebuddy" ? "WorkBuddy / CodeBuddy Agent" : "Claude Code Agent";
+      }
+    }
     catch (error) {
       throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_llm",
         error instanceof Error ? error.message : String(error));
@@ -155,7 +162,7 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
     throw new ServiceError("agent_required", "这个任务需要长流程取证与工具调用，请先开启 Vibe Research Agent");
   }
   if (route.target === "deep" && !deepRuntimeAvailable) {
-    throw new ServiceError("agent_runtime_unsupported", "当前 Claude Code Agent 支持对话和有界材料任务；完整六阶段研究请改用 Codex 或 API Agent");
+    throw new ServiceError("agent_runtime_unsupported", `当前 ${localAgentName} 支持对话和有界材料任务；完整六阶段研究请改用 Codex 或 API Agent`);
   }
   if (route.target === "deep" && !dependencies.deepTargetResolver) {
     throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");

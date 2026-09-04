@@ -208,7 +208,7 @@ test("HTTP API:token 必需 / 非本机 Origin 403 / 跨站 403 / 非 JSON POST 
     assert.equal((await call("GET", "/health", undefined, { Origin: "http://localhost:5173" })).code, 200);
     const agents = await call("GET", "/local-agents");
     assert.equal(agents.code, 200);
-    assert.deepEqual((agents.json as { provider: string }[]).map((x) => x.provider), ["cli-codex", "cli-claude"]);
+    assert.deepEqual((agents.json as { provider: string }[]).map((x) => x.provider), ["cli-codex", "cli-claude", "cli-codebuddy"]);
     assert.ok(!agents.text.includes(ctx.repoRoot) && !agents.text.includes(ctx.dataRoot) && !agents.text.includes("@"), "运行时探针不应回传路径或账号");
     const eps = await call("GET", "/endpoints?market=US&q=yahoo");
     assert.equal(eps.code, 200);
@@ -644,14 +644,14 @@ test("全局 direct 模式在任何副作用前拒绝需要 Agent 的能力", as
   }
 });
 
-test("Claude 的能力边界在取数、读文件或起工具前生效", async () => {
+test("Claude / CodeBuddy 的能力边界在取数、读文件或起工具前生效", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-claude-boundary-"));
   const ctx: ServiceContext = { repoRoot: REPO, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
-  const llm = { provider: "cli-claude" };
   const unsupported = (error: unknown) => error instanceof ServiceError && error.code === "agent_runtime_unsupported";
   const tool = listTools()[0]?.name;
   assert.ok(tool, "金融插件必须至少声明一个工具");
   try {
+    for (const llm of [{ provider: "cli-claude" }, { provider: "cli-codebuddy" }]) {
     await assert.rejects(
       () => debateStart(ctx, { symbol: "300308", llm, executionMode: "agent" }),
       unsupported,
@@ -672,6 +672,7 @@ test("Claude 的能力边界在取数、读文件或起工具前生效", async (
       unsupported,
       "Claude 对话式工具必须在模型或工具调用前拒绝",
     );
+    }
     assert.deepEqual(fs.readdirSync(root), [], "被拒绝的 Claude 请求不能留下运行产物");
   } finally {
     fs.rmSync(root, { recursive: true, force: true });

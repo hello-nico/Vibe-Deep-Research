@@ -4,7 +4,7 @@
 
 <p align="center">
   <b>Connect your AI once, then use a local financial research agent by default</b><br>
-  Codex / Claude Code subscriptions or model APIs · Agent on by default · verified APIs can switch to direct mode
+  Codex / Claude Code / WorkBuddy subscriptions or model APIs · Agent on by default · verified APIs can switch to direct mode
 </p>
 
 <p align="center">
@@ -43,16 +43,16 @@ Contact: [simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)
 ## What it is
 
 Vibe Research is a **local financial research workbench**. On first launch, the user makes one decision: connect an
-existing Codex / Claude Code subscription, or provide a model API. After the connection succeeds, Vibe Research
+existing Codex / Claude Code / WorkBuddy (CodeBuddy) subscription, or provide a model API. After the connection succeeds, Vibe Research
 Agent is enabled by default. No understanding of harnesses, scripts, or routing modes is required.
 
 Agent mode maintains local context, calls tools, advances tasks, handles failures, and preserves the research
 process. A Codex subscription runs through the
 [OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform); a Claude.ai subscription runs through
-the local Claude Code Agent. Vibe Research applies the same financial data, research procedures, deterministic
+the local Claude Code Agent; a WorkBuddy / CodeBuddy account runs through Tencent's official CodeBuddy Code CLI. Vibe Research applies the same financial data, research procedures, deterministic
 calculations, evidence checks, and compliance boundaries above those runtimes.
 
-The Claude Code Agent currently supports chat and bounded document tasks. Full six-stage research requires the
+The Claude Code and WorkBuddy / CodeBuddy Agents currently support chat and bounded document tasks. Full six-stage research requires the
 Codex Harness, or a model API connected in Agent mode. The UI states this boundary for the selected runtime.
 
 API users may turn the Agent off in Settings and use direct model mode. This switch is available only to provider
@@ -66,9 +66,8 @@ profiles that have passed the direct-mode capability check.
 | Preserves progress, evidence, reports, and failures | Does not preserve Agent task memory |
 | Accepts either a subscription or an API as its reasoning source | Requires a verified API provider |
 
-Codex and Claude Code subscription runtimes are connected today, with live CLI, version, and login detection. Users
-who only have WorkBuddy / CodeBuddy currently need to connect a model API; its local Agent adapter is not yet
-implemented and is not presented as supported. Qwen Code and DeepSeek CLI also remain API paths because they require
+Codex, Claude Code, and WorkBuddy / CodeBuddy subscription runtimes are connected today, with live CLI, version, and login detection.
+The CodeBuddy adapter reuses the local logged-in account and disables tools, MCP, user settings, automatic memory, and CLI session persistence. Qwen Code and DeepSeek CLI remain API paths because they require
 their own API key.
 
 ## Features
@@ -159,6 +158,11 @@ local status is still unclear, run `scripts/doctor` (or `scripts\doctor.ps1` on 
 For Claude.ai subscription access, install and log in to Claude Code. The settings page detects it automatically;
 no Claude API key needs to be entered into Vibe Research.
 
+For WorkBuddy / CodeBuddy access, Settings directly detects the official CodeBuddy Code CLI bundled with an installed,
+signed-in WorkBuddy desktop app. No second installation or login is required. Users without the desktop app can instead
+install Tencent's CLI with `npm install -g @tencent-ai/codebuddy-code` and run `codebuddy` once to sign in. Neither path
+requires entering a token or API key into Vibe Research.
+
 For API access, open **Connect AI → API access**, choose a provider, enter the API base URL, model name, and key,
 then click **Test and save**. A real model request must succeed before the new configuration is saved and shared
 across the product. The same probe records whether the provider supports the verified direct-mode contract.
@@ -217,11 +221,11 @@ agent loop · context · tools · progress · sandbox
         │
         ▼
 Local Agent Runtime
-Codex SDK · Claude Code CLI (local detection / login probe / restricted execution)
+Codex SDK · Claude Code CLI · CodeBuddy Code CLI (local detection / login probe / restricted execution)
         │
         ▼
 Model Provider
-ChatGPT / Claude.ai subscriptions · OpenAI · DeepSeek · Qwen · GLM · Kimi · MiMo · compatible APIs
+ChatGPT / Claude.ai / WorkBuddy subscriptions · OpenAI · DeepSeek · Qwen · GLM · Kimi · MiMo · compatible APIs
 ```
 
 The project enforces its rules at three levels:
@@ -240,11 +244,11 @@ the official CLI and SDK.
 The **Connect AI** page asks two separate questions: first where the AI comes from, then whether to use the Agent.
 The second answer defaults to on, so most users never need to change it.
 
-- The Agent Runtime manages local context, tool calls, task state, progress, and failure handling. Codex subscriptions use the Codex Harness; Claude subscriptions use the Claude Code Agent. They are not presented as the same runtime.
-- The Claude Code Agent currently supports chat and bounded document tasks. Full six-stage research requires the Codex Harness, or a model API connected in Agent mode.
+- The Agent Runtime manages local context, tool calls, task state, progress, and failure handling. Codex subscriptions use the Codex Harness; Claude subscriptions use the Claude Code Agent; WorkBuddy / CodeBuddy uses the CodeBuddy Code Agent. They are not presented as the same runtime.
+- The Claude Code and WorkBuddy / CodeBuddy Agents currently support chat and bounded document tasks. Full six-stage research requires the Codex Harness, or a model API connected in Agent mode.
 - The AI source can be a subscription login or the user's Model Provider API. Changing the source does not automatically disable the Agent.
 - Direct mode does not run the Agent, call tools, or preserve Agent task memory. Six-stage research, bull/bear debate, and Agent-guided backtesting clearly ask the user to re-enable the Agent instead of silently degrading.
-- Codex subscription mode uses the product's own `CODEX_HOME` and never reads or writes the user's `~/.codex`. Claude subscription mode reuses the local Claude Code login while forcing local tools, MCP, web-search tools, and CLI session persistence off.
+- Codex subscription mode uses the product's own `CODEX_HOME` and never reads or writes the user's `~/.codex`. Claude and CodeBuddy subscription modes reuse their own local login while forcing local tools, MCP, user settings, and automatic memory off. If WorkBuddy bundles an older CLI without a no-session-persistence flag, the entire answer runs under a disposable temporary home that is deleted afterward.
 - Both subscription and API configurations must pass a real conversation probe before **Test and save** updates the active configuration.
 - In API mode, the key persists in the current browser profile's local `localStorage` so it does not need to be entered again.
   It is not an OS keychain and encryption is not guaranteed, so use it only on a trusted personal computer and clear it after

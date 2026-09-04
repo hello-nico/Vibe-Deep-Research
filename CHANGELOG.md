@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+- M6 新增 WorkBuddy / CodeBuddy 订阅适配器：设置页把它作为第三个真实订阅来源，
+  已安装并登录 WorkBuddy 桌面版时直接复用应用内置 CodeBuddy Code CLI；独立安装 CLI 的用户也可沿用
+  原有登录，不再强迫这类用户重复安装、重复登录或填写 API key。
+- CodeBuddy 探针通过官方 stream-json initialize 控制请求判定登录，只向界面返回版本和布尔状态；
+  账号与 token 不返回、不落日志。执行时强制关闭工具、MCP、用户设置、自动记忆、后台任务与子 Agent，
+  并移除 API key、自定义端点和模型覆盖环境变量。WorkBuddy 内置旧 CLI 缺少无会话参数时，订阅凭据只在
+  内存中转给一次性临时用户目录中的回答进程，完成后删除，防止写入真实用户目录。
+- 边界如实保持：WorkBuddy / CodeBuddy 与 Claude Code 目前只承载对话与有界材料任务；完整六阶段研究
+  仍交给 Codex Harness，选中后不会暗中换成 Codex。旧的“CodeBuddy 适配器尚未完成”引导已移除。
+- M6 使用腾讯官方 CodeBuddy Code 2.143.1 完成干净环境实装：版本探测、未登录识别及退出码为 0 的纯文本
+  登录错误均被稳定归类；又使用本机 WorkBuddy 5.2.6 内置 CodeBuddy Code 2.106.4 的真实订阅登录完成
+  受限回答，验证桌面端自动发现、内存凭据桥与临时用户目录清理。同时补齐 Windows 常见安装位置的内置 CLI 发现，
+  无扩展名入口由 Node 安全启动，旧版隔离运行同时改写 HOME / USERPROFILE / APPDATA / LOCALAPPDATA
+  及 XDG 目录，不留下从 Windows 绕回真实用户目录的口子。最终回归：orchestrator **699 项**（698 通过、1 项 macOS 跳过）、
+  desktop **34/34**、Python **577/577**，两端类型检查与 Vite 生产构建通过。独立 Codex 首轮审计对
+  `--setting-sources none` 的唯一意见经官方源码与真实命令证伪，收敛复审为
+  `No actionable P1/P2 findings`，未按错误建议放松隔离。补齐 Windows 发现与用户目录隔离后再做一轮独立收敛复审，
+  结论同样为 `No actionable P1/P2 findings`。
 - M5 增加 macOS / Linux `scripts/setup` 与 `scripts/start`：普通用户不再手装两套依赖、全局安装 Codex
   或打开两个终端。启动器会检查安装状态与固定端口，同时管理 API / 界面进程，读取实际数据根完成带鉴权
   健康检查后才打开浏览器；任一进程退出会同步收口。
@@ -22,8 +40,8 @@
 - 「我的研报」移除 Auto / Quick / Deep 三选一，系统继续在内部按任务语义路由；路由指纹同时绑定 AI 来源
   与 Agent 开关，不允许路由与执行阶段偷换 provider 或模式。全新浏览器无明确配置时进入“接入 AI”，
   不再借后端默认值替用户做选择。
-- 设置页、README 与官网如实区分 Codex Harness、Claude Code Agent 和模型 API；WorkBuddy / CodeBuddy
-  本地 Agent 适配器尚未完成时明确引导使用 API，不冒充已经支持。
+- 设置页、README 与官网如实区分 Codex Harness、Claude Code Agent、WorkBuddy / CodeBuddy 和模型 API；
+  M6 完成前的 API 引导已由真实本地适配器取代。
 - 本轮独立 Codex 审计发现并修复 3 个真实 P2：原始工具入口绕过执行方式、Claude 订阅进入尚不支持的
   辩论 / 转写 / 引导工具流程，以及默认模型来源指纹没有绑定后端实际配置；末轮复审为
   `No actionable P1/P2 findings`。

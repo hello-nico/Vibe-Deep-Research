@@ -94,7 +94,7 @@ test("直连模式可以先看见 Deep 路由，但不能执行，明确要求�
   }, undefined, deps), (error: unknown) => error instanceof ServiceError && error.code === "agent_required");
 });
 
-test("任务路由绑定 AI 来源，且 Claude 不冒充可执行六阶段", async () => {
+test("任务路由绑定 AI 来源，且外部本机 Agent 不冒充可执行六阶段", async () => {
   const dataRoot = tmp();
   const rec = await addReport(dataRoot, { name: "300308-深研.md", content: Buffer.from("公司代码 300308。", "utf8").toString("base64") });
   const deepTask = { ...task(rec.id, "deep"), kind: "deep_research", evidenceScope: "open_discovery",
@@ -106,6 +106,11 @@ test("任务路由绑定 AI 来源，且 Claude 不冒充可执行六阶段", as
   }, undefined, deps);
   assert.equal(routed.route.target, "deep");
   assert.equal(routed.executionAvailable, false, "Claude 当前不能被标成六阶段可执行");
+
+  const codebuddyRouted = await runUnifiedTask(ctx(dataRoot), {
+    task: deepTask, execute: false, executionMode: "agent", llm: { provider: "cli-codebuddy" },
+  }, undefined, deps);
+  assert.equal(codebuddyRouted.executionAvailable, false, "CodeBuddy 当前不能被标成六阶段可执行");
 
   await assert.rejects(() => runUnifiedTask(ctx(dataRoot), {
     task: deepTask, execute: true, executionMode: "agent", llm: { provider: "cli-codex", model: "codex-subscription" },

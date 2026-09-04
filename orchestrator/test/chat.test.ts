@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts"; // 测试文件也是入口:插件要先注册
 import { ChatError, chatSend, chatSessionCount, llmProbe, resetChatSessions, translateHeadlines } from "../src/chat.ts";
-import { LocalAgentError } from "../src/local_agent_runtime.ts";
+import { LocalAgentError, type LocalAgentId } from "../src/local_agent_runtime.ts";
 import type { LlmOverride } from "../src/runtime_provider.ts";
 
 // ⚠️ 用 fileURLToPath 而不是 new URL(...).pathname —— 本机仓库路径含中文,
@@ -153,7 +153,7 @@ test("本轮资料召回集合变化时必须换新线程，旧片段不能残�
 
   resetChatSessions();
   const localPrompts: string[] = [];
-  const localRunner = async (_agent: "claude", opts: { userPrompt: string }) => {
+  const localRunner = async (_agent: LocalAgentId, opts: { userPrompt: string }) => {
     localPrompts.push(opts.userPrompt);
     return localPrompts.length === 1 ? `第一轮引用 [资料:${id} p.2]` : "第二轮回答";
   };
@@ -391,7 +391,7 @@ test("Claude 订阅走本机 Agent 适配器，不会回落到 Codex；会话历
   resetChatSessions();
   const root = tmp();
   const calls: { systemPrompt: string; userPrompt: string; outputSchema?: unknown }[] = [];
-  const runner = async (_agent: "claude", opts: { systemPrompt: string; userPrompt: string; outputSchema?: unknown }) => {
+  const runner = async (_agent: LocalAgentId, opts: { systemPrompt: string; userPrompt: string; outputSchema?: unknown }) => {
     calls.push(opts);
     return calls.length === 1 ? "第一轮回答" : "第二轮回答";
   };
@@ -405,6 +405,22 @@ test("Claude 订阅走本机 Agent 适配器，不会回落到 Codex；会话历
   assert.match(calls[1]!.userPrompt, /用户：第一问/);
   assert.match(calls[1]!.userPrompt, /Agent：第一轮回答/);
   assert.equal(chatSessionCount(), 1);
+});
+
+test("WorkBuddy / CodeBuddy 走自己的本机适配器，不会回落到 Codex", async () => {
+  resetChatSessions();
+  let seen: LocalAgentId | null = null;
+  const result = await chatSend(
+    {
+      repoRoot: REPO,
+      dataRoot: tmp(),
+      localAgentRunner: async (agent) => { seen = agent; return "CodeBuddy 回答"; },
+    },
+    { session: "codebuddy-real", message: "第一问", llm: { provider: "cli-codebuddy" } },
+    () => { throw new Error("不应创建 Codex"); },
+  );
+  assert.equal(seen, "codebuddy");
+  assert.equal(result.reply, "CodeBuddy 回答");
 });
 
 test("Claude 本地会话总量有上限，持续换 session 会淘汰最旧空闲会话", async () => {
@@ -451,7 +467,7 @@ test("页面取消信号会传进本机 Agent，而不是只断开浏览器请�
   resetChatSessions();
   const root = tmp();
   const ac = new AbortController();
-  const runner = async (_agent: "claude", opts: { signal?: AbortSignal }) => await new Promise<string>((_resolve, reject) => {
+  const runner = async (_agent: LocalAgentId, opts: { signal?: AbortSignal }) => await new Promise<string>((_resolve, reject) => {
     opts.signal?.addEventListener("abort", () => reject(new LocalAgentError("agent_cancelled", "已取消")), { once: true });
   });
   const pending = chatSend(

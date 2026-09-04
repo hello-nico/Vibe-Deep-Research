@@ -2,9 +2,9 @@
  * 本机 Agent CLI 适配层。
  *
  * 来源与边界：参考 nexu-io/open-design 0.21.0 的 runtime registry / detection，
- * 但这里只收下金融工作台当前能安全证明的最小能力：Claude Code 订阅。
- * Open Design 对 Qwen / DeepSeek 使用自动批准模式；本产品的对话通道承诺“无本地工具”，
- * 所以在没有等价的禁工具调用方式与实测之前，不能照搬后把按钮点亮。
+ * 但这里只收下金融工作台当前能安全证明的最小能力：Claude Code 与 CodeBuddy 的订阅登录。
+ * 两者都必须能在命令行层关闭工具、MCP、会话落盘与用户配置；没有等价隔离参数的 CLI
+ * 不能照搬自动批准模式后把按钮点亮。
  */
 import { execFile, spawn, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -16,11 +16,11 @@ const execFileAsync = promisify(execFile);
 const MAX_ACTIVE_LOCAL_AGENTS = 4;
 let activeLocalAgents = 0;
 
-export type LocalAgentId = "claude";
+export type LocalAgentId = "claude" | "codebuddy";
 
 export interface LocalAgentStatus {
-  provider: "cli-codex" | "cli-claude";
-  name: "Codex" | "Claude Code";
+  provider: "cli-codex" | "cli-claude" | "cli-codebuddy";
+  name: "Codex" | "Claude Code" | "WorkBuddy / CodeBuddy";
   installed: boolean;
   authenticated: boolean;
   available: boolean;
@@ -218,15 +218,44 @@ function executableDirs(env: NodeJS.ProcessEnv, platform: NodeJS.Platform): stri
   ].filter(Boolean);
 }
 
+/** WorkBuddy 桌面版内置 CLI 的官方安装布局。Windows 内置的无扩展名文件是 Node 脚本。 */
+export function workBuddyCliCandidates(
+  env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform,
+): string[] {
+  if (platform === "darwin") {
+    return [
+      "/Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy",
+      path.join(String(env.HOME || os.homedir()), "Applications/WorkBuddy.app/Contents/Resources/app.asar.unpacked/cli/bin/codebuddy"),
+    ];
+  }
+  if (platform !== "win32") return [];
+  const p = path.win32;
+  const roots = [
+    env.LOCALAPPDATA ? p.join(env.LOCALAPPDATA, "Programs", "WorkBuddy") : "",
+    env.ProgramFiles ? p.join(env.ProgramFiles, "WorkBuddy") : "C:\\Program Files\\WorkBuddy",
+    env["ProgramFiles(x86)"] ? p.join(env["ProgramFiles(x86)"]!, "WorkBuddy") : "C:\\Program Files (x86)\\WorkBuddy",
+  ].filter(Boolean);
+  return [...new Set(roots)].flatMap((root) => {
+    const binDir = p.join(root, "resources", "app.asar.unpacked", "cli", "bin");
+    // 新版可能附带可执行包装器；旧版 WorkBuddy 则只有无扩展名的 JS 入口。
+    return ["codebuddy.exe", "codebuddy.cmd", "codebuddy"].map((name) => p.join(binDir, name));
+  });
+}
+
 /** GUI 启动时 PATH 往往比终端短；按 OD 的做法补常见全局安装目录。 */
 export function findExecutable(bin: string, env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform): string | null {
-  const override = bin === "claude" ? String(env.CLAUDE_BIN ?? "").trim() : "";
+  const overrideKey = bin === "claude" ? "CLAUDE_BIN" : bin === "codebuddy" ? "CODEBUDDY_BIN" : "";
+  const override = overrideKey ? String(env[overrideKey] ?? "").trim() : "";
   const extensions = platform === "win32"
     ? [...new Set([".exe", ".ps1", ".cmd", ".bat", "", ...String(env.PATHEXT ?? "").split(";").map((x) => x.toLowerCase()).filter(Boolean)])]
     : [""];
   const delimiter = platform === "win32" ? ";" : path.delimiter;
-  const candidates = override ? [override] : [...new Set(String(env.PATH ?? "").split(delimiter).concat(executableDirs(env, platform)).filter(Boolean))]
-    .flatMap((dir) => extensions.map((ext) => path.join(dir, `${bin}${ext}`)));
+  const workBuddyAppCandidates = bin === "codebuddy" ? workBuddyCliCandidates(env, platform) : [];
+  const candidates = override ? [override] : [
+    ...[...new Set(String(env.PATH ?? "").split(delimiter).concat(executableDirs(env, platform)).filter(Boolean))]
+      .flatMap((dir) => extensions.map((ext) => path.join(dir, `${bin}${ext}`))),
+    ...workBuddyAppCandidates,
+  ];
   for (const candidate of candidates) {
     try {
       // npm 在 Windows 通常同时生成 claude.cmd 与 claude.ps1。优先返回可由
@@ -246,7 +275,12 @@ export function executableInvocation(
   bin: string, args: string[], env: NodeJS.ProcessEnv = process.env, platform: NodeJS.Platform = process.platform,
 ): { file: string; args: string[] } {
   if (platform !== "win32") return { file: bin, args };
-  const ext = path.extname(bin).toLowerCase();
+  const ext = path.win32.extname(bin).toLowerCase();
+  if (!ext && path.win32.basename(bin).toLowerCase() === "codebuddy" &&
+      bin.toLowerCase().includes("app.asar.unpacked")) {
+    // Windows 不执行 shebang；用当前后端的 Node 运行 WorkBuddy 内置 JS 入口。
+    return { file: process.execPath, args: [bin, ...args] };
+  }
   if (ext !== ".ps1") {
     if ([".cmd", ".bat"].includes(ext)) throw new LocalAgentError("agent_start_failed", "Windows CLI 缺少安全的 PowerShell 启动器");
     return { file: bin, args };
@@ -326,6 +360,221 @@ export async function probeClaude(env: NodeJS.ProcessEnv = process.env): Promise
   }
 }
 
+const REQUIRED_CODEBUDDY_FLAGS = [
+  "--tools", "--strict-mcp-config", "--mcp-config", "--setting-sources",
+  "--input-format", "--output-format", "--system-prompt", "--json-schema", "--max-turns", "--agent",
+  "--permission-mode", "--subagent-permission-mode",
+] as const;
+
+interface CodeBuddyAccount {
+  userId: string;
+  token: string;
+}
+
+interface CodeBuddyRuntime {
+  account: CodeBuddyAccount | null;
+  legacyEphemeralHome: boolean;
+}
+
+function codeBuddySubscriptionEnv(
+  base: NodeJS.ProcessEnv,
+  options: { account?: CodeBuddyAccount | null; ephemeralHome?: string } = {},
+): NodeJS.ProcessEnv {
+  const env = { ...base };
+  // 这一张卡承诺复用本机登录账号。API key、临时 OAuth token、自定义端点和模型覆盖
+  // 都可能让非交互调用静默换成另一套计费来源，因此在探针与执行两条路径同时移除。
+  for (const key of [
+    "CODEBUDDY_API_KEY", "CODEBUDDY_AUTH_TOKEN", "CODEBUDDY_BASE_URL", "CODEBUDDY_CUSTOM_HEADERS",
+    "CODEBUDDY_MODEL", "CODEBUDDY_SMALL_FAST_MODEL", "CODEBUDDY_BIG_SLOW_MODEL",
+    "CODEBUDDY_CODE_SUBAGENT_MODEL", "MAX_THINKING_TOKENS",
+  ]) delete env[key];
+  const isolated: NodeJS.ProcessEnv = {
+    ...env,
+    DISABLE_AUTOUPDATER: "1",
+    DISABLE_TELEMETRY: "1",
+    DISABLE_ERROR_REPORTING: "1",
+    CODEBUDDY_DISABLE_IDE: "1",
+    CODEBUDDY_DISABLE_AUTO_MEMORY: "1",
+    CODEBUDDY_CODE_DISABLE_AUTO_MEMORY: "1",
+    CODEBUDDY_CODE_DISABLE_BACKGROUND_TASKS: "1",
+    CODEBUDDY_DISABLE_FORK_SUBAGENT: "1",
+    CODEBUDDY_REPL_ENABLED: "0",
+    CODEBUDDY_COMPUTER_USE_ENABLED: "0",
+    CODEBUDDY_ARTIFACT_ENABLED: "0",
+    CODEBUDDY_PUSH_NOTIFICATION_ENABLED: "0",
+    CODEBUDDY_WAIT_FOR_MCP_SERVERS_ENABLED: "0",
+  };
+  if (options.ephemeralHome) {
+    isolated.HOME = options.ephemeralHome;
+    isolated.USERPROFILE = options.ephemeralHome;
+    isolated.APPDATA = path.join(options.ephemeralHome, "AppData", "Roaming");
+    isolated.LOCALAPPDATA = path.join(options.ephemeralHome, "AppData", "Local");
+    isolated.XDG_CONFIG_HOME = path.join(options.ephemeralHome, ".config");
+    isolated.XDG_CACHE_HOME = path.join(options.ephemeralHome, ".cache");
+    isolated.XDG_DATA_HOME = path.join(options.ephemeralHome, ".local", "share");
+    isolated.XDG_STATE_HOME = path.join(options.ephemeralHome, ".local", "state");
+  }
+  // WorkBuddy 桌面端自带的旧 CLI 与新版独立 CLI 使用不同的登录存储。旧版缺少
+  // --no-session-persistence 时，只把桌面端 initialize 返回的订阅凭据注入一次性 HOME；
+  // 既不写回用户目录，也不把 token 暴露到状态、日志或 argv。
+  if (options.account) {
+    isolated.CODEBUDDY_AUTH_TOKEN = options.account.token;
+    isolated.CODEBUDDY_USER_ID = options.account.userId;
+  }
+  return isolated;
+}
+
+const codeBuddyIsolationArgs = (legacyEphemeralHome = false): string[] => [
+  "--tools", "",
+  "--strict-mcp-config",
+  "--mcp-config", '{"mcpServers":{}}',
+  "--setting-sources", "none",
+  ...(legacyEphemeralHome ? [] : ["--no-session-persistence"]),
+];
+
+/**
+ * CodeBuddy 没有公开的 `auth status` 子命令。官方 Agent SDK 也是启动 stream-json
+ * 进程并发送 initialize 控制请求；这里复刻这一个只读探针，不引入会捆绑整套 CLI 的 SDK 依赖。
+ * 响应里的账号和 token 只转成布尔值，既不返回也不落日志。
+ */
+async function codeBuddyAccount(bin: string, env: NodeJS.ProcessEnv, legacyEphemeralHome = false): Promise<CodeBuddyAccount | null> {
+  return await new Promise<CodeBuddyAccount | null>((resolve, reject) => {
+    const args = [
+      "--input-format=stream-json", "--output-format=stream-json", "--verbose",
+      ...codeBuddyIsolationArgs(legacyEphemeralHome),
+    ];
+    const launch = executableInvocation(bin, args, env);
+    const child = spawn(launch.file, launch.args, {
+      env,
+      stdio: ["pipe", "pipe", "pipe"],
+      shell: false,
+      detached: process.platform !== "win32",
+    });
+    const requestId = `vra_probe_${process.pid}_${Date.now()}`;
+    let stdout = "";
+    let stderr = "";
+    let account: CodeBuddyAccount | null | undefined;
+    let settled = false;
+    let terminationError: Error | null = null;
+    let hardKillTimer: NodeJS.Timeout | null = null;
+    let killFallbackTimer: NodeJS.Timeout | null = null;
+    const finish = (fn: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      if (hardKillTimer) clearTimeout(hardKillTimer);
+      if (killFallbackTimer) clearTimeout(killFallbackTimer);
+      fn();
+    };
+    const terminate = (error: Error) => {
+      if (settled || terminationError) return;
+      terminationError = error;
+      clearTimeout(timer);
+      try { child.stdin.destroy(); } catch { /* 已关闭 */ }
+      signalProcessTree(child, "SIGTERM");
+      hardKillTimer = setTimeout(() => {
+        signalProcessTree(child, "SIGKILL");
+        killFallbackTimer = setTimeout(() => finish(() => reject(terminationError!)), 2_000);
+        killFallbackTimer.unref();
+      }, 500);
+      hardKillTimer.unref();
+    };
+    const timer = setTimeout(() => {
+      terminate(new Error("CodeBuddy auth probe timed out"));
+    }, 5_000);
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      stdout += chunk;
+      if (Buffer.byteLength(stdout, "utf8") > 512 * 1024) {
+        return terminate(new Error("CodeBuddy auth probe output too large"));
+      }
+      const lines = stdout.split(/\r?\n/);
+      stdout = lines.pop() ?? "";
+      for (const line of lines) {
+        try {
+          const message = JSON.parse(line) as {
+            type?: unknown;
+            response?: { subtype?: unknown; request_id?: unknown; response?: { account?: { userId?: unknown; token?: unknown } | null } };
+          };
+          if (message.type !== "control_response" || message.response?.request_id !== requestId) continue;
+          const value = message.response.subtype === "success" ? message.response.response?.account : null;
+          account = value && typeof value.userId === "string" && value.userId &&
+            typeof value.token === "string" && value.token
+            ? { userId: value.userId, token: value.token }
+            : null;
+        } catch { /* 非 JSON 诊断行不参与判定 */ }
+      }
+    });
+    child.stderr.setEncoding("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      if (Buffer.byteLength(stderr, "utf8") < 64 * 1024) stderr += chunk;
+    });
+    child.once("error", (error) => {
+      if (terminationError) return finish(() => reject(terminationError!));
+      finish(() => reject(error));
+    });
+    child.once("close", (code) => {
+      if (terminationError) return finish(() => reject(terminationError!));
+      if (account !== undefined) return finish(() => resolve(account!));
+      finish(() => reject(new Error(`CodeBuddy auth probe failed (${code ?? "unknown"}):${stderr.slice(-200)}`)));
+    });
+    child.stdin.on("error", () => { /* 提前退出时由 close 统一处理 */ });
+    child.stdin.end(JSON.stringify({
+      type: "control_request",
+      request_id: requestId,
+      request: { subtype: "initialize" },
+    }) + "\n", "utf8");
+  });
+}
+
+async function inspectCodeBuddy(bin: string, env: NodeJS.ProcessEnv): Promise<{ version: string | null; runtime: CodeBuddyRuntime }> {
+  const runEnv = codeBuddySubscriptionEnv(env);
+  const versionCall = executableInvocation(bin, ["--version"], runEnv);
+  const v = await execFileAsync(versionCall.file, versionCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 64 * 1024 });
+  const version = oneLine(v.stdout);
+  const helpCall = executableInvocation(bin, ["--help"], runEnv);
+  const h = await execFileAsync(helpCall.file, helpCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 192 * 1024 });
+  const help = String(h.stdout);
+  if (!REQUIRED_CODEBUDDY_FLAGS.every((flag) => help.includes(flag))) {
+    throw new LocalAgentError("agent_cli_too_old", "CodeBuddy 版本过旧，缺少受限对话所需的安全参数");
+  }
+  const legacyEphemeralHome = !help.includes("--no-session-persistence");
+  const account = await codeBuddyAccount(bin, runEnv, legacyEphemeralHome);
+  return { version, runtime: { account, legacyEphemeralHome } };
+}
+
+/** 只公开 CodeBuddy 版本与登录布尔；控制响应中的账号和 token 不离开本进程。 */
+export async function probeCodeBuddy(env: NodeJS.ProcessEnv = process.env): Promise<LocalAgentStatus> {
+  const bin = findExecutable("codebuddy", env);
+  if (!bin) {
+    return {
+      provider: "cli-codebuddy", name: "WorkBuddy / CodeBuddy", installed: false, authenticated: false,
+      available: false, version: null, status: "not_installed", detail: "本机未检测到 CodeBuddy Code CLI",
+    };
+  }
+  let version: string | null = null;
+  try {
+    const inspected = await inspectCodeBuddy(bin, env);
+    version = inspected.version;
+    const authenticated = inspected.runtime.account !== null;
+    return {
+      provider: "cli-codebuddy", name: "WorkBuddy / CodeBuddy", installed: true, authenticated,
+      available: authenticated, version, status: authenticated ? "ready" : "not_authenticated",
+      detail: authenticated
+        ? "CodeBuddy CLI 已登录，可使用本机 WorkBuddy / CodeBuddy 账号"
+        : "已安装；请先运行 codebuddy 并完成登录",
+    };
+  } catch (error) {
+    return {
+      provider: "cli-codebuddy", name: "WorkBuddy / CodeBuddy", installed: true, authenticated: false,
+      available: false, version, status: "probe_failed",
+      detail: error instanceof LocalAgentError && error.code === "agent_cli_too_old"
+        ? error.message
+        : "CodeBuddy 登录状态检测失败",
+    };
+  }
+}
+
 export interface RunLocalAgentOptions {
   systemPrompt: string;
   userPrompt: string;
@@ -347,6 +596,22 @@ export function claudeArgs(systemPrompt: string, outputSchema?: unknown): string
     "--tools", "",
     "--permission-mode", "dontAsk",
     "--no-session-persistence",
+    "--output-format", "json",
+    "--system-prompt", systemPrompt,
+  ];
+  if (outputSchema !== undefined) args.push("--json-schema", JSON.stringify(outputSchema));
+  return args;
+}
+
+/** CodeBuddy 的 `--print` 不携位置 prompt，因此只从 stdin 取用户正文，不进 argv / 进程列表。 */
+export function codeBuddyArgs(systemPrompt: string, outputSchema?: unknown, legacyEphemeralHome = false): string[] {
+  const args = [
+    "-p",
+    "--agent", "cli",
+    ...codeBuddyIsolationArgs(legacyEphemeralHome),
+    "--permission-mode", legacyEphemeralHome ? "default" : "dontAsk",
+    "--subagent-permission-mode", legacyEphemeralHome ? "default" : "dontAsk",
+    "--max-turns", "1",
     "--output-format", "json",
     "--system-prompt", systemPrompt,
   ];
@@ -381,45 +646,98 @@ export function parseClaudeOutput(stdout: string): string {
   throw new LocalAgentError("agent_empty_output", "Claude Code 没有返回可见回答");
 }
 
-function failureMessage(stderr: string, code: number | null): LocalAgentError {
-  const text = stderr.slice(0, 16_000);
+/** CodeBuddy 当前 JSON 输出兼容 result / response，并优先返回结构化产物。 */
+export function parseCodeBuddyOutput(stdout: string): string {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(stdout);
+  } catch {
+    throw new LocalAgentError("agent_bad_output", "CodeBuddy 返回了无法解析的结果");
+  }
+  const candidates = Array.isArray(parsed) ? parsed : [parsed];
+  for (const item of [...candidates].reverse()) {
+    if (!item || typeof item !== "object") continue;
+    const value = item as { result?: unknown; response?: unknown; structured_output?: unknown; is_error?: unknown };
+    if (value.is_error === true) throw new LocalAgentError("agent_failed", "CodeBuddy 本轮执行失败");
+    if (value.structured_output !== undefined) return JSON.stringify(value.structured_output);
+    if (typeof value.result === "string" && value.result.trim()) return value.result;
+    if (typeof value.response === "string" && value.response.trim()) return value.response;
+  }
+  throw new LocalAgentError("agent_empty_output", "CodeBuddy 没有返回可见回答");
+}
+
+function failureMessage(agent: LocalAgentId, stdout: string, stderr: string, code: number | null): LocalAgentError {
+  const label = agent === "claude" ? "Claude Code" : "CodeBuddy";
+  const command = agent === "claude" ? "claude" : "codebuddy";
+  const text = `${stderr}\n${stdout}`.slice(0, 16_000);
   if (/not logged in|login required|authentication|oauth|unauthori[sz]ed|\b401\b/i.test(text)) {
-    return new LocalAgentError("agent_not_authenticated", "Claude Code 登录已失效，请先运行 claude 并完成 /login");
+    return new LocalAgentError("agent_not_authenticated", `${label} 登录已失效，请先运行 ${command} 并完成登录`);
   }
   if (/rate.?limit|quota|usage limit|too many requests|\b429\b/i.test(text)) {
-    return new LocalAgentError("agent_quota", "Claude Code 当前额度或频率受限，请稍后再试");
+    return new LocalAgentError("agent_quota", `${label} 当前额度或频率受限，请稍后再试`);
   }
-  return new LocalAgentError("agent_failed", `Claude Code 调用失败（退出码 ${code ?? "未知"}）`);
+  return new LocalAgentError("agent_failed", `${label} 调用失败（退出码 ${code ?? "未知"}）`);
 }
 
 /**
- * 运行一次无工具 Claude Code 请求。提示词走 stdin，避免把用户正文放进 argv / 进程列表。
+ * 运行一次无工具本机 Agent 请求。提示词走 stdin，避免把用户正文放进 argv / 进程列表。
  * stdout / stderr 都有限额；超时或取消后先 TERM，再 KILL，避免 CLI 留在后台继续消耗额度。
  */
 export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOptions): Promise<string> {
-  if (agent !== "claude") throw new LocalAgentError("unsupported_cli", `尚未安全接通本机 Agent:${agent}`);
-  if (opts.signal?.aborted) throw new LocalAgentError("agent_cancelled", "Claude Code 请求已取消");
+  if (agent !== "claude" && agent !== "codebuddy") throw new LocalAgentError("unsupported_cli", `尚未安全接通本机 Agent:${agent}`);
+  const label = agent === "claude" ? "Claude Code" : "CodeBuddy";
+  const command = agent === "claude" ? "claude" : "codebuddy";
+  if (opts.signal?.aborted) throw new LocalAgentError("agent_cancelled", `${label} 请求已取消`);
   if (activeLocalAgents >= MAX_ACTIVE_LOCAL_AGENTS) {
     throw new LocalAgentError("agent_busy", `本机 Agent 已有 ${MAX_ACTIVE_LOCAL_AGENTS} 个任务在运行，请稍后再试`);
   }
   const baseEnv = opts.env ?? process.env;
-  const bin = findExecutable("claude", baseEnv);
-  if (!bin) throw new LocalAgentError("agent_not_installed", "本机未安装 Claude Code");
+  const bin = findExecutable(command, baseEnv);
+  if (!bin) throw new LocalAgentError("agent_not_installed", `本机未安装 ${label}`);
+  // CodeBuddy 能力与登录探针是异步的；先占槽位，避免多个请求同时通过上面的容量检查。
+  activeLocalAgents += 1;
+  let codeBuddyRuntime: CodeBuddyRuntime | null = null;
+  if (agent === "codebuddy") {
+    try {
+      codeBuddyRuntime = (await inspectCodeBuddy(bin, baseEnv)).runtime;
+    } catch (error) {
+      activeLocalAgents = Math.max(0, activeLocalAgents - 1);
+      if (error instanceof LocalAgentError) throw error;
+      throw new LocalAgentError("agent_probe_failed", "CodeBuddy 登录状态检测失败");
+    }
+    if (!codeBuddyRuntime.account) {
+      activeLocalAgents = Math.max(0, activeLocalAgents - 1);
+      throw new LocalAgentError("agent_not_authenticated", "CodeBuddy 登录已失效，请先运行 codebuddy 并完成登录");
+    }
+  }
 
   const timeoutMs = Math.max(1_000, Math.min(opts.timeoutMs ?? 180_000, 600_000));
   const maxOut = 4 * 1024 * 1024;
   const maxErr = 64 * 1024;
-  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "vra-claude-"));
-  activeLocalAgents += 1;
+  let tmpDir: string;
+  try {
+    tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), `vra-${agent}-`));
+  } catch (error) {
+    activeLocalAgents = Math.max(0, activeLocalAgents - 1);
+    throw error;
+  }
 
   return await new Promise<string>((resolve, reject) => {
-    const runEnv = subscriptionEnv(baseEnv);
-    const launch = executableInvocation(bin, claudeArgs(opts.systemPrompt, opts.outputSchema), runEnv);
+    const runEnv = agent === "claude"
+      ? subscriptionEnv(baseEnv)
+      : codeBuddySubscriptionEnv(baseEnv, {
+        account: codeBuddyRuntime!.legacyEphemeralHome ? codeBuddyRuntime!.account : null,
+        ephemeralHome: codeBuddyRuntime!.legacyEphemeralHome ? tmpDir : undefined,
+      });
+    const args = agent === "claude"
+      ? claudeArgs(opts.systemPrompt, opts.outputSchema)
+      : codeBuddyArgs(opts.systemPrompt, opts.outputSchema, codeBuddyRuntime!.legacyEphemeralHome);
+    const launch = executableInvocation(bin, args, runEnv);
     const child = spawn(launch.file, launch.args, {
       cwd: tmpDir,
       env: runEnv,
       stdio: ["pipe", "pipe", "pipe"],
-      // POSIX 下创建独立进程组。Claude CLI 可能继续派生 node / shell 子进程；
+      // POSIX 下创建独立进程组。本机 Agent CLI 可能继续派生 node / shell 子进程；
       // 只杀直接 child 会让后代留在后台继续消耗订阅额度。
       detached: process.platform !== "win32",
     });
@@ -472,10 +790,10 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       hardKillTimer.unref();
     };
     const onAbort = () => {
-      terminate(new LocalAgentError("agent_cancelled", "Claude Code 请求已取消"));
+      terminate(new LocalAgentError("agent_cancelled", `${label} 请求已取消`));
     };
     const timer = setTimeout(() => {
-      terminate(new LocalAgentError("agent_timeout", `Claude Code 超时（>${Math.round(timeoutMs / 1000)} 秒）`));
+      terminate(new LocalAgentError("agent_timeout", `${label} 超时（>${Math.round(timeoutMs / 1000)} 秒）`));
     }, timeoutMs);
 
     opts.signal?.addEventListener("abort", onAbort, { once: true });
@@ -484,7 +802,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     child.stdout.on("data", (chunk: Buffer) => {
       outBytes += chunk.length;
       if (outBytes > maxOut) {
-        terminate(new LocalAgentError("agent_output_too_large", "Claude Code 输出超出上限，已终止"));
+        terminate(new LocalAgentError("agent_output_too_large", `${label} 输出超出上限，已终止`));
         return;
       }
       stdout += chunk.toString("utf8");
@@ -494,7 +812,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     });
     child.on("error", () => {
       if (terminationError) return finish(() => reject(terminationError!));
-      finish(() => reject(new LocalAgentError("agent_start_failed", "Claude Code 启动失败")));
+      finish(() => reject(new LocalAgentError("agent_start_failed", `${label} 启动失败`)));
     });
     child.on("close", (code) => {
       if (terminationError) {
@@ -502,9 +820,16 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
         if (processTreeAlive()) return;
         return finish(() => reject(terminationError!));
       }
-      if (code !== 0) return finish(() => reject(failureMessage(stderr, code)));
+      if (code !== 0) return finish(() => reject(failureMessage(agent, stdout, stderr, code)));
       finish(() => {
-        try { resolve(parseClaudeOutput(stdout)); } catch (e) { reject(e); }
+        try {
+          resolve(agent === "claude" ? parseClaudeOutput(stdout) : parseCodeBuddyOutput(stdout));
+        } catch (error) {
+          // CodeBuddy 2.143.1 在未登录时会以 exit 0 输出一行纯文本，而不是 JSON。
+          // 只有解析已经失败时才把已知的登录 / 限流诊断升级为受控错误，避免误读正常模型回答。
+          const classified = failureMessage(agent, stdout, stderr, code);
+          reject(classified.code === "agent_failed" ? error : classified);
+        }
       });
     });
     child.stdin.end(opts.userPrompt, "utf8");

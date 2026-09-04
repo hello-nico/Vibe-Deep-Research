@@ -27,7 +27,7 @@ import { DEFAULT_CONSISTENCY, readSnapshot, snapshotKey, snapshotUsable, writeSn
 import { currentPlugin } from "./plugin.ts";
 import { ReportLibraryError, addReport, listReports as listStoredReports, removeReport, reportCitationErrors, reportCitations, reportContext, reportFile, reportRecallPlan, type ReportRecord } from "./report_library.ts";
 import { GuidedToolError, guidedToolTurn as guidedToolTurnCore, type GuidedToolReply } from "./guided_tool.ts";
-import { LocalAgentError, probeClaude, probeCodex, startCodexLogin, type LocalAgentStatus } from "./local_agent_runtime.ts";
+import { LocalAgentError, probeClaude, probeCodeBuddy, probeCodex, startCodexLogin, type LocalAgentStatus } from "./local_agent_runtime.ts";
 import { sdkCodexVersion } from "./runner.ts";
 import { redact } from "./service_redact.ts";
 
@@ -927,6 +927,7 @@ export async function localAgents(ctx: ServiceContext, env: NodeJS.ProcessEnv = 
   return await Promise.all([
     probeCodex(codexBin, pc.resolved.codexHome, env),
     probeClaude(env),
+    probeCodeBuddy(env),
   ]);
 }
 
@@ -1134,10 +1135,12 @@ function selectedRuntimeOf(ctx: ServiceContext, llm?: LlmOverride) {
   }
 }
 
-/** Claude 当前只开放对话与有界材料任务；会取数、读文件或跑工具的入口必须先挡在副作用外。 */
+/** 外部本机 Agent 只开放对话与有界材料任务；会取数、读文件或跑工具的入口必须先挡在副作用外。 */
 function assertCodexAgentRuntime(ctx: ServiceContext, llm?: LlmOverride): void {
-  if (selectedRuntimeOf(ctx, llm).runtime !== "codex") {
-    throw new ServiceError("agent_runtime_unsupported", "当前 Claude Code Agent 支持对话和有界材料任务；多空辩论、资料转写与工具任务请改用 Codex 或 API Agent");
+  const runtime = selectedRuntimeOf(ctx, llm);
+  if (runtime.runtime !== "codex") {
+    const name = runtime.agent === "codebuddy" ? "WorkBuddy / CodeBuddy Agent" : "Claude Code Agent";
+    throw new ServiceError("agent_runtime_unsupported", `当前 ${name} 支持对话和有界材料任务；多空辩论、资料转写与工具任务请改用 Codex 或 API Agent`);
   }
 }
 
