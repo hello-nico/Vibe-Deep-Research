@@ -14,11 +14,11 @@
 import {
   ApiError, backend, noteKV, notWired, num, round2, rows, scalar, str, throwNotWired,
   type Envelope,
-} from "./backend";
+} from "./backend.ts";
 import {
   currencyLabel, currencyOfSymbol, marketOfSymbol, normalizeMarketSymbol, quoteQueryOfSymbol, symbolFromQuoteKey,
   type CurrencyCode, type MarketCode,
-} from "./marketSymbol";
+} from "./marketSymbol.ts";
 
 export { ApiError };
 
@@ -57,6 +57,8 @@ export async function downloadReport(id: string, name: string): Promise<void> {
 }
 
 export interface Quote {
+  /** 源证据取数时刻，不是浏览器收到回包的时间，也不是逐笔成交时间。 */
+  fetched_at?: string | null;
   /**
    * 🔴 **全部可为 null**。原来这些走 `n0` 兜成 0,于是"端点没给这一项"在界面上
    *    变成「0.00 元 / 0.00 倍 / 0.00%」—— 与真实的 0 分不开,而且看着完全正常。
@@ -338,11 +340,11 @@ const descNullable = (a: number | null, b: number | null): number => (b ?? Numbe
 
 /* ---------- 行情 / 估值 ---------- */
 
-async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
+async function quoteMap(codes: string[], refresh = false): Promise<Record<string, Quote>> {
   const canonical = [...new Set(codes.map(normalizeMarketSymbol).filter((c): c is string => c !== null))];
   const queries = canonical.map(quoteQueryOfSymbol).filter((c): c is string => c !== null);
   if (!queries.length) return {};
-  const e = await env("tx_quotes_batch", { args: { codes: queries } });
+  const e = await env("tx_quotes_batch", { args: { codes: queries }, refresh });
   const out: Record<string, Quote> = {};
   for (const r of rows(e)) {
     const symbol = symbolFromQuoteKey(r.key);
@@ -350,6 +352,7 @@ async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
     const currency = symbol ? currencyOfSymbol(symbol) : null;
     if (!symbol || !market || !currency) continue;
     out[symbol] = {
+      fetched_at: r.fields.price?.fetched_at ?? null,
       name: str(r.fields.security_name),
       market,
       currency,
@@ -1339,7 +1342,7 @@ async function hkCashflowOf(code: string): Promise<HkCashflow> {
 export const api = {
   health: () => backend.health().then((h) => ({ ok: h.ok })),
 
-  quote: (codes: string) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean)),
+  quote: (codes: string, refresh = false) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean), refresh),
   valuation: valuationOf,
   percentile: percentileOf,
   financials: financialsOf,

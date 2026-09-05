@@ -148,7 +148,7 @@ const STAGE_BODY: Record<Stage, (cfg: RunConfig) => string> = {
   \`pe_deducted_annualized\`:--args '{"total_market_cap": <fetch_quote total_market_cap value>, "cap_unit": "<其 unit 原样>", "latest_quarter_deducted_profit": <latest_quarter value>, "profit_unit": "元"}' --evidence <total_market_cap ev> --calc <latest_quarter calc>;
   \`forward_pe\`:price = fetch_quote price,eps_forecast = FY T mean(--evidence 两条);
   \`pe_ttm_from_parts\`:total_market_cap + ttm_sum(归母)(--evidence 市值 ev --calc ttm_sum id)→ 与 fetch_quote pe_ttm、fetch_pe_history pe_ttm_latest 对照(差异留给 risk 阶段 source_conflicts);
-  \`percentile_rank\`:--args '{"history": {"history_csv": {"raw_ref": "<fetch_pe_history evidence 的 raw_ref>", "column": "peTTM", "where": {"tradestatus": "1"}}}, "current": <fetch_quote pe_ttm>}' --evidence <pe_ttm_traded_history_points ev> <pe_ttm ev>;
+  \`percentile_rank\`:--args '{"history": {"history_csv": {"raw_ref": "<fetch_pe_history evidence 的 raw_ref>", "column": "peTTM", "where": {"tradestatus": "1"}, "date_column": "date"}}, "current": <fetch_quote pe_ttm>}' --evidence <pe_ttm_traded_history_points ev> <pe_ttm ev>;
   \`peg\`:pe = 扣非×4 PE value,cagr = forward_cagr value(--calc 两个 id);
   \`pe_digestion_scenarios\`:同上输入(--calc 两个 id);
   \`forward_vs_ttm_judgement\`:forward_cagr_value = forward_cagr value,ttm_yoy_value = 归母 ttm_yoy value(--calc 两个 id)。
@@ -186,6 +186,9 @@ export function buildStagePrompt(stage: Stage, cfg: RunConfig, ctx: PromptContex
   }
   if (ctx.attempt > 0 && ctx.validatorErrors?.length) {
     parts.push(`【补跑 第 ${ctx.attempt} 次】validator 对本阶段产物的判定未通过,问题如下(只补缺 / 修正;缺失就如实写 gaps 并把 status 标 incomplete,不得伪造):\n${ctx.validatorErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`);
+    if (stage === "report") {
+      parts.push(`【报告修复方式】先用 read_run_file 读取现有 report.md，只修 validator 点名的原句，不要从头重写，也不要只在回复里解释。每个错误数字有三种合法处理：①在**同一行**补上它自己的 evidence / calc id；②改成所引 calc 的 output.display 原文（含符号与单位）；③若它只是 calc details 的原始小数、没有对应 display，就删掉该数字，只保留定性说明和 calc id。修完后必须用 write_report 覆盖整份 report.md，并同步写 stages/report.json。“错误数字=...；同行 id=...”是逐行清单，清单里的每一行都要处理。`);
+    }
   }
   if (ctx.stageStatusSoFar && Object.keys(ctx.stageStatusSoFar).length) {
     parts.push(`【前序阶段状态】${JSON.stringify(ctx.stageStatusSoFar)}(上游 incomplete 的数据不得强算,按 SOP §2 依赖矩阵写 gaps)`);

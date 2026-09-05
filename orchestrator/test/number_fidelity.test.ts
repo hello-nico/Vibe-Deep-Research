@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import "../src/finance/register.ts";   // Core 不内置词表:未注册就抛错(这正是设计)
-import { checkNumberFidelity, quotedHistory } from "../src/number_fidelity.ts";
+import { checkNumberFidelity, quotedHistory, summarizeFidelityViolations } from "../src/number_fidelity.ts";
 
 const CALC = "calc-" + "a".repeat(16);
 const EV = "ev-bbbbbb";
@@ -108,6 +108,34 @@ test("纯 evidence 行也查:引了真实 id 却写了别的数要被抓出来",
 test("证据文本匹配要忽略空白:「12.34 亿元」与「12.34亿」是同一个数", () => {
   const ev = evMap([["ev-cccccccccccc", "公告(合同金额 12.34 亿元)"]]);
   assert.deepEqual(checkNumberFidelity("## 卡口事件\n- 合同金额 12.34亿 [ev-cccccccccccc]\n", ev, calcMap([])).violations, []);
+});
+
+test("token 原始位置不被同行 ev-id 的数字带偏:公告标题里的 1% 不误判成负数", () => {
+  const id = "ev-316d2facb875";
+  const ev = evMap([[id, "关于控股股东及其一致行动人持股比例变动超过1%整数倍的公告"]]);
+  const got = checkNumberFidelity(`## 推断\n先引另一条线索(ev-1f0fedccd8ee),再写持股比例变动超 1% 整数倍(${id})。`, ev, calcMap([]));
+  assert.deepEqual(got.evidenceViolations, []);
+  assert.equal(got.exact, 1);
+});
+
+test("补跑诊断按原句聚合全部错误数字，并保留同行 id", () => {
+  const calcs = calcMap([{ id: CID, output: { status: "ok", value: 37.4, unit: "倍", display: "37.40 倍" } }]);
+  const got = checkNumberFidelity(rep(`PE 41.90 倍、PEG 0.88 倍 [${CID}]`), evMap([]), calcs);
+  assert.equal(got.violationDetails.length, 2);
+  const summary = summarizeFidelityViolations(got.violationDetails);
+  assert.match(summary, /错误数字=41\.90倍,0\.88倍/);
+  assert.match(summary, new RegExp(CID));
+  assert.equal((summary.match(/原句=/g) ?? []).length, 1, "同一长行只展开一次，避免补跑提示重复刷屏");
+});
+
+test("补跑诊断默认不隐藏第 13 行以后的错误，避免两次重试仍拿不到完整清单", () => {
+  const items = Array.from({ length: 25 }, (_, i) => ({
+    section: "估值", token: `${100 + i}.00倍`, line: `第 ${i + 1} 个错误 ${100 + i}.00 倍`, citedIds: [CID],
+  }));
+  const summary = summarizeFidelityViolations(items);
+  assert.equal((summary.match(/原句=/g) ?? []).length, 25);
+  assert.match(summary, /第 25 个错误 124\.00 倍/);
+  assert.doesNotMatch(summary, /行未展开/);
 });
 
 test("missingDisplay 按每条 calc 自己的版本判,不误杀真旧运行", () => {

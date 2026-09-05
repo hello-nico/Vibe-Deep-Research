@@ -74,6 +74,16 @@ export interface ProviderProfileFile {
 }
 
 export const PROVIDER_ID_RE = /^[a-z][a-z0-9_-]{0,31}$/;
+/** URL 的共同边界:远程 HTTPS;HTTP 仅显式本机回环,不接受 URL 内凭据。 */
+export function providerUrlError(value: string): string | null {
+  let url: URL;
+  try { url = new URL(value); } catch { return "模型地址不是合法 URL"; }
+  if (/[\\\s]/.test(value)) return "模型地址不能包含空白或反斜杠";
+  if (url.username || url.password || url.search || url.hash) return "模型地址不能携带用户名密码、查询参数或片段;请把凭据填到 API Key";
+  if (url.protocol === "https:") return null;
+  if (url.protocol === "http:" && /^http:\/\/(localhost|127\.0\.0\.1|\[::1\])(?::\d+)?(?:\/|$)/i.test(value)) return null;
+  return "远程模型地址必须使用 HTTPS;HTTP 仅允许 localhost、127.0.0.1 或 [::1] 的本机服务";
+}
 const ENV_KEY_RE = "^[A-Z][A-Z0-9_]*$";
 const FORBIDDEN_ENV = ["PATH", "HOME", "USER", "SHELL", "CODEX_HOME", "TMPDIR", "LANG", "TERM"];
 
@@ -83,7 +93,7 @@ export const providerProfileSchema = {
   required: ["id", "name", "wire_api", "base_url", "env_key", "auth_modes", "requires_openai_auth", "default_model", "responses_support"],
   properties: {
     id: { type: "string", pattern: "^[a-z][a-z0-9_-]{0,31}$" }, name: { type: "string", minLength: 1 }, wire_api: { type: "string", enum: ["responses", "chat"] },
-    base_url: { type: ["string", "null"], pattern: "^https://[^\\s]+$" }, env_key: { type: "string", pattern: ENV_KEY_RE, not: { enum: FORBIDDEN_ENV } },
+    base_url: { type: ["string", "null"], pattern: "^https?://[^\\s]+$" }, env_key: { type: "string", pattern: ENV_KEY_RE, not: { enum: FORBIDDEN_ENV } },
     auth_modes: { type: "array", minItems: 1, uniqueItems: true, items: { type: "string", enum: ["chatgpt_login", "api_key"] } }, requires_openai_auth: { type: "boolean" }, default_model: { type: ["string", "null"] },
     responses_support: { type: "string", enum: ["native", "gateway", "none"] }, stream_format: { type: "string" }, tool_calls: { type: "boolean" }, reasoning: { type: "string" }, context_limit_tokens: { type: ["integer", "null"], minimum: 1 },
     retryable_errors: { type: "array", items: { type: "string" } }, known_incompatibilities: { type: "array", items: { type: "string" } },
@@ -99,7 +109,7 @@ export const providerProfileSchema = {
       type: "object", additionalProperties: false, required: ["supported", "structured_output"],
       properties: {
         supported: { type: "boolean" },
-        base_url: { type: ["string", "null"], pattern: "^https://[^\\s]+$" },
+        base_url: { type: ["string", "null"], pattern: "^https?://[^\\s]+$" },
         default_model: { type: ["string", "null"] },
         structured_output: { type: "string", enum: ["server_schema", "prompt"] },
         verified_at: { type: "string", pattern: "^\\d{4}-\\d{2}-\\d{2}$" },
@@ -190,6 +200,9 @@ export function validateProfile(p: unknown, label: string): ProviderProfileFile 
   const errs = validateWith("provider-profile", providerProfileSchema, p);
   if (errs.length) throw new Error(`${label} 不符合 provider profile schema:${errs.slice(0, 5).join("; ")}`);
   const prof = p as ProviderProfileFile;
+  for (const u of [prof.base_url, prof.direct?.base_url]) {
+    if (u) { const error = providerUrlError(u); if (error) throw new Error(`${label}:${error}`); }
+  }
   // 密钥不得写进 profile:http_headers 值 / query_params 值若像 token 直接拒绝(密钥只走 env_key / env_http_headers)
   for (const [k, v] of Object.entries({ ...(prof.http_headers ?? {}), ...(prof.query_params ?? {}) })) {
     if (SECRET_LIKE.test(v) || /key|token|secret|password/i.test(k) && v.length > 8) throw new Error(`${label}:${k} 看起来含密钥值;密钥只能通过环境变量(env_key / env_http_headers)提供`);

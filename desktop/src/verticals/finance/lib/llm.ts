@@ -13,9 +13,10 @@
  * 🔴 浏览器产品只认用户明确保存的这一份配置，不回落到后端环境变量。
  *    否则首次使用会在没做选择时悄悄调用另一家模型，界面也无法解释实际走了哪条路。
  */
-import { ApiError, backend } from "./backend";
-import { parseHeadlineTranslations, type HeadlineTranslationInput } from "./headlineTranslation";
-import { clearUserLlm, loadUserLlm, readAiRuntime, saveUserLlm, type LlmConfig } from "./llmStore";
+import { ApiError, backend } from "./backend.ts";
+import { parseHeadlineTranslations, type HeadlineTranslationInput } from "./headlineTranslation.ts";
+import { clearUserLlm, loadUserLlm, readAiRuntime, saveUserLlm, type LlmConfig } from "./llmStore.ts";
+import { newAnalysisSession } from "./analysisSession.ts";
 
 export type { LlmConfig };
 // ⚠️ 存取一律走 llmStore —— 这里再抄一份实现，迟早两边判定不一致
@@ -66,8 +67,8 @@ export function loadLlm(): LlmConfig | null {
 /**
  * 发一轮对话。
  * ⚠️ `context` 拼在问题前面 —— 上游用它把"当前这一页在看什么"带进去。
- * ⚠️ 只发**最后一条用户消息** + 上下文:我们的 `/chat` 自己按 session 维护历史,
- *    把整段 history 再发一遍会重复计入。
+ * 每次页面分析使用新会话，只发最后一条用户消息与本次页面上下文；
+ * 需要连续对话的入口使用 useAiChat 管理自己的会话，不调用本函数。
  */
 export async function chatStream(
   messages: ChatMsg[],
@@ -81,7 +82,7 @@ export async function chatStream(
 
   const message = context ? `【当前页面的数据】\n${context}\n\n【问题】\n${last.content}` : last.content;
   // ⚠️ 用户那份由 `backend.chat` 自己带上（见 llmStore.ts 里那条"防线只守一个入口等于没有"）
-  const r = await backend.chat(message, "default", signal);
+  const r = await backend.chat(message, newAnalysisSession("page-analysis"), signal);
   // 用户中途关面板 / 换问题:结果照样回来了,但不往界面上写(与上游 abort 行为一致)
   if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
 

@@ -15,7 +15,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import {
-  BUILTIN_OPENAI_PROFILE, PROVIDER_ID_RE, directCapabilityOf, loadProviderProfile, validateProfile,
+  BUILTIN_OPENAI_PROFILE, PROVIDER_ID_RE, directCapabilityOf, loadProviderProfile, validateProfile, providerUrlError,
   type AuthMode, type ProviderProfileFile,
 } from "./providers.ts";
 import { loadProductConfig } from "./productConfig.ts";
@@ -129,7 +129,7 @@ export function resolveRuntimeProvider(
   if (id === "openai-compatible" || id === "custom") {
     if (!base) throw new RuntimeProviderError("missing_base_url", "自定义端点必须填 baseURL");
     if (!key) throw new RuntimeProviderError("missing_key", "自定义端点必须填 API key");
-    // ⚠️ 与 ③ 用同一把尺子：只放 http(s)。两条分支各判各的，迟早漂移
+    // 与模板共用 URL 校验：远程必须 HTTPS，HTTP 只开放明确的本机地址。
     const checked = assertHttp(base);
     // ⚠️ 手搓的档案最容易与契约漂移 —— 走一遍与磁盘模板同一把尺子
     const synthesized = validateProfile(
@@ -162,7 +162,7 @@ export function resolveRuntimeProvider(
     throw new RuntimeProviderError("unknown_provider", `没有这个 provider 的模板:${id}（可选见 providers/ 目录）`);
   }
   if (!key) throw new RuntimeProviderError("missing_key", `${id} 需要 API key`);
-  // ⚠️ baseURL 允许覆盖（私有网关 / 填占位符），但**必须是 http(s)** —— 别让它变成一条本地文件路径。
+  // baseURL 允许覆盖（私有网关 / 填占位符），远程 HTTPS / 本机 HTTP 的校验与模板一致。
   //    覆盖值交给 loadProviderProfile 在**校验之前**替换：带占位符的模板只有这样才用得起来。
   let profile: ProviderProfileFile;
   try {
@@ -277,21 +277,8 @@ export function resolveDirectProvider(
  *    会打死真实用户，换不来对应的安全收益。
  */
 function assertHttp(u: string): string {
-  let parsed: URL;
-  try {
-    parsed = new URL(u);
-  } catch {
-    throw new RuntimeProviderError("bad_base_url", "baseURL 不是合法 URL");
-  }
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    throw new RuntimeProviderError("bad_base_url", `baseURL 只能是 http(s)，收到 ${parsed.protocol}`);
-  }
-  if (parsed.username || parsed.password) {
-    throw new RuntimeProviderError("bad_base_url", "baseURL 里不要带用户名密码（user:pass@），把 key 填到下面的 API Key 里");
-  }
-  if (parsed.search || parsed.hash) {
-    throw new RuntimeProviderError("bad_base_url", "baseURL 不能带查询参数或片段；把凭据填到单独的 API Key 里");
-  }
+  const error = providerUrlError(u);
+  if (error) throw new RuntimeProviderError("bad_base_url", error);
   return u;
 }
 

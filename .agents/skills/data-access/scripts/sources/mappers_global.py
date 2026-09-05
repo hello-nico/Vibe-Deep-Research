@@ -380,7 +380,7 @@ def sec_frame_map(result: dict, ctx: dict) -> dict:
 
 def finra_short_map(result: list, ctx: dict) -> dict:
     if not result:
-        return out([ev(ctx, "short_volume_points", 0, "天", today_str(), currency="n/a")], status="partial", degraded="FINRA 近期无该票记录(小票 / 非 CNMS 覆盖)")
+        return out([ev(ctx, "short_volume_points", 0, "天", today_str(), currency="n/a")], status="partial", degraded="FINRA 已取得的日文件内未检出该标的记录，原因未核实；未取得的日期不代表无成交，也不能推断市场覆盖范围")
     rows = sorted(result, key=lambda r: r["date"])
     evs = rows_fields(ctx, rows, [("ratio", "short_volume_ratio", "小数"), ("short", "short_volume", "股"), ("total", "total_volume_finra", "股")], period_of=lambda r: f"{r['date'][:4]}-{r['date'][4:6]}-{r['date'][6:8]}",
                       key_of=lambda r: r["date"], note_of=lambda r: "FINRA Reg SHO 日度空头成交(CNMS)")

@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+import path from "node:path";
 
 import "../src/finance/register.ts";
 import { GuidedToolError, guidedToolTurn, type GuidedToolDeps } from "../src/guided_tool.ts";
+import { detectPython } from "../src/init.ts";
 
 const opts = { repoRoot: process.cwd(), dataRoot: process.cwd() };
 const req = { name: "sample", label: "样例任务", session: "s1", message: "请验证这个想法" };
@@ -84,6 +88,39 @@ test("模型把强制披露藏进 HTML 注释时，服务端仍追加可见披�
   assert.match(out.report ?? "", /## 工具口径披露\n\n- 本次基准/);
   assert.equal((out.report ?? "").split(disclosure).length - 1, 2, "注释里的文本不能让可见披露消失");
 });
+
+test("真实回测 JSON 的运行期历史不足说明进入最终报告，即使模型漏写", async () => {
+  const repo = fileURLToPath(new URL("../../", import.meta.url));
+  const python = process.env.VRA_PYTHON ?? detectPython(repo) ?? detectPython(path.join(repo, "..")) ?? "python3";
+  const note = "以下标的自身历史不足：300308.SZ 仅 400 根，仍参与了回测。";
+  const script = `from pathlib import Path
+import json
+from backtest.gate import plan_backtest
+from backtest.run import Result
+from backtest.cli import _result_view
+p = plan_backtest(codes=["600519.SH"], start="2021-01-01", end="2025-12-31", style="long")
+r = Result(metrics={}, plan=p, strategy="fixture", provenance={}, limits=p.limits, notes=[*p.notes, ${JSON.stringify(note)}], run_dir=Path("."))
+print(json.dumps({"ok": True, "result": _result_view(r)}))`;
+  const result = JSON.parse(execFileSync(python, ["-c", script], { cwd: repo, encoding: "utf8", timeout: 30_000 }));
+  const chats = [model("ready"), model("complete", { document: "## 核心结果\n\n模型漏写了运行期限制。" })];
+  const out = await guidedToolTurn(opts, req, {
+    chat: async () => ({ session: "x", reply: chats.shift()!, redacted: 0, duration_ms: 1 }),
+    runTool: async (_name, body) => (body as { action?: string }).action === "catalog" ? { ok: true, catalog: {} } : result,
+  });
+  assert.ok(out.report?.includes(`- ${note}`));
+});
+
+for (const disclosures of [["限制".repeat(251)], Array.from({ length: 13 }, (_, i) => `限制 ${i}`)]) {
+  test(`强制披露超限明确拒绝，不截断后出报告 (${disclosures.length})`, async () => {
+    let chats = 0;
+    await assert.rejects(() => guidedToolTurn(opts, req, {
+      chat: async () => { chats++; return { session: "x", reply: model("ready"), redacted: 0, duration_ms: 1 }; },
+      runTool: async (_name, body) => (body as { action?: string }).action === "catalog"
+        ? { ok: true, catalog: {} } : { ok: true, result: { required_disclosures: disclosures } },
+    }), (e: unknown) => e instanceof GuidedToolError && e.code === "bad_tool_result");
+    assert.equal(chats, 1, "不得让模型在丢失披露后继续写成功报告");
+  });
+}
 
 test("工具拒绝时回到补问，不伪装成完成", async () => {
   const chats = [model("ready"), model("needs_input", { message: "样本太短，请扩大时间范围。" })];

@@ -10,6 +10,11 @@ import { LocalAgentError, runLocalAgent, type LocalAgentId, type RunLocalAgentOp
 
 type Complete = (agent: LocalAgentId, options: RunLocalAgentOptions) => Promise<string>;
 
+const FATAL_LOCAL_AGENT_ERRORS = new Set([
+  "agent_not_installed", "agent_not_authenticated", "agent_probe_failed",
+  "agent_cli_too_old", "unsupported_cli", "agent_bad_timeout", "agent_quota",
+]);
+
 export interface LocalAgentStageAgentOptions {
   agent: LocalAgentId;
   runId: string;
@@ -85,6 +90,7 @@ export class LocalAgentStageAgent implements AgentRunner {
     const before = writableSnapshot(this.#options.runDir);
     let finalResponse = "";
     let failed: string | null = null;
+    let fatal: LocalAgentError | null = null;
     this.log(stage, "local_agent.turn_start", { attempt, agent: this.#options.agent });
     try {
       finalResponse = await this.#complete(this.#options.agent, {
@@ -110,6 +116,7 @@ export class LocalAgentStageAgent implements AgentRunner {
       });
     } catch (error) {
       failed = error instanceof LocalAgentError ? `${error.code}: ${error.message}` : error instanceof Error ? error.message : String(error);
+      if (error instanceof LocalAgentError && FATAL_LOCAL_AGENT_ERRORS.has(error.code)) fatal = error;
       this.log(stage, "local_agent.turn_failed", { attempt, agent: this.#options.agent,
         code: error instanceof LocalAgentError ? error.code : "unknown", message: failed });
     }
@@ -117,6 +124,9 @@ export class LocalAgentStageAgent implements AgentRunner {
     const durationMs = Date.now() - started;
     this.log(stage, "local_agent.turn_end", { attempt, agent: this.#options.agent,
       file_changes: fileChanges.length, duration_ms: durationMs, failed });
+    // 登录失效、未安装与额度耗尽都不是“让模型再写一遍”能修复的问题。
+    // 直接交给编排器的异常收口，避免同一错误在六个阶段里连续调用十八次。
+    if (fatal) throw fatal;
     return { finalResponse, usage: null, commands: [], fileChanges,
       itemCount: failed ? 0 : 1, durationMs, failed, threadId: null };
   }

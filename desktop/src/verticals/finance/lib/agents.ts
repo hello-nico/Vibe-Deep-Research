@@ -10,7 +10,8 @@
  *    —— 谁也不能靠编数字赢。资料包为空(取数全挂)时**直接拒开**,
  *    因为没有共同事实的"辩论"只是两段作文,而它看着像做过功课。
  */
-import { ApiError, backend, type DebateNumberAudit, type DebateState } from "./backend";
+import { ApiError, backend, type DebateNumberAudit, type DebateState } from "./backend.ts";
+import { newAnalysisSession } from "./analysisSession.ts";
 
 export type DebateStage = "bull" | "bear" | "bull_rebut" | "bear_rebut" | "referee";
 
@@ -109,6 +110,7 @@ export async function reflectStream(
   signal?: AbortSignal,
 ): Promise<void> {
   try {
+    if (signal?.aborted) return;
     handlers.onStatus?.("审计中…");
     const msg = [
       "回头审下面这段我自己写的推理,逐条标出:哪些结论有数据撑着、哪些是脑补、最脆弱的一环在哪。",
@@ -118,7 +120,7 @@ export async function reflectStream(
       "",
       source || "(没有正文)",
     ].join("\n");
-    const r = await backend.chat(msg);
+    const r = await backend.chat(msg, newAnalysisSession("note-reflection"), signal);
     if (signal?.aborted) return;
     handlers.onDelta?.(r.reply);
     handlers.onDone?.(r.reply, false);

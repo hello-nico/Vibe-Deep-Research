@@ -69,7 +69,7 @@ test("providers:validateProfile 拒绝密钥值 / 非 openai requires_openai_aut
   assert.throws(() => validateProfile({ ...base, requires_openai_auth: true }, "t"), /requires_openai_auth/);
   assert.throws(() => validateProfile({ ...base, id: "openai", wire_api: "responses" }, "t"), /base_url 必须为 null/);
   assert.throws(() => validateProfile({ ...base, env_key: "PATH" }, "t"), /schema/);
-  assert.throws(() => validateProfile({ ...base, base_url: "http://insecure" }, "t"), /schema/);
+  assert.throws(() => validateProfile({ ...base, base_url: "http://insecure" }, "t"), /HTTPS/);
   assert.throws(() => validateProfile({ ...base, extra: 1 }, "t"), /schema/);
 });
 

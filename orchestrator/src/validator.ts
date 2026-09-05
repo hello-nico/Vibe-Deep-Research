@@ -5,6 +5,7 @@
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
+import { isDeepStrictEqual } from "node:util";
 
 import { currentPlugin } from "./plugin.ts";
 import { HOME_PREFIXES, gateRegexps, gateStagePatterns, packCriticalScripts, reportSections, stageCalcs, stageScripts, fetchEnv,
@@ -13,7 +14,7 @@ import { loadLedgerFromDisk, type Ledger } from "./fetchrun.ts";
 import { PLAN_REL, type EndpointDef, type PlanFile, type StagePlan } from "./registry.ts";
 import { complianceGate, missingSections, referencedIds, reportStatusToken } from "./gate.ts";
 import { extraSectionErrors, requiredExtraSections } from "./report_sections.ts";
-import { checkNumberFidelity, quotedHistory } from "./number_fidelity.ts";
+import { checkNumberFidelity, quotedHistory, summarizeFidelityViolations } from "./number_fidelity.ts";
 import { resultProjection, type ResultProjectionItem } from "./calc_projection.ts";
 import { reportCitationErrors, type ReportSourceRef } from "./report_library.ts";
 
@@ -416,6 +417,8 @@ export interface Slot {
   coverRoles?: Role[];
   /** 实参 == 所引用该 field(可限定财年)证据的 value;unitArg == 证据 unit */
   bind?: { arg: string; field: string; unitArg?: string; fy?: Fy }[];
+  /** 插件声明序列列名/过滤/日期列;Core 绑定文件、期间与行数,复算再验证解析记录。 */
+  bindSeries?: { arg: string; field: string; column: string; where: Record<string, string>; dateColumn: string }[];
   /** 实参 == 所引用上游计算的 output.value;unitArg == output.unit */
   bindUpstream?: { arg: string; fn: string; role?: Role; unitArg?: string }[];
   /** 这些 field 的引用证据必须同一期间(可要求 == 某财年) */
@@ -498,6 +501,21 @@ export function validateCalcSlots(stage: Stage, run: RunView, so: StageOutput): 
         if (!hit) errors.push(`${tag}实参 ${b.arg}=${JSON.stringify(val)} 与所引用 ${b.field}${want ? "@" + want : ""} 证据的值 ${matched.map((e) => JSON.stringify(e.value)).join("/")} 不一致(输入没选对或手改)`);
         else if (b.unitArg && inputs[b.unitArg] !== hit.unit) errors.push(`${tag}单位参数 ${b.unitArg}=${String(inputs[b.unitArg])} 与证据单位 ${hit.unit} 不一致`);
       }
+      for (const b of slot.bindSeries ?? []) {
+        const supplied = inputs[b.arg];
+        const rec = (r.inputs_resolved as Record<string, Record<string, unknown>> | undefined)?.[b.arg];
+        const matched = evs.filter(e => e.field === b.field && typeof e.raw_ref === "string" && e.raw_ref.startsWith("raw/"));
+        const hit = matched.some(e => {
+          const where = { ...b.where }; // 插件深冻结使用无原型字典;JSON 输入按普通对象比较
+          const spec = { raw_ref: e.raw_ref, column: b.column, where, date_column: b.dateColumn };
+          return isDeepStrictEqual(supplied, { history_csv: spec }) &&
+            rec?.raw_ref === e.raw_ref && rec?.column === b.column &&
+            isDeepStrictEqual(rec?.where, where) && rec?.date_column === b.dateColumn &&
+            rec?.period === e.period && typeof e.value === "number" && e.value > 0 &&
+            rec?.rows_used === e.value;
+        });
+        if (!hit) errors.push(`${tag}序列实参 ${b.arg} 必须绑定所引用 ${b.field} 的文件、列 ${b.column}、过滤条件、日期列、期间和行数;禁止内联替代`);
+      }
       for (const b of slot.bindUpstream ?? []) {
         const up = ups.find((c) => c.function === b.fn && (!b.role || roleOf(c, run) === b.role));
         if (!up) continue; // 已由 upstream 规则报错
@@ -550,11 +568,11 @@ export function validateReport(run: RunView, expectedStatus?: RunStatus): Valida
   // 纯 evidence 行的违规**不受 applicable 门控**:它与 display 无关,旧运行同样该报
   if (fid.evidenceViolations?.length) {
     errors.push(`report.md 有 ${fid.evidenceViolations.length} 个数字与同行引用的 evidence 对不上(引了 id 却写了别的数)`
-      + `:${fid.evidenceViolations.slice(0, 3).join(" | ")}`);
+      + `:${summarizeFidelityViolations(fid.evidenceViolationDetails)}`);
   }
   if (fid.applicable && fid.violations.length) {
     errors.push(`report.md 有 ${fid.violations.length}/${fid.total} 个数字与同行引用的证据 / 计算对不上(引了 id 却写了别的数)`
-      + `:${fid.violations.slice(0, 3).join(" | ")}`);
+      + `:${summarizeFidelityViolations(fid.violationDetails)}`);
   }
   const refs = referencedIds(run.report);
   for (const id of refs.evidence) if (!run.evidenceIds.has(id)) errors.push(`report.md 引用了不存在的 evidence ${id}`);

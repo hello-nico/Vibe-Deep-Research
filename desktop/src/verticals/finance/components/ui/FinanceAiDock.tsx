@@ -15,6 +15,7 @@ import { useAiChat } from "../../../../core/ai/useAiChat";
 import { backend } from "@/lib/backend";
 import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
+import { HOME_TASKS } from "@/lib/homeTasks";
 
 /** 发一轮对话 —— 两个入口共用同一条通道 */
 async function sendTurn({ message, session, signal }: { message: string; session: string; signal: AbortSignal }) {
@@ -41,11 +42,7 @@ const replyActions = (reply: string, question: string) => (
 );
 
 const HOME_AGENT_SUGGESTIONS = [
-  "今日复盘",
-  "今日的连板股是什么？分析涨停的原因",
-  "调取这家公司今年的所有研报，并进行深度分析",
-  "先收集这个行业最近3个月的200份研报，然后分析这个行业",
-  "帮我开始一份公司研究",
+  "解释一下六阶段研究流程",
   "解释一下这套 Agent",
 ];
 
@@ -61,7 +58,7 @@ export function FinanceHomeAgent() {
     <section
       id="home-agent"
       data-home-agent
-      className="glass flex h-[370px] flex-col overflow-hidden rounded-2xl border border-primary/25 shadow-[0_22px_70px_-54px_hsl(var(--primary)/0.85)] sm:h-[410px]"
+      className="glass flex min-h-[470px] flex-col overflow-hidden rounded-2xl border border-primary/25 shadow-[0_22px_70px_-54px_hsl(var(--primary)/0.85)] sm:h-[510px]"
     >
       <div className="flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -85,6 +82,18 @@ export function FinanceHomeAgent() {
         )}
       </div>
 
+      <nav aria-label="研究任务入口" className="shrink-0 border-b border-border/60 px-4 py-3 sm:px-5">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {HOME_TASKS.map((task) => (
+            <Link key={task.to} to={task.to} className="rounded-lg border border-border/60 px-3 py-2 text-sm hover:border-primary/60 focus-visible:outline focus-visible:outline-primary">
+              <span className="block font-medium">{task.label} →</span>
+              <span className="block text-[11px] text-muted-foreground">{task.detail}</span>
+            </Link>
+          ))}
+        </div>
+        <p className="mt-2 text-[11px] text-muted-foreground">任务请从上方进入；下方仅为交流，不会自动取数或收集全网研报。</p>
+      </nav>
+
       {!configured ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
           <div>
@@ -106,7 +115,7 @@ export function FinanceHomeAgent() {
             className="px-5 py-4"
           />
           <AiComposer
-            placeholder="输入市场、公司、行业或研究方法…（Shift+Enter 换行）"
+            placeholder="交流已有资料或研究方法…（Shift+Enter 换行）"
             disabled={chat.loading}
             onSend={(text) => void chat.submit(text)}
             value={draft}
@@ -158,7 +167,7 @@ export function FinanceAiDock() {
         placeholder: "就这一页的内容问点什么…",
         notice:
           agentEnabled
-            ? "本地 Agent 读取这一页当前显示的数据，并负责上下文与工具流程——本产品不背书、不构成投资建议。"
+            ? "本地 Agent 基于这一页已显示的数据交流，不自动取数、不调用工具——本产品不背书、不构成投资建议。"
             : "当前页面内容会随本轮问题发送给所选模型；不运行 Agent、不调用工具——本产品不背书、不构成投资建议。",
       }}
       send={sendTurn}

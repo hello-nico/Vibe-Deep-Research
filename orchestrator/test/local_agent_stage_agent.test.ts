@@ -5,6 +5,7 @@ import path from "node:path";
 import test from "node:test";
 
 import { LocalAgentStageAgent } from "../src/engines/local_agent_stage_agent.ts";
+import { LocalAgentError } from "../src/local_agent_runtime.ts";
 
 test("本机订阅 Agent 每阶段只得到五个受控 MCP 工具，并如实记账产物变更", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-local-stage-"));
@@ -44,5 +45,35 @@ test("本机订阅 Agent 失败转成 turn failure，不把它冒充成模型空
     const result = await runner.runTurn("profile", 0, "x");
     assert.match(result.failed ?? "", /boom/);
     assert.equal(result.itemCount, 0);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("本机订阅 Agent 登录失效时立即终止研究，不做无意义的阶段重试", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-local-stage-auth-"));
+  try {
+    let calls = 0;
+    const runner = new LocalAgentStageAgent({ agent: "claude", runId: "r3", runDir: root,
+      repoRoot: root, python: "python3", eventsPath: path.join(root, "events.jsonl"), timeoutMs: 10_000,
+      complete: async () => {
+        calls += 1;
+        throw new LocalAgentError("agent_not_authenticated", "Claude Code 登录已失效");
+      } });
+    await assert.rejects(() => runner.runTurn("profile", 1, "x"),
+      (error: unknown) => error instanceof LocalAgentError && error.code === "agent_not_authenticated");
+    assert.equal(calls, 1);
+    const events = fs.readFileSync(path.join(root, "events.jsonl"), "utf8");
+    assert.match(events, /local_agent\.turn_failed/);
+    assert.match(events, /local_agent\.turn_end/);
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("本机订阅 Agent 版本过旧时也立即终止，不重复调用缺少安全参数的 CLI", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-local-stage-old-cli-"));
+  try {
+    const runner = new LocalAgentStageAgent({ agent: "codebuddy", runId: "r4", runDir: root,
+      repoRoot: root, python: "python3", eventsPath: path.join(root, "events.jsonl"), timeoutMs: 10_000,
+      complete: async () => { throw new LocalAgentError("agent_cli_too_old", "CodeBuddy 版本过旧"); } });
+    await assert.rejects(() => runner.runTurn("profile", 1, "x"),
+      (error: unknown) => error instanceof LocalAgentError && error.code === "agent_cli_too_old");
   } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });

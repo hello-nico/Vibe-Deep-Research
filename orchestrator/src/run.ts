@@ -211,7 +211,10 @@ export async function makeEngine(cfg: RunConfig, eventsPath: string, observer?: 
     const agent = cfg.localAgent;
     if (!agent) throw new Error("local_agent 引擎缺少本机 Agent 种类");
     const status = agent === "claude" ? await probeClaude(env) : await probeCodeBuddy(env);
-    if (!status.available) throw new Error(`${status.name} 不可用:${status.detail}`);
+    // 探测结果只用于设置页与运行记录，不能在这里提前终止：服务层已经把 Deep 任务交给
+    // 独立子进程，若在 runResearch 建立 manifest 前抛错，界面只能在宽限期后猜成
+    // deep_start_lost。让 runner 的真实调用返回结构化 LocalAgentError，编排器才能把本次
+    // 运行立即、明确地收口为 failed。探测与真实请求之间也天然存在登录刚好失效的竞态。
     const runner = new LocalAgentStageAgent({ agent, runId: cfg.runId, runDir: cfg.runDir,
       repoRoot: cfg.repoRoot, python: cfg.python, eventsPath, env, timeoutMs: cfg.turnTimeoutMs, observer });
     return {

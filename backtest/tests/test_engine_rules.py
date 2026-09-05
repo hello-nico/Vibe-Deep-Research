@@ -113,10 +113,24 @@ def test_commission_floor_of_five_yuan():
 
 @pytest.mark.parametrize("code,limit", [
     ("600519.SH", 0.10), ("000001.SZ", 0.10), ("300308.SZ", 0.20),
-    ("688981.SH", 0.20), ("830799.BJ", 0.30),
+    ("688981.SH", 0.20), ("689009.SH", 0.20), ("830799.BJ", 0.30),
+    ("301001.SZ", 0.20), ("302001.SZ", 0.20), ("430047.BJ", 0.30), ("920001.BJ", 0.30),
 ])
 def test_price_limit_by_board(code, limit):
     assert _price_limit(code) == limit
+
+
+@pytest.mark.parametrize("code,day,opening,allowed", [
+    ("300308.SZ", "2020-08-21", 115, False),
+    ("300308.SZ", "2020-08-24", 115, True),
+    ("301001.SZ", "2025-01-02", 115, True),
+    ("301001.SZ", "2025-01-02", 120, False),
+    ("430047.BJ", "2025-01-02", 125, True),
+    ("920001.BJ", "2025-01-02", 130, False),
+])
+def test_actual_fill_uses_board_and_historical_date(code, day, opening, allowed):
+    bar = pd.Series({"open": opening, "close": opening, "pre_close": 100}, name=pd.Timestamp(day))
+    assert ChinaAEngine({"slippage": 0}).can_execute(code, 1, bar) is allowed
 
 
 def test_limit_up_bar_blocks_the_buy():

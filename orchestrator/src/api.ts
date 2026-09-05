@@ -25,11 +25,12 @@ import { deepTargetResolverFor } from "./deep_target_registry.ts";
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
 // (Core 消费者靠副作用 import 硬接某个包,换垂类时靠入口 import 恢复不了 —— ESM 会缓存)。
 import "./finance/register_tasks.ts";
+import { VIEWER_CSP } from "./viewer.ts";
 const MAX_BODY = 256 * 1024;
 
-function send(res: http.ServerResponse, code: number, body: unknown, type = "application/json; charset=utf-8"): void {
+function send(res: http.ServerResponse, code: number, body: unknown, type = "application/json; charset=utf-8", htmlCsp = HTML_CSP): void {
   const data = typeof body === "string" ? body : JSON.stringify(body);
-  const csp = type.startsWith("text/html") ? { "Content-Security-Policy": HTML_CSP } : {};
+  const csp = type.startsWith("text/html") ? { "Content-Security-Policy": htmlCsp } : {};
   res.writeHead(code, { "Content-Type": type, "Content-Length": Buffer.byteLength(data), ...SECURITY_HEADERS, ...csp });
   res.end(data);
 }
@@ -70,7 +71,7 @@ const SECURITY_HEADERS = { "Cache-Control": "no-store", "Referrer-Policy": "no-r
  * HTML 响应额外的 CSP。
  * 🔴 `viewer.html` 是**运行产物**,内容来自生成链;它以 text/html 在 API 这个源上渲染,
  *    一旦里面混进 `<script>`,脚本就在"已认证的源"里跑 —— 可以用 cookie 拉别的运行报告再发出去。
- *    产物里本来就不该有脚本,所以直接禁掉:出问题时是页面少点东西,而不是数据被带走。
+ *    普通 HTML 禁止脚本；viewer 路由另用源码内固定脚本的哈希白名单，仍保持隔离源与禁止联网。
  */
 const HTML_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'; sandbox";
 
@@ -311,7 +312,7 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         if (parts[2] === "report") return send(res, 200, getReport(ctx, id));
         if (parts[2] === "evidence") return send(res, 200, getEvidence(ctx, id, { field: q.field, source: q.source, q: q.q, limit: q.limit ? Number(q.limit) : undefined }));
         if (parts[2] === "manifest") { const t = readRunFile(ctx, id, "manifest.json"); return t === null ? send(res, 404, { error: "no such run" }) : send(res, 200, t); }
-        if (parts[2] === "viewer") { const t = readRunFile(ctx, id, "viewer.html"); return t === null ? send(res, 404, { error: "no viewer" }) : send(res, 200, t, "text/html; charset=utf-8"); }
+        if (parts[2] === "viewer") { const t = readRunFile(ctx, id, "viewer.html"); return t === null ? send(res, 404, { error: "no viewer" }) : send(res, 200, t, "text/html; charset=utf-8", VIEWER_CSP); }
       }
       if (req.method === "GET" && parts[0] === "knowledge" && parts[1] && parts[2]) return send(res, 200, knowledgeRecall(ctx, parts[2], parts[1]));
       // 端点观测序列(只读)。⚠️ 端点 id 会被拼进文件路径 —— service 层用**注册表白名单**校验,

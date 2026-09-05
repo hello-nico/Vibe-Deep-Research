@@ -31,6 +31,7 @@ from backtest.gate import Plan, plan_backtest  # noqa: E402
 from backtest.run import BacktestNotValid, Result, run  # noqa: E402
 from backtest.strategies import BUILTIN  # noqa: E402
 from backtest.stdio_utf8 import force_utf8_stdio  # noqa: E402
+from backtest.loader import price_basis  # noqa: E402
 
 
 def _catalog() -> dict:
@@ -80,7 +81,7 @@ def _result_view(r: Result) -> dict:
             "avg_holding_days", "benchmark_return", "benchmark_ticker",
             "total_turnover", "max_consecutive_loss")
     benchmark_is_self = "benchmark_ticker" not in m
-    disclosures = []
+    disclosures = [price_basis(r.plan.market.key)]
     if benchmark_is_self:
         disclosures.append("本次基准是所测标的自身的等权买入持有，不是独立外部基准。")
     turnover = m.get("total_turnover")
@@ -88,6 +89,10 @@ def _result_view(r: Result) -> dict:
         disclosures.append(
             f"总换手率为 {turnover}；该值低于 1，收益差异可能包含未投入现金的影响，不能只归因于策略信号。"
         )
+    # 运行后才发现的限制必须进入服务端强制披露；静态口径仍在 plan.notes。
+    # 不截断：超出下游披露契约时明确拒绝报告，不能悄悄丢掉风险提示。
+    disclosures.extend(note for note in r.notes if note not in r.plan.notes)
+    disclosures = list(dict.fromkeys(disclosures))
     return {
         "strategy": r.strategy,
         "plan": _plan_view(r.plan),
@@ -100,7 +105,8 @@ def _result_view(r: Result) -> dict:
         "missing": r.missing,
         "provenance": [
             {"code": p.code, "endpoint": p.endpoint, "rows": p.rows,
-             "first_bar": p.first_bar, "last_bar": p.last_bar, "note": p.note}
+             "first_bar": p.first_bar, "last_bar": p.last_bar, "note": p.note,
+             "price_basis": p.price_basis or price_basis(p.market)}
             for p in r.provenance.values()
         ],
     }

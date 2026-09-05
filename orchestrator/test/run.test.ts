@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
@@ -56,6 +57,7 @@ test("makeConfig 默认值、run-id 形态、解释器根、最小环境", () =>
   assert.match(cfg.runId, /^\d{8}-\d{6}-600519$/);
   assert.equal(cfg.runDir, "/tmp/repo/.local/runs/" + cfg.runId);
   assert.equal(cfg.maxRetries, 2);
+  assert.equal(cfg.turnTimeoutMs, 30 * 60_000);
   assert.ok(cfg.forbiddenPathPatterns.includes("交接资料") && !cfg.forbiddenPathPatterns.includes("/Users/"));
   assert.ok(cfg.allowedPathPrefixes.includes("/tmp/repo") && cfg.allowedPathPrefixes.includes("/home/u/.venv"));
   assert.equal(interpreterRoot("python3"), "");
@@ -87,6 +89,10 @@ test("阶段提示词:含路径 / calc 命令 / 取数已执行声明 / schema /
   assert.ok(buildStagePrompt("report", cfg, { attempt: 0 }).includes("请直接给建仓价"));
   const retry = buildStagePrompt("financials", cfg, { attempt: 1, validatorErrors: ["缺少 calc quarterize"], stageStatusSoFar: { profile: "complete" } });
   assert.ok(retry.includes("【补跑 第 1 次】") && retry.includes("quarterize") && retry.includes("profile"));
+  const reportRetry = buildStagePrompt("report", cfg, { attempt: 1, validatorErrors: ["错误数字=41.90倍；同行 id=calc-1111111111111111"] });
+  assert.ok(reportRetry.includes("先用 read_run_file 读取现有 report.md"));
+  assert.ok(reportRetry.includes("不要从头重写") && reportRetry.includes("write_report 覆盖整份 report.md"));
+  assert.ok(reportRetry.includes("没有对应 display，就删掉该数字"));
   const gate = buildGateRewritePrompt(cfg, [{ line: 3, pattern: "建仓", text: "建议建仓" }]);
   assert.ok(gate.includes("第 3 行") && gate.includes("建仓"));
 });
@@ -141,6 +147,28 @@ test("请求级 WorkBuddy 订阅进入 local_agent，不继承 OpenAI provider �
     () => configFromArgs({ symbol: "300308", "repo-root": REPO, model: "冒充模型" }, env),
     /不能用 --model/,
   );
+});
+
+test("订阅 Agent 探测为未登录时仍建立 runner，由真实运行写出明确终态", async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-run-unauthed-"));
+  const bin = path.join(root, "claude");
+  fs.writeFileSync(bin, `#!/bin/sh
+case "$1" in
+  --version) echo "test-claude" ;;
+  --help) echo "--safe-mode --tools --strict-mcp-config --no-session-persistence --output-format --system-prompt --json-schema" ;;
+  auth) echo '{"loggedIn":false}' ;;
+esac
+`);
+  fs.chmodSync(bin, 0o700);
+  try {
+    const env = { CLAUDE_BIN: bin, PATH: "/usr/bin:/bin" };
+    const cfg = configFromArgs({ symbol: "300308", "repo-root": REPO }, {
+      ...env, VRA_REQUEST_LLM_META: JSON.stringify({ provider: "cli-claude" }),
+    }).cfg;
+    const built = await makeEngine(cfg, path.join(root, "events.jsonl"), undefined, env);
+    assert.equal(built.runtime.kind, "local_agent");
+    assert.equal(built.runtime.version, "test-claude");
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
 });
 
 test("Direct 实验运行信息不探测 Codex 二进制", async () => {

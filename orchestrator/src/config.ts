@@ -275,7 +275,7 @@ export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoR
     reasoning: partial.reasoning,
     maxRetries: partial.maxRetries ?? 2,
     gateRetries: partial.gateRetries ?? 2,
-    turnTimeoutMs: partial.turnTimeoutMs ?? 20 * 60_000,
+    turnTimeoutMs: partial.turnTimeoutMs ?? 30 * 60_000,
     fetchTimeoutMs: partial.fetchTimeoutMs ?? 180_000,
     forbiddenPathPatterns: partial.forbiddenPathPatterns ?? DEFAULT_FORBIDDEN_PATHS,
     // ⚠️ 必须含 dataRoot:分离安装时运行目录在产品根之外,而真实安装位置多半在 `~/Library/Application Support`

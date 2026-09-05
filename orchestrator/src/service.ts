@@ -254,7 +254,8 @@ export async function fetchEndpoint(
   //    会把新结果覆盖成旧的(Codex 架构评审 arch-r1 §F-6)。
   const flightKey = `${ctx.dataRoot}\u0000${snapKey}`;
   const flying = inFlight.get(flightKey);
-  if (flying) return flying;
+  if (flying) return subscribeFlight(flying, req.signal);
+  const controller = new AbortController();
   const run = (async (): Promise<FetchResult> => {
     const argv = fetchArgv(ep, ep.id, { scriptsDir, symbol, runDir: outDir });
     if (Object.keys(args).length) {
@@ -272,7 +273,7 @@ export async function fetchEndpoint(
     //    某个自报 132ms 的请求实际等了 1.83s(全在排队)。看板一屏要打五六个端点,这是致命的。
     //    并发安全性已核实:取数器把信封原子写到 fetch/<script>.json,raw 文件名带时间戳+pid+随机,
     //    且调用方拿的是 stdout 不是文件 —— 同端点并发不会互相污染。
-    const p = await runFetchProcess(ctx.python, argv, { cwd: ctx.repoRoot, env: fetchEnv(extra), timeout, signal: req.signal });
+    const p = await runFetchProcess(ctx.python, argv, { cwd: ctx.repoRoot, env: fetchEnv(extra), timeout, signal: controller.signal });
     const dur = Date.now() - t0;
     let envelope: Record<string, unknown>;
     try { envelope = JSON.parse(p.stdout) as Record<string, unknown>; }
@@ -286,9 +287,12 @@ export async function fetchEndpoint(
     });
     return snap ? { ...result, fetched_at: snap.fetched_at } : result;
   })();
-  inFlight.set(flightKey, run);
-  // 无论成败都要摘掉:留着会让下一次请求拿到一个**已经结束的旧 Promise**(失败的话还会一直失败)
-  try { return await run; } finally { inFlight.delete(flightKey); }
+  const flight: FetchFlight = { promise: run, controller, subscribers: 0, remove: () => {
+    if (inFlight.get(flightKey) === flight) inFlight.delete(flightKey);
+  } };
+  inFlight.set(flightKey, flight);
+  void run.then(flight.remove, flight.remove);
+  return subscribeFlight(flight, req.signal);
 }
 
 /**
@@ -296,7 +300,30 @@ export async function fetchEndpoint(
  * 🔴 没有它:一屏五个卡片指向同一端点会打五次上游;更糟的是**先发后回**的慢请求会把
  *    新结果覆盖成旧的(Codex 架构评审 arch-r1 §F-6)。
  */
-const inFlight = new Map<string, Promise<FetchResult>>();
+interface FetchFlight { promise: Promise<FetchResult>; controller: AbortController; subscribers: number; remove: () => void }
+const inFlight = new Map<string, FetchFlight>();
+
+/** 每个等待者独立取消;最后一个离开才停共享子进程,并立即允许新请求。 */
+function subscribeFlight(flight: FetchFlight, signal?: AbortSignal): Promise<FetchResult> {
+  flight.subscribers++;
+  return new Promise((resolve, reject) => {
+    let done = false;
+    const finish = (error: unknown, result?: FetchResult) => {
+      if (done) return;
+      done = true;
+      signal?.removeEventListener("abort", abort);
+      flight.subscribers--;
+      if (error) reject(error); else resolve(result!);
+    };
+    const abort = () => {
+      finish(new ServiceError("cancelled", "取数已取消"));
+      if (flight.subscribers === 0) { flight.remove(); flight.controller.abort(); }
+    };
+    flight.promise.then(result => finish(null, result), error => finish(error));
+    signal?.addEventListener("abort", abort, { once: true });
+    if (signal?.aborted) abort();
+  });
+}
 
 const FETCH_MAX_BUFFER = 64 * 1024 * 1024;
 /** 超时后给 SIGTERM 留的收尾时间,过了再 SIGKILL */

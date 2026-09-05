@@ -10,7 +10,7 @@ import {
   startCodexLogin, terminateActiveLocalAgentProcesses, workBuddyCliCandidates,
 } from "../src/local_agent_runtime.ts";
 
-test("六阶段订阅 Agent 保留 20 分钟超时，不被适配器暗中截成 10 分钟", () => {
+test("六阶段订阅 Agent 保留显式 20 分钟超时，不被适配器暗中截短", () => {
   assert.equal(normalizeLocalAgentTimeoutMs(20 * 60_000), 20 * 60_000);
   assert.equal(normalizeLocalAgentTimeoutMs(undefined), 180_000);
   assert.throws(() => normalizeLocalAgentTimeoutMs(Number.NaN),

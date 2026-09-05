@@ -103,7 +103,7 @@ function untrackLocalAgentProcess(child: ChildProcess): void {
   if (activeLocalAgentProcesses.size === 0) removeParentShutdownHooks();
 }
 
-/** setTimeout 可表达的范围内保留调用方配置；六阶段默认 20 分钟不得被适配器暗中缩短。 */
+/** setTimeout 可表达的范围内保留调用方配置；六阶段默认 30 分钟不得被适配器暗中缩短。 */
 export function normalizeLocalAgentTimeoutMs(value: number | undefined): number {
   const requested = value ?? 180_000;
   if (!Number.isFinite(requested) || requested <= 0) throw new LocalAgentError("agent_bad_timeout", "本机 Agent 超时配置无效");

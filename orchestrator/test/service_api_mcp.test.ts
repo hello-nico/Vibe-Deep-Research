@@ -442,6 +442,9 @@ test("运行产物的 HTML 以 CSP 送出 —— 产物里混进 <script> 时不
     const csp = r.headers.get("content-security-policy") ?? "";
     assert.match(csp, /default-src 'none'/, "HTML 响应必须带 CSP");
     assert.match(csp, /sandbox/);
+    assert.match(csp, /script-src 'sha256-[A-Za-z0-9+/=]+'/);
+    assert.match(csp, /sandbox allow-scripts(?:;|$)/);
+    assert.doesNotMatch(csp, /allow-same-origin|script-src 'unsafe-inline'/);
     // JSON 响应不需要 CSP(带上只是噪音)
     const j = await fetch(`http://127.0.0.1:${port}/runs`, { headers: { authorization: "Bearer t-test-token-0123456789" } });
     assert.equal(j.headers.get("content-security-policy"), null);
@@ -471,6 +474,30 @@ test("🔴 同一份查询并发进来只真取一次(single-flight)—— 否�
     process.env.PATH = orig;
     void spawned;
   }
+});
+
+test("single-flight 取消只影响该订阅者;全部取消后可立即重试", async () => {
+  const ctx = fakeCtx();
+  const script = path.join(ctx.repoRoot, ".agents/skills/data-access/scripts/fetch_endpoint.py");
+  fs.writeFileSync(script, "import time\ntime.sleep(0.25)\n" + fs.readFileSync(script, "utf8"));
+  const req = { endpoint: "tx_quotes_batch", args: { codes: ["300308"] }, consistency: { mode: "fresh" as const } };
+  try {
+    for (const cancelledIndex of [0, 1]) {
+      const controllers = [new AbortController(), new AbortController()];
+      const promises = controllers.map(c => fetchEndpoint(ctx, { ...req, signal: c.signal }));
+      const rejected = assert.rejects(promises[cancelledIndex], (e: unknown) => e instanceof ServiceError && e.code === "cancelled");
+      controllers[cancelledIndex].abort();
+      await rejected;
+      assert.equal((await promises[1 - cancelledIndex]).exit_code, 0);
+    }
+    const a = new AbortController(), b = new AbortController();
+    const pa = fetchEndpoint(ctx, { ...req, signal: a.signal }), pb = fetchEndpoint(ctx, { ...req, signal: b.signal });
+    const settled = Promise.allSettled([pa, pb]);
+    a.abort(); b.abort();
+    const fresh = fetchEndpoint(ctx, req);
+    assert.ok((await settled).every(r => r.status === "rejected"));
+    assert.equal((await fresh).exit_code, 0, "旧任务收尾不能删除或取消新任务");
+  } finally { fs.rmSync(ctx.repoRoot, { recursive: true, force: true }); }
 });
 
 test("🔴 cache_only 没快照就报错,绝不偷偷联网", async () => {

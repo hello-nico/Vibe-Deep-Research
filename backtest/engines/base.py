@@ -13,7 +13,6 @@ import json
 import logging
 import math
 import re as _re
-import sys
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
 from dataclasses import dataclass, replace
@@ -713,31 +712,29 @@ class BaseEngine(ABC):
             interval=interval,
         )
         if not data_map:
-            print(json.dumps({"error": "No data fetched"}))
-            sys.exit(1)
+            failures = getattr(loader, "failures", {})
+            details = "；".join(f"{code}：{failures.get(code, '未返回可用行情，原因未知')}" for code in codes)
+            raise RuntimeError(f"没有取到可用于回测的数据；{details}")
         data_map = _maybe_enrich_fundamentals(data_map, config)
         data_map = _maybe_enrich_events(data_map, config)
 
         # 2. Generate signals
         signal_map = signal_engine.generate(data_map)
         if not isinstance(signal_map, dict):
-            print(json.dumps({"error": (
+            raise TypeError(
                 f"SignalEngine.generate() must return Dict[str, pd.Series], "
                 f"got {type(signal_map).__name__}. "
                 "Return a dict mapping symbol codes to pandas Series of signals."
-            )}))
-            sys.exit(1)
+            )
         for _code, _sig in signal_map.items():
             if not isinstance(_sig, pd.Series):
-                print(json.dumps({"error": (
+                raise TypeError(
                     f"SignalEngine.generate() returned {type(_sig).__name__} for '{_code}', "
                     "expected pd.Series. Each value must be a pandas Series with DatetimeIndex."
-                )}))
-                sys.exit(1)
+                )
         valid_codes = sorted(c for c in signal_map if c in data_map)
         if not valid_codes:
-            print(json.dumps({"error": "No valid signals generated"}))
-            sys.exit(1)
+            raise ValueError("未生成与行情匹配的有效信号 (No valid signals generated)")
 
         # 3. Pre-compute target weights (with optimizer)
         opt_fn = _load_optimizer(config)

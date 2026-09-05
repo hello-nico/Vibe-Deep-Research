@@ -1,12 +1,14 @@
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import http from "node:http";
+import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
 import { DirectTransportError, chatCompletion, scrubSecrets } from "../src/engines/direct_transport.ts";
 import { directCapabilityOf } from "../src/providers.ts";
+import { resolveDirectProvider } from "../src/runtime_provider.ts";
 
 /**
  * **直连传输层**的故障矩阵。
@@ -38,6 +40,31 @@ function ok(body: unknown) {
 }
 
 const baseReq = { apiKey: FAKE_KEY, model: "m", messages: [{ role: "user" as const, content: "hi" }], timeoutMs: 5_000 };
+
+test("本机 HTTP 模型配置通过真实解析后能完成直连请求", async () => {
+  const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "vra-local-http-"));
+  let requested = "";
+  const ep = await fakeEndpoint((req, res) => {
+    requested = req.url ?? "";
+    ok({ choices: [{ message: { role: "assistant", content: "local-ready" }, finish_reason: "stop" }] })(req, res);
+  });
+  try {
+    const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+    fs.mkdirSync(path.join(dataRoot, "providers"));
+    fs.writeFileSync(path.join(dataRoot, "providers/local-fixture.json"), JSON.stringify({
+      id: "local-fixture", name: "Fixture only", wire_api: "responses", base_url: ep.baseURL,
+      env_key: "LOCAL_TEST_KEY", auth_modes: ["api_key"], requires_openai_auth: false,
+      default_model: "local-model", responses_support: "native",
+      direct: { supported: true, base_url: ep.baseURL, structured_output: "prompt" },
+    }));
+    const config = resolveDirectProvider(repo, dataRoot, {
+      provider: "local-fixture", apiKey: FAKE_KEY, model: "local-model",
+    });
+    const result = await chatCompletion({ ...baseReq, ...config });
+    assert.equal(result.message.content, "local-ready");
+    assert.equal(requested, "/v1/chat/completions");
+  } finally { await ep.close(); fs.rmSync(dataRoot, { recursive: true, force: true }); }
+});
 
 test("正常回复:解析出消息、finish_reason 与 usage", async () => {
   const ep = await fakeEndpoint(ok({

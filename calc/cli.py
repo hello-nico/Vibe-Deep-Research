@@ -7,7 +7,7 @@
   python3 calc/cli.py list
 示例:
   python3 calc/cli.py pe_deducted_annualized --args '{"total_market_cap": 1000, "cap_unit": "亿元", "latest_quarter_deducted_profit": 1e9, "profit_unit": "元"}' --evidence ev-aaa ev-bbb
-  python3 calc/cli.py percentile_rank --args '{"history": {"history_csv": {"raw_ref": "raw/xxx.csv", "column": "peTTM", "where": {"tradestatus": "1"}}}, "current": 73.8}' --run-dir .local/runs/x --evidence ev-hist
+  python3 calc/cli.py percentile_rank --args '{"history": {"history_csv": {"raw_ref": "raw/xxx.csv", "column": "peTTM", "where": {"tradestatus": "1"}, "date_column": "date"}}, "current": 73.8}' --run-dir .local/runs/x --evidence ev-hist
   python3 calc/cli.py technical_indicators --args '{"klines": {"history_json": {"raw_ref": "raw/tencent_fqkline.json", "rows_path": "data.sz300308.qfqday", "columns": {"date": 0, "open": 1, "close": 2, "high": 3, "low": 4}}}}' --run-dir .local/runs/x --evidence ev-kline
   python3 calc/cli.py chip_distribution --args '{"klines": {"history_json": {"raw_ref": "raw/extracted_baostock_....json", "rows_path": "rows", "columns": {"date": "date", "high": "high", "low": "low", "close": "close", "turn": "turn"}, "where": {"tradestatus": "1"}}}}' --run-dir .local/runs/x --evidence ev-bs
 
@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+from datetime import date
 import hashlib
 import inspect
 import json
@@ -120,8 +121,20 @@ def _load_history_csv(spec: dict, run_dir: str | None) -> tuple[list, dict]:
     rows = list(csv.DictReader(data.decode("utf-8").splitlines()))
     if not rows or col not in rows[0]:
         raise ValueError(f"CSV 无列 {col!r}")
-    vals = [r[col] for r in rows if all(str(r.get(k)) == str(v) for k, v in where.items())]
-    return vals, {"raw_ref": rel, "sha256": sha, "column": col, "where": where, "rows_total": len(rows), "rows_used": len(vals)}
+    selected = [r for r in rows if all(str(r.get(k)) == str(v) for k, v in where.items())]
+    vals = [r[col] for r in selected]
+    record = {"raw_ref": rel, "sha256": sha, "column": col, "where": where, "rows_total": len(rows), "rows_used": len(vals)}
+    if "date_column" in spec:
+        date_col = spec["date_column"]
+        if not isinstance(date_col, str) or date_col not in rows[0] or not selected:
+            raise ValueError("history_csv 日期列缺失或过滤后无行")
+        dates = [r[date_col] for r in selected]
+        if any(not re.fullmatch(r"\d{4}-\d{2}-\d{2}", d or "") or date.fromisoformat(d).isoformat() != d for d in dates):
+            raise ValueError("history_csv 日期必须为有效 YYYY-MM-DD")
+        if dates != sorted(set(dates)):
+            raise ValueError("history_csv 日期必须严格递增且不重复")
+        record.update(date_column=date_col, period=f"{dates[0]}..{dates[-1]}")
+    return vals, record
 
 
 def _raw_target(rel: str, run_dir: str | None, kind: str) -> Path:
@@ -235,6 +248,8 @@ def resolve_inputs(args: dict, run_dir: str | None) -> tuple[dict, dict, dict]:
             record[k] = rec
             ident[k] = {"history_csv": {"raw_ref": rec["raw_ref"], "column": rec["column"], "where": rec["where"],
                                         "sha256": rec["sha256"], "rows_used": rec["rows_used"]}}
+            if "date_column" in rec:
+                ident[k]["history_csv"].update(date_column=rec["date_column"], period=rec["period"])
         elif isinstance(v, dict) and "history_json" in v:
             rows, rec = _load_history_json(v["history_json"], run_dir)
             call_args[k] = rows

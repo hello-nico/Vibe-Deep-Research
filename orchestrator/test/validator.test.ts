@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
@@ -11,6 +12,7 @@ import { detectSourceConflicts, mergeEvidence, rawHashes } from "../src/merge.ts
 import { sha256File, writeJson } from "../src/fsutil.ts";
 import { validateCalcRecord, validateEvidenceItem, validateFetchEnvelope, validateStageOutput } from "../src/schemas.ts";
 import { loadLedgerFromDisk, saveLedger } from "../src/fetchrun.ts";
+import { loadProductConfig } from "../src/productConfig.ts";
 
 
 import "../src/finance/register.ts";   // 测试文件也是入口:插件要先注册
@@ -103,9 +105,42 @@ test("确定性报价判定:normal / pre_open / stale / 未来日期 / unknown �
   d = tmpRun(); profileRun(d, { is_stale: false, quote_date: "2026-08-25" }, cal);
   assert.equal(deriveQuoteDecision(loadRun(d)).decision, "stale");
   d = tmpRun(); profileRun(d, { is_stale: "unknown", quote_date: "2026-08-21" }, cal, { end: "2026-08-21" });
-  assert.equal(deriveQuoteDecision(loadRun(d)).decision, "normal");
+  assert.equal(deriveQuoteDecision(loadRun(d)).decision, "unknown_unverified");
+  for (const [volume, period, expected] of [[0, "2026-08-21", "unknown_unverified"], [-1, "2026-08-21", "unknown_unverified"], [42, "2026-08-20", "unknown_unverified"], [42, "2026-08-21", "normal"]] as const) {
+    putFetch(d, "fetch_kline", "partial", [ev("ev-aaaabc", "volume_latest", volume, { period })], { end: "2026-08-21" });
+    assert.equal(deriveQuoteDecision(loadRun(d)).decision, expected);
+  }
   d = tmpRun(); profileRun(d, { is_stale: "unknown", quote_date: "2026-08-21" }, cal);
   assert.equal(deriveQuoteDecision(loadRun(d)).decision, "unknown_unverified");
+});
+
+test("序列语义绑定:真实 calc 错列、过滤、文件、期间和内联序列不能冒充历史证据", () => {
+  const d = tmpRun();
+  try {
+    const csv = "date,peTTM,close,tradestatus\n" + Array.from({ length: 25 }, (_, i) => `2025-01-${String(i + 1).padStart(2, "0")},${i + 1},${100 + i},1`).join("\n");
+    for (const f of ["pe.csv", "other.csv"]) fs.writeFileSync(path.join(d, "raw", f), csv);
+    const historyEvidence = ev("ev-abcd01", "pe_ttm_traded_history_points", 25, { raw_ref: "raw/pe.csv", period: "2025-01-01..2025-01-25" });
+    putFetch(d, "fetch_pe_history", "ok", [historyEvidence, ev("ev-abcd02", "pe_ttm", 20)]);
+    const good = { raw_ref: "raw/pe.csv", column: "peTTM", where: { tradestatus: "1" }, date_column: "date" };
+    for (const [history, period, ok] of [
+      [{ history_csv: good }, historyEvidence.period, true],
+      [{ history_csv: { ...good, column: "close" } }, historyEvidence.period, false],
+      [{ history_csv: { ...good, where: {} } }, historyEvidence.period, false],
+      [{ history_csv: { ...good, raw_ref: "raw/other.csv" } }, historyEvidence.period, false],
+      [{ history_csv: good }, "2024-01-01..2025-01-25", false],
+      [Array.from({ length: 25 }, (_, i) => i + 1), historyEvidence.period, false],
+    ] as const) {
+      putFetch(d, "fetch_pe_history", "ok", [{ ...historyEvidence, period }, ev("ev-abcd02", "pe_ttm", 20)]);
+      const python = loadProductConfig(REPO, { env: process.env, requireAuth: false }).python ?? process.env.VRA_PYTHON ?? "python3";
+      const proc = spawnSync(python, [path.join(REPO, "calc", "cli.py"), "percentile_rank", "--args", JSON.stringify({ history, current: 20 }), "--run-dir", d, "--evidence", "ev-abcd01", "ev-abcd02"], { encoding: "utf8" });
+      assert.equal(proc.status, 0, proc.stdout + proc.stderr);
+      const record = JSON.parse(proc.stdout);
+      writeJson(path.join(d, "calcs", "percentile.json"), record);
+      writeJson(path.join(d, "stages", "valuation.json"), { stage: "valuation", status: "incomplete", summary: "ok", evidence_ids: ["ev-abcd01", "ev-abcd02"], calculation_ids: [record.calculation_id], gaps: [], standard_columns: {} });
+      const errors = validateStage("valuation", loadRun(d)).errors.filter(e => e.includes("序列实参"));
+      assert.equal(errors.length === 0, ok, JSON.stringify({ history, period, errors }));
+    }
+  } finally { fs.rmSync(d, { recursive: true, force: true }); }
 });
 
 test("profile 阶段:缺账本 / 缺阶段文件 → 不过;quote_decision 与推导不符 → 不过;齐全 → 过", () => {

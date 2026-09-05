@@ -120,6 +120,16 @@ def test_history_csv_loading_and_identity(tmp_path):
     assert out3["calculation_id"] not in (id1, out2["calculation_id"])
 
 
+def test_history_csv_period_tracks_filtered_dates(tmp_path):
+    run_dir = _make_run_dir(tmp_path)
+    spec = {"history": {"history_csv": {"raw_ref": "raw/pe.csv", "column": "peTTM",
+            "where": {"tradestatus": "1"}, "date_column": "date"}}, "current": 25}
+    rc, out = run("percentile_rank", "--args", json.dumps(spec), "--run-dir", str(run_dir))
+    assert rc == 0
+    assert out["inputs_resolved"]["history"]["period"] == "2025-01-01..2025-01-25"
+    assert out["inputs_resolved"]["history"]["date_column"] == "date"
+
+
 def test_history_csv_path_safety(tmp_path):
     run_dir = _make_run_dir(tmp_path)
     outside = tmp_path.parent / f"{tmp_path.name}-outside.csv"

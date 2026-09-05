@@ -29,6 +29,8 @@ const TS = "2026-08-21T10:00:00+08:00";
 const ev = (id: string, field: string, value: unknown, extra: Record<string, unknown> = {}) => ({ id, symbol: "300308", market: "SZ", field, value, unit: "元", currency: "CNY",
   period: "2026-08-21", as_of: "2026-08-21", source: "tencent", endpoint: "qt", fetched_at: TS, adjustment: "none", raw_ref: null, ...extra });
 const CAL = { session_phase: "non_trading_day", reference_quote_day: "2026-08-21", last_trading_day: "2026-08-21" };
+const PE_PERIOD = "2026-08-20..2026-08-21";
+const PE_SERIES = { raw_ref: "raw/fake_fetch_pe_history.csv", column: "peTTM", where: { tradestatus: "1" }, date_column: "date" };
 
 const REAL_REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 function tmpRepo(): string {
@@ -48,7 +50,7 @@ const FIELDS: Record<string, { field: string; value: number; unit?: string; peri
   fetch_quote: [{ field: "price", value: 943 }, { field: "total_market_cap", value: 1.0e12 }, { field: "pe_ttm", value: 50, unit: "倍" }],
   fetch_financials: [{ field: "revenue_cum", value: 5e9, period: "2026Q2" }, { field: "net_profit_parent_cum", value: 1.1e9, period: "2026Q2" }, { field: "net_profit_deducted_cum", value: 1e9, period: "2026Q2" }],
   fetch_estimates: [{ field: "eps_consensus_mean", value: 10, period: "FY2026" }, { field: "eps_consensus_mean", value: 20, period: "FY2028" }, { field: "eps_consensus_min", value: 5, period: "FY2028" }, { field: "eps_consensus_max", value: 30, period: "FY2028" }],
-  fetch_pe_history: [{ field: "pe_ttm_traded_history_points", value: 1200, unit: "个" }],
+  fetch_pe_history: [{ field: "pe_ttm_traded_history_points", value: 2, unit: "个", period: PE_PERIOD }],
 };
 const evId = (s: string, field = s, period = "") => `ev-${crypto.createHash("sha256").update(`${s}|${field}|${period}`).digest("hex").slice(0, 6)}`;
 
@@ -62,8 +64,9 @@ function fakeFetch(failed: string[] = []): FetchExecutor {
       const extra = s === "fetch_quote" ? { is_stale: false, quote_date: "2026-08-21" } : s === "fetch_trade_calendar" ? CAL : s === "fetch_estimates" ? { current_fy: "FY2026", years: ["FY2026", "FY2027", "FY2028"] } : {};
       const spec = FIELDS[s] ?? [{ field: s, value: 1 }];
       // 每个脚本一份假 raw 响应:证据 raw_ref 指向它,账本 raw_files 登记其 sha(与真实取数一致,满足"每条证据必有 raw_ref"规则)
-      const rawName = `fake_${s}.json`;
-      fs.writeFileSync(path.join(cfg.runDir, "raw", rawName), JSON.stringify({ fake: s }));
+      const rawName = s === "fetch_pe_history" ? "fake_fetch_pe_history.csv" : `fake_${s}.json`;
+      fs.writeFileSync(path.join(cfg.runDir, "raw", rawName), s === "fetch_pe_history"
+        ? "date,peTTM,tradestatus\n2026-08-20,40,1\n2026-08-21,60,1\n" : JSON.stringify({ fake: s }));
       const evidence = isFail ? [] : spec.map((x) => ev(evId(s, x.field, x.period ?? ""), x.field, x.value,
         { raw_ref: `raw/${rawName}`, ...(x.unit ? { unit: x.unit } : {}), ...(x.period ? { period: x.period } : {}), ...(s === "fetch_trade_calendar" ? { market: "CN", symbol: "MARKET", currency: "n/a", adjustment: "not_applicable" } : {}) }));
       const env = { script: s, symbol: cfg.symbol, market: cfg.market, status: isFail ? "failed" : "ok", fetched_at: TS, primary_source: isFail ? null : "tencent",
@@ -107,12 +110,13 @@ class FakeRunner implements AgentRunner {
 const E = (id: string) => ({ ref_type: "evidence" as const, ref_id: id });
 const C = (id: string) => ({ ref_type: "calculation" as const, ref_id: id });
 const CALC = (fn: string, id: string, refs: { ref_type: "evidence" | "calculation"; ref_id: string }[], inputs: Record<string, unknown> = { a: 1 }, out: { value: number | null; unit: string } = { value: 1.5, unit: "倍" }) => ({ calculation_id: id, function: fn, calc_version: "0.2.0", inputs,
-  inputs_resolved: {}, inputs_refs: refs, output: { status: out.value === null ? "not_meaningful" : "ok", value: out.value, unit: out.unit, reason: "", details: {} } });
+  // 复算仍由此状态机测试的替身负责；序列槽位的生产校验必须看到正确的输入元数据。
+  inputs_resolved: fn === "percentile_rank" ? { history: { ...PE_SERIES, period: PE_PERIOD, rows_used: 2 } } : {}, inputs_refs: refs, output: { status: out.value === null ? "not_meaningful" : "ok", value: out.value, unit: out.unit, reason: "", details: {} } });
 const cid = (n: number) => `calc-${n.toString(16).padStart(16, "0")}`;
 const QUOTE = { price: evId("fetch_quote", "price"), cap: evId("fetch_quote", "total_market_cap"), pe: evId("fetch_quote", "pe_ttm") };
 const FIN = { rev: evId("fetch_financials", "revenue_cum", "2026Q2"), par: evId("fetch_financials", "net_profit_parent_cum", "2026Q2"), ded: evId("fetch_financials", "net_profit_deducted_cum", "2026Q2") };
 const EST = { m26: evId("fetch_estimates", "eps_consensus_mean", "FY2026"), m28: evId("fetch_estimates", "eps_consensus_mean", "FY2028"), min: evId("fetch_estimates", "eps_consensus_min", "FY2028"), max: evId("fetch_estimates", "eps_consensus_max", "FY2028") };
-const PEH = evId("fetch_pe_history", "pe_ttm_traded_history_points");
+const PEH = evId("fetch_pe_history", "pe_ttm_traded_history_points", PE_PERIOD);
 /** 计算 id 约定:1-3 quarterize(营收 / 归母 / 扣非),4 latest_quarter,5 ttm_sum,6 ttm_yoy,7 qoq;10 forward_cagr,11 dispersion;20-26 估值 */
 type Ref = { ref_type: "evidence" | "calculation"; ref_id: string };
 type CalcSpec = [string, number, Ref[], Record<string, unknown>, { value: number | null; unit: string }];
@@ -130,7 +134,7 @@ const VAL_CALCS: CalcSpec[] = [
   ["pe_deducted_annualized", 20, [E(QUOTE.cap), C(cid(4))], { total_market_cap: 1.0e12, cap_unit: "元", latest_quarter_deducted_profit: OUT.lq.value, profit_unit: "元" }, OUT.pe],
   ["forward_pe", 21, [E(QUOTE.price), E(EST.m26)], { price: 943, eps_forecast: 10 }, { value: 94.3, unit: "倍" }],
   ["pe_ttm_from_parts", 22, [E(QUOTE.cap), C(cid(5))], { total_market_cap: 1.0e12, cap_unit: "元", ttm_profit: OUT.ttm.value, profit_unit: "元" }, OUT.pe_ttm],
-  ["percentile_rank", 23, [E(PEH), E(QUOTE.pe)], { current: 50, history_csv: "x" }, { value: 64.9, unit: "%" }],
+  ["percentile_rank", 23, [E(PEH), E(QUOTE.pe)], { current: 50, history: { history_csv: PE_SERIES } }, { value: 64.9, unit: "%" }],
   ["peg", 24, [C(cid(20)), C(cid(10))], { pe: OUT.pe.value, cagr: OUT.cagr.value }, { value: 24.1, unit: "倍" }],
   ["pe_digestion_scenarios", 25, [C(cid(20)), C(cid(10))], { pe: OUT.pe.value, cagr: OUT.cagr.value }, { value: null, unit: "年" }],
   ["forward_vs_ttm_judgement", 26, [C(cid(10)), C(cid(6))], { forward_cagr_value: OUT.cagr.value, ttm_yoy_value: OUT.yoy.value }, { value: -158.6, unit: "百分点" }],

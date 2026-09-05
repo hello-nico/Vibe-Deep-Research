@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { HOME_TASKS } from "../src/verticals/finance/lib/homeTasks.ts";
 
 const financeAgent = readFileSync(
   new URL("../src/verticals/finance/components/ui/FinanceAiDock.tsx", import.meta.url),
@@ -11,22 +12,22 @@ const coreMessages = readFileSync(
   "utf8",
 );
 
-test("首页 Agent 把提醒移到输入区，并保留统一的任务入口", () => {
+test("首页任务进入真实工作流，不预填到无工具聊天", () => {
   assert.doesNotMatch(financeAgent, /notice="直接问市场、公司、行业或研究方法。"/);
-  assert.match(financeAgent, /placeholder="输入市场、公司、行业或研究方法…（Shift\+Enter 换行）"/);
+  assert.match(financeAgent, /placeholder="交流已有资料或研究方法…（Shift\+Enter 换行）"/);
   assert.match(financeAgent, /suggestionStyle="tasks"/);
   assert.match(financeAgent, /onPick=\{setDraft\}/);
   assert.doesNotMatch(financeAgent, /onPick=\{\(x\) => void chat\.submit\(x\)\}/);
   assert.match(financeAgent, /<AiComposer[\s\S]*?highlighted[\s\S]*?\/>/);
 
-  for (const prompt of [
-    "今日复盘",
-    "今日的连板股是什么？分析涨停的原因",
-    "调取这家公司今年的所有研报，并进行深度分析",
-    "先收集这个行业最近3个月的200份研报，然后分析这个行业",
-  ]) {
-    assert.ok(financeAgent.includes(prompt), `缺少首页预填任务：${prompt}`);
+  const router = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
+  assert.deepEqual(HOME_TASKS.map((t) => t.to), ["/daily-review", "/research", "/my-reports"]);
+  for (const task of HOME_TASKS) {
+    assert.ok(router.includes(`path: "${task.to}"`));
   }
+  assert.match(financeAgent, /to=\{task\.to\}/);
+  assert.match(financeAgent, /不会自动取数或收集全网研报/);
+  assert.doesNotMatch(financeAgent, /200份研报|所有研报/);
 });
 
 test("Core 只在有说明时渲染提醒框，长任务使用统一卡片样式", () => {
