@@ -7,7 +7,9 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import { backend, friendlyAgentError, type LocalAgentStatus, type ProductInfo } from "@/lib/backend";
 import { API_MODELS, PROVIDER_BASE, SUBSCRIPTION_MODELS, isCliProvider, providerOfModel, type ProviderId } from "@/lib/ai-models";
 import { clearLlm, loadUserLlm, saveLlm } from "@/lib/llm";
-import { saveExecutionMode } from "@/lib/llmStore";
+import { LLM_KEY } from "@/lib/llmStore";
+import { AgentToggle } from "@/components/ui/AgentToggle";
+import { testAndSaveAi } from "@/lib/aiConnection";
 import { useAiRuntime } from "@/hooks/useAiRuntime";
 
 /**
@@ -163,9 +165,8 @@ export function Settings() {
     if (!cfg) return;
     setTesting(true); setMsg(""); setMsgErr("");
     try {
-      const probe = await backend.llmProbe(cfg);
-      saveLlm(cfg, { directSupported: probe.direct_supported, directReason: probe.direct_reason });
-      setConfigured(true); say("连接成功。Vibe Research Agent 已默认开启，可以直接使用。");
+      await testAndSaveAi(cfg, { read: () => localStorage.getItem(LLM_KEY), probe: backend.llmProbe, save: saveLlm });
+      setConfigured(true); say("连接成功。可在左上角通过「开启Agent」切换普通对话与研究模式。");
     } catch (e) {
       oops(friendlyAgentError(e));
     } finally { setTesting(false); }
@@ -178,9 +179,8 @@ export function Settings() {
     const cfg = { provider: m.provider, baseURL: "", apiKey: "", model: m.id };
     setTesting(true); setMsg(""); setMsgErr("");
     try {
-      const probe = await backend.llmProbe(cfg);
-      saveLlm(cfg, { directSupported: probe.direct_supported, directReason: probe.direct_reason });
-      setConfigured(true); say(`「${m.name}」连接成功。Vibe Research Agent 已默认开启。`);
+      await testAndSaveAi(cfg, { read: () => localStorage.getItem(LLM_KEY), probe: backend.llmProbe, save: saveLlm });
+      setConfigured(true); say(`「${m.name}」连接成功。可在左上角通过「开启Agent」切换普通对话与研究模式。`);
     } catch (e) { oops(friendlyAgentError(e)); }
     finally { setTesting(false); }
   };
@@ -244,18 +244,12 @@ export function Settings() {
         { icon: Database, title: "长期上下文", text: "可以继续追问和迭代" },
         { icon: ShieldCheck, title: "证据纪律", text: "结果经过校验与红线" },
       ];
-  const changeExecutionMode = (next: "agent" | "direct") => {
-    try {
-      saveExecutionMode(next);
-      say(next === "agent" ? "Vibe Research Agent 已开启" : "已切换为模型直连。深度研究和工具任务会提示重新开启 Agent。");
-    } catch (e) { oops(e instanceof Error ? e.message : String(e)); }
-  };
 
   return (
     <div>
       <PageHeader
         title="接入 AI"
-        subtitle="第一步只需连接订阅或 API。连接后默认使用 Agent，不必再做技术选择。"
+        subtitle="连接订阅或 API 后即可普通对话；需要联网、工具或多步研究时，开启左上角 Agent。"
       />
 
       {!configured && <GlassCard glow className="mb-5 border-primary/35 bg-primary/[0.06]">
@@ -286,12 +280,13 @@ export function Settings() {
         <span>
           API key <b className="text-foreground">只保存在这台机器的浏览器里</b>，提问时经<b className="text-foreground">本机</b>后端转给你选定的模型服务商，
           用完即弃 —— 不进入本产品的配置文件、日志、台账或仓库。
+          <span className="mt-2 block">开启 Agent 联网时，搜索词会发送给搜索服务；网页读取可能经 Jina Reader 转发网址及查询参数。请勿提交含私密令牌或签名凭据的链接。</span>
         </span>
       </div>
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
-        <GlassCard onClick={() => setMode("subscription")}
-          className={`cursor-pointer ${mode === "subscription" ? "ring-1 ring-primary/40" : "opacity-80"}`}>
+        <button type="button" onClick={() => setMode("subscription")} aria-pressed={mode === "subscription"}
+          className={`glass p-5 text-left ${mode === "subscription" ? "ring-1 ring-primary/60" : "hover:border-primary/40"}`}>
           <div className="flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-primary" />
             <h3 className="font-semibold">订阅接入</h3>
@@ -300,10 +295,10 @@ export function Settings() {
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             自动检测本机已经安装并登录的 Agent，走对应订阅额度，<b className="text-foreground">免 API key</b>。
           </p>
-        </GlassCard>
+        </button>
 
-        <GlassCard onClick={() => setMode("api")}
-          className={`cursor-pointer ${mode === "api" ? "ring-1 ring-primary/40" : "opacity-80"}`}>
+        <button type="button" onClick={() => setMode("api")} aria-pressed={mode === "api"}
+          className={`glass p-5 text-left ${mode === "api" ? "ring-1 ring-primary/60" : "hover:border-primary/40"}`}>
           <div className="flex items-center gap-2">
             <KeyRound className="h-5 w-5 text-primary" />
             <h3 className="font-semibold">API 接入</h3>
@@ -312,7 +307,7 @@ export function Settings() {
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
             填自己的 key：DeepSeek / MiMo / 智谱 / Kimi / 通义 / OpenAI / 任意兼容端点。
           </p>
-        </GlassCard>
+        </button>
       </div>
 
       <GlassCard className="mb-4">
@@ -445,7 +440,7 @@ export function Settings() {
         )}
       </GlassCard>
 
-      {/* 第二张卡只解决“是否使用 Agent”。默认开启，普通用户无需修改。 */}
+      {/* 与左上角共用同一开关，默认关闭。 */}
       <div data-testid="agent-runtime-card">
         <GlassCard glow className="relative mb-5 overflow-hidden border-primary/25">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -457,30 +452,24 @@ export function Settings() {
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {localSubscriptionRuntime
-                  ? `默认开启。${localRuntimeName} Agent 可承载本地对话、有界材料任务和 A 股六阶段研究；研究阶段只开放产品受控 MCP。`
-                  : "默认开启。Agent 会维持上下文、调用本地数据和计算工具、完成多步研究，并保留可继续迭代的任务记录。"}
+                  ? `默认关闭。普通对话仍使用 ${localRuntimeName} 订阅客户端，但不挂载研究工具；开启后可联网查证和运行多步研究。`
+                  : "默认关闭。普通对话不运行工具循环；开启后 Agent 可调用数据和计算工具、完成多步研究，并保留研究任务记录。"}
                 当前运行时：<b className="text-foreground">{selectedRuntime}</b>。
               </p>
             </div>
-            <button type="button" role="switch" aria-checked={runtime.config?.executionMode !== "direct"}
-              disabled={!configured}
-              onClick={() => changeExecutionMode(runtime.config?.executionMode === "direct" ? "agent" : "direct")}
-              className={`relative h-8 w-14 rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-45 ${runtime.config?.executionMode === "direct" ? "bg-muted" : "bg-primary"}`}>
-              <span className={`absolute top-1 h-6 w-6 rounded-full bg-white shadow transition-transform ${runtime.config?.executionMode === "direct" ? "translate-x-1" : "translate-x-7"}`} />
-              <span className="sr-only">切换 Agent</span>
-            </button>
+            <AgentToggle />
           </div>
           <div className="mt-4 rounded-xl border border-border/60 bg-background/30 p-3 text-xs leading-5 text-muted-foreground">
             {!configured ? (
-              <><b className="text-foreground">等待连接 AI。</b> 连接成功后 Agent 会自动开启，不需要再做一次选择。</>
+              <><b className="text-foreground">等待连接 AI。</b> 连接成功后默认普通对话，Agent 保持关闭。</>
             ) : runtime.config?.executionMode === "direct" ? (
-              <><b className="text-foreground">当前：模型直连。</b> 适合轻量对话和材料定位；六阶段研究、多空辩论、Agent 回测与需要工具的任务会要求重新开启 Agent。</>
+              <><b className="text-foreground">当前：普通对话。</b> 不挂载研究工具。六阶段研究、多空辩论、Agent 回测与资料转写需先开启 Agent。</>
             ) : localSubscriptionRuntime ? (
               <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话、有界材料任务和 A 股六阶段研究；不会暗中换成 Codex。</>
             ) : (
-              <><b className="text-foreground">当前：Agent 已开启（推荐）。</b> 所有能力都走完整工作流；模型只是提供推理能力。</>
+              <><b className="text-foreground">当前：Agent 已开启。</b> 按问题需要使用联网和工具，复杂研究可能耗时较长。</>
             )}
-            {configured && !runtime.config?.directSupported && <p className="mt-1 text-warning">当前 AI 来源不能关闭 Agent：{runtime.config?.directReason}</p>}
+            {configured && !runtime.config?.directSupported && <p className="mt-1">该来源的普通对话仍通过原订阅客户端或 Responses 引擎连接，不转换订阅凭据、不启动研究工具。</p>}
           </div>
           <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
             {runtimeFeatures.map(({ icon: Icon, title, text }) => <div key={title} className="rounded-xl border border-border/60 bg-background/25 p-3">

@@ -20,6 +20,18 @@ BASE = dict(total_return=0.1, annual_return=0.02, max_drawdown=-0.3, sharpe=0.5,
             calmar=0.1, sortino=0.4, trade_count=3, win_rate=0.66, profit_loss_ratio=1.2)
 
 
+def test_no_loss_ratios_are_unavailable_not_zero():
+    from types import SimpleNamespace
+    from backtest.metrics import win_rate_and_stats
+    for pnls in ([], [100], [0], [100, 0]):
+        stats = win_rate_and_stats([SimpleNamespace(pnl=p, holding_bars=2) for p in pnls])
+        assert stats["profit_loss_ratio"] is None
+        assert stats["profit_factor"] is None
+    mixed = win_rate_and_stats([SimpleNamespace(pnl=p, holding_bars=2) for p in [100, -50]])
+    assert mixed["profit_loss_ratio"] == 2
+    assert mixed["profit_factor"] == 2
+
+
 def make(metrics=None, missing=None, prov=None) -> Result:
     return Result(metrics={**BASE, **(metrics or {})}, plan=PLAN, strategy="测试策略",
                   provenance=prov or {}, limits=list(PLAN.limits), notes=list(PLAN.notes),
@@ -46,6 +58,22 @@ def test_agent_result_forces_self_benchmark_and_cash_drag_disclosures():
     lines = view["required_disclosures"]
     assert any("不是独立外部基准" in line for line in lines)
     assert any("总换手率为 0.874" in line and "未投入现金" in line for line in lines)
+
+
+def test_agent_result_preserves_execution_fees_and_currency():
+    view = _result_view(make({"execution_fees": 123.456, "fill_count": 4}))
+    assert view["metrics"]["execution_fees"] == 123.456
+    assert view["metrics"]["fill_count"] == 4
+    assert view["plan"]["currency"] == "CNY"
+    assert any("平仓记录" in line and "fill_count" in line for line in view["required_disclosures"])
+    assert any("滑点" in line and "execution_fees" in line for line in view["required_disclosures"])
+    assert any("滑点通过引擎成交价格模型反映在净值中" in line for line in view["required_disclosures"])
+
+
+def test_legacy_result_does_not_invent_zero_execution_fees():
+    view = _result_view(make())
+    assert "execution_fees" not in view["metrics"]
+    assert "fill_count" not in view["metrics"]
 
 
 def test_external_benchmark_and_full_turnover_do_not_claim_those_limitations():

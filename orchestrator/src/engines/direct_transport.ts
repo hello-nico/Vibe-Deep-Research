@@ -113,9 +113,11 @@ export async function chatCompletion(req: ChatRequest): Promise<ChatReply> {
   // 外部取消与超时取消合并:任一触发都要停
   const onExternalAbort = () => timeout.abort();
   req.signal?.addEventListener("abort", onExternalAbort, { once: true });
+  if (req.signal?.aborted) timeout.abort();
 
   const startedAt = Date.now();
   let res: Response;
+  let raw: string;
   try {
     res = await fetch(url, {
       method: "POST",
@@ -123,6 +125,9 @@ export async function chatCompletion(req: ChatRequest): Promise<ChatReply> {
       body: JSON.stringify(body),
       signal: timeout.signal,
     });
+    // Headers alone are not completion: keep timeout and cancellation attached
+    // until the entire response body has been consumed.
+    raw = await res.text();
   } catch (e) {
     const aborted = timeout.signal.aborted;
     const detail = scrubSecrets(e instanceof Error ? e.message : String(e), req.apiKey);
@@ -140,7 +145,6 @@ export async function chatCompletion(req: ChatRequest): Promise<ChatReply> {
   }
 
   const durationMs = Date.now() - startedAt;
-  const raw = await res.text();
   if (!res.ok) {
     // 429 与 5xx 值得退避重试;4xx 多是参数 / 密钥问题,重试只会重复烧钱
     const retryable = res.status === 429 || res.status >= 500;

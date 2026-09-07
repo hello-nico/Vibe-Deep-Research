@@ -67,6 +67,7 @@ export const FINANCE_PLUGIN: Plugin = {
 
   /** report.md 必须出现的章节标题(SOP §5 骨架) */
   reportSections: ["结论摘要", "事实", "推断", "估值", "风险与反证", "裁决点", "数据缺口"],
+  fidelityExcludedSections: ["数据缺口"],
 
   evidence: {
     /** 证券市场代码 */
@@ -113,6 +114,7 @@ export const FINANCE_PLUGIN: Plugin = {
    *    就等于让双方引用别人的观点当证据,而对方无法核实。
    */
   debate: {
+    outputLanguage: "zh",
     dossierEndpoints: ["tx_quote", "fetch_profile", "fetch_financials", "indicators_cn"],
     stages: [
       {
@@ -167,6 +169,7 @@ export const FINANCE_PLUGIN: Plugin = {
   },
 
   /** 变化提醒默认盯的证据字段 */
+  alertObservationFields: ["price", "total_market_cap", "pe_ttm", "pb", "pe_ttm_latest"],
   alertFields: ["price", "total_market_cap", "pe_ttm", "pb", "eps_consensus_mean", "eps_analyst_count",
     "revenue_cum", "net_profit_parent_cum", "net_profit_deducted_cum", "margin_financing_balance_latest",
     "shareholder_count", "lockup_upcoming_count", "dragon_tiger_count", "block_trade_count",

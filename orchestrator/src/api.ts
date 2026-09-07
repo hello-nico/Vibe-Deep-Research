@@ -11,11 +11,12 @@
 import fs from "node:fs";
 import { productVersion } from "./version.ts";
 import http from "node:http";
+import { cancelResearch, confirmChatResearch } from "./service.ts";
 import path from "node:path";
 
 import crypto from "node:crypto";
 
-import { IMPORT_MAX_TOTAL_BYTES, ServiceError, chatSend, llmProbe, translateHeadlines, evidenceAlerts, guidedToolTurn, listTools, runToolRequest, fetchEndpoint, ingestFiles, debateAdvance, debateStart, ledgerKinds, ledgerLabels, ledgerList, localAgents, productInfo, ledgerRemove, ledgerSnapshot, ledgerUpsert, pageQuery, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, readRunFile, redact, reportDelete, reportDownload, reportUpload, reportsList, researchStatus, safePath, serviceContext, startCodexSubscriptionLogin, startResearch, thermoSeries, type ServiceContext } from "./service.ts";
+import { IMPORT_MAX_TOTAL_BYTES, ServiceError, chatSend, llmProbe, translateHeadlines, evidenceAlerts, guidedToolTurn, listTools, runToolRequest, fetchEndpoint, ingestFiles, debateAdvance, debateStart, ledgerKinds, ledgerLabels, ledgerList, localAgents, productInfo, ledgerRemove, ledgerSnapshot, ledgerUpsert, pageQuery, getEvidence, getReport, knowledgeRecall, listEndpoints, listRuns, readRunFile, redact, reportDelete, reportDownload, reportPreview, reportUpload, reportsList, researchStatus, safePath, serviceContext, startCodexSubscriptionLogin, startResearch, thermoSeries, type ServiceContext } from "./service.ts";
 import { REPORT_MAX_BYTES } from "./report_library.ts";
 import { NOFOLLOW_FLAG, restrictPrivateFile } from "./fsutil.ts";
 import { resumeUnifiedTask, runUnifiedTask } from "./task_service.ts";
@@ -140,8 +141,9 @@ function uiRun(ctx: ServiceContext, id: string): string | null {
   const st = researchStatus(ctx, id);
   if (!st.exists) return null;
   const rep = getReport(ctx, id);
+  const reportText = rep.report ?? (rep.availability === "unvalidated" ? "报告尚未通过最终校验，正文暂不可用。本地草稿保留供排查。" : "这次运行尚无报告文件。");
   const stages = st.stages.map((s) => `<li>${esc(s.stage)} <span class="tag ${esc(s.status)}">${esc(s.status)}</span> × ${s.attempts}</li>`).join("");
-  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Vibe Research · ${esc(id)}</title><style>${UI_CSS}</style></head><body><header><h1>${esc(st.run_id)} · <span class="tag ${esc(st.status)}">${esc(st.status)}</span></h1><div><a style="color:#9cf" href="/ui">← 运行列表</a> · 证据 ${st.evidence_count ?? "-"} · 计算 ${st.calculation_count ?? "-"} · ${st.viewer ? `<a style="color:#9cf" href="/runs/${esc(id)}/viewer">打开证据查看器</a>` : "无查看器"}</div></header><main><h2>阶段</h2><ul>${stages}</ul><h2>report.md</h2><pre>${esc(rep.report ?? "(无报告)")}</pre></main></body></html>`;
+  return `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>Vibe Research · ${esc(id)}</title><style>${UI_CSS}</style></head><body><header><h1>${esc(st.run_id)} · <span class="tag ${esc(st.status)}">${esc(st.status)}</span></h1><div><a style="color:#9cf" href="/ui">← 运行列表</a> · 证据 ${st.evidence_count ?? "-"} · 计算 ${st.calculation_count ?? "-"} · ${st.viewer && rep.availability === "ready" ? `<a style="color:#9cf" href="/runs/${esc(id)}/viewer">打开证据查看器</a>` : "查看器尚不可用"}</div></header><main><h2>阶段</h2><ul>${stages}</ul><h2>report.md</h2><pre>${esc(reportText)}</pre></main></body></html>`;
 }
 
 /** 把浏览器主动停止 / 连接中断变成模型调用的 AbortSignal，避免页面停了后台仍继续计费。 */
@@ -189,7 +191,7 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
       if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, version: productVersion() });
       // 设置页要看的有效配置。**只读** —— 不提供任何写入密钥的入口(见 service.productInfo)
       if (req.method === "GET" && url.pathname === "/product") return send(res, 200, productInfo(ctx));
-      if (req.method === "GET" && url.pathname === "/local-agents") return send(res, 200, await localAgents(ctx));
+      if (req.method === "GET" && url.pathname === "/local-agents") return send(res, 200, await localAgents(ctx, process.env, url.searchParams.get('provider') ?? undefined));
       if (req.method === "POST" && url.pathname === "/local-agents/codex/login") {
         await readBody(req);
         return send(res, 202, startCodexSubscriptionLogin(ctx));
@@ -197,13 +199,15 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
       if (req.method === "GET" && url.pathname === "/endpoints") return send(res, 200, listEndpoints(ctx, { layer: q.layer, market: q.market, q: q.q, enabled_only: q.enabled_only === "1", for_ui: q.all !== "1" }));
       // 界面查询:页面按**名字**要一屏数据,不点名物理端点(见 service.pageQuery)
       if (req.method === "GET" && parts[0] === "page" && parts[1] && parts.length === 2) {
-        return send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: q.symbol, refresh: q.refresh === "1" }));
+        return await withRequestAbort(req, res, async (signal) => send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: q.symbol, refresh: q.refresh === "1", signal })));
       }
       // 用户在界面上拨过某个块参数的那次查询走 POST:参数是结构化的,塞查询串会变成字符串猜类型。
       // ⚠️ 能拨哪些键由垂类的 `userArgs` 白名单说了算,这里不放宽(见 service.pickUserArgs)。
       if (req.method === "POST" && parts[0] === "page" && parts[1] && parts.length === 2) {
-        const b = (await readBody(req)) as { symbol?: string; refresh?: boolean; blockArgs?: Record<string, Record<string, unknown>> };
-        return send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: b?.symbol, refresh: b?.refresh === true, blockArgs: b?.blockArgs }));
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = (await readBody(req)) as { symbol?: string; refresh?: boolean; blockArgs?: Record<string, Record<string, unknown>> };
+          return send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: b?.symbol, refresh: b?.refresh === true, blockArgs: b?.blockArgs, signal }));
+        });
       }
       // 多空辩论:开一场 → 逐个阶段推进(一次一个,界面据此逐段显示)
       // 垂类自带的工具:GET 列清单 / POST 跑一个。Core **不知道**这些工具各自是干什么的。
@@ -211,8 +215,10 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         return send(res, 200, { tools: listTools() });
       }
       if (req.method === "POST" && parts[0] === "tool" && parts[1] && parts.length === 2) {
-        const b = await readBody(req) as { input?: unknown; llm?: unknown; executionMode?: unknown };
-        return send(res, 200, await runToolRequest(ctx, parts[1], b));
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = await readBody(req) as { input?: unknown; llm?: unknown; executionMode?: unknown };
+          return send(res, 200, await runToolRequest(ctx, parts[1], b, signal));
+        });
       }
       // 对话式工具：Agent 负责补问和组参数；条件齐备后仍由上面的同一条工具执行链真实运行。
       if (req.method === "POST" && parts[0] === "guided-tool" && parts[1] && parts.length === 2) {
@@ -222,22 +228,31 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         });
       }
       if (req.method === "POST" && url.pathname === "/debate") {
-        const b = (await readBody(req)) as { symbol?: string; session?: string; depth?: string; llm?: unknown; executionMode?: unknown };
-        return send(res, 200, await debateStart(ctx, {
-          symbol: String(b?.symbol ?? ""),
-          ...(b?.session ? { session: b.session } : {}),
-          ...(b?.depth ? { depth: String(b.depth) } : {}),
-          ...(b?.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
-          ...(b?.llm !== undefined ? { llm: b.llm } : {}),
-        }));
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = (await readBody(req)) as { symbol?: string; session?: string; depth?: string; llm?: unknown; executionMode?: unknown };
+          return send(res, 200, await debateStart(ctx, {
+            symbol: String(b?.symbol ?? ""),
+            ...(b?.session ? { session: b.session } : {}),
+            ...(b?.depth ? { depth: String(b.depth) } : {}),
+            ...(b?.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
+            ...(b?.llm !== undefined ? { llm: b.llm } : {}),
+          }, signal));
+        });
       }
       if (req.method === "POST" && parts[0] === "debate" && parts[1] && parts[2] === "advance") {
-        const b = await readBody(req);
-        return send(res, 200, await debateAdvance(ctx, { id: parts[1],
-          ...(b.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
-          ...(b.llm !== undefined ? { llm: b.llm } : {}) }));
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = await readBody(req);
+          return send(res, 200, await debateAdvance(ctx, { id: parts[1],
+            ...(b.executionMode !== undefined ? { executionMode: b.executionMode } : {}),
+            ...(b.llm !== undefined ? { llm: b.llm } : {}) }, signal));
+        });
       }
-      if (req.method === "POST" && url.pathname === "/fetch") { const b = await readBody(req); return send(res, 200, await fetchEndpoint(ctx, b as never)); }
+      if (req.method === "POST" && url.pathname === "/fetch") {
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = await readBody(req);
+          return send(res, 200, await fetchEndpoint(ctx, { ...b, signal } as never));
+        });
+      }
       // 统一任务入口：客户端只提交高层 task；路由器自行决定 deterministic / Quick / Deep。
       // Deep 只经适配器启动既有六阶段编排；旧 /research 保持兼容。
       if (req.method === "POST" && url.pathname === "/tasks") {
@@ -256,7 +271,11 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
           }));
         });
       }
-      // 自由对话:一问一答。**只读沙箱 + 不联网 + 过合规 gate**(见 chat.ts),不产出证据、不写台账。
+      // Normal Agent chat uses product tools; direct mode and internal probes stay separate.
+      if (req.method === "POST" && url.pathname === "/chat/confirm-research") {
+        const b = await readBody(req);
+        return send(res, 200, confirmChatResearch(ctx, b));
+      }
       if (req.method === "POST" && url.pathname === "/chat") {
         // body 里可带 `llm`(界面上选的模型 + 用户自己的 key)。
         // 🔴 key 只在这一次请求的内存里流转 —— 不写配置、不进日志、不入账本。
@@ -282,8 +301,10 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
       // 资料导入:上传截图 / 文本 → agent 转写成台账**草稿**(不直接落库,见 ingest.ts)。
       // base64 会把体积放大约 1/3,再留些余量给 JSON 外壳
       if (req.method === "POST" && url.pathname === "/import") {
-        const b = await readBody(req, Math.ceil(IMPORT_MAX_TOTAL_BYTES * 1.4));
-        return send(res, 200, await ingestFiles(ctx, b as never));
+        return await withRequestAbort(req, res, async (signal) => {
+          const b = await readBody(req, Math.ceil(IMPORT_MAX_TOTAL_BYTES * 1.4));
+          return send(res, 200, await ingestFiles(ctx, b as never, signal));
+        });
       }
       // 用户资料:上传后先提取正文并建立本地索引，成功才出现在列表。
       if (req.method === "GET" && url.pathname === "/reports") return send(res, 200, reportsList(ctx));
@@ -299,7 +320,16 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
         const found = reportDownload(ctx, parts[1]);
         return found ? sendFile(res, found.path, found.report.name, reportMime(found.report.ext)) : send(res, 404, { error: "no_such_report" });
       }
+      if (req.method === "GET" && parts[0] === "reports" && parts[1] && parts[2] === "preview" && parts.length === 3) {
+        const found = reportPreview(ctx, parts[1]);
+        return found ? send(res, 200, found) : send(res, 404, { error: "no_such_report" });
+      }
       if (req.method === "POST" && url.pathname === "/research") { const b = await readBody(req); return send(res, 202, startResearch(ctx, b as never)); }
+      if (req.method === "POST" && url.pathname === "/research/cancel") {
+        const b = await readBody(req);
+        if (Object.keys(b).some((key) => key !== "run_id")) throw new ServiceError("bad_request", "取消只接受研究编号");
+        return send(res, 200, cancelResearch(ctx, b.run_id));
+      }
       if (req.method === "GET" && url.pathname === "/runs") return send(res, 200, listRuns(ctx, q.limit ? Number(q.limit) : undefined));
       // 「昨天以来变了什么」:对齐同一对象最近两次研究。**不足两次会报 need_two_runs**,
       // 调用方据此区分"没变化"与"还没有可比较的第二次"——这两件事完全不同(见 service.evidenceAlerts)。
@@ -345,6 +375,7 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string; cook
       }
       return send(res, 404, { error: "not found" });
     } catch (e) {
+      if (e instanceof URIError) return send(res, 400, { error: "bad_path", message: "网址编码无效，请从栏目入口重新打开" });
       if (e instanceof ServiceError) {
         // 🔴 请求体过大要回 **413**,不能混在 400 里。
         //    上一版注释写着"照常回一个 413",代码却走统一的 400 —— 又一次**声称与代码不符**

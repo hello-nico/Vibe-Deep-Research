@@ -27,6 +27,8 @@ export interface AiRuntimeConfig {
   schemaVersion: 2;
   source: LlmConfig;
   executionMode: ExecutionMode;
+  /** M24 distinguishes an explicit choice from the previous automatic Agent default. */
+  modePreferenceVersion?: 1;
   directSupported: boolean;
   directReason: string;
 }
@@ -84,7 +86,7 @@ export function readAiRuntime(): AiRuntimeRead {
   if (!raw) return { status: "none", config: null };
   try {
     const parsed = JSON.parse(raw) as Partial<LlmConfig> & Partial<AiRuntimeConfig>;
-    // v1 是平铺的模型配置。读到旧值时原地兼容，默认开 Agent；
+    // 旧配置默认普通对话；只有 M24 后明确开启才使用 Agent。
     // 只在用户下次保存时才写回 v2，避免打开页面就修改密钥存储。
     const c = parsed.schemaVersion === 2 && parsed.source && typeof parsed.source === "object"
       ? parsed.source as Partial<LlmConfig>
@@ -96,11 +98,11 @@ export function readAiRuntime(): AiRuntimeRead {
     const directSupported = parsed.schemaVersion === 2 && parsed.directSupported === true;
     const directReason = parsed.schemaVersion === 2 && typeof parsed.directReason === "string"
       ? parsed.directReason : "请重新测试连接后查看直连能力";
-    const executionMode: ExecutionMode = parsed.schemaVersion === 2 && parsed.executionMode === "direct" && directSupported
-      ? "direct"
-      : "agent";
+    const executionMode: ExecutionMode = parsed.schemaVersion === 2 && parsed.modePreferenceVersion === 1 && parsed.executionMode === "agent"
+      ? "agent"
+      : "direct";
     return isUsable(cfg)
-      ? { status: "ok", config: { schemaVersion: 2, source: cfg, executionMode, directSupported, directReason } }
+      ? { status: "ok", config: { schemaVersion: 2, modePreferenceVersion: 1, source: cfg, executionMode, directSupported, directReason } }
       : { status: "broken", config: null };
   } catch {
     return { status: "broken", config: null };
@@ -119,12 +121,15 @@ export function loadUserLlm(): LlmConfig | null {
 
 /** 存不下时抛错 —— 静默失败会让用户以为配好了，下次打开又是空的 */
 export function saveUserLlm(cfg: LlmConfig, capability?: { directSupported: boolean; directReason: string }): void {
+  const previous = readAiRuntime().config;
+  const sameSource = previous && (["provider", "baseURL", "apiKey", "model"] as const)
+    .every(key => (previous.source[key] ?? "") === (cfg[key] ?? ""));
   const directSupported = capability?.directSupported ?? false;
   const directReason = capability?.directReason ?? "请重新测试连接后查看直连能力";
   localStorage.setItem(LLM_KEY, JSON.stringify({
     schemaVersion: 2, source: cfg,
-    // 新连接是一次新选择：始终回到产品默认 Agent，不继承上一个来源的 direct 开关。
-    executionMode: "agent",
+    // 新连接默认普通对话，不继承上一来源的 Agent 开关。能力标记仍仅代表 API 直连验证。
+    executionMode: sameSource ? previous.executionMode : "direct", modePreferenceVersion: 1,
     directSupported, directReason,
   } satisfies AiRuntimeConfig));
   notifyRuntimeChanged();
@@ -134,9 +139,7 @@ export function saveUserLlm(cfg: LlmConfig, capability?: { directSupported: bool
 export function saveExecutionMode(executionMode: ExecutionMode): void {
   const current = readAiRuntime();
   if (current.status !== "ok" || !current.config) throw new Error("请先连接 AI");
-  if (executionMode === "direct" && (!current.config.directSupported || isCli(current.config.source.provider))) {
-    throw new Error(current.config.directReason || "当前 AI 来源不支持直连模式");
-  }
+  if (executionMode !== "agent" && executionMode !== "direct") throw new Error("无效的 Agent 开关值");
   localStorage.setItem(LLM_KEY, JSON.stringify({ ...current.config, executionMode } satisfies AiRuntimeConfig));
   notifyRuntimeChanged();
 }

@@ -140,7 +140,7 @@ function validateBrowse(ctx: TaskAdapterContext, operation: Extract<Deterministi
 }
 
 function calcEnv(): NodeJS.ProcessEnv {
-  const out: NodeJS.ProcessEnv = { PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1" };
+  const out: NodeJS.ProcessEnv = { PYTHONIOENCODING: "utf-8", PYTHONUTF8: "1", PYTHONDONTWRITEBYTECODE: "1" };
   for (const key of ["PATH", "SYSTEMROOT", "SystemRoot", "WINDIR", "TEMP", "TMP"]) {
     if (process.env[key] !== undefined) out[key] = process.env[key];
   }

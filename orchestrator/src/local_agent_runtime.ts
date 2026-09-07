@@ -3,7 +3,7 @@
  *
  * 来源与边界：参考 nexu-io/open-design 0.21.0 的 runtime registry / detection，
  * 但这里只收下金融工作台当前能安全证明的最小能力：Claude Code 与 CodeBuddy 的订阅登录。
- * 普通对话关闭全部工具与 MCP；Deep 研究关闭全部内建工具，只开放本产品显式受控 MCP。
+ * 普通 Agent 对话与 Deep 研究使用各自的产品 MCP；连接探针等内部任务不挂载工具。
  * 两条路径都关闭会话落盘与用户配置；没有等价隔离参数的 CLI 不能把按钮点亮。
  */
 import { execFile, spawn, spawnSync, type ChildProcess } from "node:child_process";
@@ -11,6 +11,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { promisify } from "node:util";
+import { settleOwnedProcessGroup } from "./research_process.ts";
 
 const execFileAsync = promisify(execFile);
 const MAX_ACTIVE_LOCAL_AGENTS = 4;
@@ -44,13 +45,15 @@ const CODEX_LOGIN_FAILURE_TTL_MS = 60 * 1_000;
 const codexLoginJobs = new Map<string, CodexLoginProgress>();
 
 /** Windows 没有 POSIX 进程组；taskkill /T 是对应的整棵进程树终止语义。 */
-function signalProcessTree(child: { pid?: number; kill: (signal?: NodeJS.Signals) => boolean }, signal: NodeJS.Signals): void {
+function signalProcessTree(child: { pid?: number; kill: (signal?: NodeJS.Signals) => boolean }, signal: NodeJS.Signals): boolean {
   try {
     if (process.platform === "win32" && child.pid) {
-      spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", ...(signal === "SIGKILL" ? ["/F"] : [])], { windowsHide: true, stdio: "ignore" });
+      const result = spawnSync("taskkill.exe", ["/PID", String(child.pid), "/T", ...(signal === "SIGKILL" ? ["/F"] : [])], { windowsHide: true, stdio: "ignore", timeout: 5000 });
+      return !result.error && result.status === 0;
     } else if (child.pid) process.kill(-child.pid, signal);
-    else child.kill(signal);
-  } catch { /* 整棵已经退出 */ }
+    else return child.kill(signal);
+    return true;
+  } catch (e) { return (e as NodeJS.ErrnoException).code === "ESRCH"; }
 }
 
 /**
@@ -211,7 +214,7 @@ export function startCodexLogin(
   return { state: "started" };
 }
 
-/** 产品自带 Codex 的真实登录探针；只认命令退出码，不读取或返回 auth.json 内容。 */
+/** 产品自带 Codex 的真实登录探针；区分官方未登录结果与检测异常，不读取 auth.json。 */
 export async function probeCodex(
   bin: string | null, codexHome: string, env: NodeJS.ProcessEnv = process.env,
 ): Promise<LocalAgentStatus> {
@@ -222,7 +225,7 @@ export async function probeCodex(
   let version: string | null = null;
   try {
     const versionCall = executableInvocation(bin, ["--version"], env);
-    const v = await execFileAsync(versionCall.file, versionCall.args, { env, timeout: 5_000, maxBuffer: 64 * 1024 });
+    const v = await execFileAsync(versionCall.file, versionCall.args, { env, timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024 });
     version = oneLine(v.stdout);
   } catch {
     return { provider: "cli-codex", name: "Codex", installed: true, authenticated: false, available: false,
@@ -231,11 +234,11 @@ export async function probeCodex(
   try {
     const statusCall = executableInvocation(bin, ["login", "status"], { ...env, CODEX_HOME: codexHome });
     await execFileAsync(statusCall.file, statusCall.args, {
-      env: { ...env, CODEX_HOME: codexHome }, timeout: 5_000, maxBuffer: 64 * 1024,
+      env: { ...env, CODEX_HOME: codexHome }, timeout: 5_000, killSignal: "SIGKILL", maxBuffer: 64 * 1024,
     });
     return { provider: "cli-codex", name: "Codex", installed: true, authenticated: true, available: true,
       version, status: "ready", detail: "产品自带引擎已登录，可使用 ChatGPT 订阅" };
-  } catch {
+  } catch (error) {
     const login = codexLoginProgress(codexHome);
     if (login?.state === "pending") {
       return { provider: "cli-codex", name: "Codex", installed: true, authenticated: false, available: false,
@@ -245,8 +248,13 @@ export async function probeCodex(
       return { provider: "cli-codex", name: "Codex", installed: true, authenticated: false, available: false,
         version, status: "login_failed", detail: "Codex 登录未完成，请重新登录" };
     }
+    // Upstream login.rs uses exit 1 both for no login and for read/config errors.
+    const failure = error as { code?: unknown; stderr?: unknown; killed?: boolean; signal?: unknown };
+    const loggedOut = failure.code === 1 && !failure.killed && !failure.signal
+      && typeof failure.stderr === "string" && failure.stderr.split(/\r?\n/).some((line) => line.trim() === "Not logged in");
     return { provider: "cli-codex", name: "Codex", installed: true, authenticated: false, available: false,
-      version, status: "not_authenticated", detail: "产品自带引擎尚未登录" };
+      version, status: loggedOut ? "not_authenticated" : "probe_failed",
+      detail: loggedOut ? "产品自带引擎尚未登录" : "Codex 登录状态检测未完成，请重试或检查运行环境。现有登录不会被清除。" };
   }
 }
 
@@ -320,7 +328,7 @@ export function findExecutable(bin: string, env: NodeJS.ProcessEnv = process.env
   for (const candidate of candidates) {
     try {
       // npm 在 Windows 通常同时生成 claude.cmd 与 claude.ps1。优先返回可由
-      // powershell.exe -File 安全传参的 ps1；不要把含提示词的 argv 拼进 cmd.exe 命令串。
+      // 可解析 Node 入口的 npm ps1；不要把提示词送入 cmd.exe 或旧 PowerShell 的参数重解析。
       const ext = path.extname(candidate).toLowerCase();
       const ps1 = platform === "win32" && [".cmd", ".bat"].includes(ext) ? candidate.slice(0, -ext.length) + ".ps1" : candidate;
       fs.accessSync(ps1, platform === "win32" ? fs.constants.F_OK : fs.constants.X_OK);
@@ -330,6 +338,25 @@ export function findExecutable(bin: string, env: NodeJS.ProcessEnv = process.env
     }
   }
   return null;
+}
+
+/** Mirrors npm read-cmd-shim's $basedir target lookup, restricted to Node shims.
+ * The chosen installed CLI is trusted executable code, not a sandbox boundary.
+ * Bypass PowerShell 5.1's native-argument rewriting (empty args / JSON quotes).
+ */
+function npmNodeEntry(bin: string): string | null {
+  try {
+    const stat = fs.statSync(bin);
+    if (!stat.isFile() || stat.size > 64 * 1024) return null;
+    const source = fs.readFileSync(bin, "utf8").replace(/\r\n/g, "\n");
+    if (!source.startsWith("#!/usr/bin/env pwsh\n") ||
+      !source.includes("$basedir=Split-Path $MyInvocation.MyCommand.Definition -Parent\n")) return null;
+    const targets = [...source.matchAll(/&\s+"(?:\$basedir\/)?node\$exe"\s+"\$basedir\/([^"\r\n]+)"\s+\$args\b/g)].map((m) => m[1]!);
+    if (!targets.length || new Set(targets).size !== 1 || /[$`]/.test(targets[0]!) || !/\.[cm]?js$/i.test(targets[0]!)) return null;
+    const entry = path.resolve(path.dirname(bin), targets[0]!);
+    if (!fs.statSync(entry).isFile()) return null;
+    return entry;
+  } catch { return null; }
 }
 
 export function executableInvocation(
@@ -346,11 +373,9 @@ export function executableInvocation(
     if ([".cmd", ".bat"].includes(ext)) throw new LocalAgentError("agent_start_failed", "Windows CLI 缺少安全的 PowerShell 启动器");
     return { file: bin, args };
   }
-  const windowsRoot = env.SystemRoot ?? env.SYSTEMROOT ?? env.WINDIR;
-  const powershell = windowsRoot
-    ? path.win32.join(windowsRoot, "System32", "WindowsPowerShell", "v1.0", "powershell.exe")
-    : "powershell.exe";
-  return { file: powershell, args: ["-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-File", bin, ...args] };
+  const entry = npmNodeEntry(bin);
+  if (!entry) throw new LocalAgentError("agent_windows_wrapper_unsupported", "Windows 仅支持原生 CLI 或标准 npm Node 启动器，请重新安装官方 CLI");
+  return { file: process.execPath, args: [entry, ...args] };
 }
 
 function oneLine(value: unknown): string | null {
@@ -359,14 +384,15 @@ function oneLine(value: unknown): string | null {
 }
 
 function parseAuthStatus(stdout: string): boolean {
-  try {
-    const parsed = JSON.parse(stdout) as { loggedIn?: unknown; authMethod?: unknown; apiProvider?: unknown };
-    // 这一张卡片承诺的是 claude.ai 订阅，不是“Claude CLI 随便能调通”。
-    // Bedrock / Vertex / API key 即使可用，也不能在这里冒充订阅额度。
-    return parsed.loggedIn === true && parsed.authMethod === "claude.ai" && parsed.apiProvider === "firstParty";
-  } catch {
-    return false;
-  }
+  const parsed: unknown = JSON.parse(stdout);
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed) ||
+      !("loggedIn" in parsed) || typeof parsed.loggedIn !== "boolean") throw new Error("Invalid auth status");
+  if (!parsed.loggedIn) return false;
+  if (!("authMethod" in parsed) || typeof parsed.authMethod !== "string" ||
+      !("apiProvider" in parsed) || typeof parsed.apiProvider !== "string") throw new Error("Invalid auth status");
+  // 这一张卡片承诺的是 claude.ai 订阅，不是“Claude CLI 随便能调通”。
+  // Bedrock / Vertex / API key 即使可用，也不能在这里冒充订阅额度。
+  return parsed.authMethod === "claude.ai" && parsed.apiProvider === "firstParty";
 }
 
 const REQUIRED_CLAUDE_FLAGS = [
@@ -387,10 +413,10 @@ export async function probeClaude(env: NodeJS.ProcessEnv = process.env): Promise
   let version: string | null = null;
   try {
     const versionCall = executableInvocation(bin, ["--version"], runEnv);
-    const v = await execFileAsync(versionCall.file, versionCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 64 * 1024 });
+    const v = await execFileAsync(versionCall.file, versionCall.args, { env: runEnv, timeout: 5_000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 });
     version = oneLine(v.stdout);
     const helpCall = executableInvocation(bin, ["--help"], runEnv);
-    const h = await execFileAsync(helpCall.file, helpCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 128 * 1024 });
+    const h = await execFileAsync(helpCall.file, helpCall.args, { env: runEnv, timeout: 5_000, killSignal: 'SIGKILL', maxBuffer: 128 * 1024 });
     const help = String(h.stdout);
     if (!REQUIRED_CLAUDE_FLAGS.every((flag) => help.includes(flag))) {
       return {
@@ -406,17 +432,25 @@ export async function probeClaude(env: NodeJS.ProcessEnv = process.env): Promise
   }
   try {
     const authCall = executableInvocation(bin, ["auth", "status"], runEnv);
-    const a = await execFileAsync(authCall.file, authCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 64 * 1024 });
+    const a = await execFileAsync(authCall.file, authCall.args, { env: runEnv, timeout: 5_000, killSignal: 'SIGKILL', maxBuffer: 64 * 1024 });
     const authenticated = parseAuthStatus(String(a.stdout));
     return {
       provider: "cli-claude", name: "Claude Code", installed: true, authenticated,
       available: authenticated, version, status: authenticated ? "ready" : "not_authenticated",
       detail: authenticated ? "已安装并登录，可使用本机 Claude 订阅" : "已安装；请先运行 claude 并完成 /login",
     };
-  } catch {
+  } catch (error) {
+    // Claude reports an explicit logged-out JSON result with exit 1. A timeout,
+    // permissions failure or malformed output does not prove that login expired.
+    const failure = error as { code?: unknown; stdout?: unknown; killed?: boolean; signal?: unknown };
+    let loggedOut = false;
+    if (failure.code === 1 && !failure.killed && !failure.signal && typeof failure.stdout === 'string') {
+      try { loggedOut = !parseAuthStatus(failure.stdout); } catch { /* Unknown state stays probe_failed. */ }
+    }
     return {
       provider: "cli-claude", name: "Claude Code", installed: true, authenticated: false,
-      available: false, version, status: "not_authenticated", detail: "已安装；请先运行 claude 并完成 /login",
+      available: false, version, status: loggedOut ? 'not_authenticated' : 'probe_failed',
+      detail: loggedOut ? '已安装；请先运行 claude 并完成 /login' : 'Claude Code 登录状态检测未完成，请重试；若持续失败，请检查系统访问权限。现有登录不会被清除。',
     };
   }
 }
@@ -427,9 +461,26 @@ const REQUIRED_CODEBUDDY_FLAGS = [
   "--permission-mode", "--subagent-permission-mode",
 ] as const;
 
+// WorkBuddy's bundled CLI cold start can exceed five seconds even for --help.
+// Give each read-only probe a bounded startup window; timeout is not logout.
+const CODEBUDDY_PROBE_TIMEOUT_MS = 15_000;
+
 interface CodeBuddyAccount {
   userId: string;
   token: string;
+}
+
+/** Only OS, network transport and explicit subscription login context enter a CLI process. */
+export function localSubscriptionEnv(base: NodeJS.ProcessEnv, agent: "claude" | "codebuddy"): NodeJS.ProcessEnv {
+  const keys = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "COLORTERM", "LANG", "LC_ALL", "LC_CTYPE", "TZ",
+    "TMPDIR", "TEMP", "TMP", "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT",
+    "APPDATA", "LOCALAPPDATA", "PROGRAMDATA", "PROGRAMFILES", "PROGRAMFILES(X86)", "XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "XDG_STATE_HOME",
+    "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "all_proxy", "no_proxy",
+    "SSL_CERT_FILE", "SSL_CERT_DIR", "REQUESTS_CA_BUNDLE", "NODE_EXTRA_CA_CERTS", "PYTHONDONTWRITEBYTECODE"];
+  if (agent === "claude") keys.push("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN");
+  const allowed = new Set(keys);
+  return Object.fromEntries(Object.entries(base).filter(([key, value]) => value !== undefined &&
+    allowed.has(process.platform === "win32" ? key.toUpperCase() : key)));
 }
 
 interface CodeBuddyRuntime {
@@ -441,7 +492,7 @@ function codeBuddySubscriptionEnv(
   base: NodeJS.ProcessEnv,
   options: { account?: CodeBuddyAccount | null; ephemeralHome?: string } = {},
 ): NodeJS.ProcessEnv {
-  const env = { ...base };
+  const env = localSubscriptionEnv(base, "codebuddy");
   // 这一张卡承诺复用本机登录账号。API key、临时 OAuth token、自定义端点和模型覆盖
   // 都可能让非交互调用静默换成另一套计费来源，因此在探针与执行两条路径同时移除。
   for (const key of [
@@ -536,13 +587,13 @@ async function codeBuddyAccount(bin: string, env: NodeJS.ProcessEnv, legacyEphem
       hardKillTimer = setTimeout(() => {
         signalProcessTree(child, "SIGKILL");
         killFallbackTimer = setTimeout(() => finish(() => reject(terminationError!)), 2_000);
-        killFallbackTimer.unref();
+        // Keep shutdown acknowledgement alive even after the child closes its pipes.
       }, 500);
-      hardKillTimer.unref();
+      // This bounded timer owns the still-pending probe promise.
     };
     const timer = setTimeout(() => {
       terminate(new Error("CodeBuddy auth probe timed out"));
-    }, 5_000);
+    }, CODEBUDDY_PROBE_TIMEOUT_MS);
     child.stdout.setEncoding("utf8");
     child.stdout.on("data", (chunk: string) => {
       stdout += chunk;
@@ -591,10 +642,12 @@ async function codeBuddyAccount(bin: string, env: NodeJS.ProcessEnv, legacyEphem
 async function inspectCodeBuddy(bin: string, env: NodeJS.ProcessEnv): Promise<{ version: string | null; runtime: CodeBuddyRuntime }> {
   const runEnv = codeBuddySubscriptionEnv(env);
   const versionCall = executableInvocation(bin, ["--version"], runEnv);
-  const v = await execFileAsync(versionCall.file, versionCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 64 * 1024 });
+  // These read-only CLI probes have no graceful shutdown work. WorkBuddy's embedded
+  // CLI can ignore SIGTERM even for --help; execFile would then never settle on timeout.
+  const v = await execFileAsync(versionCall.file, versionCall.args, { env: runEnv, timeout: CODEBUDDY_PROBE_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 64 * 1024 });
   const version = oneLine(v.stdout);
   const helpCall = executableInvocation(bin, ["--help"], runEnv);
-  const h = await execFileAsync(helpCall.file, helpCall.args, { env: runEnv, timeout: 5_000, maxBuffer: 192 * 1024 });
+  const h = await execFileAsync(helpCall.file, helpCall.args, { env: runEnv, timeout: CODEBUDDY_PROBE_TIMEOUT_MS, killSignal: "SIGKILL", maxBuffer: 192 * 1024 });
   const help = String(h.stdout);
   if (!REQUIRED_CODEBUDDY_FLAGS.every((flag) => help.includes(flag))) {
     throw new LocalAgentError("agent_cli_too_old", "CodeBuddy 版本过旧，缺少受限对话所需的安全参数");
@@ -639,12 +692,14 @@ export async function probeCodeBuddy(env: NodeJS.ProcessEnv = process.env): Prom
 export interface RunLocalAgentOptions {
   systemPrompt: string;
   userPrompt: string;
+  /** WorkBuddy native upload blocks; bytes already validated by the ingest boundary. Never file paths. */
+  userImages?: Array<{ name: string; data: string; mimeType: string }>;
   outputSchema?: unknown;
   signal?: AbortSignal;
   env?: NodeJS.ProcessEnv;
   timeoutMs?: number;
   /**
-   * Deep 研究专用：关掉所有内建工具，只开放这一个显式 MCP 白名单。
+   * Deep 研究或资料转写：关掉所有内建工具，只开放这一个显式 MCP 白名单。
    * 配置只含本地可执行文件与运行目录，不得放密钥。
    */
   controlledMcp?: {
@@ -657,6 +712,22 @@ export interface RunLocalAgentOptions {
   };
 }
 
+export function localAgentInput(agent: LocalAgentId, prompt: string, images?: RunLocalAgentOptions["userImages"]): string {
+  if (!images?.length) return prompt;
+  if (agent !== "codebuddy" || images.length > 10 || images.some((im) =>
+    typeof im.name !== "string" || !im.name || im.name.length > 200 ||
+    !["image/png", "image/jpeg", "image/webp", "image/gif"].includes(im.mimeType) ||
+    typeof im.data !== "string" || !im.data || !/^[A-Za-z0-9+/]+={0,2}$/.test(im.data)) ||
+    images.reduce((sum, im) => sum + im.data.length, 0) > 32 * 1024 * 1024) {
+    throw new LocalAgentError("agent_bad_image", "图片附件格式或大小不受支持");
+  }
+  return JSON.stringify({ type: "user", message: { role: "user", content: [
+    { type: "text", text: prompt },
+    ...images.flatMap((im) => [{ type: "text", text: `上传图片 source_file=${JSON.stringify(im.name)}` },
+      { type: "image", source: { type: "base64", media_type: im.mimeType, data: im.data } }]),
+  ] } }) + "\n";
+}
+
 /** 可单测的参数生成器。普通对话无工具；Deep 只开放显式受控 MCP。 */
 export function claudeArgs(systemPrompt: string, outputSchema?: unknown,
   controlledMcp?: RunLocalAgentOptions["controlledMcp"]): string[] {
@@ -666,7 +737,7 @@ export function claudeArgs(systemPrompt: string, outputSchema?: unknown,
   } }) : '{"mcpServers":{}}';
   const args = [
     "-p",
-    // safe-mode 会把**显式传入**的 MCP 也关掉，所以 Deep 路径用临时 cwd + 空 setting sources
+    // safe-mode 会把**显式传入**的 MCP 也关掉，所以工具路径用临时 cwd + 空 setting sources
     // 隔离自动发现；无工具对话仍用 safe-mode。安全边界是下面的内建工具全关 + 严格 MCP 白名单。
     ...(controlledMcp ? ["--setting-sources", ""] : ["--safe-mode"]),
     "--no-chrome",
@@ -715,7 +786,7 @@ export function codeBuddyArgs(systemPrompt: string, outputSchema?: unknown, lega
 }
 
 function subscriptionEnv(base: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env = { ...base };
+  const env = localSubscriptionEnv(base, "claude");
   // 用户明确选择“Claude 订阅”时，让 Claude Code 自己的 claude.ai 登录态胜出。
   // 否则外壳进程里遗留的 API key / 第三方网关可能静默改掉计费方。
   // `CLAUDE_CODE_OAUTH_TOKEN` 是 `claude setup-token` 生成的官方订阅认证，必须保留；
@@ -788,8 +859,11 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     throw new LocalAgentError("agent_busy", `本机 Agent 已有 ${MAX_ACTIVE_LOCAL_AGENTS} 个任务在运行，请稍后再试`);
   }
   const baseEnv = opts.env ?? process.env;
+  const input = localAgentInput(agent, opts.userPrompt, opts.userImages);
   const bin = findExecutable(command, baseEnv);
   if (!bin) throw new LocalAgentError("agent_not_installed", `本机未安装 ${label}`);
+  // Reject unsupported wrappers before reserving a slot or creating a workspace.
+  executableInvocation(bin, [], baseEnv);
   // CodeBuddy 能力与登录探针是异步的；先占槽位，避免多个请求同时通过上面的容量检查。
   activeLocalAgents += 1;
   let codeBuddyRuntime: CodeBuddyRuntime | null = null;
@@ -837,6 +911,7 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     const args = agent === "claude"
       ? claudeArgs(opts.systemPrompt, opts.outputSchema, opts.controlledMcp)
       : codeBuddyArgs(opts.systemPrompt, opts.outputSchema, codeBuddyRuntime!.legacyEphemeralHome, opts.controlledMcp);
+    if (opts.userImages?.length) args.push("--input-format", "stream-json");
     const launch = executableInvocation(bin, args, runEnv);
     const child = spawn(launch.file, launch.args, {
       cwd: tmpDir,
@@ -856,8 +931,10 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     let killFallbackTimer: NodeJS.Timeout | null = null;
 
     const cleanup = () => {
-      fs.rmSync(tmpDir, { recursive: true, force: true });
       opts.signal?.removeEventListener("abort", onAbort);
+      // Windows may briefly retain a handle after process close. Retry within a
+      // fixed bound; a persistent cleanup failure must never become success.
+      fs.rmSync(tmpDir, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 });
     };
     const finish = (fn: () => void) => {
       if (settled) return;
@@ -867,16 +944,23 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       if (killFallbackTimer) clearTimeout(killFallbackTimer);
       activeLocalAgents = Math.max(0, activeLocalAgents - 1);
       untrackLocalAgentProcess(child);
-      cleanup();
+      try { cleanup(); }
+      catch {
+        reject(new LocalAgentError("agent_cleanup_failed", `${label} 临时工作区清理失败，请检查本机文件权限`));
+        return;
+      }
       fn();
     };
+    let closed = false;
+    let treeSignalled = false;
     const signalTree = (signal: NodeJS.Signals) => {
-      signalProcessTree(child, signal);
+      treeSignalled = signalProcessTree(child, signal) || treeSignalled;
     };
     const processTreeAlive = (): boolean => {
       if (process.platform === "win32") return child.exitCode === null;
       if (!child.pid) return false;
-      try { process.kill(-child.pid, 0); return true; } catch { return false; }
+      try { process.kill(-child.pid, 0); return true; }
+      catch (e) { return (e as NodeJS.ErrnoException).code !== "ESRCH"; }
     };
     const terminate = (error: LocalAgentError) => {
       if (settled || terminationError) return;
@@ -890,11 +974,12 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
       hardKillTimer = setTimeout(() => {
         signalTree("SIGKILL");
         killFallbackTimer = setTimeout(() => {
-          finish(() => reject(terminationError!));
+          const confirmed = closed && !processTreeAlive() && (process.platform !== "win32" || treeSignalled);
+          finish(() => reject(confirmed ? terminationError! : new LocalAgentError("agent_shutdown_failed", `${label} 进程树退出未确认，不能视为已取消`)));
         }, 2_000);
-        killFallbackTimer.unref();
+        // Do not let Node exit while this shutdown acknowledgement is pending.
       }, 2_000);
-      hardKillTimer.unref();
+      // The detached child may close before its descendants; keep the bounded wait alive.
     };
     const onAbort = () => {
       terminate(new LocalAgentError("agent_cancelled", `${label} 请求已取消`));
@@ -906,29 +991,35 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
     opts.signal?.addEventListener("abort", onAbort, { once: true });
     if (opts.signal?.aborted) return onAbort();
     child.stdin.on("error", () => { /* 提前退出时的 EPIPE 由 close 统一处理 */ });
-    child.stdout.on("data", (chunk: Buffer) => {
-      outBytes += chunk.length;
+    child.stdout.setEncoding("utf8");
+    child.stderr.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      outBytes += Buffer.byteLength(chunk, "utf8");
       if (outBytes > maxOut) {
         terminate(new LocalAgentError("agent_output_too_large", `${label} 输出超出上限，已终止`));
         return;
       }
-      stdout += chunk.toString("utf8");
+      stdout += chunk;
     });
-    child.stderr.on("data", (chunk: Buffer) => {
-      if (Buffer.byteLength(stderr, "utf8") < maxErr) stderr += chunk.toString("utf8");
+    child.stderr.on("data", (chunk: string) => {
+      if (Buffer.byteLength(stderr, "utf8") < maxErr) stderr += chunk;
     });
     child.on("error", () => {
-      if (terminationError) return finish(() => reject(terminationError!));
+      if (terminationError) return; // close + tree verification owns acknowledgement
       finish(() => reject(new LocalAgentError("agent_start_failed", `${label} 启动失败`)));
     });
     child.on("close", (code) => {
+      closed = true;
       if (terminationError) {
         // 直接 child 退出不代表它派生的进程也退出；组还活着就保留 KILL timer。
-        if (processTreeAlive()) return;
+        if (processTreeAlive() || (process.platform === "win32" && !treeSignalled)) return;
         return finish(() => reject(terminationError!));
       }
-      if (code !== 0) return finish(() => reject(failureMessage(agent, stdout, stderr, code)));
-      finish(() => {
+      clearTimeout(timer);
+      settleOwnedProcessGroup(child.pid).then(() => {
+        if (terminationError) return finish(() => reject(terminationError!));
+        if (code !== 0) return finish(() => reject(failureMessage(agent, stdout, stderr, code)));
+        finish(() => {
         try {
           resolve(agent === "claude" ? parseClaudeOutput(stdout) : parseCodeBuddyOutput(stdout));
         } catch (error) {
@@ -937,8 +1028,9 @@ export async function runLocalAgent(agent: LocalAgentId, opts: RunLocalAgentOpti
           const classified = failureMessage(agent, stdout, stderr, code);
           reject(classified.code === "agent_failed" ? error : classified);
         }
-      });
+        });
+      }, () => finish(() => reject(new LocalAgentError("agent_shutdown_failed", `${label} 进程组退出未确认`))));
     });
-    child.stdin.end(opts.userPrompt, "utf8");
+    child.stdin.end(input, "utf8");
   });
 }

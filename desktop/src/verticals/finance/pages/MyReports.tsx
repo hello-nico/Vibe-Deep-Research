@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Upload, FileText, Trash2, Download, Loader2, FolderOpen, Bot, Search, Play, Route } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { useSearchParams } from "react-router-dom";
+import { ReportAnswer } from "../components/ReportAnswer";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { useAiRuntime } from "@/hooks/useAiRuntime";
@@ -12,6 +12,7 @@ import {
   backend, friendlyAgentError, type ResearchTaskRequest, type TaskRouteDecision,
 } from "@/lib/backend";
 import { cn } from "@/lib/utils";
+import { newAnalysisSession } from "@/lib/analysisSession";
 
 const fmtSize = (b: number) =>
   b < 1024 ? `${b}B` : b < 1048576 ? `${(b / 1024).toFixed(0)}KB` : `${(b / 1048576).toFixed(1)}MB`;
@@ -40,12 +41,51 @@ const fileToB64 = (file: File): Promise<string> =>
   });
 
 export function MyReports() {
+  const [params, setParams] = useSearchParams();
+  const linkedReport = params.get("report");
+  const linkedPage = params.get("page");
+  const openedCitation = useRef("");
   const runtime = useAiRuntime();
-  const agentEnabled = runtime.config?.executionMode !== "direct";
+  const agentEnabled = runtime.config?.executionMode === "agent";
   const [reports, setReports] = useState<MyReport[]>([]);
   const [busy, setBusy] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [panel, setPanel] = useState<{ kind: "preview" | "delete"; report: MyReport; text?: string; truncated?: boolean; error?: string; page?: string | null } | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const previewSequence = useRef(0);
+  useEffect(() => {
+    if (panel && !dialogRef.current?.open) dialogRef.current?.showModal();
+  }, [panel]);
+  useEffect(() => () => { previewSequence.current += 1; }, []);
+  const closePanel = () => {
+    if (deleting) return;
+    previewSequence.current += 1;
+    setPanel(null);
+    if (linkedReport) setParams({}, { replace: true });
+  };
+  const preview = async (r: MyReport, page?: string | null) => {
+    const pageNumber = Number(page);
+    const verifiedPage = Number.isSafeInteger(pageNumber) && pageNumber > 0 && r.pages !== null && pageNumber <= r.pages ? String(pageNumber) : null;
+    const sequence = ++previewSequence.current;
+    setPanel({ kind: "preview", report: r });
+    try {
+      const result = await backend.reportPreview(r.id);
+      if (previewSequence.current === sequence) setPanel({ kind: "preview", report: r, text: result.text, truncated: result.truncated, page: verifiedPage });
+    } catch (e) {
+      if (previewSequence.current === sequence) setPanel({ kind: "preview", report: r, error: friendlyAgentError(e) });
+    }
+  };
   const [err, setErr] = useState<string | null>(null);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => {
+    if (!linkedReport) { openedCitation.current = ""; return; }
+    const key = `${linkedReport}:${linkedPage ?? ""}`;
+    if (!loaded || openedCitation.current === key) return;
+    openedCitation.current = key;
+    const found = reports.find(r => r.id === linkedReport);
+    if (found) void preview(found, linkedPage);
+    else setErr("这条引用对应的资料已移除或当前资料库没有收录，无法打开原文。原始对话仍保留。");
+  }, [linkedReport, linkedPage, loaded, reports]);
   const [drag, setDrag] = useState(false);
   const [selected, setSelected] = useState<string[]>([]);
   const [objective, setObjective] = useState("");
@@ -54,12 +94,15 @@ export function MyReports() {
   const [routeDecision, setRouteDecision] = useState<TaskRouteDecision | null>(null);
   const [taskAnswer, setTaskAnswer] = useState("");
   const [taskNotice, setTaskNotice] = useState("");
+  const [deepRunId, setDeepRunId] = useState<string | null>(null);
+  const [cancelPending, setCancelPending] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const taskAbortRef = useRef<AbortController | null>(null);
 
   const load = async () => {
     try {
       setReports(await api.myReports());
+      setLoaded(true);
       setErr(null);
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "加载研报列表失败");
@@ -89,14 +132,15 @@ export function MyReports() {
 
   const remove = async (r: MyReport) => {
     if (taskBusy || busy || deleting) return;
-    if (!confirm(`删除「${r.name}」？（同时从本地归档目录移除）`)) return;
     setDeleting(true);
     try {
       await api.deleteReport(r.id);
       setSelected((ids) => ids.filter((id) => id !== r.id));
+      setPanel(null);
       await load();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : "删除失败");
+      setPanel((current) => current ? { ...current, error: e instanceof ApiError ? e.message : "删除失败，请重试。" } : null);
     } finally { setDeleting(false); }
   };
 
@@ -135,7 +179,7 @@ export function MyReports() {
     // 界面只交“材料 + 目标”；是有界定位还是完整深研，由服务端路由器判定。
     const task: ResearchTaskRequest = {
       schemaVersion: 1,
-      id: `report-${crypto.randomUUID()}`,
+      id: newAnalysisSession("report"),
       kind: "locate_passages",
       requestedMode: "auto",
       objective: goal,
@@ -149,6 +193,7 @@ export function MyReports() {
     setTaskError("");
     setTaskAnswer("");
     setTaskNotice("");
+    setDeepRunId(null); setCancelPending(false);
     setRouteDecision(null);
     try {
       // 先只路由，让系统选择理由可见；AI 来源随请求发送，只用于绑定不可逆路由指纹，
@@ -179,6 +224,7 @@ export function MyReports() {
       let taskEvents = result.events;
       const started = result.events.find((event) => event.type === "started");
       if (result.status === "running" && routed.route.target === "deep" && started) {
+        setDeepRunId(started.runId);
         setTaskNotice("完整六阶段研究已启动。当前页面会持续更新；即使离开页面，研究仍会在本机继续运行，并进入「个股研究」的历史记录。");
         while (!controller.signal.aborted && taskStatus === "running") {
           await waitFor(2_000, controller.signal);
@@ -204,7 +250,23 @@ export function MyReports() {
       if (taskAbortRef.current === controller) {
         taskAbortRef.current = null;
         setTaskBusy(false);
+        setDeepRunId(null); setCancelPending(false);
       }
+    }
+  };
+
+  const cancelDeep = async () => {
+    if (!deepRunId || cancelPending) return;
+    const controller = taskAbortRef.current;
+    setCancelPending(true);
+    try {
+      const status = await backend.cancelResearch(deepRunId);
+      if (taskAbortRef.current !== controller) return;
+      setTaskNotice(status.finished_at ? "研究已结束，正在读取最终状态。" : status.status === "finalizing"
+        ? "研究已进入归档收尾，不能再取消，正在等待最终状态。"
+        : "已请求取消，等待后台确认停止；已经取到的数据会保留。");
+    } catch (e) {
+      if (taskAbortRef.current === controller) { setCancelPending(false); setTaskError(friendlyAgentError(e)); }
     }
   };
 
@@ -239,7 +301,7 @@ export function MyReports() {
         未识别出代码的文件仍可在对话中检索。A 股代码会用于个股研究自动召回；港股与美股代码用于归档分组和对话检索，当前六阶段个股研究底座仍只支持 A 股。
       </p>
 
-      <GlassCard className="mb-4 border-primary/25">
+      <GlassCard className="ai-surface mb-4 border-primary/25">
         <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="flex items-center gap-2 text-sm font-semibold"><Bot className="h-4 w-4 text-primary" /> 材料任务</h2>
@@ -262,6 +324,10 @@ export function MyReports() {
             {taskBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             {taskBusy ? "正在判断并处理…" : "开始任务"}
           </button>
+          {taskBusy && deepRunId && <button type="button" onClick={() => void cancelDeep()} disabled={cancelPending}
+            className="rounded-xl border border-border px-4 py-2 text-sm disabled:opacity-50">
+            {cancelPending ? "正在取消…" : "取消研究"}
+          </button>}
         </div>
 
         {routeDecision && <div className="mt-4 rounded-xl border border-primary/20 bg-primary/5 p-3">
@@ -272,10 +338,10 @@ export function MyReports() {
         </div>}
         {taskNotice && <div className="mt-3 rounded-xl border border-warning/30 bg-warning/[0.06] p-3 text-sm text-foreground/80">{taskNotice}</div>}
         {taskError && <div className="mt-3 rounded-xl border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{taskError}</div>}
-        {taskAnswer && <div className="mt-3 rounded-xl border border-border/70 bg-background/50 p-4">
+        {taskAnswer && <div className="research-paper mt-4 rounded border border-border">
           <p className="mb-3 text-xs font-semibold text-muted-foreground">任务结果</p>
           <div className="prose prose-sm dark:prose-invert max-w-none prose-blockquote:border-primary/40 prose-blockquote:text-foreground/85">
-            <ReactMarkdown remarkPlugins={[remarkGfm]}>{taskAnswer}</ReactMarkdown>
+            <ReportAnswer content={taskAnswer} />
           </div>
         </div>}
       </GlassCard>
@@ -332,6 +398,25 @@ export function MyReports() {
         </div>
       )}
 
+      {panel && <dialog ref={dialogRef} aria-labelledby="report-panel-title"
+        onCancel={(e) => { e.preventDefault(); e.stopPropagation(); closePanel(); }}
+        className="w-[min(48rem,92vw)] max-h-[85vh] rounded-xl border border-border bg-background p-5 text-foreground backdrop:bg-black/60">
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <h2 id="report-panel-title" className="break-all font-semibold">{panel.kind === "preview" ? "正文预览" : "确认删除"} · {panel.report.name}</h2>
+          <button type="button" autoFocus disabled={deleting} onClick={closePanel} className="shrink-0 text-primary">关闭</button>
+        </div>
+        {panel.kind === "preview" ? <>
+          <p className="mb-3 text-xs text-muted-foreground">本地提取的正文，不保留原文件版式；完整文件可下载查看。{panel.truncated ? "内容较长，此处仅显示前 10 万字或已提取部分。" : ""}</p>
+          {panel.page && <p className="mb-2 text-xs text-primary">引用指向第 {panel.page} 页。请在下方正文中查找“第 {panel.page} 页”标记；若不在预览范围内，请下载原文件核对。</p>}
+          <button type="button" onClick={() => void download(panel.report)} className="mb-3 text-sm text-primary">下载完整原文件</button>
+          {panel.error ? <p role="alert">{panel.error}</p> : panel.text === undefined ? <p role="status">正在读取正文…</p> : <pre className="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words text-sm">{panel.text}</pre>}
+        </> : <>
+          <p className="mb-4 text-sm">将从本地资料库移除这份研报及正文索引，此操作不可撤销。</p>
+          {panel.error && <p role="alert" className="mb-3 text-sm text-destructive">{panel.error}</p>}
+          <button type="button" disabled={deleting} onClick={() => void remove(panel.report)} className="rounded-lg bg-destructive/15 px-3 py-2 text-destructive">{deleting ? "删除中…" : "确认删除"}</button>
+        </>}
+      </dialog>}
+
       {/* 列表（按正文里识别到的标的代码分组） */}
       {reports.length === 0 ? (
         <GlassCard>
@@ -363,6 +448,10 @@ export function MyReports() {
                       </p>
                     </div>
                     <button
+                      onClick={() => void preview(r)} disabled={taskBusy || busy || deleting}
+                      className="shrink-0 text-xs text-primary disabled:opacity-35" title="预览正文"
+                    >预览</button>
+                    <button
                       onClick={() => download(r)}
                       className="shrink-0 text-muted-foreground/60 hover:text-primary"
                       title="下载"
@@ -370,7 +459,7 @@ export function MyReports() {
                       <Download className="h-4 w-4" />
                     </button>
                     <button
-                      onClick={() => remove(r)}
+                      onClick={() => { previewSequence.current += 1; setPanel({ kind: "delete", report: r }); }}
                       disabled={taskBusy || busy || deleting}
                       className="shrink-0 text-muted-foreground/50 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-35"
                       title="删除"

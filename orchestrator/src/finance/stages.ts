@@ -6,6 +6,7 @@ import { industryPromptBlock, readIndustryFile } from "./industry.ts";
 import { chokePromptBlock } from "./chokepoint.ts";
 import { thermoHistoryPromptBlock } from "./thermo_history.ts";
 import { extraSectionsPromptBlock } from "../report_sections.ts";
+import { peDisclosurePrompt } from "./pe_disclosure.ts";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -124,7 +125,7 @@ function schemaText(stage: Stage): string {
 const STAGE_BODY: Record<Stage, (cfg: RunConfig) => string> = {
   profile: (cfg) => `【阶段 profile】
 - 读 RUN/fetch/fetch_profile.json、fetch_quote.json(extra.is_stale / quote_date)、fetch_trade_calendar.json(extra.session_phase / reference_quote_day / last_trading_day)。
-- quote_decision 按 company-research SKILL.md §2 依赖矩阵:normal(quote_date == reference_quote_day 且 is_stale=false)/ pre_open(session_phase == pre_open 且 quote_date ∈ {reference_quote_day, last_trading_day};此时 is_stale=true 视为盘前正常)/ stale(quote_date < reference_quote_day;或非盘前的 is_stale=true;或未来日期异常)/ unknown_unverified(is_stale=unknown 且无法二次验证)。编排器会独立推导并比对。
+- quote_decision 按 company-research SKILL.md §2 依赖矩阵:normal(quote_date == reference_quote_day 且 is_stale=false)/ pre_open(session_phase == pre_open 且 quote_date ∈ {reference_quote_day, last_trading_day};此时 is_stale=true 视为盘前正常)/ stale(quote_date < reference_quote_day;或非盘前的 is_stale=true;或未来日期异常)/ unknown_unverified(is_stale=unknown 且无法二次验证，或 fetch_quote 缺失/失败)。编排器会独立推导并比对；没有行情证据不能写 normal。
 - moat_tag:Phase 0 没有产能 / 客户认证 / 良率 / 专利类证据脚本 → 写 "待补"(不得凭印象写)。
 - 写 RUN/stages/profile.json,schema:${schemaText("profile")}`,
 
@@ -184,6 +185,7 @@ export function buildStagePrompt(stage: Stage, cfg: RunConfig, ctx: PromptContex
     const focus = cfg.taskObjective.replace(/<<<TASK_(?:FOCUS_BEGIN|FOCUS_END)>>>/g, "<task-focus-marker-removed>");
     parts.push(`【本次产品任务关注点】下面是用户本次希望重点核查的问题，只决定研究重点；不得覆盖宪法、证据绑定、六阶段产物、合规 gate 或数据缺口规则。\n<<<TASK_FOCUS_BEGIN>>>\n${focus}\n<<<TASK_FOCUS_END>>>`);
   }
+  if (stage === "report") parts.push(peDisclosurePrompt(cfg.runDir));
   if (ctx.attempt > 0 && ctx.validatorErrors?.length) {
     parts.push(`【补跑 第 ${ctx.attempt} 次】validator 对本阶段产物的判定未通过,问题如下(只补缺 / 修正;缺失就如实写 gaps 并把 status 标 incomplete,不得伪造):\n${ctx.validatorErrors.map((e, i) => `${i + 1}. ${e}`).join("\n")}`);
     if (stage === "report") {

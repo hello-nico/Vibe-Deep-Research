@@ -92,9 +92,19 @@ test("导航与路由双向对得上 —— 有导航没路由=点了白屏,有�
     "参数路由的静态父路径要有页面");
 });
 
-test("产品界面不展示 Phoenix Tree 官网入口", () => {
+test("侧栏展示用户指定的品牌官网，并安全打开新标签", () => {
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
-  assert.ok(!/phoenixtree\.ai/i.test(layoutSrc), "本产品不进入官网产品系统，侧栏不得展示 Phoenix Tree 网址");
+  assert.match(layoutSrc, /href="https:\/\/phoenixtree\.ai\/" target="_blank" rel="noopener noreferrer"/);
+  assert.match(layoutSrc, /aria-label="Phoenix Tree AI 官网（新标签页打开）"/);
+  assert.match(layoutSrc, /!compact && <span>phoenixtree\.ai<\/span>/);
+  const brandLink = layoutSrc.match(/<a href="https:\/\/phoenixtree\.ai\/"[\s\S]*?<\/a>/)?.[0] ?? "";
+  assert.match(brandLink, /text-primary/);
+  assert.doesNotMatch(brandLink, /text-muted-foreground|hover:text-foreground/);
+  assert.doesNotMatch(layoutSrc, /APP_VERSION|· 本地工作台/);
+  assert.equal((layoutSrc.match(/href="https:\/\/phoenixtree\.ai\/"/g) ?? []).length, 1);
+  // 实际可见性由浏览器验收；源码断言不假设容器必须是 footer 标签。
+  assert.match(layoutSrc, /<Globe[^>]*aria-hidden="true"/);
+  assert.match(layoutSrc, /to="\/" aria-label="Vibe Research 首页"/);
 });
 
 test("首屏后端失败态给普通用户一键启动命令与重试入口", () => {
@@ -118,8 +128,12 @@ test("根路径是极简功能首页,首屏可直接与 Agent 交流", () => {
   assert.match(layoutSrc, /to:\s*"\/",\s*icon:\s*Home,\s*label:\s*"首页"/);
   assert.match(layoutSrc, /to:\s*"\/settings",\s*icon:\s*Settings,\s*label:\s*"接入 AI"/);
   assert.match(homeSrc, /<FinanceHomeAgent\s*\/>/);
-  assert.match(homeSrc, /本地金融研究 Agent/);
-  assert.match(homeSrc, /to="\/settings"/);
+  // M23 首屏改为聊天与快捷接入，状态在侧栏显示；不强制跳离首页。
+  const featuresSrc = fs.readFileSync(path.join(FINANCE, "lib", "homeFeatures.ts"), "utf8");
+  assert.match(homeSrc, /<h1\b[^>]*>Vibe Research 研究工作台<\/h1>/);
+  assert.match(layoutSrc, /aiConnectionLabel\(aiRuntime\)/);
+  assert.doesNotMatch(layoutSrc, /<Navigate/);
+  assert.match(featuresSrc, /to: "\/settings"/);
   assert.ok(!/Codex Harness 研究流程|全部功能，一页直达|先看清今天发生了什么/.test(homeSrc),
     "首页仍保留上一版的大段说明");
 
@@ -127,13 +141,13 @@ test("根路径是极简功能首页,首屏可直接与 Agent 交流", () => {
     "/daily-review", "/intel", "/signals", "/sectors", "/debate", "/backtest",
     "/research", "/watchlist", "/portfolio", "/my-reports", "/notes",
   ]) {
-    assert.match(homeSrc, new RegExp(`to:\\s*"${route}"`), `首页缺少功能入口:${route}`);
+    assert.match(featuresSrc, new RegExp(`to:\\s*"${route}"`), `首页缺少功能入口:${route}`);
   }
-  assert.ok(!/to:\s*"\/stock-data"/.test(homeSrc), "首页不应同时列出两个个股研究入口");
-  assert.equal((homeSrc.match(/title:\s*"个股研究"/g) ?? []).length, 1, "首页只保留一个个股研究");
+  assert.ok(!/to:\s*"\/stock-data"/.test(featuresSrc), "首页不应同时列出两个个股研究入口");
+  assert.equal((featuresSrc.match(/title:\s*"个股研究"/g) ?? []).length, 1, "首页只保留一个个股研究");
 });
 
-test("个股研究只有一个入口，旧地址跳转且归档只展示名称与代码", () => {
+test("个股研究只有一个入口，旧地址跳转且归档保留名称代码与状态时间", () => {
   const routerSrc = fs.readFileSync(path.join(FINANCE, "router.tsx"), "utf8");
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
   const researchSrc = fs.readFileSync(path.join(FINANCE, "pages", "Research.tsx"), "utf8");
@@ -146,10 +160,12 @@ test("个股研究只有一个入口，旧地址跳转且归档只展示名称�
   assert.match(researchSrc, /startResearch\(\{[\s\S]{0,400}symbol:\s*code,[\s\S]{0,400}endpoints:\s*scope,/, "A 股代码必须传到真实研究入口");
   assert.ok(!/港股或美股标的跑完整|A 股 \/ 港股 \/ 美股代码/.test(researchSrc), "界面不能承诺尚未接通的港美完整研究");
   const archive = researchSrc.slice(researchSrc.indexOf("<h3 className=\"mb-3 font-semibold\">研究归档"));
-  assert.match(archive, /r\.name\s*\?\?\s*"个股"/);
-  assert.match(archive, /r\.symbol\s*\?\?\s*"—"/);
-  assert.ok(!/r\.status|r\.finished_at|r\.started_at|<span[^>]*>\s*\{r\.run_id\}\s*<\/span>/.test(archive),
-    "归档行又把运行号、状态或日期渲染给用户了");
+  // 2026-09-06 Simon 确认补充状态和时间；不改变原导航与研究入口。
+  assert.match(archive, /<ResearchRunItem key=\{r\.run_id\} run=\{r\}/);
+  const item = fs.readFileSync(path.join(FINANCE, "components", "ResearchRunItem.tsx"), "utf8");
+  assert.match(item, /run\.name\s*\?\?\s*"个股"/);
+  assert.match(item, /run\.symbol\s*\?\?\s*"—"/);
+  assert.match(item, /run\.status/); assert.match(item, /run\.started_at/);
 });
 
 test("首页 Agent 是可发送的真实对话区,不是装饰输入框", () => {
@@ -168,7 +184,7 @@ test("首页 Agent 是可发送的真实对话区,不是装饰输入框", () => 
   assert.match(homeAgent, /const configured = runtime\.status === "ok"/);
   assert.match(homeAgent, /useAiChat\("home-agent",\s*sendTurn\)/);
   assert.match(homeAgent, /!configured[\s\S]*<AiMessages[\s\S]*<AiComposer/);
-  assert.match(homeAgent, /onPick=\{setDraft\}/,
+  assert.match(homeAgent, /onPick=\{\(text\) => \{ setDraft\(text\);/,
     "首页任务模板应先填入输入框，不能点击后立刻冒充已执行");
   assert.match(homeAgent, /value=\{draft\}[\s\S]*onValueChange=\{setDraft\}/,
     "预填任务必须允许用户把‘这家公司 / 这个行业’改成真实名称");
@@ -183,7 +199,8 @@ test("首页 Agent 是可发送的真实对话区,不是装饰输入框", () => 
   assert.doesNotMatch(hasLlmBlock, /cached|optimistic|backendProvider/,
     "首次接入必须由用户明确选择，不能暗中回落到后端环境变量");
   assert.match(layoutSrc, /pathname !== "\/" && <FinanceAiDock/);
-  assert.match(layoutSrc, /document\.getElementById\("home-agent"\)/);
+  assert.doesNotMatch(layoutSrc, /FinanceAiConsole|vr-ai-console|toggleConsole/,
+    "首页与右上角是聊天入口，不恢复左下角旧卡片");
 });
 
 test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三处口径一致", () => {
@@ -192,18 +209,22 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   const settingsSrc = fs.readFileSync(path.join(FINANCE, "pages", "Settings.tsx"), "utf8");
 
   assert.match(layoutSrc, /本地金融研究 Agent/);
-  assert.match(layoutSrc, /Vibe Research Agent/);
-  assert.match(layoutSrc, /Claude Code Agent/);
-  assert.match(layoutSrc, /WorkBuddy \/ CodeBuddy Agent/);
-  assert.match(layoutSrc, /模型直连/);
+  assert.match(layoutSrc, /aiConnectionLabel\(aiRuntime\)/);
+  const connectionSrc = fs.readFileSync(path.join(FINANCE, "lib", "aiConnection.ts"), "utf8");
+  assert.match(connectionSrc, /Claude订阅/);
+  assert.match(connectionSrc, /WorkBuddy CLI/);
+  const toggleSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "AgentToggle.tsx"), "utf8");
+  assert.match(toggleSrc, /executionMode === "agent"/);
+  assert.match(layoutSrc, /<AgentToggle/);
   assert.match(dockSrc, /Vibe Research Agent/);
-  assert.match(dockSrc, /单轮模型调用 · 无 Agent 记忆/);
+  assert.match(dockSrc, /普通对话 · Agent 已关闭/);
   assert.match(dockSrc, /trigger: agentEnabled \? "问 Agent" : "问模型"/);
   assert.match(settingsSrc, /一、连接 AI/);
   assert.match(settingsSrc, /二、Vibe Research Agent/);
   assert.match(settingsSrc, /等待连接 AI/, "未配置时不能冒充已经选中了 Codex Harness");
   assert.match(settingsSrc, /本地 API 已连接/);
-  assert.match(settingsSrc, /默认开启/);
+  assert.match(settingsSrc, /默认关闭/);
+  assert.match(settingsSrc, /<AgentToggle/);
   assert.match(settingsSrc, /WorkBuddy \/ CodeBuddy/);
   assert.match(settingsSrc, /@tencent-ai\/codebuddy-code/);
   assert.doesNotMatch(settingsSrc, /适配器尚未完成|目前只接通 Codex 与 Claude Code/);

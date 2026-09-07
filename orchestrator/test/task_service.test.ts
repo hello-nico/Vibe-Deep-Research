@@ -14,8 +14,10 @@ import { ServiceError, type ServiceContext } from "../src/service.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vra-task-service-"));
+const PYTHON = process.env.VRA_PYTHON?.trim()
+  || (process.platform === "win32" ? "python" : path.join(REPO, "..", ".venv", "bin", "python"));
 const ctx = (dataRoot: string): ServiceContext => ({ repoRoot: REPO, dataRoot,
-  python: path.join(REPO, "..", ".venv", "bin", "python"), node: process.execPath, providerEnvKey: null });
+  python: PYTHON, node: process.execPath, providerEnvKey: null });
 const task = (id: string, requestedMode: "auto" | "quick" | "deep" = "auto") => ({
   schemaVersion: 1, id: "task-api-1", kind: "locate_passages", requestedMode,
   objective: "定位收入变化的原文", evidenceScope: "existing", workflow: "single_step",
@@ -58,7 +60,7 @@ test("Deep 在 M3 通过统一入口启动现有六阶段流程，并可按指�
       stages: terminal ? [{ stage: "profile", status: "complete", attempts: 1 }] : [], evidence_count: terminal ? 9 : 0,
       calculation_count: terminal ? 2 : 0, finished_at: terminal ? "2026-09-04T12:00:00Z" : null,
       last_events: [], report: terminal, viewer: terminal ? `runs/${runId}/viewer.html` : null }; },
-    report() { return { run_id: runId, report: "# 完成", appendix: null }; },
+    report() { return { run_id: runId, report: "# 完成", appendix: null, availability: "ready", run_status: "complete" }; },
   };
   const deepDeps = { deepBackend, deepTargetResolver: new FinanceDeepTargetResolver(dataRoot) };
   const routed = await runUnifiedTask(ctx(dataRoot), { task: deepTask, execute: false }, undefined, deepDeps);

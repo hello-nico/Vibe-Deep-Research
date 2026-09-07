@@ -16,6 +16,7 @@
 """
 
 from __future__ import annotations
+import re
 
 from dataclasses import dataclass, field
 from datetime import date, datetime
@@ -146,6 +147,8 @@ class Plan:
 
 def _parse_day(s: str, what: str) -> date:
     try:
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(s)):
+            raise ValueError("date_format")
         return datetime.fromisoformat(str(s)).date()
     except ValueError as exc:
         raise ValueError(f"{what} 要写成 YYYY-MM-DD，收到 {s!r}") from exc

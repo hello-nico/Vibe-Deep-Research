@@ -184,7 +184,7 @@ export const DEFAULT_ALLOWED_PATH_PREFIXES = ["/bin", "/usr", "/opt", "/sbin", "
 export const HOME_PREFIXES = ["/Users/", "/home/", "/root/", "C:\\Users\\"];
 
 /** 基础环境(取数与 Codex 子进程共用)。 */
-const BASE_ENV_KEYS = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ",
+const BASE_ENV_KEYS = ["PATH", "HOME", "USER", "LOGNAME", "SHELL", "TERM", "LANG", "LC_ALL", "LC_CTYPE", "TMPDIR", "TZ", "PYTHONDONTWRITEBYTECODE",
   "USERPROFILE", "HOMEDRIVE", "HOMEPATH", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "TEMP", "TMP", "APPDATA", "LOCALAPPDATA"];
 /** 取数脚本(联网进程)的最小环境:只加代理与证书;**不含任何 Codex 凭据 / 配置目录**(AGENTS.md §5) */
 export const FETCH_ENV_KEYS = [...BASE_ENV_KEYS, "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "ALL_PROXY", "all_proxy",
@@ -215,11 +215,13 @@ export function makeConfig(partial: Partial<RunConfig> & { symbol: string; repoR
   if (!RUN_ID_RE.test(runId)) throw new Error(`run-id 非法:${runId}(只允许字母数字 . _ -,≤64 字符)`);
   const repoRoot = path.resolve(partial.repoRoot);
   const dataRoot = path.resolve(partial.dataRoot ?? path.join(repoRoot, ".local"));
-  const executionMode = partial.executionMode ?? (process.platform === "win32" ? "controlled_mcp" : "shell_hooks");
+  // Reuse the existing no-shell execution path for spaced installations. This is
+  // execution plumbing only: it does not change the user's provider or Agent switch.
+  const executionMode = partial.executionMode ?? (process.platform === "win32" || [repoRoot, dataRoot, partial.python ?? ""].some(p => /\s/.test(p)) ? "controlled_mcp" : "shell_hooks");
   const engine = partial.engine ?? "codex";
   if (engine === "local_agent" && !partial.localAgent) throw new Error("local_agent 引擎缺少已校验的本机 Agent 种类");
   if (engine !== "local_agent" && partial.localAgent) throw new Error("localAgent 只能与 local_agent 引擎同时使用");
-  // 🔴 根路径里不许有空白。执行层的命令扫描器按空白切 token 找绝对路径,路径里带空格就会被切断:
+  // 显式 shell_hooks 模式的根路径仍不许有空白。命令扫描器按空白切 token:
   //    `~/Library/Application Support/X/runs/…` 只剩 `/Users/…/Library/Application`,与允许前缀永远对不上,
   //    于是 agent 每一条引用运行目录绝对路径的命令都被拒(实测)。
   //    ⇒ 这里**提前拒绝并说清楚**,而不是改扫描器的分词(那会动到已用真实命令语料回归过的规则,风险更大)。

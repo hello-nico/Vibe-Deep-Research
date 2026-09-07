@@ -9,6 +9,37 @@ import pytest
 
 REPO = Path(__file__).resolve().parents[2]
 
+@pytest.mark.parametrize("payload", [[], None, 1, "text"])
+def test_cli_non_object_is_json_error(payload):
+    result = subprocess.run([sys.executable, "-m", "backtest.cli"], cwd=REPO,
+                            input=json.dumps(payload), capture_output=True, text=True, timeout=10)
+    assert result.returncode == 0
+    assert json.loads(result.stdout)["ok"] is False
+
+@pytest.mark.parametrize("day", ["20260101", "2026-01-01T00:00:00"])
+def test_date_requires_exact_calendar_day(day):
+    from backtest.gate import _parse_day
+    with pytest.raises(ValueError):
+        _parse_day(day, "日期")
+
+
+def test_catalog_names_actual_request_fields():
+    from backtest.cli import _catalog
+    from backtest.gate import Plan, plan_backtest
+
+    catalog = _catalog()
+    schema = catalog["input_schema"]
+    assert schema["required"] == ["codes", "start", "end"]
+    assert schema["properties"]["codes"]["type"] == "array"
+    assert set(schema["properties"]) == {
+        "codes", "start", "end", "style", "strategy", "params", "initial_cash", "allow_short",
+    }
+    example = catalog["example_request"]
+    plan = plan_backtest(**{k: v for k, v in example.items() if k not in ("strategy", "params")})
+    assert isinstance(plan, Plan)
+    assert plan.codes == ["AAPL"]
+    assert plan.initial_cash == 100000
+
 
 @pytest.mark.parametrize("mode,reason", [
     ("failed", "测试取数端点超时"),
@@ -43,7 +74,7 @@ class BadSignal:
             return None
         return {{"600519.SH": [1.]}} if mode == "bad_signal" else {{}}
 
-def run_in_test(plan, strategy):
+def run_in_test(plan, strategy, **kwargs):
     return run_module.run(plan, strategy, run_dir=Path({str(tmp_path)!r}))
 
 with patch.object(VibeLoader, "_fetch_one", fetch_one), patch.object(cli, "run", run_in_test):

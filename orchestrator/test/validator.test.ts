@@ -52,6 +52,19 @@ function calc(fn: string, refs: { ref_type: "evidence" | "calculation"; ref_id: 
 }
 const gap = (operation: string, reason_code = "source_failed") => ({ operation, reason_code, detail: "x" });
 
+test("缺失行情不能把 normal 当作有效决策", () => {
+  const d = tmpRun();
+  try {
+    putFetch(d, "fetch_profile", "ok", [ev("ev-aaaaa1", "security_name", "合成样本")]);
+    putFetch(d, "fetch_quote", "failed", []);
+    writeJson(path.join(d, "stages", "profile.json"), {
+      stage: "profile", status: "incomplete", summary: "行情缺口", evidence_ids: ["ev-aaaaa1"],
+      calculation_ids: [], gaps: [gap("fetch_quote")], quote_decision: "normal", quote_decision_reason: "无行情", moat_tag: "待补",
+    });
+    assert.ok(validateStage("profile", loadRun(d)).errors.some(e => e.includes("quote_decision 应为 unknown_unverified")));
+  } finally { fs.rmSync(d, { recursive: true, force: true }); }
+});
+
 test("schema:evidence / fetch / calc / 阶段产物(additionalProperties 关闭)", () => {
   assert.deepEqual(validateEvidenceItem(ev("ev-aaaaaa", "price", 943)), []);
   assert.ok(validateEvidenceItem({ ...ev("ev-aaaaaa", "price", 943), market: "XX" }).length > 0); // Phase 1 起 US / HK 为合法市场
@@ -359,6 +372,8 @@ test("risk 阶段:权威冲突必须以 ref_id 全覆盖;空壳条目不过", ()
   writeJson(path.join(d, "stages", "risk.json"), { ...base, source_conflicts: [{ field: "total_market_cap", period: "2026-08-21", kind: "source", values: [{ source: "tencent", value: 100, ref_id: "ev-aaaa01" }, { source: "eastmoney", value: 120, ref_id: "ev-aaaa02" }] }] });
   r = validateStage("risk", loadRun(d));
   assert.deepEqual(r.errors, []);
+  writeJson(path.join(d, "stages", "risk.json"), { ...base, source_conflicts: [{ field: "total_market_cap", kind: "source", values: [{ source: "tencent", value: 100, ref_id: "ev-aaaa01" }, { source: "eastmoney", value: 120, ref_id: "ev-aaaa02" }] }] });
+  assert.ok(validateStage("risk", loadRun(d)).errors.some(e => e.includes("未覆盖权威冲突")));
 });
 
 test("账本认证:agent 同时改写 fetch 文件与磁盘账本 → 内存账本仍判不一致;未登记的 fetch / raw 文件 → 不过;agent 改动 fetch/ raw/ 轨迹 → 违规", () => {

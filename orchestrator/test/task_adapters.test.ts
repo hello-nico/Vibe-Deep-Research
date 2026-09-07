@@ -11,9 +11,22 @@ import { ProductTaskOperations, ReportTaskMaterials, splitQuickPassages } from "
 import { TaskRouteError, TaskRouter, makeResearchTask, type ResearchTask } from "../src/task_router.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
-const PYTHON = path.join(REPO, "..", ".venv", "bin", "python");
+const PYTHON = process.env.VRA_PYTHON?.trim()
+  || (process.platform === "win32" ? "python" : path.join(REPO, "..", ".venv", "bin", "python"));
 const tmp = () => fs.mkdtempSync(path.join(os.tmpdir(), "vra-task-adapter-"));
 const b64 = (text: string) => Buffer.from(text, "utf8").toString("base64");
+
+test("确定性计算子进程不在只读安装资产里写入 Python 缓存", async () => {
+  const repoRoot = tmp();
+  try {
+    fs.mkdirSync(path.join(repoRoot, "calc"));
+    fs.writeFileSync(path.join(repoRoot, "calc/probe.py"), "value = 1\n");
+    fs.writeFileSync(path.join(repoRoot, "calc/cli.py"), 'import sys, probe\nassert sys.dont_write_bytecode\nprint(\'{"valid":true}\')\n');
+    const ops = new ProductTaskOperations({ repoRoot, dataRoot: repoRoot, python: PYTHON });
+    await ops.validate({} as ResearchTask, { kind: "calculate", functionId: "probe", args: {} });
+    assert.equal(fs.existsSync(path.join(repoRoot, "calc/__pycache__")), false);
+  } finally { fs.rmSync(repoRoot, { recursive: true, force: true }); }
+});
 
 function quickTask(id: string, mode: "auto" | "quick" | "deep" = "auto"): ResearchTask {
   return makeResearchTask({ id: "task-real-report", kind: "locate_passages",

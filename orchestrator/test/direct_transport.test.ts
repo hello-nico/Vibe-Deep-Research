@@ -41,6 +41,21 @@ function ok(body: unknown) {
 
 const baseReq = { apiKey: FAKE_KEY, model: "m", messages: [{ role: "user" as const, content: "hi" }], timeoutMs: 5_000 };
 
+for (const cancel of [false, true]) test(`响应头之后仍可${cancel ? "取消" : "超时"}`, async () => {
+  const ac = new AbortController();
+  const timers: NodeJS.Timeout[] = [];
+  const ep = await fakeEndpoint((_req, res) => {
+    res.writeHead(200, { "content-type": "application/json" }); res.flushHeaders();
+    // 兜底关闭让旧实现失败而不无限挂住。
+    timers.push(setTimeout(() => res.end(JSON.stringify({ choices: [{ message: { role: "assistant", content: "late" } }] })), 1800));
+    if (cancel) timers.push(setTimeout(() => ac.abort(), 50));
+  });
+  try {
+    await assert.rejects(chatCompletion({ ...baseReq, baseURL: ep.baseURL, timeoutMs: 1000, signal: ac.signal }),
+      (e: unknown) => e instanceof DirectTransportError && e.code === (cancel ? "cancelled" : "timeout"));
+  } finally { timers.forEach(clearTimeout); await ep.close(); }
+});
+
 test("本机 HTTP 模型配置通过真实解析后能完成直连请求", async () => {
   const dataRoot = fs.mkdtempSync(path.join(os.tmpdir(), "vra-local-http-"));
   let requested = "";
