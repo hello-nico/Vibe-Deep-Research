@@ -7,10 +7,16 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+const isolated = process.argv.includes('--test');
+const appName = isolated ? 'VibeDeepResearchTest' : 'VibeResearch';
+const displayName = isolated ? 'Vibe Deep Research · 测试版' : 'Vibe Research';
+const bundleId = isolated ? 'app.vibedeepresearch.test' : 'app.viberesearch';
+const workspacePort = isolated ? 5939 : 5938;
+const dataDirectory = isolated ? '.vibe-deep-research-test' : '.vibe-research-desktop';
 if (process.platform !== 'darwin' || process.arch !== 'arm64') throw new Error('This builder requires an Apple Silicon Mac.');
 const stamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, 15);
 const out = path.join(repo, '.local', 'mac-builds', stamp);
-const app = path.join(out, 'VibeResearch.app');
+const app = path.join(out, `${appName}.app`);
 const resources = path.join(app, 'Contents/Resources');
 const payload = path.join(resources, 'app');
 const buildNumber = '40';
@@ -84,7 +90,7 @@ run('iconutil', ['-c', 'icns', iconset, '-o', path.join(resources, 'AppIcon.icns
 const version = JSON.parse(fs.readFileSync(path.join(repo, 'orchestrator/package.json'))).version;
 write(path.join(app, 'Contents/Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>CFBundleExecutable</key><string>VibeResearch</string><key>CFBundleIdentifier</key><string>app.viberesearch</string><key>CFBundleName</key><string>Vibe Research</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${buildNumber}</string><key>LSMinimumSystemVersion</key><string>13.0</string><key>NSHighResolutionCapable</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>`);
+<plist version="1.0"><dict><key>CFBundleExecutable</key><string>VibeResearch</string><key>CFBundleIdentifier</key><string>${bundleId}</string><key>CFBundleName</key><string>${displayName}</string><key>VRAWorkspacePort</key><integer>${workspacePort}</integer><key>VRADataDirectory</key><string>${dataDirectory}</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${buildNumber}</string><key>LSMinimumSystemVersion</key><string>13.0</string><key>NSHighResolutionCapable</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>`);
 const codexVersion = JSON.parse(fs.readFileSync(path.join(payload, 'orchestrator/node_modules/@openai/codex/package.json'))).version;
 const sdkVersion = JSON.parse(fs.readFileSync(path.join(payload, 'orchestrator/node_modules/@openai/codex-sdk/package.json'))).version;
 const engineVersionOutput = execFileSync(node, [path.join(payload, 'orchestrator/node_modules/@openai/codex/bin/codex.js'), '--version'], { encoding: 'utf8' }).trim();
@@ -99,6 +105,11 @@ write(path.join(resources, 'NOTICE.txt'), `Vibe Research local test bundle. Not 
 // Ad-hoc signing is only a local integrity seal, NOT Developer ID distribution acceptance.
 run('codesign', ['--force', '--deep', '--sign', '-', app]);
 run('codesign', ['--verify', '--deep', '--strict', app]);
+if (isolated) {
+  write(path.join(out, 'test-identity.json'), JSON.stringify({ app, bundleId, workspacePort, dataDirectory, status: 'local-test-not-notarized' }, null, 2));
+  console.log(`LOCAL_TEST_APP ${app}`);
+  process.exit(0);
+}
 const imageRoot = path.join(out, 'image');
 fs.mkdirSync(imageRoot); fs.renameSync(app, path.join(imageRoot, 'VibeResearch.app'));
 fs.symlinkSync('/Applications', path.join(imageRoot, 'Applications'));

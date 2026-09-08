@@ -10,6 +10,7 @@ import { serviceContext } from "./service.ts";
 import { ensureInstructionsRoot } from "./instructions_root.ts";
 import { installSkillsIsolation } from "./skills_isolation.ts";
 import { terminateActiveLocalAgentProcesses } from "./local_agent_runtime.ts";
+import { desktopRuntimePaths } from "./desktop_runtime_paths.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 // These explicit overrides exist for isolated QA; the native launcher does not inherit them.
@@ -21,9 +22,11 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("无
 fs.mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
 if (fs.lstatSync(dataRoot).isSymbolicLink()) throw new Error("用户数据目录不能是符号链接");
 fs.chmodSync(dataRoot, 0o700);
-const codexHome = path.join(dataRoot, "codex-home");
+const { codexHome, dshHome, temporaryDirectory } = desktopRuntimePaths(dataRoot);
 process.env.VRA_DATA_ROOT = dataRoot;
 process.env.VRA_CODEX_HOME = codexHome;
+process.env.DSH_HOME = dshHome;
+process.env.TMPDIR = temporaryDirectory;
 process.env.VRA_PYTHON = python;
 process.env.PYTHONDONTWRITEBYTECODE = "1";
 const config = path.join(dataRoot, "config.json");
