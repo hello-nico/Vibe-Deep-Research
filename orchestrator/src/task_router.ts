@@ -430,7 +430,7 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
   }
   if (task.requestedMode === "deep") {
     return decision(task, materials, state, "deep", agentEngineFamily, "explicit_deep",
-      "该任务需要完整取证与研究流程，交给 Vibe Research Agent 执行。", executionMode, runtimeFingerprint);
+      "该任务需要完整取证与研究流程，交给 Vibe Finance Agent 执行。", executionMode, runtimeFingerprint);
   }
   if (task.requestedMode === "auto" && task.kind === "locate_passages" && explicitDeepObjective(task.objective)) {
     return decision(task, materials, state, "deep", agentEngineFamily, "explicit_deep",
@@ -441,7 +441,7 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
     if (why) throw new TaskRouteError("quick_not_eligible", `${why}。不会静默改用 Deep，请明确切换模式。`);
     return decision(task, materials, state, "quick", executionMode === "agent" ? agentEngineFamily : "direct_api", "prepared_bounded_task",
       executionMode === "agent"
-        ? "材料已由服务端核实且任务边界清楚，由 Vibe Research Agent 完成一次有界材料定位。"
+        ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance Agent 完成一次有界材料定位。"
         : "材料已由服务端核实且任务边界清楚，用模型直连定位相关材料段落。", executionMode, runtimeFingerprint);
   }
   if (task.kind === "deep_research") {
@@ -467,7 +467,7 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
   }
   return decision(task, materials, state, "quick", executionMode === "agent" ? agentEngineFamily : "direct_api", "prepared_bounded_task",
     executionMode === "agent"
-      ? "材料已由服务端核实且任务边界清楚，由 Vibe Research Agent 完成一次有界材料定位。"
+      ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance Agent 完成一次有界材料定位。"
       : "材料已由服务端核实且任务边界清楚，用模型直连定位相关材料段落。", executionMode, runtimeFingerprint);
 }
 

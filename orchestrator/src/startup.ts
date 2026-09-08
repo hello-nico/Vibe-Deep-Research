@@ -48,7 +48,7 @@ export async function assertPortAvailable(port: number, host = "127.0.0.1"): Pro
     const server = net.createServer();
     server.unref();
     server.once("error", (error: NodeJS.ErrnoException) => {
-      if (error.code === "EADDRINUSE") reject(new Error(`端口 ${port} 已被占用，请先关闭旧的 Vibe Research 窗口或进程。`));
+      if (error.code === "EADDRINUSE") reject(new Error(`端口 ${port} 已被占用，请先关闭旧的 Vibe Finance 窗口或进程。`));
       else reject(error);
     });
     server.listen(port, host, () => server.close((error) => error ? reject(error) : resolve()));
@@ -236,7 +236,7 @@ export async function runStartup(
     if (startupOutcome.kind === "child_exit") throw new Error(startupOutcome.message);
 
     const url = "http://127.0.0.1:5930";
-    console.log(`\nVibe Research 已启动:${url}\n按 Ctrl+C 关闭。`);
+    console.log(`\nVibe Finance 已启动:${url}\n按 Ctrl+C 关闭。`);
     if (args.openBrowser) openBrowser(url);
     const stopOutcome = await shutdown.wait;
     if (stopOutcome.kind === "child_exit") throw new Error(stopOutcome.message);

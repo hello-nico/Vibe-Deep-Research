@@ -699,7 +699,7 @@ export function StockData() {
         <GlassCard>
           <div className="py-10 text-center text-sm text-muted-foreground">
             输入 A 股 6 位代码，或美股 / 港股 / 韩股代码（AAPL · 00700 · 005930.KS），拉取它的行情、估值、研报与新闻。<br />
-            <span className="text-xs text-muted-foreground/60">数据来自公开源（腾讯行情 / 东财研报 / akshare）；Vibe-Research 不预置任何标的、不做推荐。</span>
+            <span className="text-xs text-muted-foreground/60">数据来自公开源（腾讯行情 / 东财研报 / akshare）；Vibe-Finance 不预置任何标的、不做推荐。</span>
           </div>
         </GlassCard>
       )}

@@ -4,7 +4,7 @@
 
 @layer base {
   /* ============================================================
-     Vibe-Research · 科技玻璃暖橙主题
+     Vibe-Finance · 科技玻璃暖橙主题
      默认呈现 = 暗色暖橙；恢复公开 v1.0.4 的视觉基线。
      .light 提供亮色备选。HSL 变量沿用 4 级 surface 架构。
      ============================================================ */
@@ -179,6 +179,10 @@
   .workspace-kicker { font-family: var(--workspace-mono-font); font-size: 10px; letter-spacing: .18em; text-transform: uppercase; color: hsl(var(--primary)); }
   .workspace-title { font-family: var(--workspace-display-font); font-size: clamp(25px, 2.5vw, 34px); font-weight: 650; letter-spacing: -.025em; line-height: 1.4; }
   .workspace-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 18px 20px; border-bottom: 1px solid hsl(var(--border)); }
+  .dashboard-section-head { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .dashboard-section-head h3 { display: flex; min-width: 0; align-items: center; gap: 6px; font-size: 14px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .dashboard-section-head .hint { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; color: hsl(var(--muted-foreground) / 0.5); }
+  .dashboard-section-head .meta { margin-left: auto; display: flex; flex-shrink: 0; align-items: center; gap: 8px; font-size: 11px; color: hsl(var(--muted-foreground) / 0.5); }
   .workspace-panel-head h2 { font-family: var(--workspace-display-font); font-size: 14px; font-weight: 600; }
   .workspace-home-grid { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, 1fr); gap: 22px; }
   .workspace-index { padding: 22px 20px; border-right: 1px solid hsl(var(--border)); min-width: 0; }

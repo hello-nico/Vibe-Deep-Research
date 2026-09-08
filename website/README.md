@@ -1,4 +1,4 @@
-# Vibe Research website
+# Vibe Finance website
 
 This directory is the static website source.
 

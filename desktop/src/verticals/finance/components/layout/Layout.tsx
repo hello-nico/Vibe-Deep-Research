@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, FlaskConical, Gauge, Home, LayoutGrid, Microscope, Menu, X, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Star, Sun, Swords, Thermometer, TrendingUp, Wallet,
+  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, Gauge, Home, LayoutGrid, Microscope, Menu, X, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Star, Sun, Thermometer, TrendingUp, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -15,13 +15,11 @@ import { AgentToggle } from "@/components/ui/AgentToggle";
 
 const NAV = [
   { to: "/", icon: Home, label: "首页" },
-  { to: "/daily-review", icon: Activity, label: "每日复盘" },
+  { to: "/daily-review", icon: Activity, label: "大盘行情" },
   { to: "/intel", icon: Radar, label: "资讯雷达" },
   { to: "/signals", icon: Thermometer, label: "产业信号" },
   { to: "/sectors", icon: LayoutGrid, label: "板块中心" },
   { to: "/research", icon: Microscope, label: "个股研究" },
-  { to: "/debate", icon: Swords, label: "多空辩论" },
-  { to: "/backtest", icon: FlaskConical, label: "回测" },
   { to: "/watchlist", icon: Star, label: "自选股" },
   { to: "/portfolio", icon: Wallet, label: "我的持仓" },
   { to: "/my-reports", icon: FileText, label: "我的研报" },
@@ -157,14 +155,14 @@ export function Layout() {
         )}>
           <div className={cn("border-b border-border", compact ? "p-3" : "px-5 py-4")}>
             <div className="flex items-center justify-between">
-              <Link to="/" aria-label="Vibe Research 首页" className="flex items-center gap-2.5">
+              <Link to="/" aria-label="Vibe Finance 首页" className="flex items-center gap-2.5">
                 <BrandMark className="h-8 w-8 shrink-0 text-primary" />
-                {!compact && <span className="workspace-brand text-lg font-semibold tracking-tight">Vibe-<span className="text-primary">Research</span></span>}
+                {!compact && <span className="workspace-brand text-lg font-semibold tracking-tight">Vibe-<span className="text-primary">Finance</span></span>}
               </Link>
               {mobile && <button aria-label="关闭导航" className="p-1" onClick={closeMobileNav}><X className="h-4 w-4" /></button>}
             </div>
             {!compact && <div data-ai-identity className="mt-2 space-y-1">
-              <p className="text-[10px] leading-4 text-muted-foreground">本地金融研究 Agent · A股 / 美股 / 港股</p>
+              <p className="text-[10px] leading-4 text-muted-foreground">金融研究 Agent · A股 / 美股 / 港股</p>
                 <Link to="/settings" data-testid="ai-runtime-badge" title="查看或更改已保存的 AI 接入" className="flex min-w-0 items-start gap-1 text-[10px] leading-5 text-muted-foreground hover:text-primary">
                   <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" /><span>{aiConnectionLabel(aiRuntime)}</span>
                 </Link>
@@ -219,7 +217,7 @@ export function Layout() {
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
             <div className={cn("flex items-center gap-3", pathname !== "/" && "mr-24")}>
-              <span className="hidden text-[10px] text-muted-foreground lg:inline">本地金融研究工作台</span>
+              <span className="hidden text-[10px] text-muted-foreground lg:inline">金融研究工作台</span>
               <button onClick={toggle} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={dark ? "切换为浅色" : "切换为深色"}>
                 {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
               </button>

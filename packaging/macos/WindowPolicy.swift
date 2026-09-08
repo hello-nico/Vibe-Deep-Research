@@ -1,9 +1,12 @@
 import Foundation
 
 enum WindowPolicy {
-    static let home = URL(string: "http://127.0.0.1:5938/")!
+    static let port = Bundle.main.object(forInfoDictionaryKey: "VRAWorkspacePort") as? Int ?? 5938
+    static let displayName = Bundle.main.object(forInfoDictionaryKey: "CFBundleName") as? String ?? "Vibe Finance"
+    static let dataDirectory = Bundle.main.object(forInfoDictionaryKey: "VRADataDirectory") as? String ?? ".vibe-research-desktop"
+    static let home = URL(string: "http://127.0.0.1:\(port)/")!
     static func isLocal(_ url: URL) -> Bool {
-        url.scheme == "http" && url.host == "127.0.0.1" && url.port == 5938 && url.user == nil && url.password == nil
+        url.scheme == "http" && url.host == "127.0.0.1" && url.port == port && url.user == nil && url.password == nil
     }
     static func isLocalBlob(_ url: URL) -> Bool {
         guard url.scheme == "blob", let origin = URL(string: String(url.absoluteString.dropFirst(5))) else { return false }

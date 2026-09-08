@@ -96,7 +96,7 @@ test("侧栏不展示原作者品牌站点或个人联系入口", () => {
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
   assert.doesNotMatch(layoutSrc, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
   assert.doesNotMatch(layoutSrc, /APP_VERSION|· 本地工作台/);
-  assert.match(layoutSrc, /to="\/" aria-label="Vibe Research 首页"/);
+  assert.match(layoutSrc, /to="\/" aria-label="Vibe Finance 首页"/);
 });
 
 test("首屏后端失败态给普通用户一键启动命令与重试入口", () => {
@@ -122,7 +122,7 @@ test("根路径是极简功能首页,首屏可直接与 Agent 交流", () => {
   assert.match(homeSrc, /<FinanceHomeAgent\s*\/>/);
   // M23 首屏改为聊天与快捷接入，状态在侧栏显示；不强制跳离首页。
   const featuresSrc = fs.readFileSync(path.join(FINANCE, "lib", "homeFeatures.ts"), "utf8");
-  assert.match(homeSrc, /<h1\b[^>]*>Vibe Research 研究工作台<\/h1>/);
+  assert.match(homeSrc, /<h1\b[^>]*>Vibe Finance 研究工作台<\/h1>/);
   assert.match(layoutSrc, /aiConnectionLabel\(aiRuntime\)/);
   assert.doesNotMatch(layoutSrc, /<Navigate/);
   assert.match(featuresSrc, /to: "\/settings"/);
@@ -200,7 +200,7 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   const dockSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "FinanceAiDock.tsx"), "utf8");
   const settingsSrc = fs.readFileSync(path.join(FINANCE, "pages", "Settings.tsx"), "utf8");
 
-  assert.match(layoutSrc, /本地金融研究 Agent/);
+  assert.match(layoutSrc, /金融研究 Agent/);
   assert.match(layoutSrc, /aiConnectionLabel\(aiRuntime\)/);
   const connectionSrc = fs.readFileSync(path.join(FINANCE, "lib", "aiConnection.ts"), "utf8");
   assert.match(connectionSrc, /Claude订阅/);
@@ -208,11 +208,11 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   const toggleSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "AgentToggle.tsx"), "utf8");
   assert.match(toggleSrc, /executionMode === "agent"/);
   assert.match(layoutSrc, /<AgentToggle/);
-  assert.match(dockSrc, /Vibe Research Agent/);
+  assert.match(dockSrc, /Vibe Finance Agent/);
   assert.match(dockSrc, /普通对话 · Agent 已关闭/);
   assert.match(dockSrc, /trigger: agentEnabled \? "问 Agent" : "问模型"/);
   assert.match(settingsSrc, /一、连接 AI/);
-  assert.match(settingsSrc, /二、Vibe Research Agent/);
+  assert.match(settingsSrc, /二、Vibe Finance Agent/);
   assert.match(settingsSrc, /等待连接 AI/, "未配置时不能冒充已经选中了 Codex Harness");
   assert.match(settingsSrc, /本地 API 已连接/);
   assert.match(settingsSrc, /默认关闭/);
@@ -228,12 +228,9 @@ test("产品能力与密钥文案不许超过代码实际做到的范围", () =>
   const readme = fs.readFileSync(path.join(REPO, "README.md"), "utf8");
   const english = fs.readFileSync(path.join(REPO, "README_en.md"), "utf8");
 
-  const quickReview = dailySrc.match(/\) : !needConfig[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/)?.[1] ?? "";
-  assert.match(quickReview, /已经取到的客观数据、缺口与读法护栏交给所选模型整理/);
-  assert.match(quickReview, /不会启动完整研究工具链/);
-  assert.match(quickReview, /to="\/research"/);
-  assert.ok(!/调用[^，。；<]{0,20}工具|校验(?:证据|数据)|证据校验/.test(quickReview),
-    `快速复盘段不许承诺实际没有执行的工具或校验:${quickReview}`);
+  assert.match(dailySrc, /title="大盘行情"/);
+  assert.doesNotMatch(dailySrc, /关注股票|Agent 当日复盘|让 Agent 复盘今天|已返回（详见快照与缺口）/);
+  assert.doesNotMatch(dailySrc, /交给本地 Agent 做复盘/);
 
   const runtimeBlock = settingsSrc.slice(settingsSrc.indexOf("const runtimeState"), settingsSrc.indexOf("return (", settingsSrc.indexOf("const runtimeState")));
   assert.match(runtimeBlock, /info\s*\?\s*\{\s*label:\s*"本地 API 已连接"/);

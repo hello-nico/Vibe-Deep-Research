@@ -1,7 +1,6 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { HOME_FEATURE_GROUPS } from "../src/verticals/finance/lib/homeFeatures.ts";
 
 const financeAgent = readFileSync(
   new URL("../src/verticals/finance/components/ui/FinanceAiDock.tsx", import.meta.url),
@@ -12,7 +11,7 @@ const coreMessages = readFileSync(
   "utf8",
 );
 
-test("首页保留工作流入口，聊天已开放实际联网与取数能力", () => {
+test("首页只留 chat，聊天已开放实际联网与取数能力", () => {
   assert.doesNotMatch(financeAgent, /notice="直接问市场、公司、行业或研究方法。"/);
   assert.match(financeAgent, /placeholder="说说要查什么、研究什么…（Shift\+Enter 换行）"/);
   assert.match(financeAgent, /suggestionStyle="tasks"/);
@@ -20,25 +19,12 @@ test("首页保留工作流入口，聊天已开放实际联网与取数能力",
   assert.doesNotMatch(financeAgent, /onPick=\{\(x\) => void chat\.submit\(x\)\}/);
   assert.match(financeAgent, /<AiComposer[\s\S]*?highlighted[\s\S]*?\/>/);
 
-  const router = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
-  const features = HOME_FEATURE_GROUPS.flatMap((group) => [...group.features]);
-  assert.equal(features.length, 12);
-  assert.equal(new Set(features.map((entry) => entry.to)).size, 12);
   const layout = readFileSync(new URL("../src/verticals/finance/components/layout/Layout.tsx", import.meta.url), "utf8");
-  const primaryNav = layout.slice(layout.indexOf("const NAV = ["), layout.indexOf("];", layout.indexOf("const NAV = [")));
-  const primaryRoutes = [...primaryNav.matchAll(/to: "([^"]+)"/g)].map((match) => match[1]).filter((route) => route !== "/");
-  assert.deepEqual(features.map((entry) => entry.to).sort(), primaryRoutes.sort(), "首页只列全部一级栏目，不展示二级入口");
-  for (const feature of features) {
-    assert.ok(layout.includes(`to: "${feature.to}"`), feature.to);
-    assert.ok(router.includes(`path: "${feature.to}"`), feature.to);
-  }
   const home = readFileSync(new URL("../src/verticals/finance/pages/Home.tsx", import.meta.url), "utf8");
-  assert.ok(home.indexOf("<FinanceHomeAgent") < home.indexOf("<section"));
-  assert.match(home, /HOME_FEATURE_GROUPS\.map/);
-  assert.match(home, /data-feature-grid[^>]*sm:grid-cols-2[^>]*lg:grid-cols-3[^>]*xl:grid-cols-5/, "分类大框须横向并排，不能一类占整行");
-  assert.match(home, /data-feature-category[^>]*border-primary\/20/, "每个分类与其入口共用独立大框");
-  assert.doesNotMatch(home, /group\.detail|\{detail\}<\/span>/, "紧凑目录不展开分类和每个入口的长描述");
-  assert.match(home, /to=\{to\}/);
+  assert.match(home, /<FinanceHomeAgent/);
+  assert.match(home, /<Disclaimer/);
+  assert.doesNotMatch(home, /HOME_FEATURE_GROUPS|研究工具，一站直达|data-feature-grid/);
+  assert.doesNotMatch(layout, /多空辩论|回测/);
   assert.doesNotMatch(layout, /<Navigate/);
   assert.match(financeAgent, /<QuickAiConnect/);
   assert.match(financeAgent, /disabled=\{chat.loading \|\| !configured\}/);

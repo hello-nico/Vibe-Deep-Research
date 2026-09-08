@@ -124,7 +124,7 @@ export function ensureRootMarker(root: string): boolean {
   const p = path.join(root, ROOT_MARKER_FILENAME);
   if (fs.existsSync(p)) return false;
   fs.mkdirSync(root, { recursive: true });
-  atomicWrite(p, "此文件是 Vibe Research 的 project root 标记,由编排器生成。\n删掉它会让引擎发现不到宪法与技能(而且是静默的)。\n");
+  atomicWrite(p, "此文件是 Vibe Finance 的 project root 标记,由编排器生成。\n删掉它会让引擎发现不到宪法与技能(而且是静默的)。\n");
   return true;
 }
 

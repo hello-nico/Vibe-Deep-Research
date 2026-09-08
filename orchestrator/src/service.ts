@@ -427,7 +427,7 @@ function assertEngine(v: unknown): "codex" | "direct" | undefined {
   if (v === "direct") {
     throw new ServiceError(
       "experimental_engine_not_public",
-      "Direct 六阶段仍是开发实验适配器；公开研究请开启 Vibe Research Agent，由系统内部选择执行路径",
+      "Direct 六阶段仍是开发实验适配器；公开研究请开启 Vibe Finance Agent，由系统内部选择执行路径",
     );
   }
   throw new ServiceError("bad_engine", `engine 只能是 codex 或 direct,收到 ${show(String(v))}`);
@@ -438,7 +438,7 @@ export function startResearch(ctx: ServiceContext, req: { symbol: string; compan
   try { executionMode = assertExecutionMode(req.executionMode); }
   catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
   if (executionMode === "direct") {
-    throw new ServiceError("agent_required", "六阶段深度研究需要 Agent，请先开启 Vibe Research Agent");
+    throw new ServiceError("agent_required", "六阶段深度研究需要 Agent，请先开启 Vibe Finance Agent");
   }
   const requestLlm = checkLlmShape(req.llm);
   const runtimeLlm = internal.runtimeLlm ?? requestLlm;
@@ -1068,7 +1068,7 @@ export async function debateStart(ctx: ServiceContext, req: { symbol: string; se
   let mode: "agent" | "direct";
   try { mode = assertExecutionMode(req.executionMode); }
   catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
-  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Research Agent");
+  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Finance Agent");
   const llm = checkLlmShape(req.llm);
   assertAgentRuntime(ctx, llm);
   const sourceFingerprint = sourceFingerprintOf(ctx, llm);
@@ -1108,7 +1108,7 @@ export async function debateAdvance(ctx: ServiceContext, req: { id: string; llm?
   let mode: "agent" | "direct";
   try { mode = assertExecutionMode(req.executionMode); }
   catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
-  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Research Agent");
+  if (mode === "direct") throw new ServiceError("agent_required", "多空辩论需要 Agent，请先开启 Vibe Finance Agent");
   const llm = checkLlmShape(req.llm);
   assertAgentRuntime(ctx, llm);
   const sourceFingerprint = sourceFingerprintOf(ctx, llm);
@@ -1396,7 +1396,7 @@ export async function chatSend(
           baseURL: provider.baseURL, apiKey: provider.apiKey, model: provider.model, timeoutMs: 120_000, signal,
           messages: [
             { role: "system", content: [
-              "你在 Vibe Research 的模型直连模式中回答一次性问题。",
+              "你在 Vibe Finance 的模型直连模式中回答一次性问题。",
               "不得声称调用了 Agent、工具、网络或持久记忆；只能根据本请求给出的内容作答。",
               "若提供了本地资料，使用资料时保留 [资料:<id> p.<页码>] 引用；没有页码写 p.-，没看到的不猜。",
               "只报可核实信息、分析框架与概率，不给操作建议。",
@@ -1583,7 +1583,7 @@ export async function ingestFiles(ctx: ServiceContext, req: { kind: string; file
   let executionMode: "agent" | "direct";
   try { executionMode = assertExecutionMode(req.executionMode); }
   catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
-  if (executionMode === "direct") throw new ServiceError("agent_required", "资料转写需要 Agent 读取文件，请先开启 Vibe Research Agent");
+  if (executionMode === "direct") throw new ServiceError("agent_required", "资料转写需要 Agent 读取文件，请先开启 Vibe Finance Agent");
   const llm = checkLlmShape(req.llm);
   assertAgentRuntime(ctx, llm);
   // 与台账同一把尺子:kind 先过 guard(白名单 + safePath),再进转写
@@ -1667,7 +1667,7 @@ export async function runToolRequest(
   if (!spec) throw new ServiceError("not_found", `没有这个工具:${name}`);
   if (spec.requiresAgent !== false) {
     if (mode === "direct") {
-      throw new ServiceError("agent_required", "这个工具需要 Agent，请先开启 Vibe Research Agent");
+      throw new ServiceError("agent_required", "这个工具需要 Agent，请先开启 Vibe Finance Agent");
     }
     assertAgentRuntime(ctx, llm);
   }
@@ -1694,7 +1694,7 @@ export async function guidedToolTurn(
   try { mode = assertExecutionMode(req.executionMode); }
   catch (error) { throw new ServiceError(error instanceof RuntimeProviderError ? error.code : "bad_execution_mode", error instanceof Error ? error.message : String(error)); }
   if (mode === "direct") {
-    throw new ServiceError("agent_required", "这个功能需要 Agent 调用工具并维持任务状态，请先开启 Vibe Research Agent");
+    throw new ServiceError("agent_required", "这个功能需要 Agent 调用工具并维持任务状态，请先开启 Vibe Finance Agent");
   }
   const llm = checkLlmShape(req.llm);
   assertAgentRuntime(ctx, llm);

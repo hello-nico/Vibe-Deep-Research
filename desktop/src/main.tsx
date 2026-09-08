@@ -18,7 +18,7 @@ import { hydrateWatch } from "./verticals/finance/lib/watchlist";
  *    `verticals/finance/lib/{api,llm,agents,notes,watchlist}.ts` 与「接入 AI」页,其余一律照搬。
  */
 
-document.title = "Vibe Research";
+document.title = "Vibe Finance";
 
 const root = document.getElementById("root");
 if (!root) throw new Error("找不到 #root");

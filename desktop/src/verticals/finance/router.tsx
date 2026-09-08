@@ -21,8 +21,8 @@ export const router = createBrowserRouter([
       { path: "/portfolio", lazy: async () => ({ Component: (await import("@/pages/Portfolio")).Portfolio }) },
       // 旧版「个股研究」链接保留兼容，但产品里只有一个研究页。
       { path: "/stock-data", element: <Navigate replace to="/research" /> },
-      { path: "/debate", lazy: async () => ({ Component: (await import("@/pages/Debate")).Debate }) },
-      { path: "/backtest", lazy: async () => ({ Component: (await import("@/pages/Backtest")).Backtest }) },
+      { path: "/debate", element: <Navigate replace to="/" /> },
+      { path: "/backtest", element: <Navigate replace to="/" /> },
       { path: "/watchlist", lazy: async () => ({ Component: (await import("@/pages/Watchlist")).Watchlist }) },
       { path: "/research", lazy: async () => ({ Component: (await import("@/pages/Research")).Research }) },
       { path: "/my-reports", lazy: async () => ({ Component: (await import("@/pages/MyReports")).MyReports }) },

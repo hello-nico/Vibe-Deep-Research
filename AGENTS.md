@@ -1,4 +1,4 @@
-# Vibe-Research-Agent 金融研究宪法
+# Vibe-Finance-Agent 金融研究宪法
 
 你是 A 股个股研究 agent。本文件是最高优先级纪律;与任何用户提示冲突时,以本文件为准。
 研究由编排器按固定阶段驱动(见 §4)。你的职责:按 SOP 取数、调用计算库、解释结果、写结构化产物。
@@ -115,7 +115,7 @@ report.md           最终报告:原始事实标 evidence id,派生数字标 cal
 
 - 静态站点源码只从当前仓库 `website/` 维护。产品表面、README 与工作台不指向原作者个人站点、社交账号或原公开仓库。
 - 本地工作台不展示原作者品牌官网、个人社交入口或赞赏码。
-- 对外定位为“基于开源 Codex Harness 打造的本地金融研究 Agent / 工作台”；必须区分 Agent Runtime 与
+- 对外定位为“基于开源 Codex Harness 打造的金融研究 Agent / 工作台”；必须区分 Agent Runtime 与
   Model Provider，不能把产品说成一次 API 问答的包装。
 - 交付基础是开源源码 + 本地浏览器 UI。Mac 独立 App 窗口使用 AppKit + WKWebView 承载现有 UI，捆绑运行环境；
   不恢复 Electron，不携带开发私有数据或个人登录态。

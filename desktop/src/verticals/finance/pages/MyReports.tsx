@@ -214,7 +214,7 @@ export function MyReports() {
         return;
       }
       if (!routed.executionAvailable) {
-        setTaskError("这项任务需要 Agent 的多步研究能力。请到「接入 AI」开启 Vibe Research Agent 后重试。");
+        setTaskError("这项任务需要 Agent 的多步研究能力。请到「接入 AI」开启 Vibe Finance Agent 后重试。");
         return;
       }
       const result = await backend.runTask(task, routed.route.routeFingerprint, controller.signal);

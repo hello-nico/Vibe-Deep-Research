@@ -1,6 +1,6 @@
 <p align="center"><b>简体中文</b> | <a href="README_en.md">English</a></p>
 
-<h1 align="center">Vibe Research</h1>
+<h1 align="center">Vibe Finance</h1>
 
 <p align="center">
   <b>接入自己的 AI，日常直接聊，需要研究时开启 Agent</b><br>
@@ -62,18 +62,18 @@ Mac 安装包适用于 Apple Silicon / M 系列，macOS 13+。从源码构建见
 
 源码版本 **1.1.0**，Mac 构建号 **40**。App 已完成 Developer ID 签名、Apple 公证，以及从最终 DMG 复制安装后的工具调用和重启验证；DMG 容器另行签名。另一台 Mac、Windows 及完整供应商矩阵验证仍有缺口，详见 [M40 验收记录](docs/发布候选与隐私验收_M40_2026-09-07.md)。旧 M38 候选为 **1.0.4 / build 37**，不再作为本次交付包。
 
-Vibe Research 是一个**本地金融研究工作台**。第一次打开时只需要决定 AI 从哪里来：使用已经登录的
+Vibe Finance 是一个**金融研究工作台**。第一次打开时只需要决定 AI 从哪里来：使用已经登录的
 Claude Code / WorkBuddy（CodeBuddy）订阅、完成产品专用的 Codex 登录，或者填写自己的模型 API。连接成功后默认普通对话，需要研究时开启 Agent，普通
 使用者不需要再理解 Harness、脚本或路由模式。
 
 Agent 模式会在本机维持上下文、调用工具、推进任务、处理失败并保存研究过程。Codex 订阅由
 [OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform) 承载；Claude.ai 订阅由
-本机 Claude Code Agent 承载；WorkBuddy / CodeBuddy 账号由腾讯官方 CodeBuddy Code CLI 承载。Vibe Research 在这些运行时之上统一叠加金融数据、研究 SOP、确定性计算、
+本机 Claude Code Agent 承载；WorkBuddy / CodeBuddy 账号由腾讯官方 CodeBuddy Code CLI 承载。Vibe Finance 在这些运行时之上统一叠加金融数据、研究 SOP、确定性计算、
 证据校验和合规边界。
 
 Claude Code 与 WorkBuddy / CodeBuddy Agent 除了对话和有界材料任务，也已接通辩论、Agent 回测、
 截图／表格资料转写和完整 A 股六阶段研究。
-研究阶段关闭它们的内建工具，只开放 Vibe Research 的五个受控 MCP 工具；不会暗中换成 Codex。
+研究阶段关闭它们的内建工具，只开放 Vibe Finance 的五个受控 MCP 工具；不会暗中换成 Codex。
 
 左上角 AI 来源旁的“开启Agent”开关默认关闭，设置页与它同步。订阅与 API 都可切换：
 
@@ -281,7 +281,7 @@ Mac 独立窗口 / 浏览器工作台
 首次只需接入 AI。Agent 默认关闭，日常普通对话；需要研究时在左上角开启。
 
 - Agent Runtime 负责本地上下文、工具调用、任务状态、进度和失败处理。Codex 订阅走 Codex Harness；Claude 订阅走 Claude Code Agent；WorkBuddy / CodeBuddy 走 CodeBuddy Code Agent，三者不会混叫。
-- Claude Code 与 WorkBuddy / CodeBuddy Agent 可运行完整 A 股六阶段研究；每个阶段使用一次独立会话，只能调用 Vibe Research 的受控 MCP，不会暗中换成 Codex。
+- Claude Code 与 WorkBuddy / CodeBuddy Agent 可运行完整 A 股六阶段研究；每个阶段使用一次独立会话，只能调用 Vibe Finance 的受控 MCP，不会暗中换成 Codex。
 - AI 来源可以是订阅登录，也可以是用户自己的 Model Provider API。新来源默认关闭 Agent，同一来源重测保留明确选择。
 - 模型直连不运行 Agent、不调用工具，也没有 Agent 任务记忆；六阶段研究、多空辩论和 Agent 回测会明确提示重新开启 Agent，不会静默降级。
 - Codex 订阅使用产品自己的 `CODEX_HOME`，不读写用户的 `~/.codex`；Claude 与 CodeBuddy 订阅复用各自本机登录态。普通对话关闭全部工具与 MCP；六阶段研究关闭内建工具，只开放产品受控 MCP。用户配置与自动记忆保持关闭。WorkBuddy 自带的旧 CLI 若没有“禁止会话落盘”参数，整次回答会改在一次性临时用户目录运行，结束后删除。

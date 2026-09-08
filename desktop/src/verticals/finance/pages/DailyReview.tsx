@@ -1,17 +1,11 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ReactNode } from "react";
 import { backend, type PageResult } from "@/lib/backend";
-import { Link } from "react-router-dom";
-import { Sparkles, Loader2, AlertCircle, RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Plus, X, Flame, BarChart3, Globe } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { api, ApiError, type IndexQuote, type Quote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
-import { hasLlm, chatStream } from "@/lib/llm";
-import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
-import { loadWatch, saveWatch, addCodes } from "@/lib/watchlist";
+import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
@@ -22,26 +16,45 @@ const pctColor = (p: number | null | undefined) =>
 const fmt = (v: number | null) => v == null ? "—" : v.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 const yi = (v: number | null) => (v == null ? "—" : `${fmt(v / 1e8)} 亿`); // 元 → 亿
 
+function formatUpdated(value?: string | null) {
+  if (!value) return null;
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+  const t = Date.parse(value);
+  if (Number.isNaN(t)) return value;
+  const d = new Date(t);
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function SectionHead({
+  icon: Icon, title, hint, updated, action,
+}: {
+  icon?: LucideIcon; title: string; hint?: string; updated?: string | null; action?: ReactNode;
+}) {
+  const stamp = formatUpdated(updated);
+  return (
+    <div className="dashboard-section-head">
+      <h3>{Icon && <Icon className="h-4 w-4 shrink-0" />}{title}</h3>
+      {hint && <span className="hint">{hint}</span>}
+      <div className="meta">
+        {stamp && <span>更新于 {stamp}</span>}
+        {action}
+      </div>
+    </div>
+  );
+}
+
 export function DailyReview() {
   const [indices, setIndices] = useState<IndexQuote[]>([]);
   const [idxErr, setIdxErr] = useState(false);
   const [idxDone, setIdxDone] = useState(false);
   const fetchingRef = useRef(false);
-  const [review, setReview] = useState("");
-  const [reviewLoading, setReviewLoading] = useState(false);
-  const [reviewErr, setReviewErr] = useState<string | null>(null);
-  const [needConfig, setNeedConfig] = useState(false);
   const [overview, setOverview] = useState<MarketOverview | null>(null);
   const [emotion, setEmotion] = useState<ShortTermEmotion | null>(null);
   const [turnover, setTurnover] = useState<TurnoverTop | null>(null);
   const [globalIdx, setGlobalIdx] = useState<GlobalIndex[]>([]);
   const [globalErr, setGlobalErr] = useState<string | null>(null);
   const [globalDone, setGlobalDone] = useState(false);
-  // 关注股票（自选，存本地）
-  const [watchCodes, setWatchCodes] = useState<string[]>(loadWatch);
-  const [watchQuotes, setWatchQuotes] = useState<Record<string, Quote>>({});
-  const [watchInput, setWatchInput] = useState("");
-  const [watchLoading, setWatchLoading] = useState(false);
 
   // 各数据块请求是否已结束：区分「加载中」与「数据源暂不可用」（非交易时段/被限流时后端返回空）
   const [ovDone, setOvDone] = useState(false);
@@ -50,7 +63,7 @@ export function DailyReview() {
   const dataReady = idxDone && globalDone && emoDone && toDone && ovDone;
 
   const loadIndices = async (refresh = false) => {
-    if (fetchingRef.current || reviewLoading) return;
+    if (fetchingRef.current) return;
     fetchingRef.current = true;
     setIdxDone(false); setIdxErr(false); setOvDone(false); setEmoDone(false); setToDone(false);
     setEmotion(null); setTurnover(null); setOverview(null); setPageMeta(null);
@@ -93,31 +106,9 @@ export function DailyReview() {
     </p>
   );
 
-  const refreshWatch = (codes: string[]) => {
-    if (!codes.length) { setWatchQuotes({}); return; }
-    setWatchLoading(true);
-    api.quote(codes.join(",")).then(setWatchQuotes).catch(() => {}).finally(() => setWatchLoading(false));
-  };
-
   useEffect(() => {
     loadIndices();
-    refreshWatch(loadWatch());
   }, []);
-
-  const addWatch = () => {
-    // 支持一次粘贴多只（逗号 / 空格分隔）；全部无效或重复则清空输入、无副作用。
-    const { next, added } = addCodes(watchCodes, watchInput);
-    setWatchInput("");
-    if (!added) return;
-    setWatchCodes(next); refreshWatch(next);
-    void saveWatch(next).catch(() => { setWatchCodes(loadWatch()); refreshWatch(loadWatch()); });
-  };
-
-  const removeWatch = (c: string) => {
-    const next = watchCodes.filter((x) => x !== c);
-    setWatchCodes(next); refreshWatch(next);
-    void saveWatch(next).catch(() => { setWatchCodes(loadWatch()); refreshWatch(loadWatch()); });
-  };
 
 
   /**
@@ -131,31 +122,6 @@ export function DailyReview() {
   const bizDay = pageMeta ? pageMeta.context.review_date ?? pageMeta.context.last_trading_day : null;
 
 
-
-  const runReview = async () => {
-    // Ref also covers a refresh click before React commits the pending flags.
-    if (!dataReady || fetchingRef.current || reviewLoading) return;
-    setReviewErr(null);
-    setNeedConfig(false);
-    if (!hasLlm()) { setNeedConfig(true); return; }
-    setReviewLoading(true);
-    setReview("");
-    const prompt =
-      "请根据这一屏的客观数据（含业务日与各块读法护栏）进行分析。\n" +
-      "请用中文做当天复盘：整体涨跌、指数表现、情绪与资金面值得注意的点。\n" +
-      "🔴 硬要求：① 标了【缺口】的块**不要就它下任何结论**，如实说这块没取到；" +
-      "② 引用数字时带上它的读法护栏（【读法·xx】那几行），不要把口径丢掉；" +
-      "③ 只做客观陈述与多视角分析，不预测涨跌、不推荐任何标的、不构成投资建议。";
-    try {
-      await chatStream([{ role: "user", content: prompt }], `今日大盘数据：${dataSummary}`, {
-        onDelta: (t) => setReview((r) => r + t),
-      });
-    } catch (e) {
-      setReviewErr(e instanceof ApiError ? e.message : "复盘失败");
-    } finally {
-      setReviewLoading(false);
-    }
-  };
 
   const sentiment = overview?.sentiment;
   const sectors = overview?.sectors || [];
@@ -228,70 +194,26 @@ export function DailyReview() {
   // 右上角那个 AI 按钮聊的就是这一页（登记处见 core/ai/pageContext）
   useAiPage({
     key: "daily-review",
-    title: "每日复盘",
+    title: "大盘行情",
     context: `今日大盘数据：${dataSummary}`,
     suggestions: ["今天大盘怎么走", "哪些指数领涨领跌", "盘面有什么值得注意"],
   });
 
   return (
     <div>
-      {/* 🔴 标题里的日期用 **Core 算出的业务日**,不用浏览器本地"今天" ——
-          周末 / 休市 / 盘前回退上一个交易日时,两者会差一天,而同屏出现两个日期口径
-          比没有日期更容易误读。业务日还没拿到就先不写日期,别先写一个再改。 */}
-      <PageHeader
-        title="每日复盘"
-        subtitle={`${bizDay ? `${bizDay} · ` : ""}大盘 / 情绪 / 板块资金一屏看全，交给本地 Agent 做复盘`}
-      />
-      <div role="status" className="mb-4 flex flex-wrap gap-x-4 gap-y-1 rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground">
-        {[
-          ["大盘指数", idxDone, indices.length > 0 && !idxErr],
-          ["全球指数", globalDone, globalIdx.some((g) => g.price !== null) && !globalErr],
-          ["情绪数据", emoDone, !!emotion],
-          ["成交排行", toDone, !!turnover],
-          ["资金与涨停", ovDone, !!overview && !pageErr],
-        ].map(([label, done, available]) => <span key={String(label)}>{label} · {done ? available ? "已返回（详见快照与缺口）" : "未取得可用数据" : "请求中…"}</span>)}
-        {![idxDone, globalDone, emoDone, toDone, ovDone].every(Boolean) && <span className="w-full">数据分批返回，请求中可能暂留上次指数快照；已返回不代表全部资料完整。无需重复刷新。</span>}
-      </div>
+      <PageHeader title="大盘行情" subtitle="大盘 / 情绪 / 板块资金" />
 
       {pageErr && (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           这一屏没取到：{pageErr}
-          <span className="ml-1 text-destructive/80">—— 业务日与缺口提示都不可用，下面的数字不要当今天的看。</span>
-        </div>
-      )}
-
-      {/*
-        🔴 **这一屏在看哪一天，要写在屏上**。
-           Core 会算「盘中看进行时 / 收盘后看今天 / 非交易日回退上一个交易日」，
-           但页面此前没显示，用户默认以为都是"今天" —— 实测出现过同一屏里
-           标题是 08-27、某一块却是 08-26，而**界面上看不出任何异常**。
-        🔴 缺了哪块也要说：没取到就说没取到，别让空白被读成"今天没有"。
-      */}
-      {pageMeta && (
-        <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5 rounded-lg border border-border/60 bg-muted/20 px-3 py-2 text-xs">
-          <span className="text-muted-foreground">
-            业务日 <span className="font-medium text-foreground">{pageMeta.context.review_date ?? pageMeta.context.last_trading_day}</span>
-            {pageMeta.context.review_reason && <span className="ml-1 text-muted-foreground/70">（{pageMeta.context.review_reason}）</span>}
-          </span>
-          {pageMeta.mixed_ages && (
-            <span className="text-destructive">⚠️ 这一屏的数据来自不同业务日，跨日比较要当心</span>
-          )}
-          {pageMeta.blocks.filter((b) => b.status === "failed").map((b) => (
-            <span key={b.id} className="text-muted-foreground">
-              <span className="text-destructive">缺</span> {b.title}（这次没取到）
-            </span>
-          ))}
-          {pageMeta.blocks.filter((b) => b.status === "partial").map((b) => (
-            <span key={b.id} className="text-muted-foreground">{b.title} 只取到一部分</span>
-          ))}
+          <span className="ml-1 text-destructive/80">—— 下面的数字不要当今天的看。</span>
         </div>
       )}
 
       {/* 1. 大盘指数（实时） */}
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-muted-foreground">大盘指数</h3>
-        <button onClick={() => loadIndices(true)} disabled={reviewLoading || !dataReady} className="text-muted-foreground hover:text-primary disabled:opacity-50" title="刷新"><RefreshCw className="h-3.5 w-3.5" /></button>
-      </div>
+      <SectionHead title="大盘指数" action={
+        <button onClick={() => loadIndices(true)} disabled={!dataReady} className="text-muted-foreground hover:text-primary disabled:opacity-50" title="刷新"><RefreshCw className="h-3.5 w-3.5" /></button>
+      } />
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {indices.length === 0
           ? [1, 2, 3, 4].map((i) => (
@@ -312,10 +234,7 @@ export function DailyReview() {
       {/* 1b. 全球市场（隔夜外围脸色：A 股常看美股 / 港股） */}
       {(
         <>
-          <div className="mb-3 flex items-center gap-2">
-            <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Globe className="h-4 w-4" /> 全球市场</h3>
-            <span className="text-[11px] text-muted-foreground/50">腾讯行情快照 · 非逐笔实时行情</span>
-          </div>
+          <SectionHead icon={Globe} title="全球市场" hint="非实时行情" updated={globalIdx.find((g) => g.fetched_at)?.fetched_at} />
           {globalIdx.length === 0 && <p role="status" className="mb-4 text-sm text-muted-foreground">
             {globalErr ?? (globalDone ? "全球指数未取得可用数据，不代表市场没有变化。" : "全球指数加载中…")}
           </p>}
@@ -327,7 +246,6 @@ export function DailyReview() {
                 <p className={cn("text-xs", g.change_pct == null ? "text-muted-foreground" : pctColor(g.change_pct))}>
                   {g.change_pct == null ? "—" : `${g.change_pct > 0 ? "+" : ""}${g.change_pct}%`}
                 </p>
-                <p className="mt-1 text-[11px] text-muted-foreground">{g.fetched_at ? `取数：${new Date(g.fetched_at).toLocaleString()}` : "取数时间未知"}</p>
                 {g.note && <p role="status" className="mt-1 text-[11px] text-muted-foreground">{g.note}</p>}
               </GlassCard>
             ))}
@@ -335,95 +253,8 @@ export function DailyReview() {
         </>
       )}
 
-      {/* 2. 关注股票（自选） */}
-      <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-sm font-semibold text-muted-foreground">关注股票</h3>
-        {watchCodes.length > 0 && (
-          <button onClick={() => refreshWatch(watchCodes)} className="text-muted-foreground hover:text-primary" title="刷新价格">
-            {watchLoading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-          </button>
-        )}
-      </div>
-      <GlassCard className="mb-6">
-        <div className="mb-3 flex gap-2">
-          <input
-            value={watchInput}
-            onChange={(e) => setWatchInput(e.target.value.slice(0, 80))}
-            onKeyDown={(e) => e.key === "Enter" && addWatch()}
-            placeholder="加自选：600519 AAPL 00700.HK"
-            className="w-60 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50"
-          />
-          <button onClick={addWatch}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary shadow-glow hover:bg-primary/25">
-            <Plus className="h-4 w-4" /> 增加
-          </button>
-        </div>
-        {watchCodes.length === 0 ? (
-          <p className="text-sm text-muted-foreground/60">加上你关注的股票，随时看它们的实时价格与涨跌。数据存本地，不上传。</p>
-        ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-            {watchCodes.map((c) => {
-              const q = watchQuotes[c];
-              return (
-                <div key={c} className="group relative rounded-lg bg-muted/25 p-3">
-                  <button onClick={() => removeWatch(c)} title="移除"
-                    className="absolute right-1.5 top-1.5 text-muted-foreground/40 opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100">
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                  <p className="truncate text-xs text-muted-foreground">
-                    {q?.name || c}
-                    {q && <span className="ml-1.5 rounded border border-border px-1 py-0.5 font-mono text-[9px]">{q.currency}</span>}
-                  </p>
-                  <p className={cn("mt-1 font-mono text-lg font-bold", q ? pctColor(q.change_pct) : "text-muted-foreground/40")}>{q?.price ?? "—"}</p>
-                  <p className={cn("text-xs", q ? pctColor(q.change_pct) : "text-muted-foreground/40")}>
-                    {q?.change_pct == null ? c : `${q.change_pct > 0 ? "+" : ""}${q.change_pct}%`}
-                  </p>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </GlassCard>
-
-      {/* 3. Agent 当日复盘 */}
-      <GlassCard glow className="mb-6">
-        <div className="flex items-center justify-between">
-          <h3 className="flex items-center gap-1.5 font-semibold"><Sparkles className="h-4 w-4 text-primary" /> Agent 当日复盘</h3>
-          <button onClick={runReview} disabled={reviewLoading || !dataReady}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary shadow-glow hover:bg-primary/25 disabled:opacity-50">
-            {reviewLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-            {!dataReady ? "等待本轮数据…" : review ? "重新复盘" : "让 Agent 复盘今天"}
-          </button>
-        </div>
-        {needConfig && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/5 p-3 text-sm text-muted-foreground">
-            <AlertCircle className="h-4 w-4 shrink-0 text-warning" />
-            Agent 还没有可用模型。<Link to="/settings" className="text-primary">先为 Agent 选择模型</Link>，之后一键出复盘。
-          </div>
-        )}
-        {reviewErr && (
-          <div className="mt-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-            <AlertCircle className="h-4 w-4 shrink-0" /> {reviewErr}
-          </div>
-        )}
-        {review ? (
-          <>
-            <div className="prose prose-sm dark:prose-invert mt-4 max-w-none text-foreground"><ReactMarkdown remarkPlugins={[remarkGfm]}>{review}</ReactMarkdown></div>
-            {!reviewLoading && <div className="mt-3"><SaveNoteButton kind="复盘" title={`每日复盘 ${bizDay ?? "（业务日未知）"}`} content={review} /></div>}
-          </>
-        ) : !needConfig && !reviewErr && !reviewLoading ? (
-          <p className="mt-3 text-sm text-muted-foreground">
-            快速复盘会把这一屏已经取到的客观数据、缺口与读法护栏交给所选模型整理；它不会启动完整研究工具链。
-            需要完整的多阶段流程，请进入<Link to="/research" className="text-primary hover:underline">个股研究</Link>。
-          </p>
-        ) : null}
-      </GlassCard>
-
       {/* 4. 市场情绪 */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Gauge className="h-4 w-4" /> 市场情绪</h3>
-        {sentiment?.date && <span className="text-[11px] text-muted-foreground/50">{sentiment.date}</span>}
-      </div>
+      <SectionHead icon={Gauge} title="市场情绪" updated={sentiment?.date} />
       <GlassCard className="mb-6">
         {!sentiment?.breadth ? (
           pending(ovDone)
@@ -454,11 +285,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4b. 短线情绪（连板梯队 / 打板情绪，聚合口径零个股名） */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><Flame className="h-4 w-4" /> 短线情绪</h3>
-        <span className="text-[11px] text-muted-foreground/50">连板股 · 打板情绪 · 客观公开榜单</span>
-        {emotion?.date && <span className="ml-auto text-[11px] text-muted-foreground/50">{emotion.date}</span>}
-      </div>
+      <SectionHead icon={Flame} title="短线情绪" hint="连板股 · 打板情绪 · 客观公开榜单" updated={emotion?.date} />
       <GlassCard className="mb-6">
         {!emotion || emotion.zt_count === undefined ? (
           pending(emoDone)
@@ -531,11 +358,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4c. 全市场成交额 TOP20（客观公开榜单） */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><BarChart3 className="h-4 w-4" /> 全市场成交额 TOP20</h3>
-        <span className="text-[11px] text-muted-foreground/50">客观公开榜单，非推荐 / 非预测 / 不构成投资建议</span>
-        {turnover?.updated && <span className="ml-auto text-[11px] text-muted-foreground/50">{turnover.updated}</span>}
-      </div>
+      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="客观公开榜单，非推荐 / 非预测 / 不构成投资建议" updated={turnover?.updated} />
       <GlassCard className="mb-6">
         {!turnover || turnover.stocks.length === 0 ? (
           pending(toDone)
@@ -570,10 +393,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 5. 板块资金趋势榜（行业） */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><TrendingUp className="h-4 w-4" /> 板块资金趋势榜</h3>
-        <span className="text-[11px] text-muted-foreground/50">行业 · 按今日净流入排序</span>
-      </div>
+      <SectionHead icon={TrendingUp} title="板块资金趋势榜" hint="行业 · 按今日净流入排序" updated={overview?.updated} />
       <GlassCard className="mb-6">
         {sectors.length === 0 ? (
           pending(ovDone)
@@ -604,10 +424,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 6. 资金轮动 */}
-      <div className="mb-3 flex items-center gap-2">
-        <h3 className="flex items-center gap-1.5 text-sm font-semibold text-muted-foreground"><ArrowDownUp className="h-4 w-4" /> 资金轮动</h3>
-        <span className="text-[11px] text-muted-foreground/50">板块级净流入 / 流出</span>
-      </div>
+      <SectionHead icon={ArrowDownUp} title="资金轮动" hint="板块级净流入 / 流出" updated={overview?.updated} />
       <div className="mb-2 grid gap-4 md:grid-cols-2">
         {[
           // 🔴 判据是**净额的正负**，不是"在列表的哪一头"。

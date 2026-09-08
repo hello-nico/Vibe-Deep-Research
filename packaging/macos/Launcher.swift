@@ -19,7 +19,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
     func applicationDidFinishLaunching(_ notification: Notification) {
         installMenus()
         window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 1280, height: 840), styleMask: [.titled, .closable, .miniaturizable, .resizable], backing: .buffered, defer: false)
-        window.title = "Vibe Research"
+        window.title = WindowPolicy.displayName
         window.minSize = NSSize(width: 820, height: 600)
         window.isReleasedWhenClosed = false
         window.setFrameAutosaveName("VibeResearchWorkspace")
@@ -32,7 +32,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
         let content = window.contentView!
         content.addSubview(web)
         NSLayoutConstraint.activate([web.leadingAnchor.constraint(equalTo: content.leadingAnchor), web.trailingAnchor.constraint(equalTo: content.trailingAnchor), web.topAnchor.constraint(equalTo: content.topAnchor), web.bottomAnchor.constraint(equalTo: content.bottomAnchor)])
-        let title = NSTextField(labelWithString: "Vibe Research")
+        let title = NSTextField(labelWithString: WindowPolicy.displayName)
         title.font = .boldSystemFont(ofSize: 26); title.textColor = .systemOrange
         let icon = NSImageView()
         if let url = Bundle.main.url(forResource: "AppIcon", withExtension: "icns") { icon.image = NSImage(contentsOf: url) }
@@ -61,7 +61,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
             for (name, action, key) in items { sub.addItem(withTitle: name, action: action, keyEquivalent: key) }
             root.submenu = sub; menu.addItem(root)
         }
-        add("Vibe Research", [("关于 Vibe Research", #selector(about), ""), ("隐藏 Vibe Research", #selector(NSApplication.hide(_:)), "h"), ("退出 Vibe Research", #selector(NSApplication.terminate(_:)), "q")])
+        add(WindowPolicy.displayName, [("关于 \(WindowPolicy.displayName)", #selector(about), ""), ("隐藏 \(WindowPolicy.displayName)", #selector(NSApplication.hide(_:)), "h"), ("退出 \(WindowPolicy.displayName)", #selector(NSApplication.terminate(_:)), "q")])
         add("编辑", [("撤销", Selector(("undo:")), "z"), ("剪切", #selector(NSText.cut(_:)), "x"), ("复制", #selector(NSText.copy(_:)), "c"), ("粘贴", #selector(NSText.paste(_:)), "v"), ("全选", #selector(NSText.selectAll(_:)), "a")])
         add("显示", [("首页", #selector(home), "1"), ("重新载入", #selector(reload), "r"), ("后退", #selector(back), "["), ("前进", #selector(forward), "]")])
         add("窗口", [("最小化", #selector(NSWindow.performMiniaturize(_:)), "m"), ("关闭窗口", #selector(NSWindow.performClose(_:)), "w")])
@@ -69,7 +69,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
     }
 
     private func showStatus(_ message: String) { label.stringValue = message; loading.isHidden = false; web.isHidden = true }
-    @objc private func about() { message("Vibe Research · 本地测试版", "独立 App 窗口\n关闭窗口保留服务；退出会停止对话。后台研究请先在研究页单独取消。") }
+    @objc private func about() { message(WindowPolicy.displayName, "独立 App 窗口\n关闭窗口保留服务；退出会停止对话。后台研究请先在研究页单独取消。") }
     @objc private func home() { if ready { web.load(URLRequest(url: WindowPolicy.home)) } }
     @objc private func reload() { if ready { web.reload() } else { recover() } }
     @objc private func back() { if ready && web.canGoBack { web.goBack() } }
@@ -88,7 +88,9 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
         p.currentDirectoryURL = resources.appendingPathComponent("app")
         let home = FileManager.default.homeDirectoryForCurrentUser.path
         p.environment = ["HOME": home, "USER": NSUserName(), "TMPDIR": NSTemporaryDirectory(), "LANG": "en_US.UTF-8",
-                         "PATH": "\(resources.path)/node/bin:\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONDONTWRITEBYTECODE": "1"]
+                         "PATH": "\(resources.path)/node/bin:\(home)/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin", "PYTHONDONTWRITEBYTECODE": "1",
+                         "VRA_DESKTOP_PORT": String(WindowPolicy.port),
+                         "VRA_DESKTOP_DATA": "\(home)/\(WindowPolicy.dataDirectory)"]
         let pipe = Pipe(); p.standardOutput = pipe; p.standardError = pipe
         pipe.fileHandleForReading.readabilityHandler = { [weak self, weak p] handle in
             let data = handle.availableData
@@ -97,7 +99,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
                 guard let self = self, self.child === p, !self.stopping else { return }
                 self.output.append(data)
                 if self.output.count > 16384 { self.output.removeFirst(self.output.count - 16384) }
-                if !self.ready && String(decoding: self.output, as: UTF8.self).contains("READY http://127.0.0.1:5938/") {
+                if !self.ready && String(decoding: self.output, as: UTF8.self).contains("READY \(WindowPolicy.home.absoluteString)") {
                     self.ready = true; self.timer?.invalidate(); self.home()
                 }
             }
@@ -108,7 +110,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
                 self.timer?.invalidate()
                 if self.stopping { NSApp.reply(toApplicationShouldTerminate: true); return }
                 self.ready = false; self.web.stopLoading()
-                self.showStatus("本地服务已停止（\(process.terminationStatus)）。请确认没有另一个 Vibe Research 正在运行、用户数据目录可写，再点击重新打开。")
+                self.showStatus("本地服务已停止（\(process.terminationStatus)）。请确认没有另一个 Vibe Finance 正在运行、用户数据目录可写，再点击重新打开。")
             }
         }
         do {

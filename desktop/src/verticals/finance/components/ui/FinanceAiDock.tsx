@@ -98,7 +98,7 @@ export function FinanceHomeAgent() {
           </span>
           <div className="min-w-0">
             <h2 className="font-bold">{agentEnabled ? "今天，想研究什么？" : "今天，想聊什么？"}</h2>
-            <p className="text-[11px] leading-5 text-muted-foreground">{agentEnabled ? "Vibe Research Agent · 查数据、找证据、梳理思路" : "普通对话 · Agent 已关闭"}</p>
+            <p className="text-[11px] leading-5 text-muted-foreground">{agentEnabled ? "Vibe Finance Agent · 查数据、找证据、梳理思路" : "普通对话 · Agent 已关闭"}</p>
           </div>
         </div>
         {chat.msgs.length > 0 && (
@@ -151,7 +151,7 @@ export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: ()
       onClose={onClose}
       configured={runtime.status === "ok"}
       copy={{
-        title: agentEnabled ? "Vibe Research Agent" : "普通对话",
+        title: agentEnabled ? "Vibe Finance Agent" : "普通对话",
         runtime: agentEnabled ? "Agent · 本地运行" : "普通对话 · Agent 已关闭",
         placeholder: "问点什么…（Shift+Enter 换行）",
         notice:
@@ -176,7 +176,7 @@ export function FinanceAiDock() {
       configured={runtime.status === "ok"}
       copy={{
         trigger: agentEnabled ? "问 Agent" : "问模型",
-        panel: agentEnabled ? "Vibe Research Agent" : "普通对话",
+        panel: agentEnabled ? "Vibe Finance Agent" : "普通对话",
         runtime: agentEnabled ? "Agent · 本地运行" : "普通对话 · Agent 已关闭",
         placeholder: "就这一页的内容问点什么…",
         notice:

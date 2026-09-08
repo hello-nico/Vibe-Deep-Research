@@ -8,3 +8,5 @@
 - 数据源端点目录(自动生成):[../datasources/CATALOG.md](../datasources/CATALOG.md)
 - 计算库契约:[../calc/SPEC.md](../calc/SPEC.md)
 - provider 模板字段与约束:[../providers/README.md](../providers/README.md)
+- 二开验收记录沿用本目录现有 M 文档形式（用户决定、行为边界、验证证据、仍未宣称）；约定见 [Human Checklist](../human-checklist.md)。
+- 当前界面取舍：[首页与盘面取舍_M1_2026-09-08.md](首页与盘面取舍_M1_2026-09-08.md)

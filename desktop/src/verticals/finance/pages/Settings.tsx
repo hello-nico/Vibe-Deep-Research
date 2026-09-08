@@ -448,7 +448,7 @@ export function Settings() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Execution</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <Cpu className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Research Agent</h2>
+                <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Finance Agent</h2>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {localSubscriptionRuntime
@@ -463,7 +463,7 @@ export function Settings() {
             {!configured ? (
               <><b className="text-foreground">等待连接 AI。</b> 连接成功后默认普通对话，Agent 保持关闭。</>
             ) : runtime.config?.executionMode === "direct" ? (
-              <><b className="text-foreground">当前：普通对话。</b> 不挂载研究工具。六阶段研究、多空辩论、Agent 回测与资料转写需先开启 Agent。</>
+              <><b className="text-foreground">当前：普通对话。</b> 不挂载研究工具。六阶段研究与资料转写需先开启 Agent。</>
             ) : localSubscriptionRuntime ? (
               <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话、有界材料任务和 A 股六阶段研究；不会暗中换成 Codex。</>
             ) : (

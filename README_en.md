@@ -1,6 +1,6 @@
 <p align="center"><a href="README.md">简体中文</a> | <b>English</b></p>
 
-<h1 align="center">Vibe Research</h1>
+<h1 align="center">Vibe Finance</h1>
 
 <p align="center">
   <b>Connect your AI, chat directly, and enable the Agent when research is needed</b><br>
@@ -62,19 +62,19 @@ The Mac package targets Apple Silicon / M-series, macOS 13+. Build from source u
 
 Source version **1.1.0**, Mac build **40**. The App is Developer ID-signed and Apple-notarized. Tool calls and restart persistence were verified after copying it from the final DMG; the DMG container is separately signed. Validation on another Mac, Windows, and the complete provider matrix remains outstanding. See the [M40 acceptance record (Chinese)](docs/发布候选与隐私验收_M40_2026-09-07.md). The older M38 candidate is **1.0.4 / build 37** and is not the installer for this release.
 
-Vibe Research is a **local financial research workbench**. On first launch, the user makes one decision: connect an
-existing Claude Code / WorkBuddy (CodeBuddy) subscription, complete the product-specific Codex login, or provide a model API. After the connection succeeds, Vibe Research
+Vibe Finance is a **financial research workbench**. On first launch, the user makes one decision: connect an
+existing Claude Code / WorkBuddy (CodeBuddy) subscription, complete the product-specific Codex login, or provide a model API. After the connection succeeds, Vibe Finance
 Agent is off by default for ordinary chat. Enable it when research is needed; no understanding of harnesses or routing modes is required.
 
 Agent mode maintains local context, calls tools, advances tasks, handles failures, and preserves the research
 process. A Codex subscription runs through the
 [OpenAI Codex Harness](https://developers.openai.com/blog/codex-as-a-platform); a Claude.ai subscription runs through
-the local Claude Code Agent; a WorkBuddy / CodeBuddy account runs through Tencent's official CodeBuddy Code CLI. Vibe Research applies the same financial data, research procedures, deterministic
+the local Claude Code Agent; a WorkBuddy / CodeBuddy account runs through Tencent's official CodeBuddy Code CLI. Vibe Finance applies the same financial data, research procedures, deterministic
 calculations, evidence checks, and compliance boundaries above those runtimes.
 
 The Claude Code and WorkBuddy / CodeBuddy Agents support chat, bounded document tasks, debate, Agent-guided backtesting,
 image/table transcription, and the full six-stage A-share research workflow.
-During research, their built-in tools are disabled and only five controlled Vibe Research MCP tools are exposed. The runtime is never silently switched to Codex.
+During research, their built-in tools are disabled and only five controlled Vibe Finance MCP tools are exposed. The runtime is never silently switched to Codex.
 
 The upper-left Agent switch and Settings share the same state. Both subscriptions and APIs support ordinary chat;
 verified APIs use direct requests, while other sources retain their subscription or Responses transport without tools.
@@ -208,12 +208,12 @@ after the login status turns ready. The product uses its own `.local/codex-home`
 local status is still unclear, run `scripts/doctor` (or `scripts\doctor.ps1` on Windows) for an actionable diagnosis.
 
 For Claude.ai subscription access, install and log in to Claude Code. The settings page detects it automatically;
-no Claude API key needs to be entered into Vibe Research.
+no Claude API key needs to be entered into Vibe Finance.
 
 For WorkBuddy / CodeBuddy access, Settings directly detects the official CodeBuddy Code CLI bundled with an installed,
 signed-in WorkBuddy desktop app. No second installation or login is required. Users without the desktop app can instead
 install Tencent's CLI with `npm install -g @tencent-ai/codebuddy-code` and run `codebuddy` once to sign in. Neither path
-requires entering a token or API key into Vibe Research.
+requires entering a token or API key into Vibe Finance.
 
 For API access, open **Connect AI → API access**, choose a provider, enter the API base URL, model name, and key,
 then click **Test and save**. A real model request must succeed before the new configuration is saved and shared
@@ -292,7 +292,7 @@ The **Connect AI** page asks two separate questions: first where the AI comes fr
 The Agent defaults to off for ordinary chat; enable it in the upper-left corner when research is needed.
 
 - The Agent Runtime manages local context, tool calls, task state, progress, and failure handling. Codex subscriptions use the Codex Harness; Claude subscriptions use the Claude Code Agent; WorkBuddy / CodeBuddy uses the CodeBuddy Code Agent. They are not presented as the same runtime.
-- The Claude Code and WorkBuddy / CodeBuddy Agents can run the full six-stage A-share workflow. Each stage uses a separate session with access only to the controlled Vibe Research MCP, and the runtime is never silently switched to Codex.
+- The Claude Code and WorkBuddy / CodeBuddy Agents can run the full six-stage A-share workflow. Each stage uses a separate session with access only to the controlled Vibe Finance MCP, and the runtime is never silently switched to Codex.
 - The AI source can be a subscription login or the user's Model Provider API. A new source defaults to Agent off; re-testing the same source preserves an explicit choice.
 - Direct mode does not run the Agent, call tools, or preserve Agent task memory. Six-stage research, bull/bear debate, and Agent-guided backtesting clearly ask the user to re-enable the Agent instead of silently degrading.
 - Codex subscription mode uses the product's own `CODEX_HOME` and never reads or writes the user's `~/.codex`. Claude and CodeBuddy subscription modes reuse their own local login. Ordinary chat disables all tools and MCP; six-stage research disables built-in tools and exposes only the controlled product MCP. User settings and automatic memory remain off. If WorkBuddy bundles an older CLI without a no-session-persistence flag, the entire answer runs under a disposable temporary home that is deleted afterward.
