@@ -15,7 +15,7 @@ import { loadWatch, saveWatch, addCodes } from "@/lib/watchlist";
 import { cn } from "@/lib/utils";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
-// 对中国用户最不易看错（Simon 2026-07-05 确认；非国际绿涨惯例，是有意选择，勿改）。
+// 对中国用户最不易看错（非国际绿涨惯例，是有意选择，勿改）。
 // 容 null:同上,行情缺项时显示灰色的「—」,不套涨跌色
 const pctColor = (p: number | null | undefined) =>
   p == null ? "text-muted-foreground/40" : p > 0 ? "text-danger" : p < 0 ? "text-success" : "text-muted-foreground";

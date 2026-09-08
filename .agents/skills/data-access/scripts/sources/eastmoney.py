@@ -1,5 +1,5 @@
 """东财(eastmoney)源:研报 / 板块归属 / 资金流 / 龙虎榜 / 解禁 / 行业排名 / 板块资金 / 两融 / 大宗 / 股东户数 / 分红 / 个股基本面 / 新闻 / 打板 / 人气。
-移植自 simonlin1212/a-stock-data SKILL.md(V3.7.x)对应代码块;全部请求走 _http.em(跨进程串行锁 + 代理回退 + raw 落盘),403 不重试。
+移植自 a-stock-data SKILL.md(V3.7.x)对应代码块;全部请求走 _http.em(跨进程串行锁 + 代理回退 + raw 落盘),403 不重试。
 函数只返回结构化结果;信封 / 证据由 mappers 统一完成。单位按源字段口径原样返回(不换算),字段含义见各函数注释。
 """
 from __future__ import annotations

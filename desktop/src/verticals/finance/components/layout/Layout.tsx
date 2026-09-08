@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, FlaskConical, Gauge, Github, Globe, Home, LayoutGrid, Microscope, Menu, X, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Star, Sun, Swords, Thermometer, TrendingUp, UserRound, Wallet,
+  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, FlaskConical, Gauge, Home, LayoutGrid, Microscope, Menu, X, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Star, Sun, Swords, Thermometer, TrendingUp, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { PhoenixTreeLogo } from "@/components/ui/PhoenixTreeLogo";
+import { BrandMark } from "@/components/ui/BrandMark";
 import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
@@ -12,10 +12,6 @@ import { storageGet, storageSet } from "@/lib/storage";
 import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { aiConnectionLabel } from "@/lib/aiConnection";
 import { AgentToggle } from "@/components/ui/AgentToggle";
-
-const REPO_URL = "https://github.com/simonlin1212/Vibe-Research";
-// 作者联系方式
-const X_URL = "https://x.com/linsizhen";
 
 const NAV = [
   { to: "/", icon: Home, label: "首页" },
@@ -162,7 +158,7 @@ export function Layout() {
           <div className={cn("border-b border-border", compact ? "p-3" : "px-5 py-4")}>
             <div className="flex items-center justify-between">
               <Link to="/" aria-label="Vibe Research 首页" className="flex items-center gap-2.5">
-                <PhoenixTreeLogo className="h-8 w-6 shrink-0 text-primary" />
+                <BrandMark className="h-8 w-8 shrink-0 text-primary" />
                 {!compact && <span className="workspace-brand text-lg font-semibold tracking-tight">Vibe-<span className="text-primary">Research</span></span>}
               </Link>
               {mobile && <button aria-label="关闭导航" className="p-1" onClick={closeMobileNav}><X className="h-4 w-4" /></button>}
@@ -209,20 +205,10 @@ export function Layout() {
             })}
           </nav>
           <div className={cn("border-t border-border", compact ? "p-1.5" : "p-3")}>
-            <div className={cn("flex items-center text-muted-foreground", compact ? "flex-col gap-3" : "justify-between gap-2")}>
-              <a href="https://phoenixtree.ai/" target="_blank" rel="noopener noreferrer"
-                aria-label="Phoenix Tree AI 官网（新标签页打开）" title="Phoenix Tree AI 官网（新标签页打开）"
-                className="flex min-h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded text-xs text-primary hover:bg-muted/50">
-                <Globe className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-                {!compact && <span>phoenixtree.ai</span>}
-              </a>
-              <div className={cn("flex gap-2", compact && "flex-col")}>
-                <a href={X_URL} target="_blank" rel="noreferrer" aria-label="联系作者" title="联系作者 · X @linsizhen"><UserRound className="h-3.5 w-3.5" /></a>
-                <a href={REPO_URL} target="_blank" rel="noreferrer" aria-label="GitHub" title="GitHub"><Github className="h-3.5 w-3.5" /></a>
-                {!mobile && <button onClick={() => setCollapsed(!collapsed)} aria-label={compact ? "展开侧栏" : "收起侧栏"} title={compact ? "展开侧栏" : "收起侧栏"}>
-                  {compact ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
-                </button>}
-              </div>
+            <div className={cn("flex items-center text-muted-foreground", compact ? "flex-col gap-3" : "justify-end gap-2")}>
+              {!mobile && <button onClick={() => setCollapsed(!collapsed)} aria-label={compact ? "展开侧栏" : "收起侧栏"} title={compact ? "展开侧栏" : "收起侧栏"}>
+                {compact ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
+              </button>}
             </div>
           </div>
         </aside>

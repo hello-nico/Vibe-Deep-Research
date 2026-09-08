@@ -2,7 +2,7 @@
  * 卡口事件分类器(确定性,不拉新数据):risk 阶段取数后扫描公司自己的公告 / 新闻信封,按 datasources/chokepoint_keywords.json
  * 打类别(涨价 / 扩产 / 减产停产 / 订单合同 / 认证导入 / 收购合资 / 供需 / 管制制裁),每条命中引用原证据 id,写 fetch/_chokepoints.json
  * (编排器产物,受保护)。提示词把命中清单与 decision_hint 注入 risk / report 阶段 → topic「卡口事件」/ 报告「## 卡口事件」,直接喂裁决点。
- * 移植自 Vibe-Trading-Simon 资讯中心事件雷达的 CHOKE_KW 筛子(2026-08-23)。
+ * 移植自资讯中心事件雷达的 CHOKE_KW 筛子(2026-08-23)。
  */
 import fs from "node:fs";
 import path from "node:path";

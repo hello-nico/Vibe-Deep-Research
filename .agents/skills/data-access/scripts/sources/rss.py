@@ -1,4 +1,4 @@
-"""RSS 新闻雷达(移植自 simonlin1212/investment-news):datasources/rss_sources.json 的 106 个 tier-1 策展源 × 12 行业;stdlib xml.etree 解析(不依赖 feedparser),按源超时 + 并发,近 N 天过滤,红线关键词标记。
+"""RSS 新闻雷达(移植自 investment-news):datasources/rss_sources.json 的 106 个 tier-1 策展源 × 12 行业;stdlib xml.etree 解析(不依赖 feedparser),按源超时 + 并发,近 N 天过滤,红线关键词标记。
 每个源的响应原文经 _http.http_get 落盘。"""
 from __future__ import annotations
 

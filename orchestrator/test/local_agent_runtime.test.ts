@@ -348,11 +348,11 @@ test("CodeBuddy Deep 只开显式 MCP 白名单，并允许多轮工具调用", 
 
 test("Windows 能发现 WorkBuddy 桌面版内置 CLI，并用 Node 启动无扩展名脚本", () => {
   const candidates = workBuddyCliCandidates({
-    LOCALAPPDATA: "C:\\Users\\Simon\\AppData\\Local",
+    LOCALAPPDATA: "C:\\Users\\User\\AppData\\Local",
     ProgramFiles: "D:\\Program Files",
     "ProgramFiles(x86)": "D:\\Program Files (x86)",
   }, "win32");
-  const embedded = "C:\\Users\\Simon\\AppData\\Local\\Programs\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy";
+  const embedded = "C:\\Users\\User\\AppData\\Local\\Programs\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy";
   assert.ok(candidates.includes(embedded));
   assert.ok(candidates.includes("D:\\Program Files\\WorkBuddy\\resources\\app.asar.unpacked\\cli\\bin\\codebuddy.exe"));
   const launch = executableInvocation(embedded, ["--version"], {}, "win32");

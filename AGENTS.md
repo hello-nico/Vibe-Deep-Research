@@ -113,15 +113,14 @@ report.md           最终报告:原始事实标 evidence id,派生数字标 cal
 
 ## 5.3 官网与公开口径
 
-- 产品官网为 `https://viberesearch.wiki`，源码只从当前活动仓库 `website/` 维护；不要写回旧 checkout。
-- 2026-09-06 Simon 明确要求：本地工作台左下角显示品牌官网 `https://phoenixtree.ai/`，新标签页打开；折叠侧栏保留可访问图标。此项取代原“不列 Phoenix Tree 网站”限制，不扩展为其他推广入口。
+- 静态站点源码只从当前仓库 `website/` 维护。产品表面、README 与工作台不指向原作者个人站点、社交账号或原公开仓库。
+- 本地工作台不展示原作者品牌官网、个人社交入口或赞赏码。
 - 对外定位为“基于开源 Codex Harness 打造的本地金融研究 Agent / 工作台”；必须区分 Agent Runtime 与
   Model Provider，不能把产品说成一次 API 问答的包装。
-- 交付基础是开源源码 + 本地浏览器 UI。2026-09-06 Simon 进一步授权 M34 Mac 独立 App 窗口，
-  使用 AppKit + WKWebView 承载现有 UI，捆绑运行环境；不恢复 Electron，不携带开发私有数据或个人登录态。
+- 交付基础是开源源码 + 本地浏览器 UI。Mac 独立 App 窗口使用 AppKit + WKWebView 承载现有 UI，捆绑运行环境；
+  不恢复 Electron，不携带开发私有数据或个人登录态。
   App 存储与外部浏览器独立，首次需重新接入 AI，不自动读取浏览器 key、聊天或登录信息。
   安装包的构建、签名、公证、外机验收和公开发布是不同状态；不得在官网承诺尚未发布的客户端。
-- 官网具体版本优先读取 GitHub latest release；固定版本号只能作为部署时兜底，下一次发版要同步检查。
 - 用户要求“打开给我看”时必须打开可见浏览器或 Codex 浏览器页；无头浏览器只用于短时自动化验证，完成后关闭，
   不得让长期存活的 `--headless` 实例占用浏览器会话。
 
@@ -133,21 +132,14 @@ report.md           最终报告:原始事实标 evidence id,派生数字标 cal
   `.local/codex-home/auth.json` 只能留在本机、权限须为 `0600`。
 - 发布前同时检查 GitHub Issues / PR / Release 正文、Actions artifacts、截图文字与图片元数据，避免密钥、持仓、研报名、
   本机路径、账号或设备信息从非代码入口泄露。
-- 当前 README / 官网公开的作者名、GitHub、X、联系邮箱和 Buy Me a Coffee 属有意公开身份；删当前页面不等于删历史。
-  未来 Git 提交优先使用 GitHub noreply 邮箱；历史作者邮箱如需清除必须单独授权重写历史，不得顺手处理。
+- 产品表面不放置原作者个人身份（姓名、邮箱、X、赞赏码、个人品牌站点）。`LICENSE` 保留 MIT 版权声明。
+  删当前页面不等于删 Git 历史；不得顺手重写历史。
 - GitHub Secret Scanning 与 Push Protection 应保持开启；若平台显示未启用，发布检查必须明确列为待办，不能假定平台在兜底。
 
 ## 5.5 对外内容与社交资料
 
-- Vibe-Research 的抖音正式封面统一使用 **9:16、2160×3840**。首屏信息层级固定为：最大字号产品名
-  `Vibe-Research` → 副标题 `个人投研 Agent` → Star 背书。Codex Harness 是底层技术叙事，不能在封面上
-  抢走产品名的第一视觉；旧封面与尝试版保留为版本化旁支，不直接覆盖。
-- Simon 当前对外身份是：**独立开发者，使用 AI 构建开源市场数据工具与本地 Agent**。主项目口径为
-  `a-stock-data`、`TradingAgents-astock`、`Vibe-Research`；X 简介不再用 `global-stock-data` 占第三个位置。
-- Star 数属于实时数据。写 X、YouTube、封面、README 或官网前必须重新查询 GitHub；允许展示稳定的整数档
-  （如 `2,200+ Stars`），但不得把旧快照写成当前精确值。
-- YouTube 频道说明不再沿用 `Everyone need a Jarvis` / OpenClaw 单一分享定位。当前说明应覆盖真实开发过程、
-  AI Agent、金融数据、Codex Harness 与开源产品；保留“不卖课，不收徒”的边界。
+- 不沿用原作者的个人身份、社交口径、Star 背书或赞赏入口。
+- 未确认替换联系方式、GitHub 地址或官网域名之前，不编造对外作者信息。
 
 ## 6. 输出
 

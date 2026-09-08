@@ -69,7 +69,7 @@ final class Launcher: NSObject, NSApplicationDelegate, WKNavigationDelegate, WKU
     }
 
     private func showStatus(_ message: String) { label.stringValue = message; loading.isHidden = false; web.isHidden = true }
-    @objc private func about() { message("Vibe Research · 本地测试版", "独立 App 窗口 · Phoenix Tree\n关闭窗口保留服务；退出会停止对话。后台研究请先在研究页单独取消。") }
+    @objc private func about() { message("Vibe Research · 本地测试版", "独立 App 窗口\n关闭窗口保留服务；退出会停止对话。后台研究请先在研究页单独取消。") }
     @objc private func home() { if ready { web.load(URLRequest(url: WindowPolicy.home)) } }
     @objc private func reload() { if ready { web.reload() } else { recover() } }
     @objc private func back() { if ready && web.canGoBack { web.goBack() } }

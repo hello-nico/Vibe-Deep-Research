@@ -1,6 +1,6 @@
 """宏观概率(注册表第 18 层):预测市场对宏观事件的**当前定价概率** —— 降息 / 衰退 / 通胀 / AI 里程碑等。
 
-**模块分类器**移植自 simonlin1212/GlobalPercent(`market_taxonomy.py`);**取数形态按两个交易所的官方仓库
+**模块分类器**移植自 GlobalPercent(`market_taxonomy.py`);**取数形态按两个交易所的官方仓库
 重做**(Polymarket/agent-skills 的 market-data.md、Kalshi/kalshi-starter-code-python),不沿用上游的写法。
 两个源都**零鉴权、只读**:
   - Kalshi   `https://api.elections.kalshi.com/trade-api/v2/{events,series}`(CFTC 监管的事件合约交易所)

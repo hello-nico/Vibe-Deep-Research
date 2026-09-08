@@ -38,11 +38,11 @@ test("Windows 安装脚本:优先 3.12 但允许其他受支持 Python 3；docto
 });
 
 test("Windows 路径与环境:Scripts venv、反斜杠、用户目录和 PATHEXT 都被保留", async () => {
-  assert.equal(normalizeInterpreter(" C:\\Users\\Simon\\VRA\\.venv\\Scripts\\python.exe "), "C:\\Users\\Simon\\VRA\\.venv\\Scripts\\python.exe");
-  assert.equal(interpreterRoot("C:\\Users\\Simon\\VRA\\.venv\\Scripts\\python.exe"), "C:\\Users\\Simon\\VRA\\.venv");
+  assert.equal(normalizeInterpreter(" C:\\Users\\User\\VRA\\.venv\\Scripts\\python.exe "), "C:\\Users\\User\\VRA\\.venv\\Scripts\\python.exe");
+  assert.equal(interpreterRoot("C:\\Users\\User\\VRA\\.venv\\Scripts\\python.exe"), "C:\\Users\\User\\VRA\\.venv");
   const cfg = makeConfig({ symbol: "300308", repoRoot: REPO, dataRoot: temp("vra windows data "), executionMode: "controlled_mcp" });
-  const env = codexEnvFor(cfg, { PATH: "X", USERPROFILE: "C:\\Users\\Simon", PATHEXT: ".EXE;.CMD", SYSTEMROOT: "C:\\Windows" });
-  assert.equal(env.USERPROFILE, "C:\\Users\\Simon");
+  const env = codexEnvFor(cfg, { PATH: "X", USERPROFILE: "C:\\Users\\User", PATHEXT: ".EXE;.CMD", SYSTEMROOT: "C:\\Windows" });
+  assert.equal(env.USERPROFILE, "C:\\Users\\User");
   assert.equal(env.PATHEXT, ".EXE;.CMD");
   assert.equal(env.SYSTEMROOT, "C:\\Windows");
   assert.equal(cfg.hooksEnabled, false, "Windows 受控模式不依赖 lifecycle hooks");

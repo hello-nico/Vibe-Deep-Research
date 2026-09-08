@@ -7,7 +7,7 @@ for value in ["https://127.0.0.1:5938/", "http://localhost:5938/", "http://127.0
 }
 check(WindowPolicy.isLocalBlob(URL(string: "blob:http://127.0.0.1:5938/uuid")!))
 check(!WindowPolicy.isLocalBlob(URL(string: "blob:https://evil.test/id")!))
-check(WindowPolicy.isExternal(URL(string: "https://phoenixtree.ai/")!))
+check(WindowPolicy.isExternal(URL(string: "https://example.com/")!))
 check(WindowPolicy.isExternal(URL(string: "mailto:public@example.com")!))
 for value in ["file:///tmp/test", "javascript:alert(1)", "data:text/html,test", "https://name:secret@example.com/"] {
     check(!WindowPolicy.isExternal(URL(string: value)!))

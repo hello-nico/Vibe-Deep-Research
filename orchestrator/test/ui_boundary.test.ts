@@ -92,18 +92,10 @@ test("导航与路由双向对得上 —— 有导航没路由=点了白屏,有�
     "参数路由的静态父路径要有页面");
 });
 
-test("侧栏展示用户指定的品牌官网，并安全打开新标签", () => {
+test("侧栏不展示原作者品牌站点或个人联系入口", () => {
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
-  assert.match(layoutSrc, /href="https:\/\/phoenixtree\.ai\/" target="_blank" rel="noopener noreferrer"/);
-  assert.match(layoutSrc, /aria-label="Phoenix Tree AI 官网（新标签页打开）"/);
-  assert.match(layoutSrc, /!compact && <span>phoenixtree\.ai<\/span>/);
-  const brandLink = layoutSrc.match(/<a href="https:\/\/phoenixtree\.ai\/"[\s\S]*?<\/a>/)?.[0] ?? "";
-  assert.match(brandLink, /text-primary/);
-  assert.doesNotMatch(brandLink, /text-muted-foreground|hover:text-foreground/);
+  assert.doesNotMatch(layoutSrc, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
   assert.doesNotMatch(layoutSrc, /APP_VERSION|· 本地工作台/);
-  assert.equal((layoutSrc.match(/href="https:\/\/phoenixtree\.ai\/"/g) ?? []).length, 1);
-  // 实际可见性由浏览器验收；源码断言不假设容器必须是 footer 标签。
-  assert.match(layoutSrc, /<Globe[^>]*aria-hidden="true"/);
   assert.match(layoutSrc, /to="\/" aria-label="Vibe Research 首页"/);
 });
 
@@ -160,7 +152,7 @@ test("个股研究只有一个入口，旧地址跳转且归档保留名称代�
   assert.match(researchSrc, /startResearch\(\{[\s\S]{0,400}symbol:\s*code,[\s\S]{0,400}endpoints:\s*scope,/, "A 股代码必须传到真实研究入口");
   assert.ok(!/港股或美股标的跑完整|A 股 \/ 港股 \/ 美股代码/.test(researchSrc), "界面不能承诺尚未接通的港美完整研究");
   const archive = researchSrc.slice(researchSrc.indexOf("<h3 className=\"mb-3 font-semibold\">研究归档"));
-  // 2026-09-06 Simon 确认补充状态和时间；不改变原导航与研究入口。
+  // 2026-09-06 当时维护者 确认补充状态和时间；不改变原导航与研究入口。
   assert.match(archive, /<ResearchRunItem key=\{r\.run_id\} run=\{r\}/);
   const item = fs.readFileSync(path.join(FINANCE, "components", "ResearchRunItem.tsx"), "utf8");
   assert.match(item, /run\.name\s*\?\?\s*"个股"/);

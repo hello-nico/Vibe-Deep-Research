@@ -9,14 +9,13 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
-  <a href="https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0"><img alt="Release v1.1.0" src="https://img.shields.io/badge/release-v1.1.0-F35D2B"></a>
+  <img alt="Release v1.1.0" src="https://img.shields.io/badge/release-v1.1.0-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
   <img alt="Agent off by default" src="https://img.shields.io/badge/Agent-opt--in-555">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
 
 <p align="center">
-  <a href="https://viberesearch.wiki">Website</a> ·
   <a href="#screenshots">Screenshots</a> ·
   <a href="#comparison-with-the-previous-public-release">Version comparison</a> ·
   <a href="#what-it-is">What it is</a> ·
@@ -30,14 +29,6 @@
   <a href="#current-boundaries">Boundaries</a> ·
   <a href="CHANGELOG.md">CHANGELOG</a>
 </p>
-
----
-
-## The Author Is Open to Opportunities
-
-The author is open to AI roles at Tencent and other leading technology companies in Shenzhen, and hopes to join a team passionate about AI development. Areas of interest include AI / Agent product development, real-world deployment, and AI consulting.
-
-Contact: [simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)
 
 ---
 
@@ -67,7 +58,7 @@ Captured in an isolated, empty workspace with no AI connected and no private hol
 
 Current version: **v1.1.0**. It includes the v1.0.4 baseline and subsequent Issue/PR fixes, with expanded subscription access, a dual-engine experience, an updated interface, and a standalone Mac client.
 
-**[Mac installer and release notes](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0)** (Apple Silicon / M-series, macOS 13+). Download `VibeResearch-1.1.0-M40-mac-arm64.dmg`, not GitHub's automatically generated Source code archives. Available downloads are listed on the published release page.
+The Mac package targets Apple Silicon / M-series, macOS 13+. Build from source using the [Mac build guide](packaging/macos/README.md); do not treat GitHub's automatically generated Source code archives as an installer.
 
 Source version **1.1.0**, Mac build **40**. The App is Developer ID-signed and Apple-notarized. Tool calls and restart persistence were verified after copying it from the final DMG; the DMG container is separately signed. Validation on another Mac, Windows, and the complete provider matrix remains outstanding. See the [M40 acceptance record (Chinese)](docs/发布候选与隐私验收_M40_2026-09-07.md). The older M38 candidate is **1.0.4 / build 37** and is not the installer for this release.
 
@@ -102,7 +93,7 @@ their own API key.
 
 ## Comparison with the previous public release
 
-The baseline is the [v1.0.4 release](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.0.4) and [README at that tag](https://github.com/simonlin1212/Vibe-Research/blob/v1.0.4/README.md), checked on September 7, 2026. The right column describes the features and delivery scope of v1.1.0.
+The baseline is v1.0.4, checked on September 7, 2026. The right column describes the features and delivery scope of v1.1.0.
 
 | Area | Previous public v1.0.4 | v1.1.0 |
 |---|---|---|
@@ -156,7 +147,7 @@ Temporary files for the current transcription are removed after success, failure
 
 ### Standalone Mac client
 
-Download the Mac DMG from the [v1.1.0 Release](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0), open it, drag the App into Applications, then launch it from there. It supports Apple Silicon Macs running macOS 13 or later and bundles Node, Python, and the Codex engine. The M40 App has passed Developer ID signing, Apple notarization, ticket verification, and local copy-install checks. Validation on another clean Mac remains outstanding. See the [M40 acceptance record](docs/发布候选与隐私验收_M40_2026-09-07.md) (Chinese).
+Build a local Apple Silicon / macOS 13+ package from source using the [Mac build guide](packaging/macos/README.md). It bundles Node, Python, and the Codex engine. The M40 App has passed Developer ID signing, Apple notarization, ticket verification, and local copy-install checks. Validation on another clean Mac remains outstanding. See the [M40 acceptance record](docs/发布候选与隐私验收_M40_2026-09-07.md) (Chinese).
 
 Maintainers can create a local test package using the [Mac build guide](packaging/macos/README.md). Connect your own AI account or API in the app on first launch; browser connection settings are not imported. Replacing the app preserves existing reports and ledger records in `~/.vibe-research-desktop`. The instructions below are for running from source.
 
@@ -179,8 +170,7 @@ Maintainers can create a local test package using the [Mac build guide](packagin
 Windows (PowerShell or Command Prompt):
 
 ```bat
-git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
-cd vibe-research-agent
+cd <this-repo>
 scripts\setup-windows.cmd
 scripts\start.cmd
 ```
@@ -192,8 +182,7 @@ directory, and runs diagnostics. `start.cmd` starts the local API and browser UI
 macOS / Linux:
 
 ```bash
-git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
-cd vibe-research-agent
+cd <this-repo>
 scripts/setup
 scripts/start
 ```
@@ -417,15 +406,7 @@ It does not provide investment-action instructions. Nothing produced by this pro
 Third-party public data may be delayed, incomplete, or wrong. Users are responsible for verification, decisions,
 and compliance with each data source's terms.
 
-## Support
-
-<p align="center">
-  <a href="https://buymeacoffee.com/simonlin1212"><img src="./assets/bmc-qr.png" width="180" alt="Buy Me a Coffee"></a>
-</p>
-
 ## License
 
 This repository is licensed under the [MIT License](LICENSE). OpenAI Codex is licensed under Apache-2.0; this
 repository does not contain Codex source code.
-
-**Author:** Simon Lin · X [@linsizhen](https://x.com/linsizhen) · Email: [simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)

@@ -1,5 +1,5 @@
 {
-  "_doc": "卡口事件分类表(确定性关键词筛子,移植自 Vibe-Trading-Simon 资讯中心「事件雷达」的 CHOKE_KW,按对单标的研究有用的类别拆细)。编排器在 risk / report 阶段取数后扫描公司自己的公告 / 新闻信封(scan_fields),命中任一关键词即打类别,写 fetch/_chokepoints.json;每条命中引用原证据 id,不产生新证据。规则:① 标题先按 ;；,，。 拆子句,keywords / negatives 在**同一子句**内判定(并列事项不互相否决);② 关键词以 `re:` 开头的是正则(中文需要上下文约束时用,如「签订」必须跟销售 / 供货 / 采购 / 框架 / 重大合同);③ 英文关键词按词边界;④ negatives 命中则该子句的该类别不算。",
+  "_doc": "卡口事件分类表(确定性关键词筛子,移植自 Vibe-Trading 资讯中心「事件雷达」的 CHOKE_KW,按对单标的研究有用的类别拆细)。编排器在 risk / report 阶段取数后扫描公司自己的公告 / 新闻信封(scan_fields),命中任一关键词即打类别,写 fetch/_chokepoints.json;每条命中引用原证据 id,不产生新证据。规则:① 标题先按 ;；,，。 拆子句,keywords / negatives 在**同一子句**内判定(并列事项不互相否决);② 关键词以 `re:` 开头的是正则(中文需要上下文约束时用,如「签订」必须跟销售 / 供货 / 采购 / 框架 / 重大合同);③ 英文关键词按词边界;④ negatives 命中则该子句的该类别不算。",
   "scan_fields": ["announcement_title", "news_title", "sec_fulltext_hit", "yahoo_news_title"],
   "categories": {
     "涨价": { "keywords": ["涨价", "提价", "调价函", "价格上调", "上调价格", "price increase", "price hike"], "negatives": ["不涨价", "未涨价", "不提价", "降价"], "decision_hint": "涨价函 = 供给紧的直接证据;看涨幅是否传导到毛利率(下季财报裁决)" },

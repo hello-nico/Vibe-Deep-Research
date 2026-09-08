@@ -9,8 +9,8 @@ test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["首页", "每日复盘", "资讯雷达", "产业信号", "板块中心", "个股研究", "多空辩论", "回测", "自选股", "我的持仓", "我的研报", "研究记录", "接入 AI"]);
   for (const route of ["/intel/investment-news", "/intel/news", "/intel/filings", "/intel/events", "/signals/gpu-rent", "/sectors/humanoid", "/sectors/ai-computing"]) assert.ok(layout.includes(route));
   assert.doesNotMatch(layout, /FinanceAiConsole|consoleOpen|vr-ai-console|openAgent|打开普通对话/);
-  assert.match(layout, /href="https:\/\/phoenixtree\.ai\/"/);
-  for (const label of ["联系作者", "GitHub", "收起侧栏"]) assert.ok(layout.includes(label));
+  assert.doesNotMatch(layout, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
+  assert.ok(layout.includes("收起侧栏"));
   assert.match(layout, /<FinanceAiDock/);
   assert.match(layout, /workspace-sidebar/);
   assert.match(layout, /aria-expanded=\{groupOpen\}/);
@@ -31,15 +31,14 @@ test("公开暖橙玻璃风保留可访问性与非绿色品牌", () => {
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /@media \(forced-colors: active\)/);
 });
-test("左上角使用官网凤凰原始矢量图，不增加外部请求或品牌跳转", () => {
+test("左上角使用本地产品标记，不增加外部请求或原作者品牌跳转", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  const logo = read("verticals/finance/components/ui/PhoenixTreeLogo.tsx");
-  assert.match(layout, /<PhoenixTreeLogo/);
-  assert.doesNotMatch(layout, /LineChart/);
+  const logo = read("verticals/finance/components/ui/BrandMark.tsx");
+  assert.match(layout, /<BrandMark/);
+  assert.doesNotMatch(layout, /PhoenixTreeLogo|phoenixtree|LineChart/);
   assert.match(layout, /to="\/" aria-label="Vibe Research 首页"/);
-  assert.match(logo, /viewBox="0 0 674\.547814 1040\.507203"/);
+  assert.match(logo, /viewBox="0 0 64 64"/);
   assert.match(logo, /aria-hidden="true" focusable="false"/);
-  assert.match(logo, /fill="currentColor"/);
   assert.doesNotMatch(logo, /<image|<script|<foreignObject|href=|fetch\(/);
 });
 test("首页以 Agent 为首屏，保留数据组件但不自动取数或启动任务", () => {

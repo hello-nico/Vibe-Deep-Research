@@ -9,14 +9,13 @@
 
 <p align="center">
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-yellow"></a>
-  <a href="https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0"><img alt="公开版本 v1.1.0" src="https://img.shields.io/badge/release-v1.1.0-F35D2B"></a>
+  <img alt="公开版本 v1.1.0" src="https://img.shields.io/badge/release-v1.1.0-F35D2B">
   <img alt="UI" src="https://img.shields.io/badge/UI-React%20%2B%20Vite-646cff">
   <img alt="Agent 默认关闭" src="https://img.shields.io/badge/Agent-opt--in-555">
   <img alt="Codex Harness" src="https://img.shields.io/badge/runtime-Codex%20Harness-black">
 </p>
 
 <p align="center">
-  <a href="https://viberesearch.wiki">官方网站</a> ·
   <a href="#界面预览">界面预览</a> ·
   <a href="#与上一公开版本对比">版本对比</a> ·
   <a href="#这是什么">这是什么</a> ·
@@ -30,14 +29,6 @@
   <a href="#当前边界">边界</a> ·
   <a href="CHANGELOG.md">CHANGELOG</a>
 </p>
-
----
-
-## 作者正在寻找工作机会
-
-作者目前关注腾讯等大型科技企业在深圳的 AI 相关岗位，希望加入一支热爱 AI 开发的团队，继续从事 AI / Agent 产品开发、应用落地及 AI 咨询工作。
-
-联系：[simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)
 
 ---
 
@@ -67,7 +58,7 @@
 
 当前版本：**v1.1.0**。已同步 v1.0.4 基线及后继 Issue/PR 修复，新增多模型订阅接入、双引擎体验、界面升级与 Mac 独立客户端。
 
-**[Mac 安装包与更新说明](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0)**（Apple Silicon / M 系列，macOS 13+）。下载 `VibeResearch-1.1.0-M40-mac-arm64.dmg`，不要把 GitHub 自动生成的 Source code 压缩包当作安装包；附件以 Release 页面实际发布内容为准。
+Mac 安装包适用于 Apple Silicon / M 系列，macOS 13+。从源码构建见 [Mac 构建说明](packaging/macos/README.md)；不要把 GitHub 自动生成的 Source code 压缩包当作安装包。
 
 源码版本 **1.1.0**，Mac 构建号 **40**。App 已完成 Developer ID 签名、Apple 公证，以及从最终 DMG 复制安装后的工具调用和重启验证；DMG 容器另行签名。另一台 Mac、Windows 及完整供应商矩阵验证仍有缺口，详见 [M40 验收记录](docs/发布候选与隐私验收_M40_2026-09-07.md)。旧 M38 候选为 **1.0.4 / build 37**，不再作为本次交付包。
 
@@ -101,7 +92,7 @@ Qwen Code 与 DeepSeek CLI 当前仍需各自的 API key，也归入 API 接入�
 
 ## 与上一公开版本对比
 
-对照基线为 [v1.0.4 发布说明](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.0.4)及[该标签的 README](https://github.com/simonlin1212/Vibe-Research/blob/v1.0.4/README.md)，核对日期为 2026-09-07。右列为本次 v1.1.0 的功能与交付范围。
+对照基线为 v1.0.4，核对日期为 2026-09-07。右列为本次 v1.1.0 的功能与交付范围。
 
 | 方面 | 上一公开版 v1.0.4 | v1.1.0 |
 |---|---|---|
@@ -154,7 +145,7 @@ Mac App 已完成正式签名、Apple 公证与票据装订；DMG 是包含该 A
 
 ### Mac 独立客户端
 
-从 [v1.1.0 Release](https://github.com/simonlin1212/Vibe-Research/releases/tag/v1.1.0) 下载 Mac DMG，打开后将 App 拖到 Applications，再从应用程序启动。适用于 Apple Silicon / macOS 13+，内含 Node、Python 和 Codex 引擎，无需另装这些运行环境。M40 App 已完成 Developer ID 签名、Apple 公证、票据验证和本机复制安装验证；另一台干净 Mac 仍待验收。详见 [M40 验收记录](docs/发布候选与隐私验收_M40_2026-09-07.md)。
+Apple Silicon / macOS 13+ 可按 [Mac 构建说明](packaging/macos/README.md) 生成本地安装包，内含 Node、Python 和 Codex 引擎，无需另装这些运行环境。M40 App 已完成 Developer ID 签名、Apple 公证、票据验证和本机复制安装验证；另一台干净 Mac 仍待验收。详见 [M40 验收记录](docs/发布候选与隐私验收_M40_2026-09-07.md)。
 
 维护者可按 [Mac 构建说明](packaging/macos/README.md) 生成本地测试包。首次打开需在 App 内连接自己的 AI；不会沿用浏览器中的接入设置。替换应用不会删除已有研报和台账，用户数据保存在 `~/.vibe-research-desktop`。以下步骤适用于从源码运行。
 
@@ -177,8 +168,7 @@ Mac App 已完成正式签名、Apple 公证与票据装订；DMG 是包含该 A
 Windows（PowerShell / CMD）：
 
 ```bat
-git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
-cd vibe-research-agent
+cd <this-repo>
 scripts\setup-windows.cmd
 scripts\start.cmd
 ```
@@ -189,8 +179,7 @@ scripts\start.cmd
 macOS / Linux：
 
 ```bash
-git clone https://github.com/simonlin1212/Vibe-Research.git vibe-research-agent
-cd vibe-research-agent
+cd <this-repo>
 scripts/setup
 scripts/start
 ```
@@ -399,14 +388,6 @@ npm run build --prefix desktop
 投资建议；第三方公开数据可能延迟、缺失或有误，使用者应自行核实并承担决策责任，同时遵守各数据源
 的使用条款。
 
-## 赞赏
-
-<p align="center">
-  <a href="https://buymeacoffee.com/simonlin1212"><img src="./assets/bmc-qr.png" width="180" alt="Buy Me a Coffee"></a>
-</p>
-
 ## License
 
 本仓库采用 [MIT License](LICENSE)。OpenAI Codex 使用 Apache-2.0；本仓库不包含 Codex 源码。
-
-**作者：** Simon 林 · X [@linsizhen](https://x.com/linsizhen) · 邮箱：[simonlin0423@gmail.com](mailto:simonlin0423@gmail.com)

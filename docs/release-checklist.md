@@ -1,7 +1,7 @@
 # 发布前清单(维护者待办)
 
 本清单于 2026-09-07 按 M40 / v1.1.0 继续收口。用户在本地候选验收后明确授权“先发布github”，
-允许提交、推送、标签及GitHub Release和Mac附件上传；本轮不部署或修改phoenixtree.ai网站。
+允许提交、推送、标签及GitHub Release和Mac附件上传。
 先完成隐私复查、独立审计和本次跨平台CI，再公开Release；历史未发布状态保留为当时的检查点。
 当前逐项证据见 [M40 发布与隐私验收](发布候选与隐私验收_M40_2026-09-07.md)，以下 M37 数字仍只代表历史基线。
 已有公开 v1.0.4 不代表当前双引擎、界面与 Mac 客户端已经发布。
@@ -13,10 +13,10 @@ Mac 构建方式见 [打包说明](../packaging/macos/README.md)。历史测试�
 | 项 | 现状 | 动作 |
 |---|---|---|
 | License | `LICENSE` 与中英文 README 已采用 MIT，不再是待定项 | 发布前核对依赖许可证；引擎 openai/codex 为 Apache-2.0，本仓库不含其源码 |
-| 仓库地址 | 两份 README 已使用 `simonlin1212/Vibe-Research` 的真实 clone 地址 | 发布前核对分支、上游修复及实际发布内容，不再要求重建仓库 |
+| 仓库地址 | 两份 README 不再指向原作者公开仓库 | 发布前核对分支、上游修复及实际发布内容 |
 | 国产模型矩阵 | `providers/{deepseek,qwen,glm,kimi}.json` 的 `matrix.status` 未真测 | 设对应环境变量(`DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY`——百炼三件套共用;三个百炼模板还要先在 `.local/providers/` 填掉 `{WorkspaceId}`)后 `node orchestrator/src/finance/provider_matrix.ts --provider <id> --model <m>`,按结果回填 `matrix.status / results / note / last_run` 与 `verified_at` |
 | 模板易变字段 | 四个模板有 2026-08-26 的 `verified_at`；这是历史文档核对，不是当前实跑证明 | 发布前重新核对厂商文档与实际兼容矩阵，不把模板日期等同模型验证通过 |
-| 联系方式与赞赏 | 已按发布规范:X @linsizhen、邮箱、BMC 二维码 `assets/bmc-qr.png` | 核对无误即可 |
+| 联系方式与赞赏 | 产品表面不放置原作者个人身份或赞赏入口 | 不编造未确认的替换联系方式 |
 | Windows | 发布前须检查本次提交的跨平台 CI；Windows 运行选定契约测试 | 本机 Mac 测试与 CI 不能冒充 Windows 客户实机验收，正常退出后的 Job Object 回收保证仍未验证 |
 | 真实模型验收 | M37 原生安装版 core 六阶段无夹具 complete：120 证据、19 计算、最终校验通过；专用配置 Sol/low | complete 门槛已有本机证据；不扩成所有来源 full、所有供应商或所有平台验收。M36 full 的外部缺口仍保留 |
 | Mac 客户端 | Apple Silicon / macOS 13+ 的独立 AppKit + WKWebView；SDK / 引擎 0.153.4 | 本机新装、升级、重启、登录保持、对话、研究、报告、回测及中止逐项留证；Intel / 干净外部 Mac 不冒称已测 |
