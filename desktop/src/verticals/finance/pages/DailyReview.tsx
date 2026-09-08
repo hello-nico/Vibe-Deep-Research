@@ -118,8 +118,6 @@ export function DailyReview() {
    */
   const [pageMeta, setPageMeta] = useState<PageResult | null>(null);
   const [pageErr, setPageErr] = useState<string | null>(null);
-  /** 这一屏在看哪一天 —— **只认 Core 给的业务日**（拿不到就是 null，不拿本地日期顶上） */
-  const bizDay = pageMeta ? pageMeta.context.review_date ?? pageMeta.context.last_trading_day : null;
 
 
 

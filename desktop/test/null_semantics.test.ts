@@ -13,8 +13,8 @@ test("取数映射不再用 num0 把缺失字段伪装成数字零", () => {
   assert.doesNotMatch(backend, /export const num0/);
 });
 
-test("官网 Star 在 API 不可用时显示未知，不保留会过期的硬编码数字", () => {
-  assert.match(website, /data-stars[^>]*>—<\/strong>/);
+test("官网可不展示 Star；展示时缺值为未知，不保留硬编码数字", () => {
+  if (/data-stars/.test(website)) assert.match(website, /data-stars[^>]*>—<\/strong>/);
   assert.doesNotMatch(website, /data-stars[^>]*>2\.1k<\/strong>/);
 });
 

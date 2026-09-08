@@ -89,7 +89,7 @@ export function FinanceHomeAgent() {
     <section
       id="home-agent"
       data-home-agent
-      className="ai-surface flex h-[540px] max-h-[calc(100dvh-7rem)] min-h-[390px] flex-col overflow-hidden sm:h-[480px]"
+      className="ai-surface flex min-h-0 flex-1 flex-col overflow-hidden"
     >
       <div className="ai-surface-header flex items-center justify-between gap-3 border-b border-border/60 px-4 py-3 sm:px-5">
         <div className="flex min-w-0 items-center gap-2.5">
@@ -127,6 +127,7 @@ export function FinanceHomeAgent() {
             renderReplyActions={replyActions}
             className="px-5 py-4"
           />
+          <div className="shrink-0">
           <AiComposer
             placeholder="说说要查什么、研究什么…（Shift+Enter 换行）"
             disabled={chat.loading || !configured}
@@ -136,6 +137,7 @@ export function FinanceHomeAgent() {
             onValueChange={setDraft}
             highlighted
           />
+          </div>
       {!configured && setupOpen && <QuickAiConnect storageStatus={runtime.status} onDismiss={() => setSetupOpen(false)} />}
     </section>
   );

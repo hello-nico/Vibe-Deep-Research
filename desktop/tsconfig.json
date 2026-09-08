@@ -26,6 +26,7 @@
     "allowImportingTsExtensions": true,
     "baseUrl": ".",
     "paths": {
+      "@deepseek-ai/*": ["../../dsh-desktop/node_modules/@deepseek-ai/*"],
       "@/*": [
         "./src/verticals/finance/*"
       ]

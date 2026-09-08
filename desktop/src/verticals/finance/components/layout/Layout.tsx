@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, Gauge, Home, LayoutGrid, Microscope, Menu, X, Moon, Newspaper, NotebookPen, Radar, Rss, Settings, Star, Sun, Thermometer, TrendingUp, Wallet,
+  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, Gauge, Home, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp, Wallet,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -9,9 +9,7 @@ import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { storageGet, storageSet } from "@/lib/storage";
-import { useAiRuntime } from "@/hooks/useAiRuntime";
-import { aiConnectionLabel } from "@/lib/aiConnection";
-import { AgentToggle } from "@/components/ui/AgentToggle";
+import { NativeDshHost } from "../../dsh/NativeDsh";
 
 const NAV = [
   { to: "/", icon: Home, label: "首页" },
@@ -24,7 +22,6 @@ const NAV = [
   { to: "/portfolio", icon: Wallet, label: "我的持仓" },
   { to: "/my-reports", icon: FileText, label: "我的研报" },
   { to: "/notes", icon: NotebookPen, label: "研究记录" },
-  { to: "/settings", icon: Settings, label: "接入 AI" },
 ];
 
 // 资讯雷达的小栏目（缩进子项，顺序即页内 Tab 顺序）。
@@ -60,10 +57,14 @@ const NAV_GROUPS: Record<string, { storageKey: string; links: typeof SIGNAL_LINK
 };
 
 export function Layout() {
+  useEffect(() => {
+    const toggle = () => setCollapsed(value => !value);
+    window.addEventListener("vibe-toggle-sidebar", toggle);
+    return () => window.removeEventListener("vibe-toggle-sidebar", toggle);
+  }, []);
   const { pathname } = useLocation();
   const navigation = useNavigation();
-  const aiRuntime = useAiRuntime();
-  const { dark, toggle } = useDarkMode();
+  useDarkMode();
   const navRef = useRef<HTMLElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const menuRef = useRef<HTMLButtonElement | null>(null);
@@ -163,12 +164,8 @@ export function Layout() {
             </div>
             {!compact && <div data-ai-identity className="mt-2 space-y-1">
               <p className="text-[10px] leading-4 text-muted-foreground">金融研究 Agent · A股 / 美股 / 港股</p>
-                <Link to="/settings" data-testid="ai-runtime-badge" title="查看或更改已保存的 AI 接入" className="flex min-w-0 items-start gap-1 text-[10px] leading-5 text-muted-foreground hover:text-primary">
-                  <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-primary" /><span>{aiConnectionLabel(aiRuntime)}</span>
-                </Link>
-                <AgentToggle showHint />
             </div>}
-            {compact && <div className="mt-3 flex justify-center"><AgentToggle compact /></div>}
+            <div id="dsh-status" data-testid="ai-runtime-badge" className="mt-2 text-[10px] text-muted-foreground">DSH 正在启动</div>
           </div>
           <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
             {NAV.map(({ to, icon: Icon, label }) => {
@@ -201,6 +198,12 @@ export function Layout() {
                 </div>}
               </div>;
             })}
+            <div className={cn(
+              "workspace-nav-link flex min-w-0 items-center text-[13px] text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+              compact && "justify-center",
+            )}>
+              <div id="dsh-settings" aria-label="设置" className="min-w-0 w-full" />
+            </div>
           </nav>
           <div className={cn("border-t border-border", compact ? "p-1.5" : "p-3")}>
             <div className={cn("flex items-center text-muted-foreground", compact ? "flex-col gap-3" : "justify-end gap-2")}>
@@ -210,7 +213,7 @@ export function Layout() {
             </div>
           </div>
         </aside>
-        <div inert={mobile && mobileOpen} className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div {...{ inert: mobile && mobileOpen ? "" : undefined }} className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <header className="workspace-topbar flex h-16 shrink-0 items-center justify-between gap-3 px-4 md:px-8">
             <div className="flex min-w-0 items-center gap-3 text-xs">
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
@@ -218,19 +221,18 @@ export function Layout() {
             </div>
             <div className={cn("flex items-center gap-3", pathname !== "/" && "mr-24")}>
               <span className="hidden text-[10px] text-muted-foreground lg:inline">金融研究工作台</span>
-              <button onClick={toggle} className="rounded p-2 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label={dark ? "切换为浅色" : "切换为深色"}>
-                {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </button>
             </div>
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-            <div className="workspace-content" aria-busy={navigation.state !== "idle"}>
+            <div className={cn("workspace-content", pathname === "/" && "flex h-full min-h-0 flex-col")} aria-busy={navigation.state !== "idle"}>
               {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
+              <section id="dsh-conversation" aria-label="DSH 会话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }}>正在加载研究助手…</section>
               <Outlet />
             </div>
           </main>
         </div>
-        <div inert={mobile && mobileOpen}>{pathname !== "/" && <FinanceAiDock />}</div>
+        <div {...{ inert: mobile && mobileOpen ? "" : undefined }}>{pathname !== "/" && <FinanceAiDock />}</div>
+        <NativeDshHost />
       </div>
     </AiPageProvider>
   );

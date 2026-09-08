@@ -1,0 +1,97 @@
+/* rc.1's composer workspace chip is hard-coded, outside the workspace-picker slot.
+   The host registers the configured workspace; this internal path is not a user control. */
+#dsh-conversation button[aria-label="选择工作区"],
+#dsh-conversation button[aria-label="Choose workspace"] { display: none; }
+#dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
+#dsh-settings { font-size: 13px; }
+
+/* Product tokens own the shared shell. DSH semantic aliases consume them,
+   including menus portalled to body; financial success/danger colors stay intact. */
+html body.vibe-dsh-host {
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  color: hsl(var(--foreground));
+  background: hsl(var(--background));
+  --dsw-font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --dsw-alias-bg-base: hsl(var(--background));
+  --dsw-alias-bg-layer-1: hsl(var(--card));
+  --dsw-alias-bg-layer-2: hsl(var(--card));
+  --dsw-alias-bg-layer-3: hsl(var(--muted));
+  --dsw-alias-bg-overlay: hsl(var(--card));
+  --dsw-alias-bg-module-platform: hsl(var(--muted));
+  --dsw-alias-label-primary: hsl(var(--foreground));
+  --dsw-alias-label-primary-bluish: hsl(var(--foreground));
+  --dsw-alias-label-secondary: hsl(var(--muted-foreground));
+  --dsw-alias-label-tertiary: hsl(var(--muted-foreground));
+  --dsw-alias-label-caption: hsl(var(--muted-foreground));
+  --dsw-alias-brand-primary: hsl(var(--primary));
+  --dsw-alias-brand-text: hsl(var(--primary));
+  --dsw-alias-brand-primary-new-colorprimary-new-color: hsl(var(--primary));
+  --dsw-alias-button-primary-fill: hsl(var(--primary));
+  --dsw-alias-button-primary-hover: hsl(var(--primary) / .85);
+  --dsw-alias-button-primary-dimmed: hsl(var(--primary) / .35);
+  --dsw-alias-button-ghost-active-fill: hsl(var(--primary) / .12);
+  --dsw-alias-button-ghost-active-border: hsl(var(--primary) / .35);
+  --dsw-alias-button-ghost-active-hover: hsl(var(--primary) / .18);
+  --dsw-alias-button-floating-fill: hsl(var(--card));
+  --dsw-alias-button-elevated-fill: hsl(var(--muted));
+  --dsw-alias-interactive-bg-hover: hsl(var(--muted));
+  --dsw-alias-interactive-bg-hover-solid: hsl(var(--muted));
+  --dsw-alias-interactive-bg-hover-accent: hsl(var(--primary) / .1);
+  --dsw-alias-interactive-bg-active: hsl(var(--primary) / .12);
+  --dsw-alias-border-l1: hsl(var(--border));
+  --dsw-alias-border-l2: hsl(var(--border));
+  --dsw-alias-border-l3: hsl(var(--border) / .65);
+  --dsw-alias-border-l4: hsl(var(--border) / .45);
+  --dsw-specific-sidebar-fill: hsl(var(--card));
+  --dsw-specific-sidebar-nav-item-active: hsl(var(--primary) / .12);
+  --dsw-specific-sidebar-nav-item-hover: hsl(var(--muted));
+  --dsw-specific-input-major: hsl(var(--card));
+  --dsw-specific-bubble: hsl(var(--muted));
+  --dsw-specific-menu: hsl(var(--card));
+  --dsw-specific-selector: hsl(var(--muted));
+  --dsw-alias-markdown-code-block: hsl(var(--muted));
+  --dsw-alias-markdown-code-block-banner: hsl(var(--card));
+  --dsw-alias-markdown-inline-code: hsl(var(--muted));
+}
+
+#dsh-settings [data-slot="sidebar.settings"] > div { width: 100%; margin: 0; }
+#dsh-settings [data-slot="sidebar.settings"] > div > button {
+  width: 100%; min-height: 40px; height: auto; margin: 0; padding: 10px 12px;
+  gap: 12px; border: 0; border-radius: 12px; background: transparent;
+  color: hsl(var(--muted-foreground)); font-size: 13px; font-weight: 400; line-height: 20px;
+  justify-content: flex-start;
+}
+#dsh-settings [data-slot="sidebar.settings"] > div > button:hover { background: transparent; }
+#dsh-settings [data-slot="sidebar.settings"] > div > button svg { width: 16px; height: 16px; flex-shrink: 0; }
+.workspace-sidebar.w-14 #dsh-settings [data-slot="sidebar.settings"] > div > button {
+  justify-content: center; gap: 0; font-size: 0;
+}
+#dsh-settings [role="dialog"] {
+  width: 880px; color: hsl(var(--foreground)); background: hsl(var(--card));
+  border: 1px solid hsl(var(--border)); border-radius: 18px;
+  box-shadow: 0 24px 80px rgb(0 0 0 / .25); font-size: 14px;
+}
+#dsh-settings [role="dialog"] > nav {
+  width: 200px; padding: 24px 12px; border-right: 1px solid hsl(var(--border));
+  background: hsl(var(--muted) / .3);
+}
+#dsh-settings [role="dialog"] > nav > div:first-child { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
+#dsh-settings [role="dialog"] > nav button { gap: 10px; }
+#dsh-settings [role="dialog"] input { border-radius: 10px; }
+#dsh-conversation { background: hsl(var(--card)); box-shadow: 0 8px 28px rgb(0 0 0 / .06); }
+#dsh-conversation [role="tab"][aria-selected="true"] { color: hsl(var(--primary)); border-color: hsl(var(--primary)); }
+#dsh-conversation [role="tab"][aria-selected="true"]::after { background: hsl(var(--primary)); }
+#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"]) { background: hsl(var(--primary)); color: white; }
+#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"]):hover:not(:disabled) { background: hsl(var(--primary) / .85); }
+
+/* Native settings uses a fixed overlay inside its trigger. A filtered sidebar
+   becomes its containing block and clips the entire dialog to sidebar width. */
+.workspace-sidebar { backdrop-filter: none; -webkit-backdrop-filter: none; }
+#dsh-settings [role="dialog"] { flex-shrink: 0; }
+@media (max-width: 640px) {
+  #dsh-settings [role="dialog"] { width: calc(100vw - 24px); max-width: none; height: calc(100dvh - 24px); border-radius: 16px; flex-direction: column; }
+  #dsh-settings [role="dialog"] > nav { width: 100%; padding: 12px; gap: 8px; border-right: 0; border-bottom: 1px solid hsl(var(--border)); }
+  #dsh-settings [role="dialog"] > nav > div:last-child { flex-direction: row; overflow-x: auto; }
+  #dsh-settings [role="dialog"] > nav button { flex-shrink: 0; padding: 8px; }
+  #dsh-settings [role="dialog"] > div { min-height: 0; }
+}

@@ -17,5 +17,14 @@ export function useDarkMode() {
     storageSet("vr-theme", dark ? "dark" : "light");
   }, [dark]);
 
-  return { dark, toggle: () => setDark((d) => !d) };
+  useEffect(() => {
+    const sync = (event: Event) => setDark((event as CustomEvent<boolean>).detail);
+    window.addEventListener("dsh-theme-change", sync);
+    return () => window.removeEventListener("dsh-theme-change", sync);
+  }, []);
+
+  return { dark, toggle: () => {
+    setDark(!dark);
+    window.dispatchEvent(new CustomEvent("vibe-theme-change", { detail: !dark }));
+  } };
 }

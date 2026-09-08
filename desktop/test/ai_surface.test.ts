@@ -34,13 +34,14 @@ test("所有对话入口共用主题适配表面，普通数据卡不染色", ()
   assert.match(css, /\.dark \.ai-surface \.ai-input:focus-within/);
 });
 
-test("侧栏 AI 状态与开关纵向紧排，标签与开关在同一行", () => {
+test("M3 侧栏展示 DSH 状态，不提供旧 Agent 开关", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   assert.match(layout, /data-ai-identity/);
   assert.match(layout, /data-ai-identity className="mt-2 space-y-1"/);
   assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /inline-flex min-h-6 items-center/);
   assert.doesNotMatch(read("verticals/finance/components/ui/AgentToggle.tsx"), /flex-col/);
-  assert.match(layout, /<AgentToggle showHint \/>/);
+  assert.doesNotMatch(layout, /<AgentToggle/);
+  assert.match(layout, /id="dsh-status"/);
   assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /!compact && showHint/);
   assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /（更深入·较慢·费Token）/);
 });

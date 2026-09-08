@@ -10,7 +10,7 @@ export function Disclaimer({ compact = false }: { compact?: boolean }) {
     );
   }
   return (
-    <div className="mt-8 flex items-start gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
+    <div className="mt-4 flex shrink-0 items-start gap-2 rounded-lg border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed text-muted-foreground">
       <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" />
       <span>
         Vibe Finance 整理公开数据并校验证据，推理由所选模型完成。榜单为客观公开数据。<b className="text-foreground">不荐股、不预测涨跌、不给买卖时机，不构成投资建议。</b> 输出可能有误，请自行核实，风险自担。

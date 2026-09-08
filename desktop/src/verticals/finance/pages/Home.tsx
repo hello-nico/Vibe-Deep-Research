@@ -1,4 +1,3 @@
-import { FinanceHomeAgent } from "@/components/ui/FinanceAiDock";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { useAiPage } from "../../../core/ai/pageContext";
 
@@ -9,9 +8,8 @@ export function Home() {
     suggestions: ["今天市场有哪些变化", "帮我研究一家公司的基本面", "哪些风险需要重点核对"],
   });
   return (
-    <div>
+    <div className="shrink-0">
       <h1 className="sr-only">Vibe Finance 研究工作台</h1>
-      <FinanceHomeAgent />
       <Disclaimer />
     </div>
   );

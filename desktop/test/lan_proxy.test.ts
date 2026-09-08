@@ -3,7 +3,7 @@ import http from "node:http";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
-import { createServer } from "vite";
+import { createServer, loadConfigFromFile } from "vite";
 
 test("#34 LAN 默认为关，仅同源请求可被归一化，跨站请求不得到达带 token 的代理", async () => {
   const previous = process.env.VRA_LAN;
@@ -25,8 +25,13 @@ test("#34 LAN 默认为关，仅同源请求可被归一化，跨站请求不得
   try {
     for (const setting of [undefined, "0", "1"]) {
       if (setting === undefined) delete process.env.VRA_LAN; else process.env.VRA_LAN = setting;
-      const server = await createServer({ root, logLevel: "silent", optimizeDeps: { noDiscovery: true, include: [] }, server: {
-        port: 0, hmr: false, proxy: { "/api": { target: `http://127.0.0.1:${targetPort}` } },
+      const loaded = await loadConfigFromFile({ command: "serve", mode: "test" }, undefined, root);
+      assert.ok(loaded);
+      // This test owns the legacy API proxy only; never spawn a real DSH process or touch its store.
+      const plugins = loaded.config.plugins?.filter(p => p && !Array.isArray(p) && !("name" in p && p.name === "vibe-dsh-development"));
+      const server = await createServer({ ...loaded.config, configFile: false, plugins, root, logLevel: "silent", optimizeDeps: { noDiscovery: true, include: [] }, server: {
+        ...loaded.config.server,
+        port: 0, hmr: false, proxy: { "/api": { ...(loaded.config.server?.proxy?.["/api"] as object), target: `http://127.0.0.1:${targetPort}` } },
       } });
       try {
         assert.equal(server.config.server.host, setting === "1" ? "0.0.0.0" : "127.0.0.1");

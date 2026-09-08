@@ -5,9 +5,11 @@ import path from "node:path";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 import { apiTokenPath } from "./vite-token";
+import { dshDevelopment } from "./dsh-dev";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..");
+const dsh = dshDevelopment(repoRoot);
 // 上游 #34：仅用户显式开启时监听所有网卡；这不是多用户登录或公网部署方案。
 const lan = process.env.VRA_LAN === "1";
 
@@ -32,7 +34,8 @@ function apiToken(): string {
 }
 
 export default defineConfig({
-  plugins: [react(), {
+  define: { "process.versions.node": '"0.0.0"', "process.execArgv": "[]", "process.env.CORDIS_SHARED": "undefined" },
+  plugins: [dsh.plugin, react(), {
     name: "vra-lan-origin-guard",
     configureServer(server) {
       if (!lan) return;
@@ -54,7 +57,11 @@ export default defineConfig({
   }],
   // 🔴 `@` 指向**垂类包**而不是 src:上游 UI 里写的是 `@/components`、`@/lib`、`@/data`,
   //    我们把它整套放进 verticals/finance/,别名这么指,上游代码一行都不用改。
-  resolve: { alias: { "@": path.resolve(here, "src/verticals/finance") } },
+  resolve: { alias: [
+    { find: "@", replacement: path.resolve(here, "src/verticals/finance") },
+    ...dsh.aliases,
+  ], dedupe: ["react", "react-dom"] },
+  optimizeDeps: { include: ["react", "react-dom/client", "react/jsx-runtime", ...dsh.aliases.map(a => a.find)] },
   server: {
     // 🔴 必须写死 IPv4:默认 localhost 在本机解析成 [::1],而后端绑的是 127.0.0.1,对不上会 502
     host: lan ? "0.0.0.0" : "127.0.0.1",
