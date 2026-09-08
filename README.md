@@ -391,3 +391,25 @@ npm run build --prefix desktop
 ## License
 
 本仓库采用 [MIT License](LICENSE)。OpenAI Codex 使用 Apache-2.0；本仓库不包含 Codex 源码。
+
+## Project files and module map
+
+| Document | Path |
+|---|---|
+| README | `README.md` |
+| AGENTS | `AGENTS.md` |
+| Human Checklist | `human-checklist.md` |
+| Todo | `todo.md` |
+
+| Module | Source | Contract | Tasks |
+|---|---|---|---|
+| desktop | `desktop/` | not established | not established |
+| packaging | `packaging/macos/` | not established | not established |
+| orchestrator | `orchestrator/` | not established | not established |
+| backtest | `backtest/` | not established | not established |
+| calc | `calc/` | not established | not established |
+| datasources | `datasources/` | not established | not established |
+| skills | `.agents/skills/` | not established | not established |
+| providers | `providers/` | not established | not established |
+| scripts | `scripts/` | not established | not established |
+| website | `website/` | not established | not established |

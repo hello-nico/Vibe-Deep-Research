@@ -144,3 +144,15 @@ report.md           最终报告:原始事实标 evidence id,派生数字标 cal
 ## 6. 输出
 
 中文;数字带单位与报告期;表格优先;不用表情符号。
+
+## Project file protocol
+
+- The README (`README.md`) is the project entry point and maps each top-level module to its source, contract, and Task list.
+- The Human Checklist (`human-checklist.md`) records only confirmed human decisions and acceptance boundaries.
+- The project Todo (`todo.md`) contains unresolved or deferred work.
+- Each Module Contract owns its responsibility, public interfaces, lifecycle, failure semantics, and business validation.
+- Each module Task list records implementation order; each Task owns one bounded implementation closure.
+- Tasks reference higher authorities instead of copying them, stay within 200 lines, and include mandatory Out of Scope and Stop Conditions.
+- Human-confirmed product or contract decisions are recorded before downstream Tasks rely on them.
+- Execute, Review, and Smoke consume the same Task and do not rewrite the Task or its authorities.
+- Update the existing Owner of each fact; do not create parallel coordination or status documents.
