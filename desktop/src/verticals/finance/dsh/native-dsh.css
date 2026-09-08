@@ -79,6 +79,10 @@ html body.vibe-dsh-host {
 #dsh-settings [role="dialog"] > nav button { gap: 10px; }
 #dsh-settings [role="dialog"] input { border-radius: 10px; }
 #dsh-conversation { background: hsl(var(--card)); box-shadow: 0 8px 28px rgb(0 0 0 / .06); }
+/* DSH draws turn boundaries with a pseudo-element, not a cell border. */
+#dsh-conversation tbody > tr[data-turn-start="true"]:not(:first-child) > td::before {
+  height: .5px;
+}
 #dsh-conversation [role="tab"][aria-selected="true"] { color: hsl(var(--primary)); border-color: hsl(var(--primary)); }
 #dsh-conversation [role="tab"][aria-selected="true"]::after { background: hsl(var(--primary)); }
 #dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"]) { background: hsl(var(--primary)); color: white; }

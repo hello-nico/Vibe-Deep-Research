@@ -316,7 +316,7 @@ export function MyReports() {
 
         <textarea value={objective} onChange={(e) => setObjective(e.target.value)} disabled={taskBusy || busy || deleting} rows={3}
           maxLength={8000} placeholder="例如：找出这些研报中关于收入变化、原因和风险提示的原文段落"
-          className="w-full resize-y rounded-xl border border-border/70 bg-background/45 px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground/65 focus:border-primary/60 disabled:opacity-50" />
+          className="workspace-field w-full disabled:opacity-50" />
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-muted-foreground">已选 {selected.length} 份 · 由系统自动判断</p>
           <button type="button" onClick={() => void submitTask()} disabled={!selected.length || !objective.trim() || taskBusy || busy || deleting}

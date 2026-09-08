@@ -102,7 +102,7 @@ export function Backtest() {
           </div>)}
           {running && <div className="flex items-center gap-3 text-sm text-muted-foreground">
             <div className="grid h-7 w-7 place-items-center rounded-lg bg-primary/15 text-primary"><Loader2 className="h-4 w-4 animate-spin" /></div>
-            Agent 正在判断信息是否齐全；条件齐了以后会自动取数和逐条回测…
+            Agent 正在判断信息是否齐全；条件齐了以后会自动获取数据并逐条回测…
           </div>}
           <div ref={bottomRef} />
         </div>

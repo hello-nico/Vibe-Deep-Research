@@ -163,9 +163,9 @@ export function Layout() {
               {mobile && <button aria-label="关闭导航" className="p-1" onClick={closeMobileNav}><X className="h-4 w-4" /></button>}
             </div>
             {!compact && <div data-ai-identity className="mt-2 space-y-1">
-              <p className="text-[10px] leading-4 text-muted-foreground">金融研究 Agent · A股 / 美股 / 港股</p>
+              <p className="text-[10px] leading-4 text-muted-foreground">投研助手 · A股 / 美股 / 港股</p>
             </div>}
-            <div id="dsh-status" data-testid="ai-runtime-badge" className="mt-2 text-[10px] text-muted-foreground">DSH 正在启动</div>
+            <div id="dsh-status" data-testid="ai-runtime-badge" className="mt-2 text-[10px] text-muted-foreground" />
           </div>
           <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
             {NAV.map(({ to, icon: Icon, label }) => {
@@ -220,7 +220,7 @@ export function Layout() {
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
             <div className={cn("flex items-center gap-3", pathname !== "/" && "mr-24")}>
-              <span className="hidden text-[10px] text-muted-foreground lg:inline">金融研究工作台</span>
+              <span className="hidden text-[10px] text-muted-foreground lg:inline">投研助手</span>
             </div>
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">

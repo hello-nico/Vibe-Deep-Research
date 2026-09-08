@@ -35,7 +35,8 @@ function Row({ k, v, mono }: { k: string; v: React.ReactNode; mono?: boolean }) 
   );
 }
 
-const INPUT = "w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm";
+const FIELD = "workspace-field w-full";
+const SELECT = "workspace-select w-full";
 
 function localRuntimeLabel(provider?: string): string {
   if (provider === "cli-claude") return "Claude Code Agent";
@@ -395,7 +396,7 @@ export function Settings() {
           <div className="space-y-4 text-sm">
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">选择模型</label>
-              <select value={apiId} onChange={(e) => pickApi(e.target.value)} className={INPUT}>
+              <select value={apiId} onChange={(e) => pickApi(e.target.value)} className={SELECT}>
                 {API_MODELS.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}{tag(m.provider)} —— {m.description}
@@ -415,7 +416,7 @@ export function Settings() {
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Base URL</label>
               <input value={baseURL} onChange={(e) => { setBaseURL(e.target.value); setMsg(""); setMsgErr(""); }}
-                placeholder="https://api.deepseek.com" className={`${INPUT} font-mono text-xs`} />
+                placeholder="https://api.deepseek.com" className={`${FIELD} font-mono text-xs`} />
               {/* 百炼系模板留了占位让用户替换 —— 没替换后端会拒，这里先说清楚 */}
               {/[{<][A-Za-z_]/.test(baseURL) && (
                 <p className="mt-1 text-[11px] text-destructive">把 {"{…}"} 换成你自己的值（百炼控制台里的 WorkspaceId）</p>
@@ -424,12 +425,12 @@ export function Settings() {
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">Model</label>
               <input value={modelName} onChange={(e) => { setModelName(e.target.value); setMsg(""); setMsgErr(""); }}
-                placeholder="模型名称" className={`${INPUT} font-mono text-xs`} />
+                placeholder="模型名称" className={`${FIELD} font-mono text-xs`} />
             </div>
             <div>
               <label className="mb-1.5 block text-xs font-medium text-muted-foreground">API Key</label>
               <input type="password" value={apiKey} onChange={(e) => { setApiKey(e.target.value); setMsg(""); setMsgErr(""); }}
-                placeholder="sk-…" className={`${INPUT} font-mono text-xs`} />
+                placeholder="sk-…" className={`${FIELD} font-mono text-xs`} />
               <p className="mt-1.5 text-[11px] leading-relaxed text-muted-foreground">
                 为避免每次重填，key 会保存在当前浏览器的本机配置中；它不是系统钥匙串，也不承诺加密。
                 只建议在可信的个人电脑使用，共享电脑用完请点击“忘记配置”。key 不进入仓库、后端配置、日志或研究产物。

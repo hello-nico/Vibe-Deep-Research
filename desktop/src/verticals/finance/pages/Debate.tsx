@@ -217,7 +217,7 @@ export function Debate() {
               onKeyDown={(e) => { if (e.key === "Enter" && !running) start(); }}
               placeholder="6 位代码，如 600519"
               disabled={running}
-              className="w-44 rounded-lg border border-border/60 bg-background/60 px-3 py-2 font-mono text-sm outline-none focus:border-primary/60"
+              className="workspace-field w-44 font-mono"
             />
           </div>
           <div>
@@ -226,7 +226,7 @@ export function Debate() {
               value={rounds}
               onChange={(e) => setRounds(Number(e.target.value))}
               disabled={running}
-              className="rounded-lg border border-border/60 bg-background/60 px-3 py-2 text-sm outline-none focus:border-primary/60"
+              className="workspace-select min-w-[200px]"
             >
               <option value={1}>一轮 · 各自陈述</option>
               <option value={2}>两轮 · 加交叉反驳</option>

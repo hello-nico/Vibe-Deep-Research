@@ -8,7 +8,7 @@ const number = (e: Evidence | undefined) => {
   return value === null ? "未获取" : value.toLocaleString("zh-CN", { maximumFractionDigits: 2 });
 };
 const provenance = (e: Evidence | undefined) => e
-  ? `证据 ${e.id} · ${e.source} · 资料期 ${e.period} · 取数 ${e.fetched_at}` : "此字段未获取";
+  ? `证据 ${e.id} · ${e.source} · 资料期 ${e.period} · 更新 ${e.fetched_at}` : "此字段未获取";
 const statusName: Record<string, string> = {
   complete: "已完成", incomplete: "资料不完整", failed: "失败", running: "研究中",
   cancelling: "正在取消", cancelled: "已取消", finalizing: "归档收尾中",
@@ -67,7 +67,7 @@ export function HomeOverview() {
           {snapshot && snapshot.envelope.status !== "ok" && <p role="status" className="border-t border-border px-5 py-3 text-xs text-warning">数据状态：{snapshot.envelope.status === "partial" ? "部分获取，缺失项保留" : "获取失败，不能据此判断市场"}。请到每日复盘查看详情。</p>}
         </>}
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-4 text-[11px] text-muted-foreground">
-        <span>取数时刻：{snapshot?.envelope.fetched_at || "未提供"}<br />历史快照，不代表实时行情；悬停数字查看证据。</span>
+        <span>更新时间：{snapshot?.envelope.fetched_at || "未提供"}<br />历史快照，不代表实时行情；悬停数字查看证据。</span>
         <Link to="/daily-review" className="inline-flex items-center gap-1 text-primary">查看盘面<ArrowRight className="h-3.5 w-3.5" /></Link>
       </div>
     </section>

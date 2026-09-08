@@ -125,7 +125,7 @@ async function bootClient(container: HTMLElement): Promise<void> {
       const connection = props.useConnectionState(s => s);
       const showDetails = React.useSyncExternalStore(callback => { listeners.add(callback); return () => { listeners.delete(callback); }; }, () => detailsOpen);
       return <>
-        {ReactDom.createPortal(<span role="status">{connection === "connected" ? "DSH 已连接" : connection === "disconnected" ? "DSH 连接中断" : "DSH 连接中"}</span>, target("dsh-status"))}
+        {ReactDom.createPortal(<span role="status">{connection === "connected" ? "" : connection === "disconnected" ? "DSH 连接中断" : "DSH 连接中"}</span>, target("dsh-status"))}
         {ReactDom.createPortal(<div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>{props.renderSlot("conversation", {})}</div>, target("dsh-conversation"))}
         {props.renderSlot("sidebar", { collapsed: false, width: 228 })}
         {props.renderSlot("shell.overlay", {})}

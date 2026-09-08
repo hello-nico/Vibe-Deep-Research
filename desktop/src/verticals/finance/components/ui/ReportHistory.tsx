@@ -29,7 +29,7 @@ export function ReportHistory({ kind, notes, onChange }: { kind: string; notes: 
         <label className="relative w-full sm:w-64">
           <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="搜索主题或报告内容"
-            className="w-full rounded-xl border border-border/70 bg-background/55 py-2 pl-9 pr-3 text-xs outline-none focus:border-primary/60" />
+            className="workspace-field w-full pl-9 text-xs" />
         </label>
       </div>
       {error && <p className="text-xs text-destructive">{error}</p>}

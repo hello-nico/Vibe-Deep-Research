@@ -211,11 +211,11 @@ export function ThesisPanel({ symbol, name }: { symbol: string; name?: string })
           {adding === "thesis" && (
             <input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })}
               placeholder="论点标题，比如「产能护城河，绕不开」"
-              className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+              className="workspace-field w-full" />
           )}
           {adding === "criterion" && (
             <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value })}
-              className="rounded-lg border border-border bg-background/60 px-3 py-2 text-sm">
+              className="workspace-select">
               <option value="decision_point">裁决点（到期必判）</option>
               <option value="falsifier">证伪条件（触发即认错）</option>
             </select>
@@ -223,12 +223,12 @@ export function ThesisPanel({ symbol, name }: { symbol: string; name?: string })
           <textarea value={draft.statement} onChange={(e) => setDraft({ ...draft, statement: e.target.value })}
             rows={3}
             placeholder={adding === "thesis" ? "为什么持有 / 为什么关注" : "写清楚什么情况下算成立、什么情况下算被推翻"}
-            className="w-full rounded-lg border border-border bg-background/60 px-3 py-2 text-sm" />
+            className="workspace-field w-full" />
           <div className="flex flex-wrap items-center gap-2">
             <label className="text-xs text-muted-foreground">
               {adding === "thesis" ? "复核日" : "到期日"}
               <input type="date" value={draft.due} onChange={(e) => setDraft({ ...draft, due: e.target.value })}
-                className="ml-2 rounded-lg border border-border bg-background/60 px-2 py-1 text-sm" />
+                className="workspace-field ml-2 w-auto" />
             </label>
             <button onClick={() => void save()} disabled={saving}
               className="rounded-lg bg-primary/15 px-3 py-1.5 text-xs font-medium text-primary ring-1 ring-primary/30 hover:bg-primary/25 disabled:opacity-50">

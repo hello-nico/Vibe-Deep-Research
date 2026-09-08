@@ -243,15 +243,15 @@ export function Research() {
               onChange={(e) => setSymbol(e.target.value)}
               onKeyDown={(e) => { if (e.key === "Enter" && !e.nativeEvent.isComposing && !starting && !["running", "cancelling", "finalizing"].includes(active?.status ?? "")) { e.preventDefault(); void start(); } }}
               placeholder="例如 600519"
-              className="w-40 rounded-lg border border-border bg-background/60 px-3 py-2 font-mono text-sm"
+              className="workspace-field w-40 font-mono"
             />
           </label>
           <label className="space-y-1.5">
-            <span className="block text-xs text-muted-foreground">取数范围</span>
+            <span className="block text-xs text-muted-foreground">数据范围</span>
             <select
               value={scope}
               onChange={(e) => setScope(e.target.value as "core" | "full")}
-              className="rounded-lg border border-border bg-background/60 px-3 py-2 text-sm"
+              className="workspace-select min-w-[220px]"
             >
               <option value="core">核心（快，够形成判断）</option>
               <option value="full">完整（含适用的扩展数据，较慢）</option>
@@ -260,7 +260,7 @@ export function Research() {
           <button
             onClick={() => void start()}
             disabled={starting || active?.status === "running" || active?.status === "cancelling" || active?.status === "finalizing"}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary ring-1 ring-primary/30 hover:bg-primary/25 disabled:opacity-50"
+            className="workspace-field-action"
           >
             {starting || active?.status === "running" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
             开始
@@ -274,7 +274,7 @@ export function Research() {
         </div>
         {/* 不用固定时长承诺掩盖不同来源和校验重试的差异。 */}
         <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
-          一次完整研究会多轮调用你配置的模型，并按标的获取适用数据。取数、模型响应和校验重试会影响耗时，<b className="text-foreground">可能需要数十分钟或更久</b>，
+          一次完整研究会多轮调用你配置的模型，并按标的获取适用数据。获取数据、模型响应和校验重试会影响耗时，<b className="text-foreground">可能需要数十分钟或更久</b>，
           消耗你自己的模型额度。产出是一份带证据 id、确定性计算、数据缺口与裁决点的报告 ——
           每个数字都能追回它的来源。
         </p>

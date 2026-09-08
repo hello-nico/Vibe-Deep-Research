@@ -31,7 +31,7 @@ test("首页只留 chat，聊天已开放实际联网与取数能力", () => {
   assert.match(financeAgent, /<QuickAiConnect/);
   assert.match(financeAgent, /disabled=\{chat.loading \|\| !configured\}/);
   assert.match(financeAgent, /今天市场有哪些值得关注的变化/);
-  assert.match(financeAgent, /Agent 可以联网搜索、取数、计算并跟进研究任务/);
+  assert.match(financeAgent, /Agent 可以联网搜索、获取数据、计算并跟进研究任务/);
   assert.doesNotMatch(financeAgent, /不会自动取数或收集全网研报|不自动取数、不调用工具/);
   assert.match(financeAgent, /pending_research/);
   assert.match(financeAgent, /window.confirm/);

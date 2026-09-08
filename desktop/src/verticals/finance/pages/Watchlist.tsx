@@ -98,7 +98,7 @@ export function Watchlist() {
           <div className="flex items-center gap-2">
             <button
               onClick={toggleLive}
-              title={live ? "关闭自动取数" : "开启自动取数（交易时段每次请求结束后等 3 秒；上游可能延迟）"}
+              title={live ? "关闭自动刷新" : "开启自动刷新（交易时段每次请求结束后等 3 秒；上游可能延迟）"}
               className={cn(
                 "inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors",
                 live
@@ -117,35 +117,37 @@ export function Watchlist() {
                   )}
                 />
               </span>
-              自动取数
+              自动刷新
             </button>
           </div>
         }
       />
 
       <GlassCard className="mb-4">
-        <label className="mb-1.5 block text-xs text-muted-foreground">
-          批量添加 —— 支持 A 股、港股、美股（逗号 / 空格 / 换行都行）
-        </label>
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <textarea
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) add();
+              if (e.key === "Enter" && !e.shiftKey) {
+                e.preventDefault();
+                add();
+              }
             }}
-            rows={2}
-            placeholder={"如：600519 AAPL 00700.HK\n000858, MSFT, 09988.HK"}
-            className="flex-1 resize-y rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50"
+            rows={1}
+            aria-label="批量添加自选股"
+            placeholder="600519  AAPL  00700.HK"
+            className="workspace-field workspace-field-single flex-1"
           />
           <button
             onClick={add}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 self-start rounded-lg bg-primary/15 px-4 text-sm font-medium text-primary shadow-glow hover:bg-primary/25"
+            className="workspace-field-action"
           >
             <Plus className="h-4 w-4" /> 添加
           </button>
         </div>
-        {hint && <p className="mt-2 text-xs text-muted-foreground/70">{hint}</p>}
+        <p className="mt-2 text-xs text-muted-foreground">A 股 / 港股 / 美股，逗号、空格或换行均可。Enter 添加。</p>
+        {hint && <p className="mt-1 text-xs text-muted-foreground/70">{hint}</p>}
       </GlassCard>
 
       <GlassCard glow>
@@ -163,10 +165,10 @@ export function Watchlist() {
                 {live && !polling && codes.length > 0 && (
                   <span>{isTradingHours(codes) ? "已暂停（页面未激活）" : "当前关注市场均为非交易时段"}</span>
                 )}
-                {polling && <span className="text-primary/80">自动取数 · 间隔 3 秒</span>}
+                {polling && <span className="text-primary/80">自动刷新 · 间隔 3 秒</span>}
                 {updatedAt && (
-                  <span className="font-mono" title="所显示价格中最早的源取数时刻；不是成交时间，上游可能延迟">
-                    最早快照取数 {new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}
+                  <span className="font-mono" title="所显示价格中最早的数据时间；不是成交时间，上游可能延迟">
+                    最早快照 {new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}
                   </span>
                 )}
               </>

@@ -160,7 +160,7 @@ export function DailyReview() {
         .filter((b) => b.fetched_at)
         .map((b) => `${b.title} ${b.fetched_at!.slice(0, 16).replace("T", " ")}`)
         .join("；");
-      lines.push(`⚠️ 这一屏的数据来自不同业务日，跨日比较要当心。各块取数时刻：${stamps || "未记录"}`);
+      lines.push(`⚠️ 这一屏的数据来自不同业务日，跨日比较要当心。各块更新时间：${stamps || "未记录"}`);
     }
 
     const validIndices = indices.filter((i) => i.price !== null && i.change_pct !== null);
@@ -170,7 +170,7 @@ export function DailyReview() {
     // 拿不到价的那条**不写进去** —— 让模型看到 null 比不给还糟
     const gi = globalIdx.filter((i) => i.price !== null && i.change_pct !== null);
     lines.push(gi.length
-      ? `【海外指数·腾讯快照，非逐笔实时】${gi.map((i) => `${i.name} ${i.price}（${i.change_pct! > 0 ? "+" : ""}${i.change_pct}%）；取数时间 ${i.fetched_at ?? "未知"}；价格证据 ${i.evidence_id ?? "未提供"}${i.note ? `；读法 ${i.note}` : ""}`).join("；")}`
+      ? `【海外指数·腾讯快照，非逐笔实时】${gi.map((i) => `${i.name} ${i.price}（${i.change_pct! > 0 ? "+" : ""}${i.change_pct}%）；数据时间 ${i.fetched_at ?? "未知"}；价格证据 ${i.evidence_id ?? "未提供"}${i.note ? `；读法 ${i.note}` : ""}`).join("；")}`
       : `【海外指数】${globalErr ?? (globalDone ? "未取得可用数据" : "仍在加载")}；没有可引用的数据，不就此下结论。`);
     const missingGlobal = globalIdx.filter((i) => i.price === null || i.change_pct === null);
     if (missingGlobal.length) lines.push(`【海外指数缺口】${missingGlobal.map((i) => i.name).join("、")}报价不完整，不据此下结论。`);
@@ -240,7 +240,7 @@ export function DailyReview() {
             {globalIdx.map((g) => (
               <GlassCard key={g.key} className="p-3">
                 <p className="truncate text-xs text-muted-foreground">{g.name} <span className="text-muted-foreground/40">{g.region}</span></p>
-                <p title={`取数时间：${g.fetched_at ?? "未知"}；价格证据：${g.evidence_id ?? "未取得"}`} className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
+                <p title={`数据时间：${g.fetched_at ?? "未知"}；价格证据：${g.evidence_id ?? "未取得"}`} className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
                 <p className={cn("text-xs", g.change_pct == null ? "text-muted-foreground" : pctColor(g.change_pct))}>
                   {g.change_pct == null ? "—" : `${g.change_pct > 0 ? "+" : ""}${g.change_pct}%`}
                 </p>

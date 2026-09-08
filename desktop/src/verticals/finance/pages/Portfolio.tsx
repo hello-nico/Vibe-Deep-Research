@@ -176,20 +176,20 @@ export function Portfolio() {
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">股票代码</label>
             <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="600519 / AAPL / 00700.HK"
-              autoCapitalize="characters" className="w-52 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              autoCapitalize="characters" className="workspace-field w-52" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">数量（股）</label>
             <input value={shares} onChange={(e) => setShares(e.target.value)} placeholder="如 100"
-              className="w-28 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field w-28" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">成本价</label>
             <input value={cost} onChange={(e) => setCost(e.target.value)} placeholder="如 12.5，可负"
-              className="w-28 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field w-28" />
           </div>
           <button onClick={add} disabled={adding}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary shadow-glow hover:bg-primary/25 disabled:opacity-50">
+            className="workspace-field-action">
             {adding ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} 添加
           </button>
         </div>
@@ -255,46 +255,46 @@ export function Portfolio() {
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">股票代码</label>
             <input value={cCode} onChange={(e) => setCCode(e.target.value)} placeholder="600519 / AAPL / 00700.HK"
-              autoCapitalize="characters" className="w-52 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              autoCapitalize="characters" className="workspace-field w-52" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">清仓日期</label>
             <div className="flex gap-1">
               <input aria-label="清仓日期" value={cDate} onChange={e => setCDate(e.target.value)} placeholder="YYYY-MM-DD" maxLength={10}
-                className="w-36 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+                className="workspace-field w-36" />
               <input type="date" aria-label="用日历选择清仓日期" title="用日历选择清仓日期"
                 value={/^\d{4}-\d{2}-\d{2}$/.test(cDate) ? cDate : ""} onChange={e => setCDate(e.target.value)}
-                className="w-10 rounded-lg border border-border bg-black/20 p-2 text-transparent outline-none focus:border-primary/50" />
+                className="workspace-field w-10 px-1 text-transparent" />
             </div>
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">清仓价</label>
             <input value={cPrice} onChange={(e) => setCPrice(e.target.value)} placeholder="卖出价"
-              className="w-24 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field w-24" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">股数</label>
             <input value={cShares} onChange={(e) => setCShares(e.target.value)} placeholder="如 100"
-              className="w-24 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field w-24" />
           </div>
           <div>
             <label className="mb-1 block text-xs text-muted-foreground">买入成本</label>
             <input value={cCost} onChange={(e) => setCCost(e.target.value)} placeholder="成本价，可负"
-              className="w-24 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field w-24" />
           </div>
           <label className="block text-xs text-muted-foreground">公司名称（选填）
             <input aria-label="清仓公司名称" value={cName} onChange={e => setCName(e.target.value)} maxLength={40} placeholder="便于日后查找"
-              className="mt-1 block w-40 rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+              className="workspace-field mt-1 block w-40" />
           </label>
           <button onClick={addClose} disabled={closing}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-4 py-2 text-sm font-medium text-primary shadow-glow hover:bg-primary/25 disabled:opacity-50">
+            className="workspace-field-action">
             {closing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />} 记录
           </button>
         </div>
         <label className="mt-3 block text-xs text-muted-foreground">复盘备注（选填）
           <textarea aria-label="清仓复盘备注" value={cNote} onChange={e => setCNote(e.target.value)} maxLength={1000} rows={2}
             placeholder="当时的判断、已验证的证据、以后要留意什么…"
-            className="mt-1 block w-full rounded-lg border border-border bg-black/20 px-3 py-2 text-sm outline-none focus:border-primary/50" />
+            className="workspace-field mt-1 block w-full" />
         </label>
       </GlassCard>
 
