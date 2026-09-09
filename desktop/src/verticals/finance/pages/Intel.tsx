@@ -43,7 +43,7 @@ function InvestmentNewsPanel() {
 
   // 进入优先读缓存；缺失由后端取数，只有手动刷新才强制更新。
   const { data, err, loading, refreshing, staleNote, refresh } =
-    useArchiveThenRefresh<RadarData>((r) => (r ? api.radarRefresh() : api.radar()), []);
+    useArchiveThenRefresh<RadarData>((r) => (r ? api.radarRefresh() : api.radar()), [], { refreshOnEnter: false });
 
   const industries: Industry[] = data?.industries || [];
   const cur = industries.find((i) => i.key === active) || industries[0];
@@ -302,7 +302,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [depNote, setDepNote] = useState<string | null>(null);
 
-  // 打开先给存档、后台再刷：这里要按关注列表逐个拉，条数一多就是好几秒
+  // 按当前自选聚合已有快照，手动刷新失败的股票回退到其原快照。
   const load = useCallback(async (doRefresh: boolean): Promise<FeedRow[]> => {
     const cs = codes;
     if (!cs.length) return [];
@@ -318,7 +318,13 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
       const out: FeedRow[] = [];
       if (kind === "filings") {
         const res = await Promise.all(
-          cs.map((c) => api.announcements(c, doRefresh).then((a) => ({ c, a })).catch(() => ({ c, a: [] as Announcement[] }))),
+          cs.map(async c => {
+            try { return { c, a: await api.announcements(c, doRefresh) }; }
+            catch {
+              setDepNote('部分股票公告未更新，优先保留已有资料。');
+              return { c, a: doRefresh ? await api.announcements(c, false).catch(() => [] as Announcement[]) : [] as Announcement[] };
+            }
+          }),
         );
         for (const { c, a } of res)
           for (const x of a)
@@ -327,9 +333,10 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
         let dep: string | null = null;
         const res = await Promise.all(
           cs.map((c) =>
-            api.news(c, doRefresh).then((n) => ({ c, n })).catch((e) => {
+            api.news(c, doRefresh).then((n) => ({ c, n })).catch(async (e) => {
               if (e instanceof ApiError && e.status === 501) dep = e.message;
-              return { c, n: [] as NewsItem[] };
+              setDepNote('部分股票新闻未更新，优先保留已有资料。');
+              return { c, n: doRefresh ? await api.news(c, false).catch(() => [] as NewsItem[]) : [] as NewsItem[] };
             }),
           ),
         );
@@ -351,7 +358,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   }, [kind, codes]);
 
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
-    useArchiveThenRefresh<FeedRow[]>(load, [kind, codes.join(",")]);
+    useArchiveThenRefresh<FeedRow[]>(load, [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
 
   // 刷新时顺便把关注列表重新读一遍（用户可能刚在别的页面加了自选）
@@ -384,7 +391,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <button onClick={refresh} disabled={loading || refreshing}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50">
+          className="workspace-action">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           {refreshing ? "拉取中…" : "刷新"}
         </button>
@@ -396,12 +403,11 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
         </div>
       )}
 
-      {depNote ? (
-        <p className="py-6 text-center text-xs text-warning">{depNote}（安装后新闻即可用）</p>
-      ) : loading && rows.length === 0 ? (
+      {depNote && <p role="status" className="py-3 text-xs text-warning">{depNote}</p>}
+      {loading && rows.length === 0 ? (
         <p className="flex items-center justify-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> 正在汇总关注股的{kind === "filings" ? "公告" : "新闻"}…</p>
       ) : rows.length === 0 ? (
-        <p className="py-8 text-center text-sm text-muted-foreground/60">关注列表里的个股近期暂无{kind === "filings" ? "公告" : "新闻"}。</p>
+        <p className="py-8 text-center text-sm text-muted-foreground/60">{depNote ? '暂未取得可显示的资料，请稍后重试。' : `关注列表里的个股近期暂无${kind === "filings" ? "公告" : "新闻"}。`}</p>
       ) : (
         <div className="space-y-2">
           {rows.map((r, i) => (
@@ -473,7 +479,7 @@ export function Intel() {
       </GlassCard>
 
       <p className="mt-3 text-[11px] text-muted-foreground/60">
-        只做公开信息聚合、不做推荐、不预测涨跌。公告 / 新闻均来自你关注列表里个股的公开披露与公开源；赛道资讯已按合规词表过滤。今日要点由本地 Agent 组织数据，再交给你选择的模型完成推理。
+        只做公开信息聚合、不做推荐、不预测涨跌。公告 / 新闻均来自你关注列表里个股的公开披露与公开源；赛道资讯已按合规词表过滤。今日要点由本地助手组织数据，再交给你选择的模型完成推理。
       </p>
       <Disclaimer />
     </div>
@@ -490,7 +496,7 @@ export function Intel() {
  */
 function EventsPanel() {
   const { data, err, loading, refreshing, staleNote, refresh } =
-    useArchiveThenRefresh<MacroProbability>((r) => api.macroProbability(r), []);
+    useArchiveThenRefresh<MacroProbability>((r) => api.macroProbability(r), [], { refreshOnEnter: false });
 
   if (loading) return <p className="mt-4 text-sm text-muted-foreground">正在取…（这一页还没有存档）</p>;
   if (err) return <p className="mt-4 text-sm text-destructive">{err}</p>;
@@ -513,7 +519,7 @@ function EventsPanel() {
         )}
         {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         <button onClick={refresh} disabled={refreshing}
-          className="inline-flex items-center gap-1 rounded-lg border border-border px-2 py-0.5 text-[11px] hover:text-foreground disabled:opacity-50">
+          className="workspace-action workspace-action-compact">
           <RefreshCw className="h-3 w-3" /> 刷新
         </button>
       </p>

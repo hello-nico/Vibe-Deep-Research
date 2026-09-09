@@ -111,7 +111,7 @@ function safeStartMessage(error: unknown): string {
   if (error instanceof ServiceError && error.code === "invalid_task_context") {
     return "Deep 任务关注点或圈选资料格式无效，请检查输入后重新创建研究";
   }
-  return "Deep 长流程未能启动，请检查本地 Agent 连接与研究配置";
+  return "Deep 长流程未能启动，请检查本地助手连接与研究配置";
 }
 
 export class CodexDeepEngine implements ExecutionEngine {
@@ -188,7 +188,7 @@ export class CodexDeepEngine implements ExecutionEngine {
       if (queuedForMs >= STARTUP_GRACE_MS) {
         yield event(run.runId, binding.task_id, 2, "failed", {
           code: "deep_start_lost",
-          message: "Deep 长流程未建立运行目录，请检查本地 Agent 配置后重新发起任务",
+          message: "Deep 长流程未建立运行目录，请检查本地助手配置后重新发起任务",
           researchStatus: "failed",
           routeFingerprint: binding.route_fingerprint,
         });

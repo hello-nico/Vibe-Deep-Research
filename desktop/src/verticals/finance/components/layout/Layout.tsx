@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, Cog, Cpu, FileText, Gauge, Home, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp, Wallet,
+  Activity, ChevronDown, ChevronsLeft, ChevronsRight, FileText, Gauge, MessagesSquare, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
+import { PageHeader } from "@/components/ui/PageHeader";
 import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
@@ -12,14 +13,15 @@ import { storageGet, storageSet } from "@/lib/storage";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 
 const NAV = [
-  { to: "/", icon: Home, label: "首页" },
+  { to: "/", icon: MessagesSquare, label: "深度对话" },
   { to: "/daily-review", icon: Activity, label: "大盘行情" },
   { to: "/intel", icon: Radar, label: "资讯雷达" },
   { to: "/signals", icon: Thermometer, label: "产业信号" },
   { to: "/sectors", icon: LayoutGrid, label: "板块中心" },
   { to: "/research", icon: Microscope, label: "个股研究" },
   { to: "/watchlist", icon: Star, label: "自选股" },
-  { to: "/portfolio", icon: Wallet, label: "我的持仓" },
+  // 暂时隐藏，待持仓模块的产品方案确定后恢复。
+  // { to: "/portfolio", icon: Wallet, label: "我的持仓" },
   { to: "/my-reports", icon: FileText, label: "我的研报" },
   { to: "/notes", icon: NotebookPen, label: "研究记录" },
 ];
@@ -37,14 +39,6 @@ const SIGNAL_LINKS = [
   { to: "/signals/gpu-rent", icon: Gauge, label: "GPU租金" },
 ];
 
-// 常看的板块，作为「板块中心」下的快捷入口（缩进显示）。
-// 板块中心下的快捷入口。🔴 只放**环节已核实**的那些 —— 指向空页面的入口比没有入口更糟:
-// 用户点进去看到一片空白,分不清是"还没做"还是"坏了"。要加先把环节核实了。
-const SECTOR_LINKS = [
-  { to: "/sectors/humanoid", icon: Cog, label: "人形机器人" },
-  { to: "/sectors/ai-computing", icon: Cpu, label: "AI 算力" },
-];
-
 // 带子栏目的导航组：父项右侧小三角展开/收起，展开状态按组记忆。
 // 带子栏目的导航组。
 // 🔴 存储键**带版本号**：默认值从"展开"改成"收起"时，老键里存着的 "open"
@@ -53,7 +47,6 @@ const SECTOR_LINKS = [
 const NAV_GROUPS: Record<string, { storageKey: string; links: typeof SIGNAL_LINKS }> = {
   "/intel": { storageKey: "vr-intel-open2", links: INTEL_LINKS },
   "/signals": { storageKey: "vr-signals-open2", links: SIGNAL_LINKS },
-  "/sectors": { storageKey: "vr-sectors-open2", links: SECTOR_LINKS },
 };
 
 export function Layout() {
@@ -138,7 +131,9 @@ export function Layout() {
   }, [mobile, mobileOpen]);
   const compact = collapsed && !mobile;
   const currentTitle = NAV.find(n => n.to === pathname)?.label
+    ?? (pathname === '/research/legacy' ? '专题研究' : undefined)
     ?? Object.values(NAV_GROUPS).flatMap(g => g.links).find(n => n.to === pathname)?.label
+    ?? (pathname.startsWith('/my-reports/read/') ? '研报阅读' : NAV.find(n => n.to !== '/' && pathname.startsWith(n.to + '/'))?.label)
     ?? "工作空间";
 
   return (
@@ -154,22 +149,22 @@ export function Layout() {
           "workspace-sidebar z-50 flex shrink-0 flex-col",
           mobile ? (mobileOpen ? "fixed inset-y-0 left-0 w-[228px]" : "hidden") : compact ? "w-14" : "w-[228px]",
         )}>
-          <div className={cn("border-b border-border", compact ? "p-3" : "px-5 py-4")}>
+          <div className={cn("flex h-16 shrink-0 flex-col justify-center border-b border-border", compact ? "px-3" : "px-5")}>
             <div className="flex items-center justify-between">
-              <Link to="/" aria-label="Vibe Finance 首页" className="flex items-center gap-2.5">
+              <Link to="/" aria-label="Vibe Finance 深度对话" className="flex items-center gap-2.5">
                 <BrandMark className="h-8 w-8 shrink-0 text-primary" />
                 {!compact && <span className="workspace-brand text-lg font-semibold tracking-tight">Vibe-<span className="text-primary">Finance</span></span>}
               </Link>
               {mobile && <button aria-label="关闭导航" className="p-1" onClick={closeMobileNav}><X className="h-4 w-4" /></button>}
             </div>
-            {!compact && <div data-ai-identity className="mt-2 space-y-1">
+            {!compact && <div data-ai-identity>
               <p className="text-[10px] leading-4 text-muted-foreground">投研助手 · A股 / 美股 / 港股</p>
             </div>}
-            <div id="dsh-status" data-testid="ai-runtime-badge" className="mt-2 text-[10px] text-muted-foreground" />
           </div>
+          <div id="dsh-status" data-testid="ai-runtime-badge" className="px-3 text-[10px] text-muted-foreground empty:hidden" />
           <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
             {NAV.map(({ to, icon: Icon, label }) => {
-              const active = pathname === to;
+              const active = pathname === to || (to === "/sectors" && pathname.startsWith("/sectors/"));
               const group = NAV_GROUPS[to];
               const groupOpen = group ? !!openGroups[to] : false;
               return <div key={to}>
@@ -219,19 +214,17 @@ export function Layout() {
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
-            <div className={cn("flex items-center gap-3", pathname !== "/" && "mr-24")}>
-              <span className="hidden text-[10px] text-muted-foreground lg:inline">投研助手</span>
-            </div>
+            {pathname !== "/" && <FinanceAiDock />}
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
             <div className={cn("workspace-content", pathname === "/" && "flex h-full min-h-0 flex-col")} aria-busy={navigation.state !== "idle"}>
               {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
-              <section id="dsh-conversation" aria-label="DSH 会话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }} />
+              {pathname === "/" && <div className="shrink-0"><PageHeader title="深度对话" subtitle="查阅资料、核对证据，深入探讨你的研究问题" /></div>}
+              <section id="dsh-conversation" aria-label="深度对话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }} />
               <Outlet />
             </div>
           </main>
         </div>
-        <div {...{ inert: mobile && mobileOpen ? "" : undefined }}>{pathname !== "/" && <FinanceAiDock />}</div>
         <NativeDshHost />
       </div>
     </AiPageProvider>

@@ -34,7 +34,7 @@ test("Deep 已知启动校验给出操作指引，但不透传异常正文", asy
     const output = JSON.stringify(events);
     assert.doesNotMatch(output, /private-canary|auth\.json/);
     if (code === "invalid_task_context") assert.match(output, /关注点或圈选资料格式无效/);
-    else assert.match(output, /检查本地 Agent/);
+    else assert.match(output, /检查本地助手/);
   }
 });
 

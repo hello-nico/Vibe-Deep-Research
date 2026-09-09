@@ -172,7 +172,7 @@ function reserveLocalSessionSlot(pool: Map<string, { busy: boolean; lastUsed: nu
     const oldest = [...pool.entries()]
       .filter(([, s]) => !s.busy)
       .sort((a, b) => a[1].lastUsed - b[1].lastUsed)[0];
-    if (!oldest) throw new ChatError("chat_capacity", "本地 Agent 对话正忙，请稍后再试");
+    if (!oldest) throw new ChatError("chat_capacity", "本地助手对话正忙，请稍后再试");
     pool.delete(oldest[0]);
   }
 }
@@ -181,17 +181,17 @@ function reserveLocalSessionSlot(pool: Map<string, { busy: boolean; lastUsed: nu
 function publicLocalAgentFailure(error: LocalAgentError): ChatError {
   const messages: Record<string, string> = {
     agent_not_authenticated: "当前 AI 登录已失效或尚未完成。请先到「接入 AI」重新连接。",
-    agent_not_installed: "本机尚未安装所选 Agent。请先到「接入 AI」完成连接。",
-    agent_quota: "当前 Agent 的额度或调用频率受限，请稍后再试。",
-    agent_busy: "本地 Agent 当前任务较多，请稍后再试。",
-    agent_timeout: "本地 Agent 响应超时，请稍后重试。",
-    agent_output_too_large: "本地 Agent 返回内容超出上限，本轮已停止。",
-    agent_cancelled: "本地 Agent 请求已取消。",
-    unsupported_cli: "当前只支持已经接通的本地 Agent。请到「接入 AI」重新选择。",
-    agent_bad_output: "本地 Agent 本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
-    agent_failed: "本地 Agent 本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
-    agent_empty_output: "本地 Agent 本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
-    agent_start_failed: "本地 Agent 本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
+    agent_not_installed: "本机尚未安装所选助手。请先到「接入 AI」完成连接。",
+    agent_quota: "当前助手的额度或调用频率受限，请稍后再试。",
+    agent_busy: "本地助手当前任务较多，请稍后再试。",
+    agent_timeout: "本地助手响应超时，请稍后重试。",
+    agent_output_too_large: "本地助手返回内容超出上限，本轮已停止。",
+    agent_cancelled: "本地助手请求已取消。",
+    unsupported_cli: "当前只支持已经接通的本地助手。请到「接入 AI」重新选择。",
+    agent_bad_output: "本地助手本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
+    agent_failed: "本地助手本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
+    agent_empty_output: "本地助手本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
+    agent_start_failed: "本地助手本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。",
   };
   return new ChatError(
     error.code,
@@ -334,7 +334,7 @@ export async function chatSend(
     const persistent = opts.persistent !== false;
     const sessionKey = `${dataRoot}\u0000${rt.agent}\u0000${reportScopeFingerprint}\u0000${session}`;
     let local = persistent ? localSessions.get(sessionKey) : undefined;
-    if (persistent && local?.busy) throw new ChatError("chat_busy", "这个本地 Agent 会话正在回答上一条消息");
+    if (persistent && local?.busy) throw new ChatError("chat_busy", "这个本地助手会话正在回答上一条消息");
     if (!local || local.turns.length >= MAX_TURNS * 2) {
       if (persistent) {
         if (local) localSessions.delete(sessionKey);
@@ -351,7 +351,7 @@ export async function chatSend(
     const historyParts: string[] = [];
     let historyChars = 0;
     for (const x of local.turns.slice(-LOCAL_HISTORY_TURNS).reverse()) {
-      const part = `${x.role === "user" ? "用户" : "Agent"}：${x.text}`;
+      const part = `${x.role === "user" ? "用户" : "助手"}：${x.text}`;
       if (historyChars + part.length > LOCAL_HISTORY_CHARS) break;
       historyParts.unshift(part);
       historyChars += part.length;
@@ -381,7 +381,7 @@ export async function chatSend(
     const { reply, redacted } = opts.skipGate ? { reply: raw, redacted: 0 } : applyGate(raw);
     const citationErrors = reportCitationErrors(reply, opts.reportSources ?? []);
     if (citationErrors.length) {
-      throw new ChatError("report_citation_invalid", `Agent 没有保留可核验的资料引用：${citationErrors.join("；")}`);
+      throw new ChatError("report_citation_invalid", `助手没有保留可核验的资料引用：${citationErrors.join("；")}`);
     }
     rememberLocalTurn(local, "user", turnBody);
     rememberLocalTurn(local, "assistant", reply);
@@ -449,7 +449,7 @@ export async function chatSend(
   const sessionKey = `${path.resolve(cfg.dataRoot)}\u0000${providerFingerprint}\u0000${reportScopeFingerprint}\u0000${session}`;
   const persistent = opts.persistent !== false;
   let s = persistent ? sessions.get(sessionKey) : undefined;
-  if (s?.busy) throw new ChatError("chat_busy", "这个 Agent 会话正在回答上一条消息");
+  if (s?.busy) throw new ChatError("chat_busy", "这个助手会话正在回答上一条消息");
   if (s && s.turns >= MAX_TURNS) {
     // 线程越长越贵、也越容易漂;到上限换一条新的
     sessions.delete(sessionKey);
@@ -516,7 +516,7 @@ export async function chatSend(
   const { reply, redacted } = opts.skipGate ? { reply: clean, redacted: 0 } : applyGate(clean);
   const citationErrors = reportCitationErrors(reply, opts.reportSources ?? []);
   if (citationErrors.length) {
-    throw new ChatError("report_citation_invalid", `Agent 没有保留可核验的资料引用：${citationErrors.join("；")}`);
+    throw new ChatError("report_citation_invalid", `助手没有保留可核验的资料引用：${citationErrors.join("；")}`);
   }
   return { session, reply, redacted, duration_ms: Date.now() - t0 };
 }

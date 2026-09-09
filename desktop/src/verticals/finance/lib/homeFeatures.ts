@@ -20,6 +20,6 @@ export const HOME_FEATURE_GROUPS = [
     { to: "/notes", title: "研究记录", detail: "沉淀观点、问题与研究笔记" },
   ] },
   { title: "工作台设置", detail: "按自己的习惯使用 AI", features: [
-    { to: "/settings", title: "接入 AI", detail: "管理订阅、模型 API 与 Agent 开关" },
+    { to: "/settings", title: "接入 AI", detail: "管理订阅、模型 API 与助手开关" },
   ] },
 ] as const;

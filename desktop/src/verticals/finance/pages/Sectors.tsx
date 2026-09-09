@@ -37,7 +37,7 @@ export function Sectors() {
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {sectors.map((s) => (
-          <Link key={s.key} to={`/sectors/${s.key}`}>
+          <Link key={s.key} to={`/sectors/legacy/${s.key}`}>
             <GlassCard glow={s.hot} className="flex h-full flex-col justify-between">
               <div>
                 <div className="mb-1 flex items-center gap-2">

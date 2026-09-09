@@ -440,7 +440,7 @@ test("Claude 订阅走本机 Agent 适配器，不会回落到 Codex；会话历
   assert.match(calls[0]!.systemPrompt, /只回答问题/);
   assert.equal(calls[0]!.userPrompt, "第一问");
   assert.match(calls[1]!.userPrompt, /用户：第一问/);
-  assert.match(calls[1]!.userPrompt, /Agent：第一轮回答/);
+  assert.match(calls[1]!.userPrompt, /助手：第一轮回答/);
   assert.equal(chatSessionCount(), 1);
 });
 
@@ -610,7 +610,7 @@ test("本地 Agent 的内部诊断不按 message 透传，只按受控错误码�
     ),
     (e: unknown) => e instanceof ChatError
       && e.code === "agent_failed"
-      && e.message === "本地 Agent 本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。"
+      && e.message === "本地助手本轮没有返回可用结果。请重试，或到「接入 AI」检查当前连接。"
       && !/opaque|diagnostic|secret-value/i.test(e.message),
   );
 });

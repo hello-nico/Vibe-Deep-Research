@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Trash2, ChevronDown, ChevronRight, NotebookPen, ScanSearch, Save } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -15,6 +15,7 @@ const KIND_COLOR: Record<string, string> = {
   今日要点: "bg-warning/15 text-warning",
   问AI: "bg-success/15 text-success",
   "问 Agent": "bg-success/15 text-success",
+  "问助手": "bg-success/15 text-success",
   多空辩论: "bg-sky-500/15 text-sky-400",
   反思审计: "bg-violet-500/15 text-violet-400",
 };
@@ -29,6 +30,7 @@ export function Notes() {
   const [reflecting, setReflecting] = useState(false);
   const [reflectSaved, setReflectSaved] = useState(false);
   const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   async function runReflect(n: Note) {
     abortRef.current?.abort();
@@ -37,15 +39,15 @@ export function Notes() {
     setReflectId(n.id); setReflectText(""); setReflectErr(""); setReflectSaved(false); setReflecting(true);
     try {
       await reflectStream(n.content, n.title, {
-        onDelta: (t) => setReflectText((s) => s + t),
-        onError: setReflectErr,
+        onDelta: (t) => { if (!ctrl.signal.aborted) setReflectText((s) => s + t); },
+        onError: (message) => { if (!ctrl.signal.aborted) setReflectErr(message); },
       }, ctrl.signal);
     } catch (e) {
       if (!(e instanceof DOMException && e.name === "AbortError")) {
         setReflectErr(e instanceof ApiError ? e.message : String(e));
       }
     } finally {
-      setReflecting(false);
+      if (abortRef.current === ctrl) setReflecting(false);
     }
   }
 
@@ -75,14 +77,14 @@ export function Notes() {
     <div>
       <PageHeader
         title="研究记录"
-        subtitle="把 Agent 复盘 / 要点 / 问答沉淀在本地，随时回看。数据只存本地、不上传。"
+        subtitle="把助手复盘 / 要点 / 问答沉淀在本地，随时回看。数据只存本地、不上传。"
         actions={notes.length > 0 && (
           <button onClick={async () => {
               if (!confirm("清空所有研究记录？")) return;
               // 逐条删可能删到一半失败 —— 用删完后的真实剩余刷新列表，别直接置空
               try { await clearNotes(); } finally { setNotes(loadNotes()); }
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive">
+            className="workspace-action hover:text-destructive">
             <Trash2 className="h-4 w-4" /> 清空
           </button>
         )}
@@ -92,7 +94,7 @@ export function Notes() {
         <GlassCard>
           <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
             <NotebookPen className="h-8 w-8 text-muted-foreground/40" />
-            还没有记录。在「资讯雷达」或「问 Agent」里点 <b className="text-foreground">「存入沉淀」</b> 保存分析结果。
+            还没有记录。在「资讯雷达」或「问助手」里点 <b className="text-foreground">「存入沉淀」</b> 保存分析结果。
           </div>
         </GlassCard>
       ) : (
@@ -118,19 +120,20 @@ export function Notes() {
                       <ReactMarkdown remarkPlugins={[remarkGfm]}>{n.content}</ReactMarkdown>
                     </div>
 
-                    <div className="mt-3 flex items-center gap-2 border-t border-border/40 pt-3">
+                    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-border/40 pt-3">
                       <button onClick={() => runReflect(n)} disabled={reflecting}
-                        className="inline-flex items-center gap-1.5 rounded-lg border border-border/60 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-50">
+                        className="workspace-action workspace-action-compact">
                         <ScanSearch className="h-3.5 w-3.5" />
                         {reflecting && reflectId === n.id ? "审计中…" : "反思审计"}
                       </button>
                       <span className="text-[11px] text-muted-foreground/70">
-                        让 Agent 回头审这段推理：哪些有数据撑着、哪些是脑补、最脆弱的一环在哪
+                        检查这条记录的论据与推理，不重新获取行情或核验原始资料
                       </span>
                     </div>
 
-                    {reflectId === n.id && (reflectText || reflectErr) && (
+                    {reflectId === n.id && (reflecting || reflectText || reflectErr) && (
                       <div className="mt-3 rounded-lg border border-violet-500/30 bg-violet-500/[0.05] p-3">
+                        {reflecting && <div className="flex flex-wrap items-center justify-between gap-3"><p role="status" className="text-xs text-muted-foreground">正在等待当前模型完成检查，结果将一次性显示。</p><button className="workspace-action workspace-action-compact" onClick={() => { abortRef.current?.abort(); setReflecting(false); setReflectErr("已停止等待，可以重新检查。"); }}>停止</button></div>}
                         {reflectErr ? (
                           <p className="text-xs text-destructive">{reflectErr}</p>
                         ) : (

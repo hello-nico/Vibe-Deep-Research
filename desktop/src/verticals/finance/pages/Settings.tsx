@@ -39,8 +39,8 @@ const FIELD = "workspace-field w-full";
 const SELECT = "workspace-select w-full";
 
 function localRuntimeLabel(provider?: string): string {
-  if (provider === "cli-claude") return "Claude Code Agent";
-  if (provider === "cli-codebuddy") return "WorkBuddy / CodeBuddy Agent";
+  if (provider === "cli-claude") return "Claude Code";
+  if (provider === "cli-codebuddy") return "WorkBuddy / CodeBuddy";
   return "Codex Harness";
 }
 
@@ -167,7 +167,7 @@ export function Settings() {
     setTesting(true); setMsg(""); setMsgErr("");
     try {
       await testAndSaveAi(cfg, { read: () => localStorage.getItem(LLM_KEY), probe: backend.llmProbe, save: saveLlm });
-      setConfigured(true); say("连接成功。可在左上角通过「开启Agent」切换普通对话与研究模式。");
+      setConfigured(true); say("连接成功。可在左上角通过「开启助手」切换普通对话与研究模式。");
     } catch (e) {
       oops(friendlyAgentError(e));
     } finally { setTesting(false); }
@@ -176,12 +176,12 @@ export function Settings() {
   const testAndSaveCli = async () => {
     const m = SUBSCRIPTION_MODELS.find((x) => x.id === cliId);
     const detected = m ? agentOf(m.provider) : undefined;
-    if (!m || !detected?.available) return oops(detected?.detail ?? (agentErr || "这台机器还没有检测到可用的本地 Agent"));
+    if (!m || !detected?.available) return oops(detected?.detail ?? (agentErr || "这台机器还没有检测到可用的本地助手"));
     const cfg = { provider: m.provider, baseURL: "", apiKey: "", model: m.id };
     setTesting(true); setMsg(""); setMsgErr("");
     try {
       await testAndSaveAi(cfg, { read: () => localStorage.getItem(LLM_KEY), probe: backend.llmProbe, save: saveLlm });
-      setConfigured(true); say(`「${m.name}」连接成功。可在左上角通过「开启Agent」切换普通对话与研究模式。`);
+      setConfigured(true); say(`「${m.name}」连接成功。可在左上角通过「开启助手」切换普通对话与研究模式。`);
     } catch (e) { oops(friendlyAgentError(e)); }
     finally { setTesting(false); }
   };
@@ -219,7 +219,7 @@ export function Settings() {
           `协议 ${info.provider.wire_api}｜鉴权 ${info.provider.auth}｜密钥变量 ${info.provider.env_key} ` +
           `${info.provider.key_present ? "已设置" : "未设置"}｜默认模型 ${String(info.defaults.model ?? "—")}｜产品版本 ${info.version}`
         : "还没读到后端配置。"),
-    suggestions: ["Agent 运行时和模型有什么区别", "我现在用的是哪个模型", "我的 key 会被发到哪里"],
+    suggestions: ["助手运行时和模型有什么区别", "我现在用的是哪个模型", "我的 key 会被发到哪里"],
   });
 
   const runtimeState = info
@@ -250,7 +250,7 @@ export function Settings() {
     <div>
       <PageHeader
         title="接入 AI"
-        subtitle="连接订阅或 API 后即可普通对话；需要联网、工具或多步研究时，开启左上角 Agent。"
+        subtitle="连接订阅或 API 后即可普通对话；需要联网、工具或多步研究时，开启左上角助手。"
       />
 
       {!configured && <GlassCard glow className="mb-5 border-primary/35 bg-primary/[0.06]">
@@ -281,7 +281,7 @@ export function Settings() {
         <span>
           API key <b className="text-foreground">只保存在这台机器的浏览器里</b>，提问时经<b className="text-foreground">本机</b>后端转给你选定的模型服务商，
           用完即弃 —— 不进入本产品的配置文件、日志、台账或仓库。
-          <span className="mt-2 block">开启 Agent 联网时，搜索词会发送给搜索服务；网页读取可能经 Jina Reader 转发网址及查询参数。请勿提交含私密令牌或签名凭据的链接。</span>
+          <span className="mt-2 block">开启助手联网时，搜索词会发送给搜索服务；网页读取可能经 Jina Reader 转发网址及查询参数。请勿提交含私密令牌或签名凭据的链接。</span>
         </span>
       </div>
 
@@ -294,7 +294,7 @@ export function Settings() {
             {mode === "subscription" && <Check className="ml-auto h-4 w-4 text-primary" />}
           </div>
           <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-            自动检测本机已经安装并登录的 Agent，走对应订阅额度，<b className="text-foreground">免 API key</b>。
+            自动检测本机已经安装并登录的助手，走对应订阅额度，<b className="text-foreground">免 API key</b>。
           </p>
         </button>
 
@@ -324,7 +324,7 @@ export function Settings() {
             <p className="rounded-lg border border-warning/25 bg-warning/[0.05] px-3 py-2 text-xs leading-relaxed text-muted-foreground">
               Claude Code 与 WorkBuddy / CodeBuddy 可运行对话、有界材料任务和 A 股六阶段研究；研究阶段只开放产品受控 MCP。选择后不会暗中换成 Codex。
             </p>
-            {agentErr && <p className="rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-xs text-destructive">本机 Agent 状态检测失败：{agentErr}</p>}
+            {agentErr && <p className="rounded-lg border border-destructive/30 bg-destructive/[0.06] px-3 py-2 text-xs text-destructive">本机助手状态检测失败：{agentErr}</p>}
             <div className="grid gap-2 sm:grid-cols-3">
               {SUBSCRIPTION_MODELS.map((m) => {
                 const on = cliId === m.id;
@@ -449,12 +449,12 @@ export function Settings() {
               <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-primary">Execution</p>
               <div className="mt-1.5 flex items-center gap-2">
                 <Cpu className="h-5 w-5 text-primary" />
-                <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Finance Agent</h2>
+                <h2 className="text-xl font-extrabold tracking-tight">二、Vibe Finance 助手</h2>
               </div>
               <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                 {localSubscriptionRuntime
                   ? `默认关闭。普通对话仍使用 ${localRuntimeName} 订阅客户端，但不挂载研究工具；开启后可联网查证和运行多步研究。`
-                  : "默认关闭。普通对话不运行工具循环；开启后 Agent 可调用数据和计算工具、完成多步研究，并保留研究任务记录。"}
+                  : "默认关闭。普通对话不运行工具循环；开启后助手可调用数据和计算工具、完成多步研究，并保留研究任务记录。"}
                 当前运行时：<b className="text-foreground">{selectedRuntime}</b>。
               </p>
             </div>
@@ -462,13 +462,13 @@ export function Settings() {
           </div>
           <div className="mt-4 rounded-xl border border-border/60 bg-background/30 p-3 text-xs leading-5 text-muted-foreground">
             {!configured ? (
-              <><b className="text-foreground">等待连接 AI。</b> 连接成功后默认普通对话，Agent 保持关闭。</>
+              <><b className="text-foreground">等待连接 AI。</b> 连接成功后默认普通对话，助手保持关闭。</>
             ) : runtime.config?.executionMode === "direct" ? (
-              <><b className="text-foreground">当前：普通对话。</b> 不挂载研究工具。六阶段研究与资料转写需先开启 Agent。</>
+              <><b className="text-foreground">当前：普通对话。</b> 不挂载研究工具。六阶段研究与资料转写需先开启助手。</>
             ) : localSubscriptionRuntime ? (
-              <><b className="text-foreground">当前：{localRuntimeName} Agent 已开启。</b> 可进行对话、有界材料任务和 A 股六阶段研究；不会暗中换成 Codex。</>
+              <><b className="text-foreground">当前：{localRuntimeName} 助手已开启。</b> 可进行对话、有界材料任务和 A 股六阶段研究；不会暗中换成 Codex。</>
             ) : (
-              <><b className="text-foreground">当前：Agent 已开启。</b> 按问题需要使用联网和工具，复杂研究可能耗时较长。</>
+              <><b className="text-foreground">当前：助手已开启。</b> 按问题需要使用联网和工具，复杂研究可能耗时较长。</>
             )}
             {configured && !runtime.config?.directSupported && <p className="mt-1">该来源的普通对话仍通过原订阅客户端或 Responses 引擎连接，不转换订阅凭据、不启动研究工具。</p>}
           </div>

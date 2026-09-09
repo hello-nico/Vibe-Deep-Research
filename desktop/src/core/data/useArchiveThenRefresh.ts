@@ -36,6 +36,7 @@ export function useArchiveThenRefresh<T>(
   load: (refresh: boolean) => Promise<T>,
   /** 这些变了就重来一遍（比如换了查询对象、换了栏目） */
   deps: readonly unknown[] = [],
+  options: { refreshOnEnter?: boolean } = {},
 ): ArchiveThenRefresh<T> {
   const [data, setData] = useState<T | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -97,12 +98,15 @@ export function useArchiveThenRefresh<T>(
         if (runRef.current !== run) return;
         setData(archived);
         setLoading(false); // 存档已经能看了，剩下的在后台刷
+        // 缓存优先的页面由后端处理首次缺失，进入页面不再强制取第二遍。
+        if (options.refreshOnEnter === false) return;
       } catch {
         // 没有存档（新机器 / 上游从没成功过）：继续走下面那次真取，界面保持"正在取"
         if (runRef.current !== run) return;
       }
       await doRefresh(run);
     })();
+    return () => { ++runRef.current; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 

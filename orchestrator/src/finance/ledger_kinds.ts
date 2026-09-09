@@ -53,7 +53,7 @@ export const FINANCE_ENUM_LABELS: Record<string, string> = {
   decision_point: "裁决点", falsifier: "证伪条件",
   pending: "待判", met: "已达成", broken: "已触发", dropped: "已放弃",
   open: "待办", done: "已完成",
-  review: "复盘", highlight: "今日要点", ask: "问 Agent", debate: "多空辩论", audit: "反思审计",
+  review: "复盘", highlight: "今日要点", ask: "问助手", debate: "多空辩论", audit: "反思审计",
   backtest: "回测",
 };
 
@@ -146,7 +146,7 @@ export const FINANCE_LEDGER_KINDS: Record<string, LedgerKindDef> = {
   },
 
   /**
-   * 研究记录:把复盘 / 要点 / 问 Agent 的结果沉淀下来,回头能翻。
+   * 研究记录:把复盘 / 要点 / 问助手的结果沉淀下来,回头能翻。
    *
    * 🔴 分类字段叫 `category` 而**不是 `kind`** —— `kind` 是 Core 的信封键
    *    (`LEDGER_ENVELOPE_KEYS`),重名会被注册期当场拒。这不是风格问题:

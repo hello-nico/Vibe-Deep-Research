@@ -200,7 +200,7 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   const dockSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "FinanceAiDock.tsx"), "utf8");
   const settingsSrc = fs.readFileSync(path.join(FINANCE, "pages", "Settings.tsx"), "utf8");
 
-  assert.match(layoutSrc, /金融研究 Agent/);
+  assert.match(layoutSrc, /投研助手/);
   assert.match(layoutSrc, /aiConnectionLabel\(aiRuntime\)/);
   const connectionSrc = fs.readFileSync(path.join(FINANCE, "lib", "aiConnection.ts"), "utf8");
   assert.match(connectionSrc, /Claude订阅/);
@@ -208,11 +208,11 @@ test("全局 AI 来源与执行模式在品牌区、Agent 面板与模型页三�
   const toggleSrc = fs.readFileSync(path.join(FINANCE, "components", "ui", "AgentToggle.tsx"), "utf8");
   assert.match(toggleSrc, /executionMode === "agent"/);
   assert.match(layoutSrc, /<AgentToggle/);
-  assert.match(dockSrc, /Vibe Finance Agent/);
-  assert.match(dockSrc, /普通对话 · Agent 已关闭/);
-  assert.match(dockSrc, /trigger: agentEnabled \? "问 Agent" : "问模型"/);
+  assert.match(dockSrc, /Vibe Finance 助手/);
+  assert.match(dockSrc, /普通对话 · 助手已关闭/);
+  assert.match(dockSrc, /trigger: "问助手"/);
   assert.match(settingsSrc, /一、连接 AI/);
-  assert.match(settingsSrc, /二、Vibe Finance Agent/);
+  assert.match(settingsSrc, /二、Vibe Finance 助手/);
   assert.match(settingsSrc, /等待连接 AI/, "未配置时不能冒充已经选中了 Codex Harness");
   assert.match(settingsSrc, /本地 API 已连接/);
   assert.match(settingsSrc, /默认关闭/);

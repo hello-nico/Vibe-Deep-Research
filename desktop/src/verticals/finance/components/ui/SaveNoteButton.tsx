@@ -28,7 +28,7 @@ export function SaveNoteButton({ kind, title, content }: { kind: string; title: 
       onClick={save}
       disabled={state === "saving" || state === "saved"}
       title={err || undefined}
-      className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs text-muted-foreground transition-colors hover:border-primary/40 hover:text-primary disabled:opacity-60"
+      className="workspace-action workspace-action-compact"
     >
       {state === "saved" ? (<><Check className="h-3.5 w-3.5" /> 已存入沉淀</>)
         : state === "failed" ? (<><AlertCircle className="h-3.5 w-3.5 text-destructive" /> 没存上，点这里重试</>)

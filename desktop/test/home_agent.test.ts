@@ -31,7 +31,7 @@ test("首页只留 chat，聊天已开放实际联网与取数能力", () => {
   assert.match(financeAgent, /<QuickAiConnect/);
   assert.match(financeAgent, /disabled=\{chat.loading \|\| !configured\}/);
   assert.match(financeAgent, /今天市场有哪些值得关注的变化/);
-  assert.match(financeAgent, /Agent 可以联网搜索、获取数据、计算并跟进研究任务/);
+  assert.match(financeAgent, /助手可以联网搜索、获取数据、计算并跟进研究任务/);
   assert.doesNotMatch(financeAgent, /不会自动取数或收集全网研报|不自动取数、不调用工具/);
   assert.match(financeAgent, /pending_research/);
   assert.match(financeAgent, /window.confirm/);
@@ -44,4 +44,9 @@ test("Core 只在有说明时渲染提醒框，长任务使用统一卡片样式
   assert.match(coreMessages, /highlighted \? "border-warning\/30 bg-warning\/\[0\.035\]"/);
   assert.match(coreMessages, /const v = value \?\? ref\.current\?\.value \?\? ""/);
   assert.match(coreMessages, /onValueChange\?\.\(""\)/);
+});
+
+test("等待中不把空助手占位画成气泡", () => {
+  assert.match(coreMessages, /m\.role === "assistant" && !m\.content\.trim\(\)/);
+  assert.match(coreMessages, /loading && <div className="flex justify-start"><AiWaiting \/>/);
 });

@@ -430,18 +430,18 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
   }
   if (task.requestedMode === "deep") {
     return decision(task, materials, state, "deep", agentEngineFamily, "explicit_deep",
-      "该任务需要完整取证与研究流程，交给 Vibe Finance Agent 执行。", executionMode, runtimeFingerprint);
+      "该任务需要完整取证与研究流程，交给 Vibe Finance 助手执行。", executionMode, runtimeFingerprint);
   }
   if (task.requestedMode === "auto" && task.kind === "locate_passages" && explicitDeepObjective(task.objective)) {
     return decision(task, materials, state, "deep", agentEngineFamily, "explicit_deep",
-      "用户明确要求重做深度研究，系统已升级为完整 Agent 流程。", executionMode, runtimeFingerprint);
+      "用户明确要求重做深度研究，系统已升级为完整助手流程。", executionMode, runtimeFingerprint);
   }
   if (task.requestedMode === "quick") {
     const why = quickIneligibleReason(task, materials, state);
     if (why) throw new TaskRouteError("quick_not_eligible", `${why}。不会静默改用 Deep，请明确切换模式。`);
     return decision(task, materials, state, "quick", executionMode === "agent" ? agentEngineFamily : "direct_api", "prepared_bounded_task",
       executionMode === "agent"
-        ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance Agent 完成一次有界材料定位。"
+        ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance 助手完成一次有界材料定位。"
         : "材料已由服务端核实且任务边界清楚，用模型直连定位相关材料段落。", executionMode, runtimeFingerprint);
   }
   if (task.kind === "deep_research") {
@@ -450,7 +450,7 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
   }
   if (state !== "ready") {
     return decision(task, materials, state, "deep", agentEngineFamily, "materials_not_ready",
-      "服务端确认现有材料未备齐，需要 Agent 补证据并处理数据缺口。", executionMode, runtimeFingerprint);
+      "服务端确认现有材料未备齐，需要助手补证据并处理数据缺口。", executionMode, runtimeFingerprint);
   }
   if (task.evidenceScope === "open_discovery") {
     return decision(task, materials, state, "deep", agentEngineFamily, "open_evidence_discovery",
@@ -458,16 +458,16 @@ function decideResearchTask(task: ResearchTask, materials: TaskMaterialResolutio
   }
   if (task.workflow === "multi_step") {
     return decision(task, materials, state, "deep", agentEngineFamily, "multi_step_investigation",
-      "任务需要跨来源或多子问题迭代，使用 Agent 的长流程能力。", executionMode, runtimeFingerprint);
+      "任务需要跨来源或多子问题迭代，使用助手的长流程能力。", executionMode, runtimeFingerprint);
   }
   const why = quickIneligibleReason(task, materials, state);
   if (why) {
     return decision(task, materials, state, "deep", agentEngineFamily, "deep_research_task",
-      `${why}，系统为避免不完整结果选择 Agent 长流程。`, executionMode, runtimeFingerprint);
+      `${why}，系统为避免不完整结果选择助手长流程。`, executionMode, runtimeFingerprint);
   }
   return decision(task, materials, state, "quick", executionMode === "agent" ? agentEngineFamily : "direct_api", "prepared_bounded_task",
     executionMode === "agent"
-      ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance Agent 完成一次有界材料定位。"
+      ? "材料已由服务端核实且任务边界清楚，由 Vibe Finance 助手完成一次有界材料定位。"
       : "材料已由服务端核实且任务边界清楚，用模型直连定位相关材料段落。", executionMode, runtimeFingerprint);
 }
 
@@ -492,7 +492,7 @@ export class TaskRouter {
     runtimeFingerprint = "0".repeat(64), agentEngineFamily: AgentEngineFamily = "codex_harness"): Promise<RouteDecision> {
     if (!/^[a-f0-9]{64}$/.test(runtimeFingerprint)) throw new TaskRouteError("invalid_task", "AI 来源指纹无效");
     if (agentEngineFamily !== "codex_harness" && agentEngineFamily !== "local_agent") {
-      throw new TaskRouteError("invalid_task", "Agent 引擎家族无效");
+      throw new TaskRouteError("invalid_task", "助手引擎家族无效");
     }
     const task = parseResearchTask(taskInput);
     let inputs: MaterialResolutionEntry[];

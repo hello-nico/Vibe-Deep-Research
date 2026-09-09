@@ -7,6 +7,7 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
 import { cn } from "@/lib/utils";
+import { marketRequest } from "@/lib/marketRequest";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
 // 对中国用户最不易看错（非国际绿涨惯例，是有意选择，勿改）。
@@ -67,15 +68,15 @@ export function DailyReview() {
     fetchingRef.current = true;
     setIdxDone(false); setIdxErr(false); setOvDone(false); setEmoDone(false); setToDone(false);
     setEmotion(null); setTurnover(null); setOverview(null); setPageMeta(null);
-    const indexTask = api.indices(refresh).then(setIndices).catch(() => { setIndices([]); setIdxErr(true); }).finally(() => setIdxDone(true));
+    const indexTask = marketRequest(api.indices(refresh)).then(setIndices).catch(() => { setIndices([]); setIdxErr(true); }).finally(() => setIdxDone(true));
     setGlobalDone(false);
     setGlobalErr(null);
     setGlobalIdx([]);
-    const globalTask = api.globalIndices(refresh).then(setGlobalIdx)
+    const globalTask = marketRequest(api.globalIndices(refresh)).then(setGlobalIdx)
       .catch((e) => setGlobalErr(e instanceof Error ? e.message : "全球指数获取失败"))
       .finally(() => setGlobalDone(true));
-    const emotionTask = api.emotion().then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
-    const turnoverTask = api.turnoverTop().then(setTurnover).catch(() => {}).finally(() => setToDone(true));
+    const emotionTask = marketRequest(api.emotion()).then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
+    const turnoverTask = marketRequest(api.turnoverTop()).then(setTurnover).catch(() => {}).finally(() => setToDone(true));
 
     /**
      * 🔴 情绪 / 板块资金 / 涨停梯队 **只取一次**:向 Core 要一屏(`/page/review`),
@@ -83,14 +84,14 @@ export function DailyReview() {
      *    而且 **BFF 注入了业务日、页面这边没有**,同一屏的状态与数字可能是不同两天的。
      */
     setPageErr(null);
-    const overviewTask = backend
-      .page("review")
-      .then((meta) => {
-        setPageMeta(meta);
+    const overviewTask = marketRequest(backend
+      .page("review", { refresh })
+      .then(async (meta) => {
         const env = (id: string) => meta.blocks.find((b) => b.id === id)?.envelope as never;
-        return api.marketOverview({ sentiment: env("sentiment"), board_flow: env("board_flow"), zt_pool: env("zt_pool") });
-      })
-      .then(setOverview)
+        const overview = await api.marketOverview({ sentiment: env("sentiment"), board_flow: env("board_flow"), zt_pool: env("zt_pool") });
+        return { meta, overview };
+      }))
+      .then(({ meta, overview }) => { setPageMeta(meta); setOverview(overview); })
       // 🔴 不吞:取不到这一屏 = 业务日与缺口保护都没了,必须让用户看见,
       //    否则页面会拿着旧数据继续显示得像正常一样
       .catch((e) => { setPageMeta(null); setPageErr(e instanceof Error ? e.message : String(e)); })
@@ -210,7 +211,7 @@ export function DailyReview() {
 
       {/* 1. 大盘指数（实时） */}
       <SectionHead title="大盘指数" action={
-        <button onClick={() => loadIndices(true)} disabled={!dataReady} className="text-muted-foreground hover:text-primary disabled:opacity-50" title="刷新"><RefreshCw className="h-3.5 w-3.5" /></button>
+        <button onClick={() => loadIndices(true)} disabled={!dataReady} className="workspace-action workspace-action-compact" aria-label="刷新大盘行情" aria-busy={!dataReady} title={dataReady ? "刷新大盘行情" : "正在获取行情，最长等待60秒"}><RefreshCw className={cn("h-4 w-4", !dataReady && "animate-spin")} />{dataReady ? "刷新" : "刷新中…"}</button>
       } />
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {indices.length === 0

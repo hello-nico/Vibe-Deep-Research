@@ -47,7 +47,11 @@ export function AiMessages({
           {notice}
         </div>
       )}
-      {msgs.map((m, i) => (
+      {msgs.map((m, i) => {
+        // 发送时会先插入一条空的 assistant 占位给 patchLast；没有正文就不要画气泡，
+        // 否则等待期间会留下一颗只有内边距的白胶囊。等待态只走下面的 AiWaiting。
+        if (m.role === "assistant" && !m.content.trim()) return null;
+        return (
         <div key={i} className={cn("flex", m.role === "user" ? "justify-end" : "justify-start")}>
           <div className={cn(
             "max-w-[85%] rounded-2xl px-3 py-2 leading-relaxed",
@@ -64,8 +68,9 @@ export function AiMessages({
               renderReplyActions?.(m.content, msgs[i - 1]?.content ?? "")}
           </div>
         </div>
-      ))}
-      {loading && <AiWaiting />}
+        );
+      })}
+      {loading && <div className="flex justify-start"><AiWaiting /></div>}
       {info && <p role="status" className="rounded-lg border border-border bg-muted/20 p-2 text-xs text-muted-foreground">{info}</p>}
       {err && (
         <div role="alert" className="flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2 text-xs text-destructive">

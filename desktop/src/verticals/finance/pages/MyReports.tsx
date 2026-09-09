@@ -19,7 +19,7 @@ const fmtSize = (b: number) =>
 const fmtDate = (ts: number) =>
   new Date(ts).toLocaleDateString("zh-CN", { year: "numeric", month: "2-digit", day: "2-digit" });
 const TARGET_LABELS: Record<TaskRouteDecision["target"], string> = {
-  deterministic: "确定性处理", quick: "轻量材料处理", deep: "完整 Agent 研究",
+  deterministic: "确定性处理", quick: "轻量材料处理", deep: "完整助手研究",
 };
 const DEEP_REPORT_LIMIT = 16;
 const waitFor = (ms: number, signal: AbortSignal) => new Promise<void>((resolve, reject) => {
@@ -214,7 +214,7 @@ export function MyReports() {
         return;
       }
       if (!routed.executionAvailable) {
-        setTaskError("这项任务需要 Agent 的多步研究能力。请到「接入 AI」开启 Vibe Finance Agent 后重试。");
+        setTaskError("这项任务需要助手的多步研究能力。请到「接入 AI」开启 Vibe Finance 助手后重试。");
         return;
       }
       const result = await backend.runTask(task, routed.route.routeFingerprint, controller.signal);
@@ -284,7 +284,7 @@ export function MyReports() {
     <div>
       <PageHeader
         title="我的研报"
-        subtitle={`上传后自动提取正文并进入本地资料库；${agentEnabled ? "Agent 对话会检索引用，A 股研报还能进入个股研究" : "模型直连可做轻量材料定位，完整研究需重新开启 Agent"}。原文件只保存在本机。`}
+        subtitle={`上传后自动提取正文并进入本地资料库；${agentEnabled ? "助手对话会检索引用，A 股研报还能进入个股研究" : "模型直连可做轻量材料定位，完整研究需重新开启助手"}。原文件只保存在本机。`}
       />
 
       <div className="mb-4 grid gap-2 sm:grid-cols-2">
@@ -292,11 +292,11 @@ export function MyReports() {
           <Search className="h-4 w-4 text-primary" /> 正文已建立本地检索索引
         </div>
         <div className="flex items-center gap-2 rounded-xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs text-foreground/80">
-          <Bot className="h-4 w-4 text-primary" /> {agentEnabled ? "Agent" : "模型"}回答会标注研报 id 与页码
+          <Bot className="h-4 w-4 text-primary" /> {agentEnabled ? "助手" : "模型"}回答会标注研报 id 与页码
         </div>
       </div>
       <p className="mb-4 text-[11px] leading-relaxed text-muted-foreground">
-        隐私说明：原文件不会上传。材料任务只读取勾选文件；系统会根据目标自动选择处理方式，完整六阶段研究仅在 Agent 开启时执行。
+        隐私说明：原文件不会上传。材料任务只读取勾选文件；系统会根据目标自动选择处理方式，完整六阶段研究仅在助手开启时执行。
         模型只会收到本轮需要的已提取正文或命中片段，正式报告保存在本机。
         未识别出代码的文件仍可在对话中检索。A 股代码会用于个股研究自动召回；港股与美股代码用于归档分组和对话检索，当前六阶段个股研究底座仍只支持 A 股。
       </p>
@@ -444,7 +444,7 @@ export function MyReports() {
                       <p className="truncate text-sm font-medium">{r.name}</p>
                       <p className="text-[11px] text-muted-foreground/60">
                         {r.ext} · {fmtSize(r.size)} · {r.pages ? `${r.pages} 页 · ` : ""}{r.chars.toLocaleString()} 字 · {fmtDate(r.ts)}
-                        {r.truncated ? " · 正文超长，已截取前 100 万字" : " · 已接入 Agent"}
+                        {r.truncated ? " · 正文超长，已截取前 100 万字" : " · 已接入助手"}
                       </p>
                     </div>
                     <button

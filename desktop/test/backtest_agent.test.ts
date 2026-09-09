@@ -18,7 +18,7 @@ test("#34 回测初始化 ID 在没有 crypto.randomUUID 的 HTTP 环境仍可�
 
 test("回测页面只保留 Agent 对话入口，不再暴露参数表单", () => {
   assert.match(backtest, /backend\.guidedTool\("backtest"/);
-  assert.match(backtest, />回测 Agent<\/p>/);
+  assert.match(backtest, />回测助手<\/p>/);
   assert.match(backtest, /想验证什么，直接说/);
   assert.doesNotMatch(backtest, /Backtest Agent|先问清楚，再调用工具；不让客户手填一堆参数。/);
   assert.doesNotMatch(backtest, /初始资金|开始日期|结束日期|策略[\s\S]*<select|开始回测/);

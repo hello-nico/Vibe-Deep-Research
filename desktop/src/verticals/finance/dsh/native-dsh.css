@@ -5,6 +5,53 @@
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
 #dsh-settings { font-size: 13px; }
 
+/* Settings surfaces and interaction states have separate roles. Keep these
+   aliases local so conversation bubbles and financial status colors are intact. */
+html body.vibe-dsh-host #dsh-settings {
+  --dsw-alias-bg-module-platform: hsl(var(--background));
+  --dsw-alias-bg-layer-3: hsl(var(--background));
+  --dsw-alias-bg-layer-4: hsl(var(--muted) / .45);
+  --dsw-alias-label-secondary: hsl(var(--muted-foreground));
+  --dsw-alias-label-tertiary: hsl(var(--muted-foreground) / .85);
+  --dsw-alias-label-dimmed: hsl(var(--muted-foreground) / .65);
+  --dsw-alias-label-primary-foreground: white;
+  --dsw-alias-interactive-bg-hover: hsl(var(--muted) / .4);
+  --dsw-alias-interactive-bg-hover-solid: hsl(var(--background));
+  --dsw-specific-sidebar-nav-item-hover: hsl(var(--muted) / .4);
+  --dsw-specific-sidebar-nav-item-active: hsl(var(--primary) / .08);
+  --dsw-alias-border-l2: hsl(var(--border) / .65);
+  --dsw-alias-border-l3: hsl(var(--border) / .45);
+  --dsw-alias-bg-mask-1: rgb(15 23 42 / .18);
+  --dsw-mask-blur: blur(2px);
+  --dsw-alias-button-ghost-active-border: hsl(var(--border));
+}
+#dsh-settings [role="dialog"] button[aria-current="true"],
+#dsh-settings [role="dialog"] button[aria-pressed="true"],
+#dsh-settings [role="dialog"] [role="option"][aria-selected="true"] {
+  background: hsl(var(--primary) / .08);
+  color: hsl(var(--primary));
+  box-shadow: none;
+}
+#dsh-settings [role="dialog"] :where(*) {
+  border-color: hsl(var(--border));
+}
+#dsh-settings [role="dialog"] :is(input, textarea)::placeholder {
+  color: hsl(var(--muted-foreground) / .65);
+  opacity: 1;
+}
+#dsh-settings [role="dialog"] :focus-visible {
+  outline: 2px solid hsl(var(--muted-foreground) / .55);
+  outline-offset: 2px;
+  box-shadow: none;
+}
+#dsh-settings [role="dialog"] :is(input, textarea, select):focus {
+  border-color: hsl(var(--muted-foreground) / .55);
+  box-shadow: none;
+}
+#dsh-settings [role="dialog"] [aria-invalid="true"] {
+  border-color: var(--dsw-alias-state-error-primary);
+}
+
 /* Product tokens own the shared shell. DSH semantic aliases consume them,
    including menus portalled to body; financial success/danger colors stay intact. */
 html body.vibe-dsh-host {
@@ -69,7 +116,7 @@ html body.vibe-dsh-host {
 #dsh-settings [role="dialog"] {
   width: 880px; color: hsl(var(--foreground)); background: hsl(var(--card));
   border: 1px solid hsl(var(--border)); border-radius: 18px;
-  box-shadow: 0 24px 80px rgb(0 0 0 / .25); font-size: 14px;
+  box-shadow: 0 16px 48px rgb(0 0 0 / .16); font-size: 14px;
 }
 #dsh-settings [role="dialog"] > nav {
   width: 200px; padding: 24px 12px; border-right: 1px solid hsl(var(--border));

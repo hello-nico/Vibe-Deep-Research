@@ -139,7 +139,7 @@ export function saveUserLlm(cfg: LlmConfig, capability?: { directSupported: bool
 export function saveExecutionMode(executionMode: ExecutionMode): void {
   const current = readAiRuntime();
   if (current.status !== "ok" || !current.config) throw new Error("请先连接 AI");
-  if (executionMode !== "agent" && executionMode !== "direct") throw new Error("无效的 Agent 开关值");
+  if (executionMode !== "agent" && executionMode !== "direct") throw new Error("无效的助手开关值");
   localStorage.setItem(LLM_KEY, JSON.stringify({ ...current.config, executionMode } satisfies AiRuntimeConfig));
   notifyRuntimeChanged();
 }

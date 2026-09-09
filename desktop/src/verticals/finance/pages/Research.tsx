@@ -210,7 +210,7 @@ export function Research() {
 
   useAiPage({
     key: "research",
-    title: "个股研究",
+    title: "专题研究",
     context: active
       ? `当前研究运行 ${active.run_id}：状态 ${active.status}｜证据 ${active.evidence_count ?? "—"} 条｜计算 ${active.calculation_count ?? "—"} 项｜` +
         `阶段 ${active.stages.map((s) => `${STAGE_CN[s.stage] ?? s.stage}=${STATUS_CN[s.status] ?? s.status}`).join("、")}` +
@@ -226,7 +226,7 @@ export function Research() {
   return (
     <div>
       <PageHeader
-        title="个股研究"
+        title="专题研究"
         subtitle="六阶段完整研究：公司画像 → 财务 → 一致预期 → 估值 → 风险 → 成稿。每个数字都带证据来源与裁决点"
       />
 
@@ -267,7 +267,7 @@ export function Research() {
           </button>
           {(active?.status === "running" || active?.status === "cancelling") && (
             <button onClick={() => void cancel()} disabled={cancelling || active.status === "cancelling"}
-              className="rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">
+              className="workspace-action">
               {cancelling || active.status === "cancelling" ? "正在取消，等待后台停止…" : "取消研究"}
             </button>
           )}

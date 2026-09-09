@@ -26,7 +26,7 @@ let enumLabels: Record<string, string> = {};
 /**
  * 界面上的分类叫法 → 台账枚举键。
  * ⚠️ 台账的 `category` 是**枚举**，不是自由文本。界面用的词（"问AI"）与
- *    垂类包给的显示名（"问 Agent"）不完全一样，所以要有这张别名表。
+ *    垂类包给的显示名（"问助手"）不完全一样，所以要有这张别名表。
  * 🔴 映射不上时**抛错，不静默塞一个默认值** —— 悄悄归错类的记录，
  *    事后没人看得出它本来是什么。
  */
@@ -36,6 +36,7 @@ const KIND_TO_CATEGORY: Record<string, string> = {
   问AI: "ask",
   "问 AI": "ask",
   "问 Agent": "ask",
+  "问助手": "ask",
   多空辩论: "debate",
   反思审计: "audit",
   回测: "backtest",
@@ -50,12 +51,24 @@ function toCategory(kind: string): string {
   throw new Error(`研究记录的分类「${kind}」没有对应的台账枚举 —— 加分类要同时改垂类包的 note.category`);
 }
 
+/** 旧界面把 ask 类记成「问 Agent / 问AI」；展示与新标题一律用「问助手」，不改台账原文。 */
+const ASK_KIND_ALIASES = new Set(["问 Agent", "问AI", "问 AI"]);
+const ASK_KIND_LABEL = "问助手";
+
+function displayKind(kind: string): string {
+  return ASK_KIND_ALIASES.has(kind.trim()) ? ASK_KIND_LABEL : kind;
+}
+
+function displayTitle(title: string): string {
+  return title.replace(/^(问 Agent|问AI|问 AI)(?= · |$)/, ASK_KIND_LABEL);
+}
+
 const toNote = (r: LedgerRecord): Note => {
   const cat = String(r.category ?? "");
   return {
     id: r.id,
-    kind: enumLabels[cat] ?? cat,
-    title: String(r.title ?? ""),
+    kind: displayKind(enumLabels[cat] ?? cat),
+    title: displayTitle(String(r.title ?? "")),
     content: String(r.body ?? ""),
     ts: Date.parse(r.created_at) || 0,
   };

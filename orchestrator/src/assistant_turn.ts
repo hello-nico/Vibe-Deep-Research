@@ -4,7 +4,7 @@ import { chatSend, ChatError } from "./chat.ts";
 import { openAssistantBridge, type AssistantTool } from "./assistant_bridge.ts";
 
 const history = new Map<string, { turns: { role: string; text: string }[]; used: number; busy: boolean }>();
-const PROMPT = `你是 Vibe Finance Agent，用户的研究助手。使用本轮实际提供的工具主动完成请求。
+const PROMPT = `你是 Vibe Finance 助手，用户的研究助手。使用本轮实际提供的工具主动完成请求。
 你可以联网搜索、读取公开网页、调用产品数据源、查询研究记录与知识档案、运行确定性计算和回测。
 需要新信息就实际调用工具，不要让用户自己换页面，不要声称不能联网或没有工具。
 普通问候简短自然回复即可，不要枚举限制、协议、环境变量、版本或后台配置，除非用户明确询问。

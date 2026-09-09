@@ -75,7 +75,7 @@ const AjvCtor = ((AjvModule as unknown as { default?: unknown }).default ?? AjvM
 const validModel = new AjvCtor({ strict: false }).compile(OUTPUT_SCHEMA);
 
 const INSTRUCTIONS = [
-  "你是一个对话驱动的任务 Agent。服务端会给你一个垂类工具的真实能力说明。",
+  "你是一个对话驱动的任务助手。服务端会给你一个垂类工具的真实能力说明。",
   "先理解用户要验证的问题，再判断工具要运行还缺哪些信息。不要把整张参数表甩给用户；每轮只问当前真正缺少的一组信息。",
   "不得编造能力说明里不存在的选项、参数或数据。缺失信息不能擅自猜。",
   "信息不足时：status=needs_input，message 用自然中文追问；其余字段可留空。",
@@ -93,21 +93,21 @@ function object(v: unknown): v is Record<string, unknown> {
 
 function safeJson(v: unknown, label: string): string {
   const text = JSON.stringify(v);
-  if (!text || text.length > MAX_CONTEXT) throw new GuidedToolError("tool_context_too_large", `${label}过大，不能安全交给 Agent`);
+  if (!text || text.length > MAX_CONTEXT) throw new GuidedToolError("tool_context_too_large", `${label}过大，不能安全交给助手`);
   return text;
 }
 
 function parseModel(reply: string): ModelTurn {
   let raw: unknown;
   try { raw = JSON.parse(reply); }
-  catch { throw new GuidedToolError("bad_agent_output", "Agent 没有返回可读的结构化结果"); }
-  if (!object(raw) || !validModel(raw)) throw new GuidedToolError("bad_agent_output", "Agent 返回不符合完整结构与长度约束");
+  catch { throw new GuidedToolError("bad_agent_output", "助手没有返回可读的结构化结果"); }
+  if (!object(raw) || !validModel(raw)) throw new GuidedToolError("bad_agent_output", "助手返回不符合完整结构与长度约束");
   const status = raw.status;
   if (status !== "needs_input" && status !== "ready" && status !== "complete") {
-    throw new GuidedToolError("bad_agent_output", "Agent 返回了未知状态");
+    throw new GuidedToolError("bad_agent_output", "助手返回了未知状态");
   }
   const message = typeof raw.message === "string" ? raw.message.trim() : "";
-  if (!message || message.length > 1200) throw new GuidedToolError("bad_agent_output", "Agent 的回复为空或过长");
+  if (!message || message.length > 1200) throw new GuidedToolError("bad_agent_output", "助手的回复为空或过长");
   const logic = Array.isArray(raw.logic) && raw.logic.every((x) => typeof x === "string")
     ? raw.logic.map((x) => x.trim()).filter(Boolean)
     : [];
@@ -125,17 +125,17 @@ function parseModel(reply: string): ModelTurn {
 
 function assertVisible(text: string): void {
   const gate = complianceGate(text);
-  if (!gate.ok) throw new GuidedToolError("guided_output_blocked", "Agent 产出越过了产品边界，已停止展示与归档");
+  if (!gate.ok) throw new GuidedToolError("guided_output_blocked", "助手产出越过了产品边界，已停止展示与归档");
 }
 
 function parseArgs(text: string): Record<string, unknown> {
   let raw: unknown;
   try { raw = JSON.parse(text); }
-  catch { throw new GuidedToolError("bad_tool_args", "Agent 生成的工具参数不是合法 JSON"); }
+  catch { throw new GuidedToolError("bad_tool_args", "助手生成的工具参数不是合法 JSON"); }
   if (!object(raw) || Object.keys(raw).length > 30 || Object.prototype.hasOwnProperty.call(raw, "action")) {
-    throw new GuidedToolError("bad_tool_args", "Agent 生成的工具参数不符合执行约束");
+    throw new GuidedToolError("bad_tool_args", "助手生成的工具参数不符合执行约束");
   }
-  if (JSON.stringify(raw).length > 12_000) throw new GuidedToolError("bad_tool_args", "Agent 生成的工具参数过大");
+  if (JSON.stringify(raw).length > 12_000) throw new GuidedToolError("bad_tool_args", "助手生成的工具参数过大");
   return raw;
 }
 
@@ -195,7 +195,7 @@ async function ask(
       correction = `\n【唯一一次格式修正】上一条输出未通过 ${e.code}。重新回答本轮问题，必须符合全部 schema 与产品边界；不改变已执行的工具结果，不编造字段或数字。`;
     }
   }
-  throw new GuidedToolError("bad_agent_output", "Agent 输出修正失败");
+  throw new GuidedToolError("bad_agent_output", "助手输出修正失败");
 }
 
 export async function guidedToolTurn(
@@ -217,7 +217,7 @@ export async function guidedToolTurn(
   opts.signal?.throwIfAborted();
   assertVisible(first.message);
   if (first.status === "needs_input") return { status: "needs_input", message: first.message };
-  if (first.status !== "ready") throw new GuidedToolError("bad_agent_state", "工具尚未执行，Agent 却声称已经完成");
+  if (first.status !== "ready") throw new GuidedToolError("bad_agent_state", "工具尚未执行，助手却声称已经完成");
   if (!first.title || !first.question || !first.hypothesis || !first.logic.length) {
     throw new GuidedToolError("bad_agent_output", "执行前的任务假设与逻辑不完整");
   }
@@ -237,11 +237,11 @@ export async function guidedToolTurn(
   opts.signal?.throwIfAborted();
   assertVisible(second.message);
   if (explicitFailure) {
-    if (second.status !== "needs_input") throw new GuidedToolError("bad_agent_state", "工具拒绝后 Agent 没有回到补问状态");
+    if (second.status !== "needs_input") throw new GuidedToolError("bad_agent_state", "工具拒绝后助手没有回到补问状态");
     return { status: "needs_input", message: second.message };
   }
   if (second.status !== "complete" || !second.document) {
-    throw new GuidedToolError("bad_agent_output", "工具完成后 Agent 没有生成完整报告");
+    throw new GuidedToolError("bad_agent_output", "工具完成后助手没有生成完整报告");
   }
   const document = appendRequiredDisclosures(second.document, disclosures);
   if (document.length > MAX_REPORT) throw new GuidedToolError("bad_agent_output", "工具完成后的报告过长");

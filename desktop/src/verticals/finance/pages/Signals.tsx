@@ -268,7 +268,7 @@ function GpuRentPanel() {
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <button onClick={refresh} disabled={refreshing}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50">
+          className="workspace-action">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
           {refreshing ? "抓取中…（远期 123 张合约逐档拉取，约 1 分钟）" : "刷新"}
         </button>

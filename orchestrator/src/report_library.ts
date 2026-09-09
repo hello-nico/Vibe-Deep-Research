@@ -107,7 +107,7 @@ function cleanName(input: unknown): string {
 function extOf(name: string): string {
   const ext = path.extname(name).toLowerCase();
   if (!SUPPORTED.has(ext)) {
-    throw new ReportLibraryError("unsupported_report_type", "目前可进入 Agent 知识库的格式：PDF、DOCX、TXT、MD、CSV");
+    throw new ReportLibraryError("unsupported_report_type", "目前可进入助手知识库的格式：PDF、DOCX、TXT、MD、CSV");
   }
   return ext;
 }

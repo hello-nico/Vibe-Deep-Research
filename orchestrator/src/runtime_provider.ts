@@ -243,7 +243,7 @@ export function resolveDirectProvider(
 ): ResolvedDirectProvider {
   const resolved = resolveRuntimeProvider(repoRoot, dataRoot, llm, baseEnv);
   if (resolved.runtime !== "codex" || resolved.auth !== "api_key") {
-    throw new RuntimeProviderError("direct_provider_unsupported", "订阅登录只能使用 Agent；直连模式需要已验证的 API");
+    throw new RuntimeProviderError("direct_provider_unsupported", "订阅登录只能使用助手；直连模式需要已验证的 API");
   }
   const capability = directCapabilityOf(resolved.profile);
   if (!capability.supported || !capability.baseURL) {

@@ -155,7 +155,7 @@ export async function runUnifiedTask(ctx: ServiceContext, input: unknown, signal
     return Object.freeze({ status: "routed", executionAvailable, route, events: Object.freeze([]) });
   }
   if (route.target === "deep" && req.executionMode === "direct") {
-    throw new ServiceError("agent_required", "这个任务需要长流程取证与工具调用，请先开启 Vibe Finance Agent");
+    throw new ServiceError("agent_required", "这个任务需要长流程取证与工具调用，请先开启 Vibe Finance 助手");
   }
   if (route.target === "deep" && !dependencies.deepTargetResolver) {
     throw new ServiceError("deep_executor_unavailable", "当前产品没有注册 Deep 研究对象解析器");
