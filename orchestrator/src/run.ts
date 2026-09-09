@@ -25,6 +25,7 @@ import type { EngineLifecycle, EngineRuntime } from "./engine.ts";
 import { CodexEngineLifecycle, codexCapabilities } from "./engines/codex_lifecycle.ts";
 import { DirectEngineLifecycle, directCapabilities } from "./engines/direct_lifecycle.ts";
 import { DirectStageAgent } from "./engines/direct_stage_agent.ts";
+import { dshCompletion } from "./engines/dsh_transport.ts";
 import { LocalAgentEngineLifecycle, localAgentCapabilities } from "./engines/local_agent_lifecycle.ts";
 import { LocalAgentStageAgent } from "./engines/local_agent_stage_agent.ts";
 import { directCapabilityOf, structuredOutputMode } from "./providers.ts";
@@ -89,7 +90,7 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   const repoRoot = str(args["repo-root"]) ?? repoRootFromHere();
   const requestMeta = String(env.VRA_REQUEST_LLM_META ?? "").trim();
   const pc = loadProductConfig(repoRoot, { userConfigPath: str(args.config), env,
-    providerOverride: str(args.provider), authOverride: str(args.auth), ...(requestMeta ? { requireAuth: false as const } : {}) });
+    providerOverride: str(args.provider), authOverride: str(args.auth), ...(requestMeta || env.VRA_DSH_MODEL === '1' ? { requireAuth: false as const } : {}) });
   let requestRuntime: ReturnType<typeof resolveRuntimeProvider> | null = null;
   if (requestMeta) {
     let llm: LlmOverride;
@@ -135,8 +136,8 @@ export function configFromArgs(args: Record<string, string | boolean>, env: Node
   if (requestRuntime?.runtime === "local-agent" && (str(args.model) !== undefined || str(args.reasoning) !== undefined)) {
     throw new Error("本机订阅 Agent 的模型与推理档位由已登录 CLI 决定，不能用 --model / --reasoning 冒充覆盖");
   }
-  const engine = requestRuntime?.runtime === "local-agent" ? "local_agent" : requestedEngine;
-  if (engine === "direct" && args["experimental-direct-deep"] !== true) {
+  const engine = env.VRA_DSH_MODEL === '1' ? 'direct' : requestRuntime?.runtime === "local-agent" ? "local_agent" : requestedEngine;
+  if (engine === "direct" && env.VRA_DSH_MODEL !== '1' && args["experimental-direct-deep"] !== true) {
     throw new Error("--engine direct 是实验性 Direct Deep，不是产品 Quick；开发验证必须同时显式传 --experimental-direct-deep");
   }
   if (args["experimental-direct-deep"] === true && engine !== "direct") {
@@ -208,6 +209,15 @@ export async function makeEngine(cfg: RunConfig, eventsPath: string, observer?: 
   lifecycle: EngineLifecycle;
   runtime: EngineRuntime;
 }> {
+  if (env.VRA_DSH_MODEL === '1') {
+    const capability = { supported: true, unverified: true, baseURL: null, model: 'dsh-default', structuredOutput: 'prompt' as const, reason: 'DSH provider；结构化输出由阶段校验器验证' };
+    return {
+      runner: new DirectStageAgent({ runId: cfg.runId, toolCtx: { runDir: cfg.runDir, repoRoot: cfg.repoRoot, python: cfg.python }, capability,
+        apiKey: '', model: 'dsh-default', eventsPath, requestTimeoutMs: cfg.turnTimeoutMs, observer, complete: dshCompletion(cfg.dataRoot) }),
+      lifecycle: new DirectEngineLifecycle(directCapabilities('prompt')),
+      runtime: { kind: 'direct', version: 'dsh-provider', binary: null, model: 'dsh-default', codexPath: null, codexHome: null },
+    };
+  }
   if (cfg.engine === "local_agent") {
     const agent = cfg.localAgent;
     if (!agent) throw new Error("local_agent 引擎缺少本机 Agent 种类");
@@ -273,7 +283,7 @@ async function main(): Promise<number> {
   let cfg: RunConfig, stages: Stage[] | undefined, sources: string[], progress: boolean;
   try { ({ cfg, stages, sources, progress } = configFromArgs(parseArgs(process.argv.slice(2)))); }
   catch (e) { console.error(`参数 / 配置错误:${e instanceof Error ? e.message : String(e)}`); return 3; }
-  const engineLabel = cfg.engine === "direct" ? "direct-api(experimental)" : cfg.engine === "local_agent" ? `local-agent:${cfg.localAgent}` : (cfg.codexPath ?? "sdk-bundled");
+  const engineLabel = process.env.VRA_DSH_MODEL === '1' ? 'DSH provider' : cfg.engine === "direct" ? "direct-api(experimental)" : cfg.engine === "local_agent" ? `local-agent:${cfg.localAgent}` : (cfg.codexPath ?? "sdk-bundled");
   console.error(`[orchestrator] run ${cfg.runId} → ${cfg.runDir}\n[orchestrator] config sources: ${sources.join(" ← ")}; CODEX_HOME=${cfg.codexHome}; engine=${engineLabel}; provider=${cfg.provider.name}/${cfg.provider.auth}`);
   // 进度只写 stderr:六阶段要跑十几分钟,没有它用户全程看不到任何内容(见 progress.ts 顶部)。
   // **连构造也要保护**:显示层任何环节出问题都只是"没有进度显示",绝不能让一次真实研究起不来(Codex progress-r1 P2)。

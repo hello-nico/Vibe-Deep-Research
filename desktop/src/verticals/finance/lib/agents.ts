@@ -11,7 +11,7 @@
  *    因为没有共同事实的"辩论"只是两段作文,而它看着像做过功课。
  */
 import { ApiError, backend, type DebateNumberAudit, type DebateState } from "./backend.ts";
-import { newAnalysisSession } from "./analysisSession.ts";
+import { sendPageModel } from "../dsh/page-model.ts";
 
 export type DebateStage = "bull" | "bear" | "bull_rebut" | "bear_rebut" | "referee";
 
@@ -128,10 +128,10 @@ export async function reflectStream(
       "",
       source || "(没有正文)",
     ].join("\n");
-    const r = await backend.chat(msg, newAnalysisSession("note-reflection"), signal);
+    const reply = await sendPageModel({ message: msg, history: [], session: 'note-reflection', signal: signal ?? new AbortController().signal });
     if (signal?.aborted) return;
-    handlers.onDelta?.(r.reply);
-    handlers.onDone?.(r.reply, false);
+    handlers.onDelta?.(reply);
+    handlers.onDone?.(reply, false);
   } catch (e) {
     if (signal?.aborted) return;
     handlers.onError?.(e instanceof ApiError ? e.message : String(e));

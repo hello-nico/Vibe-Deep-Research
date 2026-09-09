@@ -12,7 +12,7 @@ import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
 import { api, ApiError, type RadarData, type Industry, type Announcement, type NewsItem, type MacroProbability, type MacroProbItem } from "@/lib/api";
 import { displayedHeadlineTranslation, hasChinese, headlineNeedsTranslation, loadHeadlineTranslationCache, saveHeadlineTranslationCache, splitHeadlineBatches } from "@/lib/headlineTranslation";
 import { loadWatch } from "@/lib/watchlist";
-import { hasLlm, chatStream, translateHeadlineBatch } from "@/lib/llm";
+import { chatStream, translateHeadlineBatch } from "@/lib/llm";
 import { cn } from "@/lib/utils";
 
 // 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
@@ -23,9 +23,9 @@ const TABS = [
   { key: "events", label: "事件概率", icon: TrendingUp, integrated: true, desc: "全球宏观预期概率 —— 预测市场的公开定价（Polymarket / Kalshi），只读、免登录" },
 ];
 
-interface Digest { loading?: boolean; text?: string; err?: string; needKey?: boolean }
+interface Digest { loading?: boolean; text?: string; err?: string }
 interface TitleTranslation {
-  status: "running" | "done" | "partial" | "need-key";
+  status: "running" | "done" | "partial";
   done: number;
   total: number;
   error?: string;
@@ -41,8 +41,7 @@ function InvestmentNewsPanel() {
   const attemptedGeneration = useRef(new Set<string>());
   const [, redrawTranslations] = useState(0);
 
-  // 打开先给存档、后台再刷（见 core/data/useArchiveThenRefresh）——
-  // 抓一轮资讯要好几十秒，让人对着转圈等是最没必要的那种等待。
+  // 进入优先读缓存；缺失由后端取数，只有手动刷新才强制更新。
   const { data, err, loading, refreshing, staleNote, refresh } =
     useArchiveThenRefresh<RadarData>((r) => (r ? api.radarRefresh() : api.radar()), []);
 
@@ -56,10 +55,6 @@ function InvestmentNewsPanel() {
    * 单批失败继续下一批；最终缺几条就照实报几条，原文始终在。
    */
   const translateIndustry = useCallback(async (ind: Industry, generation: string, force = false) => {
-    if (!hasLlm()) {
-      setTitleTranslations((s) => ({ ...s, [ind.key]: { status: "need-key", done: 0, total: ind.items.length } }));
-      return;
-    }
     const runId = `${generation}\u0000${force ? Date.now() : "auto"}`;
     latestTranslationRun.current.set(ind.key, runId);
     const isLatest = () => latestTranslationRun.current.get(ind.key) === runId;
@@ -125,7 +120,6 @@ function InvestmentNewsPanel() {
   }, [cur, data?.generated_at, hasData, refreshing, translateIndustry]);
 
   const genDigest = async (ind: Industry) => {
-    if (!hasLlm()) { setDigests((d) => ({ ...d, [ind.key]: { needKey: true } })); return; }
     setDigests((d) => ({ ...d, [ind.key]: { loading: true } }));
     const ctx = ind.items.slice(0, 25).map((it) => `[${it.time}] ${it.source}｜${displayedHeadlineTranslation(it, translationCache.current) || it.title}`).join("\n");
     const prompt =
@@ -137,13 +131,12 @@ function InvestmentNewsPanel() {
         onDelta: (t) => { acc += t; setDigests((d) => ({ ...d, [ind.key]: { text: acc } })); },
       });
     } catch (e) {
-      setDigests((d) => ({ ...d, [ind.key]: { err: e instanceof ApiError ? e.message : "生成失败" } }));
+      setDigests((d) => ({ ...d, [ind.key]: { err: e instanceof Error ? e.message : "生成失败" } }));
     }
   };
 
   // 一键提炼全部赛道要点（串行，带进度；单赛道按需的按钮仍保留）
   const genAll = async () => {
-    if (!hasLlm()) { if (cur) setDigests((d) => ({ ...d, [cur.key]: { needKey: true } })); return; }
     const targets = industries.filter((i) => i.items.length > 0);
     setBulk({ running: true, done: 0, total: targets.length });
     for (const ind of targets) {
@@ -173,16 +166,16 @@ function InvestmentNewsPanel() {
           {loading && <span className="text-[11px]">正在取…（这一页还没有存档）</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           {hasData && (
             <button onClick={genAll} disabled={bulk.running || refreshing}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-1.5 text-sm font-medium text-primary shadow-glow hover:bg-primary/25 disabled:opacity-50">
+              className="workspace-action workspace-action-primary">
               {bulk.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {bulk.running ? `提炼中 ${bulk.done}/${bulk.total}` : "一键提炼全部要点"}
             </button>
           )}
           <button onClick={refresh} disabled={refreshing || bulk.running}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50">
+            className="workspace-action">
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
             {refreshing ? "抓取中…" : "刷新"}
           </button>
@@ -227,13 +220,11 @@ function InvestmentNewsPanel() {
                     <span className="text-success">AI 标题翻译 {tr.done}/{tr.total}</span>
                   ) : tr?.status === "partial" ? (
                     <span className="text-warning">标题已翻译 {tr.done}/{tr.total}，其余保留原文{tr.error ? `（${tr.error}）` : ""}</span>
-                  ) : tr?.status === "need-key" ? (
-                    <span>标题尚未翻译 · <Link to="/settings" className="text-primary">先接入 AI</Link></span>
                   ) : (
                     <span>标题翻译将在资讯刷新后自动开始</span>
                   )}
                 </span>
-                {(tr?.status === "partial" || tr?.status === "done" || tr?.status === "need-key") && (
+                {(tr?.status === "partial" || tr?.status === "done") && (
                   <button
                     onClick={() => void translateIndustry(cur, data?.generated_at ?? "manual", tr.status === "done")}
                     disabled={refreshing}
@@ -250,7 +241,7 @@ function InvestmentNewsPanel() {
                   <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
                     <Lightbulb className="h-4 w-4" /> 今日要点 · {cur.name}
                   </span>
-                  {(dg?.text || dg?.err || dg?.needKey) && (
+                  {(dg?.text || dg?.err) && (
                     <button onClick={() => genDigest(cur)} className="text-xs text-muted-foreground hover:text-primary">重新提炼</button>
                   )}
                 </div>
@@ -261,14 +252,12 @@ function InvestmentNewsPanel() {
                     <div className="prose prose-sm dark:prose-invert max-w-none text-foreground"><ReactMarkdown remarkPlugins={[remarkGfm]}>{dg.text}</ReactMarkdown></div>
                     <div className="mt-2"><SaveNoteButton kind="今日要点" title={`${cur.name} 今日要点`} content={dg.text} /></div>
                   </>
-                ) : dg?.needKey ? (
-                  <p className="text-sm text-muted-foreground">Agent 还没有可用模型。<Link to="/settings" className="text-primary">先选择模型</Link>，即可一键提炼本赛道今日要点。</p>
                 ) : dg?.err ? (
                   <p className="text-sm text-destructive">{dg.err}</p>
                 ) : (
                   <button onClick={() => genDigest(cur)}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary/15 px-3 py-1.5 text-sm font-medium text-primary hover:bg-primary/25">
-                    <Sparkles className="h-4 w-4" /> 让 Agent 提炼今日要点
+                    className="workspace-action workspace-action-primary">
+                    <Sparkles className="h-4 w-4" /> 让助手提炼今日要点
                   </button>
                 )}
               </div>

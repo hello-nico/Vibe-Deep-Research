@@ -23,7 +23,7 @@ export interface AiMsg {
   partial?: boolean;
 }
 
-export type AiSend = (args: { message: string; session: string; signal: AbortSignal }) => Promise<string>;
+export type AiSend = (args: { message: string; session: string; signal: AbortSignal; history: AiMsg[] }) => Promise<string>;
 
 const readText = (k: string): string | null => {
   try {
@@ -161,6 +161,8 @@ export function useAiChat(key: string, send: AiSend): AiChat {
   keyRef.current = key;
   const sendRef = useRef(send);
   sendRef.current = send;
+  const chatRef = useRef(chat);
+  chatRef.current = chat;
 
   const setMsgs = useCallback(
     (updater: AiMsg[] | ((prev: AiMsg[]) => AiMsg[])) =>
@@ -247,6 +249,7 @@ export function useAiChat(key: string, send: AiSend): AiChat {
           message: decorate ? decorate(q) : q,
           session: sessionRef.current,
           signal: ac.signal,
+          history: chatRef.current.key === startedKey ? completeTurns(chatRef.current.msgs).slice(-MAX_PERSISTED) : [],
         });
         if (alive()) {
           // 🔴 **空回答不算回答**。后端解析失败 / 空响应 / 降级都可能返回 ""，

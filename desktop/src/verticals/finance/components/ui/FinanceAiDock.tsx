@@ -17,6 +17,7 @@ import { useAiRuntime } from "@/hooks/useAiRuntime";
 import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
 import { QuickAiConnect } from "@/components/ui/QuickAiConnect";
 import { ReportAnswer } from "../ReportAnswer";
+import { sendPageModel } from '../../dsh/page-model';
 
 const renderReply = (reply: string) => <ReportAnswer content={reply} />;
 
@@ -52,13 +53,13 @@ const setupLink = () => (
     to="/settings"
     className="flex items-center justify-center gap-2 rounded-lg bg-primary/15 px-3 py-2 text-sm font-medium text-primary hover:bg-primary/25"
   >
-    <Settings className="h-4 w-4" /> 为 Agent 选择模型
+    <Settings className="h-4 w-4" /> 为助手选择模型
   </Link>
 );
 
 const replyActions = (reply: string, question: string) => (
   <div className="mt-1.5">
-    <SaveNoteButton kind="问 Agent" title={`问 Agent · ${question.slice(0, 24) || "对话"}`} content={reply} />
+    <SaveNoteButton kind="问助手" title={`问助手 · ${question.slice(0, 24) || "对话"}`} content={reply} />
   </div>
 );
 
@@ -98,7 +99,7 @@ export function FinanceHomeAgent() {
           </span>
           <div className="min-w-0">
             <h2 className="font-bold">{agentEnabled ? "今天，想研究什么？" : "今天，想聊什么？"}</h2>
-            <p className="text-[11px] leading-5 text-muted-foreground">{agentEnabled ? "Vibe Finance Agent · 查数据、找证据、梳理思路" : "普通对话 · Agent 已关闭"}</p>
+            <p className="text-[11px] leading-5 text-muted-foreground">{agentEnabled ? "Vibe Finance 助手 · 查数据、找证据、梳理思路" : "普通对话 · 助手已关闭"}</p>
           </div>
         </div>
         {chat.msgs.length > 0 && (
@@ -113,7 +114,7 @@ export function FinanceHomeAgent() {
         )}
       </div>
 
-      <p className="shrink-0 px-5 pt-4 text-xs leading-5 text-muted-foreground">{agentEnabled ? "直接说要研究什么，Agent 可以联网搜索、获取数据、计算并跟进研究任务。" : "直接提问即可。需要联网查最新数据或多步研究时，打开左上角「开启Agent」。"}</p>
+      <p className="shrink-0 px-5 pt-4 text-xs leading-5 text-muted-foreground">{agentEnabled ? "直接说要研究什么，助手可以联网搜索、获取数据、计算并跟进研究任务。" : "直接提问即可。需要联网查最新数据或多步研究时，打开左上角「开启助手」。"}</p>
       {!configured && <div className="flex shrink-0 items-center justify-between gap-3 px-5 pt-3 text-xs text-muted-foreground"><span>接入一次，以后打开就能聊。</span><button onClick={() => setSetupOpen(true)} className="rounded-lg border border-primary/30 px-3 py-2 text-primary hover:bg-primary/10">请接入AI</button></div>}
           <AiMessages
             msgs={chat.msgs}
@@ -145,24 +146,23 @@ export function FinanceHomeAgent() {
 
 /** 底部控制台：一条长期对话，跟着你翻页一起走 */
 export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const runtime = useAiRuntime();
-  const agentEnabled = runtime.config?.executionMode === "agent";
+  const agentEnabled = false;
   return (
     <AiConsole
       open={open}
       onClose={onClose}
-      configured={runtime.status === "ok"}
+      configured={true}
       copy={{
-        title: agentEnabled ? "Vibe Finance Agent" : "普通对话",
-        runtime: agentEnabled ? "Agent · 本地运行" : "普通对话 · Agent 已关闭",
+        title: agentEnabled ? "Vibe Finance 助手" : "普通对话",
+        runtime: agentEnabled ? "助手 · 本地运行" : "普通对话 · 助手已关闭",
         placeholder: "问点什么…（Shift+Enter 换行）",
         notice:
           agentEnabled
-            ? "直接交代任务：Agent 可联网搜索、读取网页、获取数据、计算并查询研究记录。回答附实际工具记录，不构成投资建议。"
-            : "当前直接调用所选模型，不运行 Agent、不调用工具，也不保留 Agent 任务记忆——不构成投资建议。",
+            ? "直接交代任务：助手可联网搜索、读取网页、获取数据、计算并查询研究记录。回答附实际工具记录，不构成投资建议。"
+            : "当前直接调用所选模型，不运行助手、不调用工具，也不保留助手任务记忆——不构成投资建议。",
         suggestions: ["帮我理一下最近在关注什么", "我该补哪些功课", "解释一下这个产品能干什么"],
       }}
-      send={sendTurn}
+      send={sendPageModel}
       renderReplyActions={replyActions}
       renderReply={renderReply}
       renderSetup={setupLink}
@@ -171,22 +171,16 @@ export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: ()
 }
 
 export function FinanceAiDock() {
-  const runtime = useAiRuntime();
-  const agentEnabled = runtime.config?.executionMode === "agent";
   return (
     <AiDock
-      configured={runtime.status === "ok"}
+      configured={true}
       copy={{
-        trigger: agentEnabled ? "问 Agent" : "问模型",
-        panel: agentEnabled ? "Vibe Finance Agent" : "普通对话",
-        runtime: agentEnabled ? "Agent · 本地运行" : "普通对话 · Agent 已关闭",
+        trigger: "问助手",
+        panel: "问助手",
+        runtime: "使用设置中的默认模型",
         placeholder: "就这一页的内容问点什么…",
-        notice:
-          agentEnabled
-            ? "Agent 可结合当前页面联网搜索、读取网页、获取数据和运行分析工具；会显示实际调用记录。不构成投资建议。"
-            : "当前页面内容会随本轮问题发送给所选模型；不运行 Agent、不调用工具——本产品不背书、不构成投资建议。",
       }}
-      send={sendTurn}
+      send={sendPageModel}
       renderReplyActions={replyActions}
       renderReply={renderReply}
       renderSetup={setupLink}

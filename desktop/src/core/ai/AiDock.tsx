@@ -1,8 +1,10 @@
 /**
- * 固定在右上角的 AI 入口 —— **每一页都有**，点开就聊这一页。
+ * 顶栏右侧的 AI 入口 —— **每一页都有**，点开就聊这一页。
  *
  * 以前是每个页面各挂一个「问 AI」按钮：只有想起来加的那五页有，其余七页没有。
- * 现在按钮由外壳渲染一份、位置固定，页面只负责**登记自己的上下文**（见 pageContext.tsx）。
+ * 现在按钮由外壳放进顶栏、与标题同一行对齐；面板 portal 到 document.body，
+ * 避免顶栏 backdrop-filter 把 fixed 层限制在 header 里。页面只负责**登记自己的上下文**
+ * （见 pageContext.tsx）。
  *
  * 🔴 这是 Core：它不认识任何行业。文案、免责声明、回答下面挂什么按钮、怎么连后端，
  *    全部由垂类通过 props 注入。换个行业只换注入的那一份。
@@ -11,6 +13,7 @@
  * **与底部控制台共用同一份** —— 那些坑复制两遍必然有一份先坏，而且坏了看不出来。
  */
 import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { Sparkles, Trash2, X } from "lucide-react";
 
 import { cn } from "../lib/cn";
@@ -25,8 +28,8 @@ export interface AiDockCopy {
   panel: string;
   /** 输入框占位 */
   placeholder: string;
-  /** 空对话时那条说明（免责声明一类，行业相关） */
-  notice: string;
+  /** 空对话时那条说明（免责声明一类，行业相关）；没有就不渲染 */
+  notice?: string;
   /** 运行时身份，例如 Codex Harness · 本地运行 */
   runtime?: string;
 }
@@ -92,7 +95,7 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
             : "这一页还没有可聊的内容"
         }
         className={cn(
-          "ai-chat-trigger fixed right-5 top-4 z-40 inline-flex items-center gap-1.5 rounded-full px-3.5 py-2",
+          "ai-chat-trigger inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2",
           "text-sm font-medium shadow-glow backdrop-blur transition-all",
           page
             ? "bg-primary/20 text-primary ring-1 ring-primary/40 hover:bg-primary/30 hover:ring-primary/60"
@@ -103,7 +106,7 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
         {copy.trigger}
       </button>
 
-      {open && page && (
+      {open && page && createPortal(
         <div className="fixed inset-0 z-50 flex justify-end">
           <div className="absolute inset-0 bg-black/50" onClick={close} />
           <aside className="ai-surface relative m-3 flex w-full max-w-md flex-col rounded-2xl overflow-hidden">
@@ -135,9 +138,11 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
 
             {!configured ? (
               <div className="flex-1 space-y-4 overflow-auto p-4 text-sm">
+                {copy.notice && (
                 <div className="rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-muted-foreground">
                   {copy.notice}
                 </div>
+                )}
                 <div>
                   <p className="mb-1.5 text-xs font-medium text-muted-foreground">将随提问发给 AI 的本页内容：</p>
                   <pre className="max-h-48 overflow-auto whitespace-pre-wrap rounded-lg bg-muted/50 p-3 font-mono text-[11px] leading-relaxed text-muted-foreground">
@@ -168,7 +173,8 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
               </>
             )}
           </aside>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

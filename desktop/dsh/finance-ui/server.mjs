@@ -1,10 +1,14 @@
 import fs from "node:fs";
-import { installResearchApi } from "./research.mjs";
+import { installPageModel } from './model.mjs';
+import { installResearchApi } from './research.mjs';
+import { installStageModel } from './stage-model.mjs';
 
-export const inject = ["webServer"];
+export const inject = ["webServer", "llm", "agentDefaultModel"];
 
 /** The host exposes only the configured workspace, never model credentials. */
 export function apply(ctx) {
+  installPageModel(ctx);
+  installStageModel(ctx);
   installResearchApi(ctx);
   ctx.webServer.register({ kind: "exact", path: "/finance-host", handler(_req, res) {
     res.setHeader("Content-Type", "application/json");

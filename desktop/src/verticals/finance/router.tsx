@@ -2,7 +2,7 @@ import { createBrowserRouter, Navigate } from "react-router-dom";
 import { RouteErrorPage } from "../../core/components/RouteErrorPage";
 import { Layout } from "@/components/layout/Layout";
 import { Home } from "@/pages/Home";
-import { Settings } from "@/pages/Settings";
+import { ModelSettings } from "./dsh/NativeDsh";
 
 export const router = createBrowserRouter([
   {
@@ -33,7 +33,7 @@ export const router = createBrowserRouter([
       { path: "/my-reports/legacy", lazy: async () => ({ Component: (await import("@/pages/MyReports")).MyReports }) },
       { path: "/notes", lazy: async () => ({ Component: (await import("@/pages/Notes")).Notes }) },
       { path: "/notes/legacy", lazy: async () => ({ Component: (await import("@/pages/Notes")).Notes }) },
-      { path: "/settings", element: <Settings /> },
+      { path: "/settings", element: <ModelSettings /> },
     ],
   },
 ]);

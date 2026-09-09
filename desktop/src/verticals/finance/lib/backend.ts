@@ -239,7 +239,7 @@ async function ensureSelectedLocalAgentReady(llm: unknown, signal?: AbortSignal)
   if (provider !== "cli-codex" && provider !== "cli-claude" && provider !== "cli-codebuddy") return;
   const status = (await call<LocalAgentStatus[]>(`/local-agents?provider=${encodeURIComponent(provider)}`, { signal })).find((x) => x.provider === provider);
   if (status?.available) return;
-  const name = status?.name ?? (provider === "cli-codex" ? "Codex" : "本地 Agent");
+  const name = status?.name ?? (provider === "cli-codex" ? "Codex" : "本地助手");
   const message = status?.status === "not_installed"
     ? `当前选择的 ${name} 尚未安装。请先到「接入 AI」完成连接。`
     : !status || status.status === 'probe_failed'
@@ -412,7 +412,7 @@ export const backend = {
   guidedTool: async (name: string, session: string, message: string, signal?: AbortSignal, llm?: unknown) => {
     const runtime = requestRuntime(llm);
     if (runtime.executionMode === "direct") {
-      throw new ApiError("这个功能需要 Agent 调用工具并维持任务状态，请先开启 Vibe Finance Agent", 409, "agent_required");
+      throw new ApiError("这个功能需要助手调用工具并维持任务状态，请先开启 Vibe Finance 助手", 409, "agent_required");
     }
     await ensureSelectedLocalAgentReady(runtime.llm, signal);
     return await call<GuidedToolReply>(`/guided-tool/${encodeURIComponent(name)}`, {
@@ -423,12 +423,12 @@ export const backend = {
   },
   debateStart: (symbol: string, depth?: string, signal?: AbortSignal) => {
     const runtime = requestRuntime();
-    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要 Agent，请先开启 Vibe Finance Agent", 409, "agent_required");
+    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要助手，请先开启 Vibe Finance 助手", 409, "agent_required");
     return call<DebateState>("/debate", { method: "POST", body: JSON.stringify({ symbol, ...(depth ? { depth } : {}), executionMode: runtime.executionMode, llm: runtime.llm }), signal });
   },
   debateAdvance: (id: string, signal?: AbortSignal) => {
     const runtime = requestRuntime();
-    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要 Agent，请先开启 Vibe Finance Agent", 409, "agent_required");
+    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要助手，请先开启 Vibe Finance 助手", 409, "agent_required");
     return call<DebateState>(`/debate/${encodeURIComponent(id)}/advance`, { method: "POST", body: JSON.stringify({ executionMode: runtime.executionMode, llm: runtime.llm }), signal });
   },
 
@@ -465,10 +465,8 @@ export const backend = {
    * ⚠️ 它会真的花模型额度、跑十几分钟，所以必须由用户显式点，不能页面一打开就跑。
    */
   startResearch: (body: { symbol: string; company_name?: string; market?: string; endpoints?: "core" | "full"; knowledge?: "on" | "off"; stages?: string[] }) => {
-    const runtime = requestRuntime();
-    if (runtime.executionMode === "direct") throw new ApiError("六阶段深度研究需要 Agent，请先开启 Vibe Finance Agent", 409, "agent_required");
     return call<{ run_id: string; log: string; pid?: number }>("/research", {
-      method: "POST", body: JSON.stringify({ ...body, executionMode: runtime.executionMode, llm: runtime.llm }),
+      method: "POST", body: JSON.stringify({ ...body, executionMode: 'agent', modelSource: 'dsh' }),
     });
   },
 

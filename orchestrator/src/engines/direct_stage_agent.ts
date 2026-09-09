@@ -29,6 +29,7 @@ import { DirectTransportError, chatCompletion, type ChatMessage } from "./direct
 const TOOL_RESULT_CAP = 24_000;
 
 export interface DirectStageAgentOptions {
+  complete?: typeof chatCompletion;
   runId: string;
   /** 受控工具的运行上下文(运行目录 / 产品根 / 解释器) */
   toolCtx: RunToolsContext;
@@ -146,7 +147,7 @@ export class DirectStageAgent implements AgentRunner {
       signal?.throwIfAborted();
       let reply;
       try {
-        reply = await chatCompletion({
+        reply = await (this.opts.complete ?? chatCompletion)({
           baseURL: capability.baseURL ?? "", apiKey, model, messages,
           tools: toolSpecs,
           timeoutMs: this.opts.requestTimeoutMs,
@@ -215,7 +216,7 @@ export class DirectStageAgent implements AgentRunner {
           : "工具调用轮数已达上限。请**不要再调用工具**，用现在已有的材料，按规定的 JSON 格式汇报本轮结果。",
       });
       try {
-        const reply = await chatCompletion({
+        const reply = await (this.opts.complete ?? chatCompletion)({
           baseURL: capability.baseURL ?? "", apiKey, model, messages,
           responseFormat,   // 此时没有 tools,强制结构化才不会挤掉工具调用
           timeoutMs: this.opts.requestTimeoutMs,

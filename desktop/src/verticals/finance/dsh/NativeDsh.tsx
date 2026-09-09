@@ -7,6 +7,17 @@ export interface SlotProps {
 }
 export const FinanceSlots = React.createContext<SlotProps | null>(null);
 
+export function openModelSettings() {
+  document.querySelector<HTMLButtonElement>('#dsh-settings [data-slot="sidebar.settings"] button')?.click();
+}
+export function ModelSettings() {
+  return <section className="rounded-2xl border bg-card p-8">
+    <h1 className="text-2xl font-semibold">模型设置</h1>
+    <p className="my-4 text-sm text-muted-foreground">深度对话、资讯翻译、要点提炼与研究任务共用设置中的模型，无需重复接入。</p>
+    <button type="button" onClick={openModelSettings} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">打开模型设置</button>
+  </section>;
+}
+
 /** Product seats only. DSH owns the React root and plugin Loader. */
 export function NativeDshHost() {
   const slots = React.useContext(FinanceSlots);
@@ -24,5 +35,5 @@ export function NativeDshHost() {
 }
 function ConnectionStatus({ slots }: { slots: SlotProps }) {
   const connection = slots.useConnectionState(state => state);
-  return <span role="status">{connection === "connected" ? "" : connection === "disconnected" ? "DSH 连接中断" : "DSH 连接中"}</span>;
+  return <span role="status">{connection === "connected" ? "" : connection === "disconnected" ? "研究服务连接中断" : "正在连接研究服务"}</span>;
 }
