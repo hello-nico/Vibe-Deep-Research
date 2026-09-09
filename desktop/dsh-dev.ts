@@ -3,7 +3,7 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import type { IncomingMessage } from "node:http";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
-import { resolveDshPaths, prepareDshPaths } from "../orchestrator/src/dsh_paths.ts";
+import { resolveDshPaths, prepareDshPaths, researchRuntimeEnv } from "../orchestrator/src/dsh_paths.ts";
 
 /** Serve DSH's original Web entry. Product code is loaded by its plugin manifest. */
 export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
@@ -24,6 +24,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     const profile = path.join(paths.home, "profiles/web/package.json");
     const manifest = fs.existsSync(profile) ? JSON.parse(fs.readFileSync(profile, "utf8")) : {};
     if (!manifest.dsh?.profile?.bundles?.includes("vibe-finance-ui")) throw new Error("产品 DSH 插件尚未安装，请运行 scripts/setup");
+    if (!manifest.dsh?.profile?.bundles?.includes("stock-research-dsh")) throw new Error("研究 DSH 插件尚未安装，请运行 scripts/setup");
     const bundle = path.join(repoRoot, "desktop/dsh/finance-ui/lib/client.js");
     // Start DSH only after the watch builder has produced its first complete bundle.
     // Starting a second build beside DSH could delete the bundle during plugin discovery.
@@ -55,7 +56,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     } }], null, 2));
     const child = spawn(process.execPath, [path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/lib/bin.js"),
       "--profile", "web", "--patch", overlay, "--no-open", "--port", new URL(target).port, "--trusted-host", new URL(origin).host,
-    ], { cwd: paths.workspace, env: { ...process.env, DSH_HOME: paths.home }, stdio: ["ignore", "pipe", "pipe"] });
+    ], { cwd: paths.workspace, env: { ...process.env, ...researchRuntimeEnv(paths), DSH_HOME: paths.home }, stdio: ["ignore", "pipe", "pipe"] });
     child.on("error", () => { failure = "DSH 进程无法启动，请检查运行环境"; console.error(`[dsh] ${failure}`); });
     child.on("exit", (code, signal) => { cookie = ""; failure = `DSH 服务已停止（退出码 ${code}，信号 ${signal ?? "无"}）`; console.error(`[dsh] ${failure}`); });
     let output = "";
@@ -77,7 +78,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       if (!trusted(req)) { res.writeHead(403); res.end(); return; }
       const pathname = (req.url ?? "/").split("?")[0]!;
       if (pathname.startsWith("/finance-api") || pathname.startsWith("/api/") || pathname.startsWith("/plugins/")
-        || pathname.startsWith("/assets/") || pathname === "/finance-host" || pathname === "/finance-ui.css"
+        || pathname.startsWith("/assets/") || pathname.startsWith("/finance-research/") || pathname === "/finance-host" || pathname === "/finance-ui.css"
         || pathname === "/favicon.svg" || pathname === "/manifest.webmanifest") return next();
       // A full document request receives the untouched DSH index including its boot kernel.
       if (req.method !== "GET" || (!req.headers.accept?.includes("text/html") && pathname !== "/")) return next();
@@ -96,7 +97,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     configResolved(config) {
       for (const section of [config.server, config.preview]) {
         section.proxy = {
-          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-host", "/finance-ui.css", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
+          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-host", "/finance-ui.css", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
             target, ws: true, changeOrigin: true,
             configure(proxy: import("vite").HttpProxy.Server) {
               const authorize = (request: import("node:http").ClientRequest, incoming: IncomingMessage) => {

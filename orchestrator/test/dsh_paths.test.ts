@@ -8,7 +8,7 @@ import { resolveDshPaths, prepareDshPaths } from "../src/dsh_paths.ts";
 test("DSH path precedence and explicit configuration errors", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-dsh-paths-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
-  assert.equal(resolveDshPaths(root, {}).workspace, path.join(root, ".local/dsh-workspace"));
+  assert.equal(resolveDshPaths(root, {}).workspace, path.resolve(root, "../Stock-Research/workspace"));
   fs.writeFileSync(path.join(root, "dsh.config.json"), JSON.stringify({ workspace: "configured", home: "state" }));
   assert.equal(resolveDshPaths(root, {}).workspace, path.join(root, "configured"));
   assert.equal(resolveDshPaths(root, { VRA_DSH_WORKSPACE: "override" }).workspace, path.join(root, "override"));

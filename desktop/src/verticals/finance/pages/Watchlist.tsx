@@ -7,6 +7,7 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import { loadWatch, saveWatch, addCodes } from "@/lib/watchlist";
 import { useLiveQuotes, isTradingHours } from "@/hooks/useLiveQuotes";
 import { cn } from "@/lib/utils";
+import { useResearchSessions } from '../dsh/research-session';
 
 // A 股红涨绿跌（与整个看板一致）。
 const color = (v: number | null | undefined) =>
@@ -36,6 +37,13 @@ export function Watchlist() {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [input, setInput] = useState("");
   const [hint, setHint] = useState<string | null>(null);
+  const sessions = useResearchSessions();
+  const [researching, setResearching] = useState<string | null>(null);
+  const joinResearch = async (symbol: string, name: string) => {
+    setResearching(symbol); setHint(null);
+    try { await sessions.start(`请研究 A 股公司 ${name}（${symbol}）。先复用公司 Wiki 与已有资料，按需获取定期报告和证据，围绕主营、盈利驱动和关键风险开展研究；研究结束后按既有维护规则形成或更新公司 Wiki。区分回答完成、维护草案、校验和正式发布，缺资料时明确说明。`, { symbol, name }); }
+    catch (e) { setHint(String(e)); } finally { setResearching(null); }
+  };
   // 实时行情默认**关闭**——开着会持续请求，让用户自己决定要不要开。
   const [live, setLive] = useState(loadLive);
 
@@ -176,7 +184,8 @@ export function Watchlist() {
             <button
               onClick={refresh}
               disabled={loading}
-              className="text-muted-foreground hover:text-primary"
+              className="workspace-action workspace-action-compact"
+              aria-label="立即刷新自选行情"
               title="立即刷新"
             >
               <RefreshCw className={cn("h-3.5 w-3.5", loading && "animate-spin")} />
@@ -217,11 +226,13 @@ export function Watchlist() {
                       <td className="px-2 py-2.5">
                         <button
                           onClick={() => remove(c)}
-                          className="text-muted-foreground/50 hover:text-destructive"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
+                          aria-label={`移除 ${q?.name || c}`}
                           title="移除"
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
+                        {/^[0-9]{6}$/.test(c) && <button disabled={researching !== null} onClick={() => void joinResearch(c, q?.name || c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在打开…' : '加入研究 →'}</button>}
                       </td>
                     </tr>
                   );

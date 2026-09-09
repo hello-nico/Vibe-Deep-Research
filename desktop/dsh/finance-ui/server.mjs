@@ -1,9 +1,11 @@
 import fs from "node:fs";
+import { installResearchApi } from "./research.mjs";
 
 export const inject = ["webServer"];
 
 /** The host exposes only the configured workspace, never model credentials. */
 export function apply(ctx) {
+  installResearchApi(ctx);
   ctx.webServer.register({ kind: "exact", path: "/finance-host", handler(_req, res) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store");
