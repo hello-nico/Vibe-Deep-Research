@@ -1,0 +1,7 @@
+- id: ui-layout
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- insert:
+    - id: finance-ui
+      name: vibe-finance-ui

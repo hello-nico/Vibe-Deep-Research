@@ -32,7 +32,7 @@ for (const mode of ["agent", "direct"]) {
       events.dispatchEvent(new Event(AI_RUNTIME_CHANGED));
       await rejected;
       assert.equal(pendingSignal.aborted, true);
-      assert.deepEqual(paths, [mode === "agent" ? "/api/local-agents?provider=cli-claude" : "/api/chat"]);
+      assert.deepEqual(paths, [mode === "agent" ? "/finance-api/local-agents?provider=cli-claude" : "/finance-api/chat"]);
     } finally {
       keys.forEach((key, index) => {
         if (previous[index]) Object.defineProperty(globalThis, key, previous[index]!);
@@ -52,7 +52,7 @@ test("翻译与引导工具的订阅预检可取消，已取消时不发请求",
   let requests = 0;
   globalThis.fetch = (async (input, init) => {
     requests++;
-    assert.equal(String(input), "/api/local-agents?provider=cli-claude");
+    assert.equal(String(input), "/finance-api/local-agents?provider=cli-claude");
     const signal = init?.signal;
     assert.ok(signal);
     return new Promise<Response>((_resolve, reject) => {

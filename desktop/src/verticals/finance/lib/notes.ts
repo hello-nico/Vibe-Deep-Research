@@ -6,7 +6,7 @@
  *    ⇒ 落在台账的 `note` 种类里：跟着数据根走、能被 agent 读到、不进仓库。
  *
  * ⚠️ **读是同步的、写是异步的**：页面在渲染时同步读（`useState(loadNotes)`），
- *    所以缓存必须在 React 挂载**之前**灌好（见 `main.tsx` 的 hydrate）。
+ *    所以缓存必须在业务页面挂载**之前**灌好（见 `dsh/client.tsx` 的 hydrate）。
  *    写则必须异步——写失败要让调用方看得见，不能默默"保存成功"。
  */
 import { backend, type LedgerRecord } from "./backend";

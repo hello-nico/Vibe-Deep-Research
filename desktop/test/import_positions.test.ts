@@ -27,7 +27,7 @@ test("转写沿用选中来源与 Agent 开关，并传递取消；不会调用�
   const calls: unknown[] = [];
   globalThis.fetch = async (url, init) => {
     calls.push(url);
-    assert.equal(url, "/api/import"); assert.equal(init?.signal, signal);
+    assert.equal(url, "/finance-api/import"); assert.equal(init?.signal, signal);
     const body = JSON.parse(String(init?.body));
     assert.equal(body.llm.provider, "cli-codebuddy"); assert.equal(body.executionMode, "agent"); assert.equal(body.kind, "position");
     return new Response(JSON.stringify({ batch: "b", kind: "position", drafts: [], warnings: [] }));

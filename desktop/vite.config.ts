@@ -15,7 +15,7 @@ const lan = process.env.VRA_LAN === "1";
 
 /**
  * 开发期鉴权:**Bearer token 只留在 Vite 进程里,不进浏览器**。
- * 前端一律打 `/api/*`(同源、无凭据),由这里补 Authorization 头转发到本机编排器 API。
+ * 产品业务打 `/finance-api/*`，DSH 使用 `/api/*`；凭据由代理补齐。
  * 🔴 每次请求都重读 token 文件 —— API 重启会换 token(api.ts:resolveToken),
  *    缓存住就会在"看着还开着"的情况下整站 401,而且要重启前端才好,极难排查。
  *    文件是本机几十字节,重读的代价可以忽略。
@@ -59,9 +59,10 @@ export default defineConfig({
   //    我们把它整套放进 verticals/finance/,别名这么指,上游代码一行都不用改。
   resolve: { alias: [
     { find: "@", replacement: path.resolve(here, "src/verticals/finance") },
-    ...dsh.aliases,
   ], dedupe: ["react", "react-dom"] },
-  optimizeDeps: { include: ["react", "react-dom/client", "react/jsx-runtime", ...dsh.aliases.map(a => a.find)] },
+  optimizeDeps: { noDiscovery: true, include: [] },
+  build: { outDir: "dsh/finance-ui/lib" },
+  preview: { host: "127.0.0.1", port: 5930, strictPort: true },
   server: {
     // 🔴 必须写死 IPv4:默认 localhost 在本机解析成 [::1],而后端绑的是 127.0.0.1,对不上会 502
     host: lan ? "0.0.0.0" : "127.0.0.1",
@@ -69,10 +70,10 @@ export default defineConfig({
     // 启动器和 README 都只打开 5930；被占用时必须明确失败，不能静默漂到 5931 让用户看到旧页面。
     strictPort: true,
     proxy: {
-      "/api": {
-        target: "http://127.0.0.1:8765",
+      "/finance-api": {
+        target: `http://127.0.0.1:${process.env.VRA_API_PORT ?? "8765"}`,
         changeOrigin: false,
-        rewrite: (p) => p.replace(/^\/api/, ""),
+        rewrite: (p) => p.replace(/^\/finance-api/, ""),
         configure(proxy) {
           proxy.on("proxyReq", (proxyReq) => {
             // LAN 请求已经通过前置同源检查，此处才归一化为后端认可的回环 Origin。

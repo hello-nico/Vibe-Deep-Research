@@ -36,8 +36,8 @@ test("各平台安装入口不把 npm 审计网络当成首次启动阻塞", () 
   const posix = fs.readFileSync(path.join(REPO, "scripts", "setup"), "utf8");
   const windows = fs.readFileSync(path.join(REPO, "scripts", "setup-windows.ps1"), "utf8");
   for (const source of [posix, windows]) {
-    assert.equal((source.match(/npm ci/g) ?? []).length, 2);
-    assert.equal((source.match(/--no-audit --no-fund/g) ?? []).length, 2);
+    assert.equal((source.match(/npm ci/g) ?? []).length, 3);
+    assert.equal((source.match(/--no-audit --no-fund/g) ?? []).length, 3);
   }
 });
 

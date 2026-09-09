@@ -17,7 +17,7 @@ export function resolveDshPaths(repoRoot: string, env: NodeJS.ProcessEnv = proce
   return {
     home: resolve("home", "DSH_HOME", path.join(dataRoot, "dsh")),
     workspace: resolve("workspace", "VRA_DSH_WORKSPACE", path.join(dataRoot, "dsh-workspace")),
-    runtime: resolve("runtime", "VRA_DSH_RUNTIME", path.join(repoRoot, "..", "dsh-desktop")),
+    runtime: resolve("runtime", "VRA_DSH_RUNTIME", path.join(repoRoot, "desktop", "dsh", "runtime")),
   };
 }
 

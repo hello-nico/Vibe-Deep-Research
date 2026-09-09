@@ -192,7 +192,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const agentPath = isAgentPath(path);
   let res: Response;
   try {
-    res = await fetch(`/api${path}`, {
+    res = await fetch(`/finance-api${path}`, {
       ...init,
       headers: {
         Accept: "application/json",

@@ -226,7 +226,7 @@ export function Layout() {
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
             <div className={cn("workspace-content", pathname === "/" && "flex h-full min-h-0 flex-col")} aria-busy={navigation.state !== "idle"}>
               {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
-              <section id="dsh-conversation" aria-label="DSH 会话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }}>正在加载研究助手…</section>
+              <section id="dsh-conversation" aria-label="DSH 会话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }} />
               <Outlet />
             </div>
           </main>

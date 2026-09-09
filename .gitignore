@@ -12,6 +12,7 @@ htmlcov/
 # Node
 node_modules/
 dist/
+desktop/dsh/finance-ui/lib/
 
 # 环境与密钥
 .env

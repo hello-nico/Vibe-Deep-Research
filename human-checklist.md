@@ -1,5 +1,26 @@
 # Human Checklist
 
+## M3 双端插件组织与重构（2026-09-09）
+
+用户确认现有 M3 表面功能完成，但内部实现和组织不利于扩展，要求在 M3 同步 DSH server/client 双端插件原理、职责边界与实际版本。2026-09-09 已审阅并授权按 M3 方案实施内部重构；保留现有产品行为与用户数据，不扩展 M4 业务范围。
+
+后续确认：用户自己手动运行并验收重构体验，不要求 Agent 继续整套 UI 验收；Agent 保留必要的构建、类型检查及问题定点修复，不自行启动驻留测试服务。用户已确认启动修复后正常启动，实施状态以 M3 为准。
+
+Node profile/Loader 启用插件，dsh-client-modules 发现并分发已构建的 client bundle，浏览器 Cordis 执行 UI 半侧；产品通过正式插件/slot 组合，避免自建第二套客户端装配。当前运行基线为带补丁的 `0.1.2-rc.1`；本地 deepseek-harness 源码仍为 `0.1.2-alpha.3`，不可混同。方案与验证边界见 [M3](docs/默认Agent与DSH模型配置_M3_2026-09-08.md)。
+
+## M4 演示范围与研究入口（2026-09-09，替代 09-08 调研范围）
+
+用户确认以当前 DSH Harness 为主力，直接复用 Stock-Research 已有能力，优先支持下午演示。首页完整承接当前 Pi workspace 的研究体验，包括既有意图处理、指导、Skills、工具和研究后维护，不另建研究引擎或强制长研究流程。
+
+- 自选股每行增加「加入研究」，点击后主动获取资料并形成公司 Wiki；个股研究以公司 Wiki 为核心，优先自选公司。
+- 板块中心先放申万行业 Profile，后续主要展示行业 Wiki；我的持仓不调整。我的研报支持上传并接入 Stock-Research 文档链路。
+- 研究记录展示快积累 Topic 与慢积累 Theme / Comparison，不是 session 历史中心；其他对话沿用现有存储机制，不额外建设归档。
+- 其他页面「问模型」沿用现有上下文和对话机制，直接调用模型，不走 DSH Agent；Provider 信息统一来自 DSH，服务端使用凭据。
+
+以上替代此前首页和抽屉共用 DSH Agent 会话的 M2/M4 设想。内部路径仍由环境变量与配置决定，知识写入沿 Stock-Research 既有规则。用户已认可 M4 实施方案主体；最终体验由用户手动运行验收。文稿尚未入库。
+
+补充确认：Owner 必须清晰。研究行为对照入口为 `/Users/apple/ts/src/Stock-Research/pi/stock-research-wiki/run.sh`，DSH 工具优先复用 `/Users/apple/ts/src/Stock-Research/dsh` 的既有工作，产品只消费研究插件。首页在「对话」「轨迹」旁增加「历史对话」tab，呈现当前固定工作区的原生 DSH sessions；工作区通过环境变量/配置与 Stock-Research 对齐，不展示目录选择。这不改变「研究记录」展示 Topic / Theme / Comparison 的定位，也不新增会话存储。截图圈出的指令菜单具体改法尚待确认，不据此改变权限或删除功能。
+
 ## M3 首版边界与 React 兼容（2026-09-08）
 
 本轮先替换首页会话、侧栏运行状态和模型配置三个区域。Stock-Research 工具、Wiki 与研究环境对接归 M4；不以本轮替换全部旧研究入口。

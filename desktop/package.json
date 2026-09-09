@@ -9,7 +9,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && node dsh/build-ui.mjs",
     "preview": "vite preview",
     "pretest": "node ../scripts/check-node.mjs",
     "test": "node --test test/*.test.ts",

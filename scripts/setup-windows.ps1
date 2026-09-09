@@ -34,6 +34,12 @@ Assert-NativeSuccess "安装 Python 依赖"
 Assert-NativeSuccess "安装 orchestrator 依赖"
 & npm ci --prefix desktop --no-audit --no-fund
 Assert-NativeSuccess "安装 desktop 依赖"
+& npm ci --prefix desktop/dsh/runtime --no-audit --no-fund
+Assert-NativeSuccess "安装固定版本 DSH"
+& node (Join-Path $root "desktop\dsh\build-ui.mjs")
+Assert-NativeSuccess "构建产品 UI 插件"
+& node (Join-Path $root "desktop\dsh\setup.ts")
+Assert-NativeSuccess "安装产品 DSH 插件"
 & node (Join-Path $root "orchestrator\src\init.ts") --python $venvPython
 Assert-NativeSuccess "初始化产品目录"
 if (-not $SkipDoctor) {

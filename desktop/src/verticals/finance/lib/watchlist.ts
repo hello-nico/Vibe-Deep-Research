@@ -2,7 +2,7 @@
  * 自选股 —— **存在用户自有台账里**（`watch` 种类），不是浏览器缓存。
  * 理由与研究记录相同：清缓存不该让自选消失，而且 agent 要读得到。
  *
- * ⚠️ 读同步 / 写异步，缓存在 React 挂载前灌好（见 `main.tsx`）。
+ * ⚠️ 读同步 / 写异步，缓存在业务页面挂载前灌好（见 `dsh/client.tsx`）。
  */
 import { backend, type LedgerRecord } from "./backend";
 import { normalizeMarketSymbol, parseMarketSymbols } from "./marketSymbol";

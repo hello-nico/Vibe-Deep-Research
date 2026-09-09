@@ -6,6 +6,7 @@ import { storageGet, storageSet } from "@/lib/storage";
 // 机制：亮色时给 <html> 加 .light（暗色为无类名的默认态）。
 export function useDarkMode() {
   const [dark, setDark] = useState(() => {
+    if (document.body.classList.contains("vibe-dsh-host")) return document.body.hasAttribute("data-ds-dark-theme");
     const saved = storageGet("vr-theme");
     if (saved) return saved === "dark";
     return true; // 默认暗色

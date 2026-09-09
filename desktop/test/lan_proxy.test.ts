@@ -31,7 +31,7 @@ test("#34 LAN 默认为关，仅同源请求可被归一化，跨站请求不得
       const plugins = loaded.config.plugins?.filter(p => p && !Array.isArray(p) && !("name" in p && p.name === "vibe-dsh-development"));
       const server = await createServer({ ...loaded.config, configFile: false, plugins, root, logLevel: "silent", optimizeDeps: { noDiscovery: true, include: [] }, server: {
         ...loaded.config.server,
-        port: 0, hmr: false, proxy: { "/api": { ...(loaded.config.server?.proxy?.["/api"] as object), target: `http://127.0.0.1:${targetPort}` } },
+        port: 0, hmr: false, proxy: { "/finance-api": { ...(loaded.config.server?.proxy?.["/finance-api"] as object), target: `http://127.0.0.1:${targetPort}` } },
       } });
       try {
         assert.equal(server.config.server.host, setting === "1" ? "0.0.0.0" : "127.0.0.1");
@@ -40,20 +40,20 @@ test("#34 LAN 默认为关，仅同源请求可被归一化，跨站请求不得
         await server.listen();
         const port = (server.httpServer!.address() as { port: number }).port;
         const origin = `http://127.0.0.1:${port}`;
-        assert.equal((await fetch(`${origin}/api/probe`, { method: "POST", headers: { Origin: origin,
+        assert.equal((await fetch(`${origin}/finance-api/probe`, { method: "POST", headers: { Origin: origin,
           "Content-Type": "application/json" }, body: "{}" })).status, 200);
         assert.equal(forwardedOrigin, setting === "1" ? "http://127.0.0.1:5930" : origin);
         assert.equal(forwardedToken, "Bearer synthetic-lan-proxy-test-token");
         if (setting === "1") {
           for (const badOrigin of ["https://evil.example", "null", `${origin}/path`, origin.replace("http:", "https:")]) {
             const before = seen;
-            assert.equal((await fetch(`${origin}/api/probe`, { method: "POST", headers: {
+            assert.equal((await fetch(`${origin}/finance-api/probe`, { method: "POST", headers: {
               Origin: badOrigin, "Content-Type": "application/json" }, body: "{}" })).status, 403);
             assert.equal(seen, before, "不允许先把请求发到后端再拒绝");
           }
           for (const site of ["cross-site", "same-site"]) {
             const before = seen;
-            assert.equal((await fetch(`${origin}/api/probe`, { headers: { Origin: origin, "Sec-Fetch-Site": site } })).status, 403);
+            assert.equal((await fetch(`${origin}/finance-api/probe`, { headers: { Origin: origin, "Sec-Fetch-Site": site } })).status, 403);
             assert.equal(seen, before);
           }
         }

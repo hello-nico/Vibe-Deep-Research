@@ -23,7 +23,7 @@ test("辩论 HTTP 客户端真正向 fetch 传递信号，并保留重复编号�
   try {
     await backend.debateStart("300308", "standard", signal);
     await backend.debateAdvance("fixture", signal);
-    assert.deepEqual(paths, ["/api/debate", "/api/debate/fixture/advance"]);
+    assert.deepEqual(paths, ["/finance-api/debate", "/finance-api/debate/fixture/advance"]);
     const message = "这个辩论编号已存在，请使用新的编号重开";
     assert.equal(friendlyAgentError(new ApiError(message, 409, "debate_exists")), message);
   } finally {

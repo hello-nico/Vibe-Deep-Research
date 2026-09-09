@@ -45,7 +45,7 @@ test("routeTask 提交高层任务与 AI 来源，让后端绑定路由指纹", 
   }) as typeof fetch;
   try {
     await backend.routeTask(task());
-    assert.equal(seen[0]?.url, "/api/tasks");
+    assert.equal(seen[0]?.url, "/finance-api/tasks");
     assert.equal(seen[0]?.body.execute, false);
     assert.equal(seen[0]?.body.executionMode, "direct");
     assert.deepEqual(seen[0]?.body.llm, runtime.source);
@@ -69,7 +69,7 @@ test("runTask 的 Quick 配置直接发给统一任务入口，不预检本地�
     await backend.runTask(task(), "a".repeat(64), undefined, {
       provider: "deepseek", apiKey: "test-key", baseURL: "https://api.example.test", model: "test-model",
     });
-    assert.deepEqual(paths, ["/api/tasks"]);
+    assert.deepEqual(paths, ["/finance-api/tasks"]);
     assert.equal(body.execute, true);
     assert.equal(body.expectedRouteFingerprint, "a".repeat(64));
     assert.equal(body.executionMode, "direct");
@@ -93,7 +93,7 @@ test("resumeTask 只按运行编号与路由指纹读取 Deep 状态，不发送
   }) as typeof fetch;
   try {
     await backend.resumeTask("task-run-1", "b".repeat(64));
-    assert.equal(url, "/api/tasks/resume");
+    assert.equal(url, "/finance-api/tasks/resume");
     assert.deepEqual(body, { runId: "task-run-1", routeFingerprint: "b".repeat(64) });
     assert.equal("engine" in body, false);
   } finally { globalThis.fetch = oldFetch; }

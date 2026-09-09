@@ -19,7 +19,7 @@ function callback(page: string, name: string) {
 test("取消接口独立于当前模型设置，只发送准确的运行编号", async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async (input, options) => {
-    assert.equal(input, "/api/research/cancel");
+    assert.equal(input, "/finance-api/research/cancel");
     assert.equal(options?.method, "POST");
     assert.deepEqual(JSON.parse(String(options?.body)), { run_id: "run-1" });
     return new Response(JSON.stringify({ run_id: "run-1", status: "cancelling", finished_at: null }));

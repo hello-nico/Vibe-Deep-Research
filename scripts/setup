@@ -51,6 +51,10 @@ echo "[setup] 安装本机服务依赖…"
 (cd "$ROOT/orchestrator" && npm ci --no-audit --no-fund)
 echo "[setup] 安装浏览器界面依赖…"
 (cd "$ROOT/desktop" && npm ci --no-audit --no-fund)
+echo "[setup] 安装固定版本 DSH 与产品插件…"
+(cd "$ROOT/desktop/dsh/runtime" && npm ci --no-audit --no-fund)
+(cd "$ROOT/desktop" && node dsh/build-ui.mjs)
+node "$ROOT/desktop/dsh/setup.ts"
 node "$ROOT/orchestrator/src/init.ts" --python "$VENV_PYTHON"
 
 if [ "$SKIP_DOCTOR" -eq 0 ]; then

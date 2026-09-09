@@ -11,7 +11,7 @@ test("未接入 AI 仍可调用确定性工具，并传递取消信号", async (
   let calls = 0;
   globalThis.fetch = async (input, init) => {
     calls++;
-    assert.equal(String(input), "/api/tool/calc");
+    assert.equal(String(input), "/finance-api/tool/calc");
     assert.equal(init?.signal, signal);
     const body = JSON.parse(String(init?.body));
     assert.equal(body.executionMode, "direct");
@@ -49,7 +49,7 @@ test("选中的本地 Agent 不可用时先拦住，不再发起对话请求", a
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = String(input);
     paths.push(url);
-    if (url === "/api/local-agents?provider=cli-codex") {
+    if (url === "/finance-api/local-agents?provider=cli-codex") {
       return new Response(JSON.stringify([{
         provider: "cli-codex", name: "Codex", installed: true, authenticated: false,
         available: false, version: "0.149.0", status: "not_authenticated", detail: "尚未登录",
@@ -63,7 +63,7 @@ test("选中的本地 Agent 不可用时先拦住，不再发起对话请求", a
       (e: unknown) => e instanceof ApiError && e.code === "agent_not_ready"
         && e.message.includes("接入 AI"),
     );
-    assert.deepEqual(paths, ["/api/local-agents?provider=cli-codex"], "只检测所选来源，不等待其他来源，也不调用 /chat");
+    assert.deepEqual(paths, ["/finance-api/local-agents?provider=cli-codex"], "只检测所选来源，不等待其他来源，也不调用 /chat");
   } finally {
     globalThis.fetch = oldFetch;
     if (oldStorage) Object.defineProperty(globalThis, "localStorage", oldStorage);
@@ -137,7 +137,7 @@ test("不支持的 cli provider 交给后端判定，不误报成未登录", asy
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = String(input);
     paths.push(url);
-    if (url === "/api/chat") {
+    if (url === "/finance-api/chat") {
       return new Response(JSON.stringify({ error: "unsupported_cli", message: "订阅档当前只支持 Codex 与 Claude Code" }), {
         status: 400, headers: { "Content-Type": "application/json" },
       });
@@ -150,7 +150,7 @@ test("不支持的 cli provider 交给后端判定，不误报成未登录", asy
       (e: unknown) => e instanceof ApiError && e.code === "unsupported_cli"
         && e.message.includes("只支持 Codex 与 Claude Code"),
     );
-    assert.deepEqual(paths, ["/api/chat"]);
+    assert.deepEqual(paths, ["/finance-api/chat"]);
   } finally {
     globalThis.fetch = oldFetch;
   }
