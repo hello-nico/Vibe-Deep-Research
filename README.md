@@ -2,6 +2,12 @@
 
 <h1 align="center">Vibe Finance</h1>
 
+> 当前 fork 开发入口（2026-09-09）：下方公开版本介绍保留历史背景，当前实现与边界以 [Human Checklist](human-checklist.md) 和 [docs 索引](docs/README.md) 为准。
+>
+> - [M3：DSH 运行基础](docs/默认Agent与DSH模型配置_M3_2026-09-08.md)：`desktop/dsh/runtime/` 与双端插件负责启动、Provider 和原生会话。
+> - [M4：研究闭环](docs/研究闭环与DSH交互_M4_2026-09-08.md)：`desktop/dsh/finance-ui/` 的研究/模型接缝消费 Stock-Research 与原编排器；部分实现，完整闭环待验收。
+> - [M5：界面与交互](docs/产品界面与交互收敛_M5_2026-09-09.md)：finance 页面、布局和 DSH UI 适配；持续调整，模块/slot 收敛尚待实施。
+
 <p align="center">
   <b>接入自己的 AI，日常直接聊，需要研究时开启 Agent</b><br>
   Codex / Claude Code / WorkBuddy 订阅或模型 API 一次接入 · Agent 默认关闭 · 左上角一键开启
