@@ -7,6 +7,10 @@ export const inject = ["webServer", "llm", "agentDefaultModel"];
 
 /** The host exposes only the configured workspace, never model credentials. */
 export function apply(ctx) {
+  ctx.webServer.register({ kind: "exact", path: "/finance-icon.svg", handler(_req, res) {
+    res.setHeader("Content-Type", "image/svg+xml");
+    res.end('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2 12h4l3-9 6 18 3-9h4" fill="none" stroke="#ff5722" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>');
+  } });
   installPageModel(ctx);
   installStageModel(ctx);
   installResearchApi(ctx);

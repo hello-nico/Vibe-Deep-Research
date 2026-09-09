@@ -99,3 +99,30 @@ html body.vibe-dsh-host {
   #dsh-settings [role="dialog"] > nav button { flex-shrink: 0; padding: 8px; }
   #dsh-settings [role="dialog"] > div { min-height: 0; }
 }
+/* rc.1 keeps the optional brand badge node when its product copy is empty. */
+#dsh-conversation .pXSMma_previewBadge:empty { display: none; }
+#dsh-conversation [data-slot="conversation.input.dock"]:has(.finance-recent) { order: 1; }
+.finance-recent { order: 1; }
+.finance-session-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  gap: 4px;
+  min-width: 111px;
+  height: 32px;
+  padding: 6px 12px;
+  border: .5px solid var(--dsw-alias-border-l4);
+  border-radius: 18px;
+  background: transparent;
+  color: var(--dsw-alias-label-primary);
+  font-family: var(--dsw-font-family);
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 20px;
+  cursor: pointer;
+}
+.finance-session-action:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
+.finance-session-action:disabled { color: var(--dsw-alias-label-dimmed); cursor: wait; }
+.finance-session-action span, .finance-session-action svg { flex: none; white-space: nowrap; }
+.finance-session-action:focus-visible { outline: 2px solid hsl(var(--primary) / .4); outline-offset: 2px; }
