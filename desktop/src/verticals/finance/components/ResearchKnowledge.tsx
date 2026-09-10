@@ -7,6 +7,7 @@ import { decodeEvidenceLink } from '../lib/evidence';
 import { EvidenceLink } from './EvidenceCard';
 import remarkGfm from 'remark-gfm';
 import { researchRead, type WikiPage } from '../lib/research';
+import { FACT_SECTIONS, factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
 
 export function KnowledgeText({ markdown }: { markdown: string }) {
   // The accepted artifact includes YAML for machines; only its body is reader content.
@@ -37,11 +38,22 @@ function CompanySections({ markdown, blocks }: { markdown: string; blocks: WikiP
   return <div className="space-y-5">{sections.map((section, index) => {
     const Icon = icons[section.title] || BookOpen;
     const content = section.lines.join('\n').trim();
+    const facts = factItems(blocks.find(block => block.kind === FACT_SECTIONS[section.title])?.content);
     return <GlassCard glow key={index} className="!p-6">
       <header className="mb-4 flex items-center gap-3 border-b border-border/60 pb-4"><span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon size={20} /></span><h3 className="text-base font-semibold">{section.title || '研究概览'}</h3></header>
-      {section.title === '资料时间线' ? <SourceTimeline content={blocks.find(block => block.kind === 'source_timeline')?.content} /> : content ? <KnowledgeText markdown={content} /> : <p className="py-2 text-sm text-muted-foreground">资料待补充</p>}
+      {section.title === '资料时间线' ? <SourceTimeline content={blocks.find(block => block.kind === 'source_timeline')?.content} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="py-2 text-sm text-muted-foreground">资料待补充</p>}
     </GlassCard>;
   })}</div>;
+}
+function FactList({ items }: { items: Record<string, unknown>[] }) {
+  return <div className="prose prose-sm max-w-none break-words leading-8 dark:prose-invert"><ul>{items.map((item, index) => {
+    const ref = typeof item.ref === 'string' ? item.ref.trim() : '';
+    const snapshot = providerSnapshot(item);
+    const link = /^(claim|evidence|source):/.test(ref) ? <EvidenceLink reference={ref}>查看依据</EvidenceLink>
+      : snapshot ? <EvidenceLink reference={ref || `provider:local:${index}`} snapshot={snapshot}>查看依据</EvidenceLink>
+      : null;
+    return <li key={index}>{factLabel(item)}：<strong>{formatFactValue(item)}</strong>{link && <>（{link}）</>}</li>;
+  })}</ul></div>;
 }
 function SourceTimeline({ content }: { content?: Record<string, unknown> }) {
   const location = useLocation();
