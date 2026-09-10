@@ -4,6 +4,12 @@ import { createServer } from 'vite';
 import { createServer as createHttpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { researchRoute, installResearchApi } from '../dsh/finance-ui/research.mjs';
+
+test('company API refresh has one bounded POST facade', () => {
+  assert.equal(researchRoute('POST', '/wiki/pages/refresh-api'), true);
+  assert.equal(researchRoute('GET', '/wiki/pages/refresh-api'), false);
+  assert.equal(researchRoute('POST', '/wiki/pages/publish'), false);
+});
 import { EventEmitter } from 'node:events';
 
 test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', async () => {

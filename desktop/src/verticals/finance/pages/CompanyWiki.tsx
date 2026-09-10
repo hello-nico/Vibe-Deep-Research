@@ -4,7 +4,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiReader } from '../components/ResearchKnowledge';
-import { companySlug, wikiPages, type WikiItem } from '../lib/research';
+import { companySlug, researchRead, wikiPages, type WikiItem } from '../lib/research';
 import { loadWatch } from '../lib/watchlist';
 import { useAiPage } from '../../../core/ai/pageContext';
 import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, RefreshCw, Star } from 'lucide-react';
@@ -38,7 +38,27 @@ export function CompanyWiki() {
   const [revision, refresh] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [readerState, setReaderState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const refreshing = listLoading || (!!slug && readerState === 'loading');
+  const [apiBusy, setApiBusy] = useState(false);
+  const [notice, setNotice] = useState({ slug: '', text: '' });
+  const activeSlug = useRef(slug);
+  activeSlug.current = slug;
+  const refreshing = apiBusy || listLoading || (!!slug && readerState === 'loading');
+  const refreshData = async () => {
+    if (refreshing) return;
+    if (!slug) { setListLoading(true); refresh(x => x + 1); setNotice({ slug: '', text: '已重新读取公司列表' }); return; }
+    const target = slug;
+    setApiBusy(true); setNotice({ slug: target, text: '' });
+    try {
+      const result = await researchRead<{ status: 'updated' | 'partial' | 'unavailable'; updated_fields: number }>('/wiki/pages/refresh-api', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: target }),
+      });
+      if (activeSlug.current !== target) return;
+      setNotice({ slug: target, text: result.status === 'unavailable' ? '本次未获取新数据，已有数据和原日期保留' : `${result.status === 'partial' ? '部分更新' : '已更新'} ${result.updated_fields} 项接口数据${result.status === 'partial' ? '，其余数据保留或待补充' : ''}` });
+      setReaderState('loading'); refresh(x => x + 1);
+    } catch {
+      if (activeSlug.current === target) setNotice({ slug: target, text: '本次更新失败，已有资料保留。请检查研究服务后重试。' });
+    } finally { setApiBusy(false); }
+  };
   useEffect(() => {
     if (slug || !pages) return;
     const frame = requestAnimationFrame(() => document.getElementById('workspace-main')?.scrollTo(0, Number(sessionStorage.getItem(overviewKey)) || 0));
@@ -65,7 +85,7 @@ export function CompanyWiki() {
   const visible = ordered.filter(page => matches(page, query) && (!onlyWatched || favorites.has(page.slug)));
   const current = pages?.find(page => page.slug === slug);
   useAiPage({ key: `company-wiki:${slug}`, title: current ? `个股研究 · ${current.title}` : '个股研究', context: slug ? `当前公司 Wiki：${slug}\n${markdown || '正文尚未加载。'}` : '当前公司资料列表：' + visible.map(page => page.title).join('、'), suggestions: slug ? ['研究这家公司需要核对哪些证据？'] : ['当前有哪些公司的研究资料？'] });
-  return <div><PageHeader title="个股研究" subtitle="从关注的公司出发，读懂经营变化与研究依据" actions={<div className="flex flex-col items-end gap-2"><button className="workspace-action" disabled={refreshing} onClick={() => { setListLoading(true); if (slug) setReaderState('loading'); refresh(x => x + 1); }}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />{refreshing ? '正在刷新…' : '刷新资料'}</button>{revision > 0 && !refreshing && !error && (!slug || readerState === 'ready') && <span role="status" className="text-xs text-muted-foreground">已重新读取现有资料</span>}</div>} />
+  return <div><PageHeader title="个股研究" subtitle="从关注的公司出发，读懂经营变化与研究依据" actions={<div className="flex flex-col items-end gap-2"><button className="workspace-action" disabled={refreshing} onClick={() => void refreshData()}><RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} />{refreshing ? '正在刷新…' : slug ? '刷新资料' : '刷新列表'}</button>{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div>} />
     {error && <p role="alert" className="mb-4">{error}</p>}
     {!pages && !error && <p role="status">正在读取公司 Wiki…</p>}
     <div className="workspace-toolbar flex flex-wrap items-center gap-3">

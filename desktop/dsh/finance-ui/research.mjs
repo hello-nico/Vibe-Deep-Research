@@ -7,7 +7,7 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && /^\/wiki\/research-topics\/[A-Za-z0-9_/-]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/documents\/[a-f0-9]+\/blocks\/[A-Za-z0-9_%:.-]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index))?$/.test(pathname)) return true;
-  return method === 'POST' && ['/wiki/refs/resolve', '/documents/uploads'].includes(pathname);
+  return method === 'POST' && ['/wiki/refs/resolve', '/wiki/pages/refresh-api', '/documents/uploads'].includes(pathname);
 }
 
 export function installResearchApi(ctx) {
