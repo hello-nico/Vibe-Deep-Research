@@ -1,10 +1,12 @@
+import { researchErrorMessage } from './researchSymbol';
+
 export class ResearchError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 export async function researchRead<T>(route: string, init?: RequestInit): Promise<T> {
   const response = await fetch('/finance-research' + route, init);
   const value = await response.json().catch(() => null);
-  if (!response.ok) throw new ResearchError(response.status, typeof value?.detail === 'string' ? value.detail : `研究服务请求失败 (${response.status})`);
+  if (!response.ok) throw new ResearchError(response.status, researchErrorMessage(response.status, value));
   return value as T;
 }
 export interface WikiItem { slug: string; title: string }
