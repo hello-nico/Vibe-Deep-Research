@@ -5,6 +5,8 @@
 > 当前 fork 开发入口（2026-09-09）：下方公开版本介绍保留历史背景，当前实现与边界以 [Human Checklist](human-checklist.md) 和 [docs 索引](docs/README.md) 为准。
 >
 > - [M3：DSH 运行基础](docs/默认Agent与DSH模型配置_M3_2026-09-08.md)：`desktop/dsh/runtime/` 与双端插件负责启动、Provider 和原生会话。
+> - [M7：研究契约与主动积累](docs/研究契约与主动积累_Task_M7_2026-09-10.md) → [M8：我的研究与行业入口](docs/我的研究与行业入口_Task_M8_2026-09-10.md)：2026-09-10 新产品方向的两个连续 Task 草案，尚未实施；不代表旧 Topic/Dreaming 行为已经改变。
+> - [M7 前置 Tools / Skills 审计](docs/Tools与Skills审计_M7前置_2026-09-10.md)：已核对当前职责及写入缺口；仅独立实施 Radar 停用用户浏览器。
 > - [M4：研究闭环](docs/研究闭环与DSH交互_M4_2026-09-08.md)：`desktop/dsh/finance-ui/` 的研究/模型接缝消费 Stock-Research 与原编排器；部分实现，完整闭环待验收。
 > - [M5：界面与交互](docs/产品界面与交互收敛_M5_2026-09-09.md)：finance 页面、布局和 DSH UI 适配；持续调整，模块/slot 收敛尚待实施。
 > - [M6-A：首轮基础收敛 Task](docs/基础收敛_Task_M6-A_2026-09-10.md)：外壳组合与页面助手分责已实施，切页恢复经用户确认；架构依据见 [M6](docs/架构边界与UI组合方案_M6_2026-09-09.md)。[M6-B 统一依据与资料阅读](docs/证据锚点_Task_M6-B_2026-09-10.md) 产品代码已实施、运行验收中，原生引用与 Backend 补数未完成；[M6-C 交互成果](docs/交互成果_Task_M6-C_2026-09-10.md) 尚未实施。
