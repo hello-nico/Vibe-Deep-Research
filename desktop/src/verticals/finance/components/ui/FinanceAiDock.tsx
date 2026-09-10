@@ -9,7 +9,7 @@ import { Link } from "react-router-dom";
 import { Settings, Sparkles, Trash2 } from "lucide-react";
 
 import { AiConsole } from "../../../../core/ai/AiConsole";
-import { AiDock } from "../../../../core/ai/AiDock";
+import { AiDock, type AiDockProps } from "../../../../core/ai/AiDock";
 import { AiComposer, AiMessages } from "../../../../core/ai/AiMessages";
 import { useAiChat } from "../../../../core/ai/useAiChat";
 import { backend } from "@/lib/backend";
@@ -170,9 +170,10 @@ export function FinanceAiConsole({ open, onClose }: { open: boolean; onClose: ()
   );
 }
 
-export function FinanceAiDock() {
+export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, 'renderPanel'>) {
   return (
     <AiDock
+      renderPanel={renderPanel}
       configured={true}
       copy={{
         trigger: "问助手",

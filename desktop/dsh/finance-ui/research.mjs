@@ -5,6 +5,7 @@ export function researchRoute(method, pathname) {
   ].includes(pathname)) return true;
   if (method === 'GET' && /^\/industries\/profiles\/[A-Za-z0-9.]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/research-topics\/[A-Za-z0-9_/-]+$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/documents\/[a-f0-9]+\/blocks\/[A-Za-z0-9_%:.-]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index))?$/.test(pathname)) return true;
   return method === 'POST' && ['/wiki/refs/resolve', '/documents/uploads'].includes(pathname);
 }
@@ -34,8 +35,26 @@ export function installResearchApi(ctx) {
         ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
       });
       // No cookies, credentials, hook token or arbitrary upstream headers cross this boundary.
-      res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') || 'application/json' });
-      if (response.body) for await (const chunk of response.body) res.write(chunk);
+      const reader = response.body?.getReader();
+      const prefix = [];
+      let prefixSize = 0;
+      if (reader && response.ok && route.endsWith('/raw')) {
+        while (prefixSize < 5) {
+          const part = await reader.read();
+          if (part.done) break;
+          prefix.push(part.value); prefixSize += part.value.length;
+        }
+      }
+      // The document store may serve originals as octet-stream. Only real PDF bytes
+      // receive an inline PDF type; other attachments retain their upstream type.
+      const isPdf = Buffer.concat(prefix).subarray(0, 5).toString('ascii') === '%PDF-';
+      res.writeHead(response.status, { 'Content-Type': isPdf ? 'application/pdf' : response.headers.get('content-type') || 'application/json', ...(isPdf ? { 'Content-Disposition': 'inline', 'X-Content-Type-Options': 'nosniff' } : {}) });
+      for (const chunk of prefix) res.write(chunk);
+      if (reader) while (true) {
+        const part = await reader.read();
+        if (part.done) break;
+        res.write(part.value);
+      }
       res.end();
     } catch {
       if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });

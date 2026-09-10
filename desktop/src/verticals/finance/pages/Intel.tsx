@@ -14,6 +14,7 @@ import { displayedHeadlineTranslation, hasChinese, headlineNeedsTranslation, loa
 import { loadWatch } from "@/lib/watchlist";
 import { chatStream, translateHeadlineBatch } from "@/lib/llm";
 import { cn } from "@/lib/utils";
+import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
 
 // 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
 const TABS = [
@@ -295,7 +296,6 @@ function InvestmentNewsPanel() {
 
 // 关注股公告 / 新闻聚合：从本地关注列表取代码，复用个股接口批量拉取、按时间倒序合并。
 // 只做公开信息聚合，标的均为用户自己关注列表里的，不预置、不推荐。
-interface FeedRow { code: string; name: string; when: string; title: string; meta?: string; url?: string }
 const MAX_ROWS = 60;
 
 function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
@@ -360,6 +360,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
     useArchiveThenRefresh<FeedRow[]>(load, [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
+  useAiPage(feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote }));
 
   // 刷新时顺便把关注列表重新读一遍（用户可能刚在别的页面加了自选）
   const refresh = () => {
@@ -426,6 +427,16 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   );
 }
 
+function IntelOverviewContext({ tab, label }: { tab: string; label: string }) {
+  useAiPage({
+    key: `intel:${tab}`,
+    title: `资讯雷达 · ${label}`,
+    context: `资讯雷达 · 当前栏目「${label}」。可选栏目：${TABS.map((t) => t.label).join("、")}。`,
+    suggestions: ["这个栏目适合看什么", "帮我把要点提炼一下", "有哪些值得追的线索"],
+  });
+  return null;
+}
+
 export function Intel() {
   // 当前 Tab 由路由驱动（/intel/:tab），与侧栏子栏目联动；不认识的参数回落到第一个
   const { tab: tabParam } = useParams();
@@ -433,15 +444,9 @@ export function Intel() {
   const tab = TABS.some((t) => t.key === tabParam) ? tabParam! : TABS[0]!.key;
   const cur = TABS.find((t) => t.key === tab)!;
 
-  useAiPage({
-    key: `intel:${tab}`,
-    title: `资讯雷达 · ${cur.label}`,
-    context: `资讯雷达 · 当前栏目「${cur.label}」。可选栏目：${TABS.map((t) => t.label).join("、")}。`,
-    suggestions: ["这个栏目适合看什么", "帮我把要点提炼一下", "有哪些值得追的线索"],
-  });
-
   return (
     <div>
+      {tab !== 'news' && tab !== 'filings' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
       <PageHeader title="资讯雷达" subtitle="多来源资讯中心：AI 帮你跨源捞资讯、提炼要点" />
 
       <div className="mb-4 flex flex-wrap gap-2">
@@ -465,9 +470,9 @@ export function Intel() {
         {cur.key === "investment-news" ? (
           <InvestmentNewsPanel />
         ) : cur.key === "filings" ? (
-          <WatchlistFeed kind="filings" />
+          <WatchlistFeed key="filings" kind="filings" />
         ) : cur.key === "news" ? (
-          <WatchlistFeed kind="news" />
+          <WatchlistFeed key="news" kind="news" />
         ) : cur.key === "events" ? (
           <EventsPanel />
         ) : (

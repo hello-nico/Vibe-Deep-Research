@@ -5,8 +5,10 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
-import { PageHeader } from "@/components/ui/PageHeader";
+import { ConversationWorkspace } from "./ConversationWorkspace";
+import { FinanceAssistantSurface } from './FinanceAssistantSurface';
 import { AiPageProvider } from "../../../../core/ai/pageContext";
+import { EvidenceProvider } from '../EvidenceCard';
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { storageGet, storageSet } from "@/lib/storage";
@@ -133,11 +135,12 @@ export function Layout() {
   const currentTitle = NAV.find(n => n.to === pathname)?.label
     ?? (pathname === '/research/legacy' ? '专题研究' : undefined)
     ?? Object.values(NAV_GROUPS).flatMap(g => g.links).find(n => n.to === pathname)?.label
-    ?? (pathname.startsWith('/my-reports/read/') ? '研报阅读' : NAV.find(n => n.to !== '/' && pathname.startsWith(n.to + '/'))?.label)
+    ?? (pathname.startsWith('/my-reports/read/') ? '资料阅读' : NAV.find(n => n.to !== '/' && pathname.startsWith(n.to + '/'))?.label)
     ?? "工作空间";
 
   return (
     <AiPageProvider>
+      <EvidenceProvider>
       <a className="workspace-skip" href="#workspace-main" onClick={e => {
         e.preventDefault(); setMobileOpen(false);
         requestAnimationFrame(() => mainRef.current?.focus());
@@ -214,19 +217,18 @@ export function Layout() {
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
-            {pathname !== "/" && <FinanceAiDock />}
+            {pathname !== "/" && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-            <div className={cn("workspace-content", pathname === "/" && "flex h-full min-h-0 flex-col")} aria-busy={navigation.state !== "idle"}>
+            <ConversationWorkspace active={pathname === "/"}>
               {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
-              {pathname === "/" && <div className="shrink-0"><PageHeader title="深度对话" subtitle="查阅资料、核对证据，深入探讨你的研究问题" /></div>}
-              <section id="dsh-conversation" aria-label="深度对话" style={{ display: pathname === "/" ? "block" : "none", flex: 1, minHeight: 420, position: "relative" }} />
               <Outlet />
-            </div>
+            </ConversationWorkspace>
           </main>
         </div>
         <NativeDshHost />
       </div>
+      </EvidenceProvider>
     </AiPageProvider>
   );
 }

@@ -1,6 +1,7 @@
 import { createContext, useContext } from 'react';
 
 export interface ResearchSessions {
+  companySymbols(): Promise<string[]>;
   start(question: string, company?: { symbol: string; name: string }): Promise<void>;
 }
 export const ResearchSessionContext = createContext<ResearchSessions | null>(null);

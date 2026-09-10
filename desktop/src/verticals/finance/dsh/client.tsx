@@ -6,8 +6,9 @@ import { router } from "../router";
 import { hydrateNotes } from "../lib/notes";
 import { hydrateWatch } from "../lib/watchlist";
 import { storageGet, storageSet } from "../lib/storage";
-import { FinanceSlots, type SlotProps } from "./NativeDsh";
-import { ResearchSessionContext } from "./research-session";
+import { type SlotProps } from "./NativeDsh";
+import { FinanceRoot } from '../components/layout/FinanceRoot';
+import { FinanceAssistantSeat } from '../components/layout/FinanceAssistantSurface';
 import "../../../index.css";
 import "./native-dsh.css";
 
@@ -104,7 +105,19 @@ export function apply(ctx: Context) {
     storageSet(key, id);
     client.sessions.open(id);
   }
-  const research = { async start(question: string, company?: { symbol: string; name: string }) {
+  const research = { async companySymbols() {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    return list.ids.flatMap(id => {
+      const item = list.byId[id];
+      const symbol = item?.cwd === workspace && !archived.has(id)
+        ? /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1] : undefined;
+      return symbol ? [symbol] : [];
+    });
+  }, async start(question: string, company?: { symbol: string; name: string }) {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
     const key = company?.symbol;
@@ -212,13 +225,13 @@ export function apply(ctx: Context) {
       return () => { active = false; };
     }, []);
     if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? "正在读取工作台数据…" : `连不上后端，未加载台账：${state.message}`}<button onClick={() => location.reload()}>重新连接</button></div>;
-    return <FinanceSlots.Provider value={props}>
-      <ResearchSessionContext.Provider value={research}><RouterProvider router={router} /></ResearchSessionContext.Provider>
-      {sessionError && <div role="alert" className="fixed bottom-4 right-4 z-50 rounded border bg-background p-4">{sessionError}</div>}
-      {props.renderSlot("shell.overlay", {})}
-      {showDetails && <div style={{ position: "fixed", inset: "64px 0 0 auto", width: "min(480px, 100vw)", zIndex: 60, background: "var(--background, #161820)" }}>{props.renderSlot("details", {})}</div>}
-    </FinanceSlots.Provider>;
+    return <FinanceRoot slots={props} research={research} sessionError={sessionError} showDetails={showDetails}>
+      <RouterProvider router={router} />
+    </FinanceRoot>;
   });
+  client.slots.inject('shell.overlay', () => client.slots.register({
+    name: 'shell.overlay', id: 'finance-page-assistant',
+  }, FinanceAssistantSeat));
   client.slots.register<SlotProps>({ name: "sidebar", children: { "sidebar.settings": { kind: "single", scope: "root" } } },
     props => <>{props.renderSlot("sidebar.settings", { wide: true })}</>);
 }

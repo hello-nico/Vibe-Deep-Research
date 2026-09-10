@@ -62,7 +62,9 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /fixed right-5 top-4/);
-  assert.match(read("core/ai/AiDock.tsx"), /createPortal/);
+  assert.match(read("core/ai/AiDock.tsx"), /renderPanel\(/);
+  assert.doesNotMatch(read("core/ai/AiDock.tsx"), /createPortal/);
+  assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /createPortal/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /trigger: "问助手"/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /panel: "问助手"/);
 });

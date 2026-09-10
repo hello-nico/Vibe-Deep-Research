@@ -37,14 +37,26 @@ export interface AiPage {
 interface Store {
   page: AiPage | null;
   set: Dispatch<SetStateAction<AiPage | null>>;
+  question: { context: string; pageKey: string; pageContext: string; sequence: number; reference?: { title: string; text: string } } | null;
+  ask: (context: string, reference?: { title: string; text: string }) => void;
+  clearQuestion: () => void;
 }
 
 const Ctx = createContext<Store | null>(null);
 
 export function AiPageProvider({ children }: { children: ReactNode }) {
   const [page, setPage] = useState<AiPage | null>(null);
-  const value = useMemo<Store>(() => ({ page, set: setPage }), [page]);
+  const [question, setQuestion] = useState<Store['question']>(null);
+  const sequence = useRef(0);
+  const value = useMemo<Store>(() => ({ page, set: setPage, question, clearQuestion: () => setQuestion(null), ask: (context, reference) => {
+    if (page) setQuestion({ context, reference, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
+  } }), [page, question]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+export function useAiQuestion() {
+  const store = useContext(Ctx);
+  return { question: store?.question, ask: store?.ask, clearQuestion: store?.clearQuestion };
 }
 
 /**

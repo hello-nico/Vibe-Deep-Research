@@ -2,8 +2,8 @@
  * 顶栏右侧的 AI 入口 —— **每一页都有**，点开就聊这一页。
  *
  * 以前是每个页面各挂一个「问 AI」按钮：只有想起来加的那五页有，其余七页没有。
- * 现在按钮由外壳放进顶栏、与标题同一行对齐；面板 portal 到 document.body，
- * 避免顶栏 backdrop-filter 把 fixed 层限制在 header 里。页面只负责**登记自己的上下文**
+ * 现在按钮由外壳放进顶栏、与标题同一行对齐；面板承载由外壳注入，
+ * 对话只管理交互和内容。页面只负责**登记自己的上下文**
  * （见 pageContext.tsx）。
  *
  * 🔴 这是 Core：它不认识任何行业。文案、免责声明、回答下面挂什么按钮、怎么连后端，
@@ -12,13 +12,12 @@
  * 对话本身的正确性（半截回答 / 换页竞态 / 后端 session 归属）在 `useAiChat` 里，
  * **与底部控制台共用同一份** —— 那些坑复制两遍必然有一份先坏，而且坏了看不出来。
  */
-import { type ReactNode, useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Sparkles, Trash2, X } from "lucide-react";
 
 import { cn } from "../lib/cn";
 import { AiComposer, AiMessages } from "./AiMessages";
-import { useAiWired, useCurrentAiPage } from "./pageContext";
+import { useAiWired, useCurrentAiPage, useAiQuestion } from "./pageContext";
 import { type AiSend, useAiChat } from "./useAiChat";
 
 export interface AiDockCopy {
@@ -35,6 +34,8 @@ export interface AiDockCopy {
 }
 
 export interface AiDockProps {
+  /** 外壳提供面板位置和几何；不创建另一份对话状态。 */
+  renderPanel: (content: ReactNode, close: () => void) => ReactNode;
   /** 发一轮（session 按对话分开，见 useAiChat.sessionId） */
   send: AiSend;
   /** 模型配好了没；没配就只显示引导 */
@@ -50,10 +51,19 @@ export interface AiDockProps {
   renderSetup?: () => ReactNode;
 }
 
-export function AiDock({ send, configured, copy, renderReplyActions, renderReply, renderSetup }: AiDockProps) {
+export function AiDock({ send, configured, copy, renderReplyActions, renderReply, renderSetup, renderPanel }: AiDockProps) {
   const wired = useAiWired();
   const page = useCurrentAiPage();
+  const { question, clearQuestion } = useAiQuestion();
+  const activeQuestion = question?.pageKey === page?.key ? question : null;
   const [open, setOpen] = useState(false);
+  const openedQuestion = useRef(0);
+  useEffect(() => {
+    if (question && question.sequence > openedQuestion.current && question.pageKey === page?.key) {
+      openedQuestion.current = question.sequence;
+      setOpen(true);
+    }
+  }, [question, page?.key]);
   const chat = useAiChat(page?.key ?? "", send);
   const { abort } = chat;
 
@@ -81,7 +91,8 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
     const body = page.context
       ? page.context
       : "（这一页的数据还没取到 / 是空的。请如实说明看不到本页数据，不要凭一般知识作答。）";
-    return `【当前页面：${page.title}】\n${body}\n\n【问题】\n${q}`;
+    const selected = activeQuestion?.reference || activeQuestion?.pageContext === page.context ? activeQuestion?.context : '';
+    return `【当前页面：${page.title}】\n${selected || body}\n\n${activeQuestion?.reference ? '【追问对象】用户已明确引用上面的资料原文。“这段”“追问的内容”指该引用，区别于下面的问题措辞。\n' : ''}【问题】\n${q}`;
   };
 
   return (
@@ -106,10 +117,8 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
         {copy.trigger}
       </button>
 
-      {open && page && createPortal(
-        <div className="fixed inset-0 z-50 flex justify-end">
-          <div className="absolute inset-0 bg-black/50" onClick={close} />
-          <aside className="ai-surface relative m-3 flex w-full max-w-md flex-col rounded-2xl overflow-hidden">
+      {open && page && renderPanel(
+          <>
             <div className="ai-surface-header flex items-center justify-between gap-2 border-b border-border/60 p-4">
               <div className="min-w-0">
                 <span className="flex min-w-0 items-center gap-2 font-semibold text-glow">
@@ -164,6 +173,11 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
                   onPick={(x) => void chat.submit(x, decorate)}
                   renderReplyActions={renderReplyActions}
                 />
+                {activeQuestion?.reference && <div className="relative mx-4 mb-2 rounded-lg border p-2 pr-8 text-xs">
+                  <button type="button" onClick={clearQuestion} aria-label="移除引用" title="移除引用，不删除已发送的历史" className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"><X size={14} /></button>
+                  <details><summary className="cursor-pointer">已引用：{activeQuestion.reference.title}</summary>
+                  <p className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap">{activeQuestion.reference.text}</p>
+                </details></div>}
                 <AiComposer
                   placeholder={copy.placeholder}
                   disabled={chat.loading}
@@ -172,9 +186,8 @@ export function AiDock({ send, configured, copy, renderReplyActions, renderReply
                 />
               </>
             )}
-          </aside>
-        </div>,
-        document.body,
+          </>,
+        close,
       )}
     </>
   );

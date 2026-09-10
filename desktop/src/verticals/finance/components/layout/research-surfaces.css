@@ -1,0 +1,11 @@
+/* FinanceShell reserves reading space for its non-modal research surfaces. */
+@media (min-width: 1100px) {
+  body.vibe-dsh-host:has(.finance-assistant-panel, .finance-evidence-panel) #workspace-main {
+    margin-right: 29.5rem;
+  }
+}
+@media (max-width: 1099px) {
+  body.vibe-dsh-host:has(.finance-assistant-panel, .finance-evidence-panel) #workspace-main {
+    visibility: hidden;
+  }
+}

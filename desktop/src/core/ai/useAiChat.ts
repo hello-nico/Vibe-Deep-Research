@@ -19,6 +19,8 @@ const MAX_PERSISTED = 40;
 export interface AiMsg {
   role: "user" | "assistant";
   content: string;
+  /** 保存当轮实际提交的上下文，后续追问不丢失引用。 */
+  modelContent?: string;
   /** 没收完就被中止的回答。**界面照常显示**（用户看得到已经拿到的部分），但不落盘、不进下一轮 */
   partial?: boolean;
 }
@@ -80,6 +82,12 @@ export function completeTurns(msgs: AiMsg[]): AiMsg[] {
     out.push(m);
   }
   return out;
+}
+
+export function modelHistory(msgs: AiMsg[]): AiMsg[] {
+  return completeTurns(msgs).slice(-MAX_PERSISTED).map(m => ({
+    role: m.role, content: typeof m.modelContent === 'string' ? m.modelContent : m.content,
+  }));
 }
 
 /**
@@ -233,7 +241,8 @@ export function useAiChat(key: string, send: AiSend): AiChat {
       submittingRef.current = ac;      // 抢到提交权的是这一次
       setErr(null);
       setInfo(null);
-      setMsgs((m) => [...m, { role: "user", content: q }, { role: "assistant", content: "", partial: true }]);
+      const message = decorate ? decorate(q) : q;
+      setMsgs((m) => [...m, { role: "user", content: q, modelContent: message }, { role: "assistant", content: "", partial: true }]);
       setLoading(true);
 
       const patchLast = (fn: (m: AiMsg) => AiMsg) =>
@@ -246,10 +255,10 @@ export function useAiChat(key: string, send: AiSend): AiChat {
 
       try {
         const reply = await sendRef.current({
-          message: decorate ? decorate(q) : q,
+          message,
           session: sessionRef.current,
           signal: ac.signal,
-          history: chatRef.current.key === startedKey ? completeTurns(chatRef.current.msgs).slice(-MAX_PERSISTED) : [],
+          history: chatRef.current.key === startedKey ? modelHistory(chatRef.current.msgs) : [],
         });
         if (alive()) {
           // 🔴 **空回答不算回答**。后端解析失败 / 空响应 / 降级都可能返回 ""，

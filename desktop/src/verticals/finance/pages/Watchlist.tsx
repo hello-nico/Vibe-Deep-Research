@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Plus, X, RefreshCw, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
@@ -8,6 +8,7 @@ import { loadWatch, saveWatch, addCodes } from "@/lib/watchlist";
 import { useLiveQuotes, isTradingHours } from "@/hooks/useLiveQuotes";
 import { cn } from "@/lib/utils";
 import { useResearchSessions } from '../dsh/research-session';
+import { companySlug, wikiPages } from '../lib/research';
 
 // A 股红涨绿跌（与整个看板一致）。
 const color = (v: number | null | undefined) =>
@@ -38,8 +39,18 @@ export function Watchlist() {
   const [input, setInput] = useState("");
   const [hint, setHint] = useState<string | null>(null);
   const sessions = useResearchSessions();
+  const [joined, setJoined] = useState<Set<string> | null>(null);
+  const [membershipError, setMembershipError] = useState(false);
+  useEffect(() => {
+    let active = true;
+    Promise.all([wikiPages('companies'), sessions.companySymbols()]).then(([pages, symbols]) => {
+      if (active) setJoined(new Set([...pages.map(page => page.slug), ...symbols.map(companySlug).filter((slug): slug is string => slug !== null)]));
+    }).catch(() => { if (active) setMembershipError(true); });
+    return () => { active = false; };
+  }, [sessions]);
   const [researching, setResearching] = useState<string | null>(null);
   const joinResearch = async (symbol: string, name: string) => {
+    if (!joined || joined.has(companySlug(symbol)!)) return;
     setResearching(symbol); setHint(null);
     try { await sessions.start(`请研究 A 股公司 ${name}（${symbol}）。先复用公司 Wiki 与已有资料，按需获取定期报告和证据，围绕主营、盈利驱动和关键风险开展研究；研究结束后按既有维护规则形成或更新公司 Wiki。区分回答完成、维护草案、校验和正式发布，缺资料时明确说明。`, { symbol, name }); }
     catch (e) { setHint(String(e)); } finally { setResearching(null); }
@@ -232,7 +243,7 @@ export function Watchlist() {
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
-                        {/^[0-9]{6}$/.test(c) && <button disabled={researching !== null} onClick={() => void joinResearch(c, q?.name || c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在打开…' : '加入研究 →'}</button>}
+                        {/^[0-9]{6}$/.test(c) && <button disabled={researching !== null || !joined || joined.has(companySlug(c)!)} onClick={() => void joinResearch(c, q?.name || c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在打开…' : joined?.has(companySlug(c)!) ? '已加入研究' : membershipError ? '研究状态读取失败' : !joined ? '检查研究状态…' : '加入研究 →'}</button>}
                       </td>
                     </tr>
                   );
