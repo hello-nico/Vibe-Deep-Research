@@ -14,6 +14,13 @@ export function apply(ctx) {
   installPageModel(ctx);
   installStageModel(ctx);
   installResearchApi(ctx);
+  ctx.webServer.register({ kind: "exact", path: "/finance-pdfium.wasm", handler(_req, res) {
+    res.setHeader("Content-Type", "application/wasm");
+    res.setHeader("Cache-Control", "no-cache");
+    const stream = fs.createReadStream(new URL("./lib/pdfium.wasm", import.meta.url));
+    stream.on("error", () => { if (!res.headersSent) res.writeHead(503); res.end(); });
+    stream.pipe(res);
+  } });
   ctx.webServer.register({ kind: "exact", path: "/finance-host", handler(_req, res) {
     res.setHeader("Content-Type", "application/json");
     res.setHeader("Cache-Control", "no-store");
