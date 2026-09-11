@@ -19,10 +19,32 @@ const METRIC_LABELS: Record<string, string> = {
   dividend_yield: '股息率',
 };
 
-const PROVIDER_LABELS: Record<string, string> = {
-  hithink: '扶摇',
-  tencent: '腾讯财经',
-  sina: '新浪财经',
+const FINANCIAL_PATHS: Record<string, string> = {
+  revenue: '/api/a-share/financials/income-statements',
+  net_profit_attributable: '/api/a-share/financials/income-statements',
+  operating_cash_flow: '/api/a-share/financials/cash-flow-statements',
+  total_assets: '/api/a-share/financials/balance-sheets',
+  total_liabilities: '/api/a-share/financials/balance-sheets',
+};
+
+const HITHINK_VALUATION = new Set(['pe_ttm', 'pe_mrq', 'pb', 'ps_ttm', 'pcf_ttm']);
+
+type ProviderProfile = { name: string; summary: string };
+type ProviderInterface = { method: string; url: string; docs?: string; note?: string };
+
+const PROVIDERS: Record<string, ProviderProfile> = {
+  hithink: {
+    name: '扶摇',
+    summary: '同花顺扶摇金融数据 REST，由本机研究服务读取。',
+  },
+  tencent: {
+    name: '腾讯财经',
+    summary: '腾讯公开行情快照，用于估值倍数补缺。',
+  },
+  sina: {
+    name: '新浪财经',
+    summary: '新浪公开合并报表接口，用于三表补缺；字段按报表项目标题对齐。',
+  },
 };
 
 export const FACT_SECTIONS: Record<string, string> = {
@@ -55,16 +77,120 @@ export function factLabel(item: Record<string, unknown>): string {
   return period ? `${period} ${label}` : label;
 }
 
-export function providerSnapshot(item: Record<string, unknown>): string {
-  if (item.source !== 'provider') return '';
-  const source = PROVIDER_LABELS[String(item.provider || '')] || '数据服务';
+export interface ProviderDisclosure {
+  name: string;
+  summary: string;
+  method?: string;
+  endpoint?: string;
+  docs?: string;
+  note?: string;
+  symbol?: string;
+  label: string;
+  basis?: string;
+  observed?: string;
+  stale: boolean;
+}
+
+export function providerDisclosure(item: Record<string, unknown>): ProviderDisclosure | null {
+  if (item.source !== 'provider') return null;
+  const id = String(item.provider || '').trim();
+  const profile = PROVIDERS[id];
+  const iface = resolveInterface(item, id);
+  const period = String(item.period || '').trim();
+  const unit = String(item.unit || '').trim();
   const observed = String(item.observed_at || '').replace('T', ' ').slice(0, 19);
-  const lines = [`来源：${source}`];
-  if (observed) lines.push(`数据截至：${observed}`);
-  if (item.stale) lines.push('本次未更新，保留原值');
+  return {
+    name: textField(item.provider_name) || profile?.name || id || '数据服务',
+    summary: textField(item.provider_summary) || profile?.summary || '当前未登记该数据服务的公开接口与说明。后续 Provider 按同一套字段披露。',
+    method: iface?.method,
+    endpoint: publicUrl(item.endpoint) || iface?.url,
+    docs: publicUrl(item.docs_url) || iface?.docs,
+    note: textField(item.endpoint_note) || iface?.note,
+    symbol: factSymbol(item),
+    label: factLabel(item),
+    basis: [period, unit].filter(Boolean).join(' · ') || undefined,
+    observed: observed || undefined,
+    stale: Boolean(item.stale),
+  };
+}
+
+export function providerSnapshot(item: Record<string, unknown>): string {
+  const disclosure = providerDisclosure(item);
+  if (!disclosure) return '';
+  const lines = [`**${disclosure.name}**`, '', disclosure.summary, ''];
+  const fields: [string, string][] = [];
+  if (disclosure.endpoint) fields.push(['接口', `${disclosure.method || 'GET'} ${disclosure.endpoint}`]);
+  if (disclosure.note) fields.push(['接口说明', disclosure.note]);
+  if (disclosure.symbol) fields.push(['标的', disclosure.symbol]);
+  fields.push(['指标', disclosure.label]);
+  if (disclosure.basis) fields.push(['口径', disclosure.basis]);
+  if (disclosure.observed) fields.push(['数据截至', disclosure.observed]);
+  if (disclosure.docs) fields.push(['公开说明', disclosure.docs]);
+  if (disclosure.stale) fields.push(['状态', '本次未更新，保留原值']);
+  lines.push(...fields.map(([key, value]) => `- ${key}：${key === '接口' ? `\`${value}\`` : value}`));
   return lines.join('\n');
 }
 
 export function factItems(content?: Record<string, unknown>): Record<string, unknown>[] {
   return Array.isArray(content?.items) ? content.items.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object') : [];
+}
+
+function resolveInterface(item: Record<string, unknown>, id: string): ProviderInterface | undefined {
+  const metric = String(item.metric || '');
+  const symbol = factSymbol(item);
+  if (id === 'hithink') {
+    if (HITHINK_VALUATION.has(metric)) {
+      const query = symbol ? `?thscodes=${encodeURIComponent(symbol)}` : '';
+      return {
+        method: 'GET',
+        url: `https://fuyao.aicubes.cn/api/a-share/valuations/snapshot${query}`,
+        docs: 'https://fuyao.aicubes.cn/docs/api-reference/valuations/',
+        note: 'A 股估值快照',
+      };
+    }
+    const path = FINANCIAL_PATHS[metric];
+    if (path) {
+      const query = symbol ? `?thscode=${encodeURIComponent(symbol)}` : '';
+      return {
+        method: 'GET',
+        url: `https://fuyao.aicubes.cn${path}${query}`,
+        docs: 'https://fuyao.aicubes.cn/docs/api-reference/financials/',
+        note: 'A 股财务报表',
+      };
+    }
+  }
+  if (id === 'tencent') {
+    const query = symbol ? tencentQuery(symbol) : '{市场}{代码}';
+    return { method: 'GET', url: `https://qt.gtimg.cn/q=${query}`, note: '腾讯行情快照' };
+  }
+  if (id === 'sina') {
+    return {
+      method: 'GET',
+      url: 'https://quotes.sina.cn/cn/api/openapi.php/CompanyFinanceService.getFinanceReport2022',
+      note: '新浪合并报表',
+    };
+  }
+  return undefined;
+}
+
+function factSymbol(item: Record<string, unknown>): string | undefined {
+  const match = /^provider:[^:]+:(\d{6}\.(?:SH|SZ|BJ)):/.exec(String(item.ref || ''));
+  return match?.[1];
+}
+
+function tencentQuery(symbol: string): string {
+  const [code, market] = symbol.split('.');
+  return `${(market || '').toLowerCase()}${code || ''}`;
+}
+
+function textField(value: unknown): string | undefined {
+  const text = typeof value === 'string' ? value.trim() : '';
+  return text || undefined;
+}
+
+function publicUrl(value: unknown): string | undefined {
+  const text = String(value || '').trim();
+  if (/^https:\/\//i.test(text) || /^http:\/\//i.test(text)) return text;
+  if (text.startsWith('/') && !text.startsWith('//')) return text;
+  return undefined;
 }
