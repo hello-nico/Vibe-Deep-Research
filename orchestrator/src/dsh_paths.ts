@@ -26,14 +26,24 @@ export function resolveDshPaths(repoRoot: string, env: NodeJS.ProcessEnv = proce
   };
 }
 
-/** Read only research connection settings; never import Backend hook credentials. */
+/** Read research connection settings. Hook credentials stay out of this map. */
 export function readResearchConfig(repo: string, env: NodeJS.ProcessEnv = process.env): Record<string, string> {
-  const file = path.join(repo, ".env");
-  const local = fs.existsSync(file) ? parseEnv(fs.readFileSync(file, "utf8")) : {};
+  const local = readResearchEnvFile(repo);
   const result: Record<string, string> = {};
   for (const key of ["STOCK_RESEARCH_WORKSPACE", "STOCK_RESEARCH_BACKEND_URL", "STOCK_RESEARCH_PI_GBRAIN_ROOT", "STOCK_RESEARCH_PI_GBRAIN_DATABASE_URL"]) {
     const value = env[key] ?? local[key];
     if (value) result[key] = value;
+  }
+  return result;
+}
+
+function readResearchEnvFile(repo: string): Record<string, string> {
+  const file = path.join(repo, ".env");
+  if (!fs.existsSync(file)) return {};
+  const parsed = parseEnv(fs.readFileSync(file, "utf8"));
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(parsed)) {
+    if (typeof value === "string" && value) result[key] = value;
   }
   return result;
 }
@@ -45,12 +55,17 @@ export function researchRuntimeEnv(paths: ReturnType<typeof resolveDshPaths>, en
   let hostname: string;
   try { hostname = new URL(database).hostname; } catch { throw new Error("研究插件的 GBrain 数据库地址格式无效"); }
   if (hostname === "postgres") throw new Error("研究插件需要宿主可访问的 GBrain 数据库地址");
-  return {
+  const runtime: Record<string, string> = {
     STOCK_RESEARCH_BACKEND_URL: config.STOCK_RESEARCH_BACKEND_URL || "http://127.0.0.1:8700/api/v1",
     STOCK_RESEARCH_WORKSPACE: paths.workspace,
     STOCK_RESEARCH_GBRAIN_ROOT: config.STOCK_RESEARCH_PI_GBRAIN_ROOT || path.join(paths.workspace, "wiki"),
     STOCK_RESEARCH_GBRAIN_DATABASE_URL: database,
   };
+  const local = readResearchEnvFile(paths.researchRepo);
+  const hook = env.STOCK_RESEARCH_HOOK_TOKEN ?? local.STOCK_RESEARCH_HOOK_TOKEN;
+  runtime.STOCK_RESEARCH_ACCUMULATE = "1";
+  if (typeof hook === "string" && hook.trim()) runtime.STOCK_RESEARCH_HOOK_TOKEN = hook.trim();
+  return runtime;
 }
 
 export function prepareDshPaths(paths: Pick<ReturnType<typeof resolveDshPaths>, 'home' | 'workspace' | 'runtime'>) {
