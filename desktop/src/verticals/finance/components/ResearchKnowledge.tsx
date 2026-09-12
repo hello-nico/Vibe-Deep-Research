@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Building2, ChartNoAxesCombined, Landmark, Scale, ScanEye, BookOpen } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
@@ -76,6 +76,40 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
   </section>;
 }
 export function WikiReader({ slug, onMarkdown, onLoadState }: { slug: string; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void }) {
+  const [search, setSearch] = useSearchParams();
+  const restored = search.get('reader');
+  const [trail, setTrail] = useState<string[]>(() => restored && restored !== slug ? [slug, restored] : [slug]);
+  const [related, setRelated] = useState<{ slug: string; title: string }[]>([]);
+  const [linkError, setLinkError] = useState('');
+  useEffect(() => { setTrail(restored && restored !== slug ? [slug, restored] : [slug]); }, [slug]);
+  const active = trail[trail.length - 1] || slug;
+  useEffect(() => {
+    const controller = new AbortController();
+    setRelated([]); setLinkError('');
+    void researchRead<{ items: typeof related }>(`/wiki/pages/related?slug=${encodeURIComponent(active)}`, { signal: controller.signal })
+      .then(value => setRelated(value.items)).catch(() => { if (!controller.signal.aborted) setLinkError('相关材料暂时无法读取'); });
+    return () => controller.abort();
+  }, [active]);
+  const navigate = (next: string[]) => {
+    setTrail(next);
+    setSearch(previous => {
+      const params = new URLSearchParams(previous);
+      if (next.length > 1) params.set('reader', next[next.length - 1] || slug); else params.delete('reader');
+      return params;
+    }, { replace: true });
+  };
+  const open = (next: string) => {
+    const existing = trail.indexOf(next);
+    navigate(existing >= 0 ? trail.slice(0, existing + 1) : [...trail.slice(-31), next]);
+  };
+  return <div>
+    {trail.length > 1 && <button className="workspace-action mb-4" onClick={() => navigate(trail.slice(0, -1))}>返回上一份材料</button>}
+    <WikiBody key={active} slug={active} onMarkdown={onMarkdown} onLoadState={onLoadState} />
+    {!!related.length && <GlassCard className="mt-4"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="flex flex-wrap gap-2">{related.map(item => <button key={item.slug} className="workspace-action" onClick={() => open(item.slug)}>{item.title}</button>)}</div></GlassCard>}
+    {linkError && <p role="status" className="mt-3 text-sm text-muted-foreground">{linkError}</p>}
+  </div>;
+}
+function WikiBody({ slug, onMarkdown, onLoadState }: { slug: string; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void }) {
   const [page, setPage] = useState<WikiPage | null>(null);
   const [error, setError] = useState('');
   useEffect(() => {

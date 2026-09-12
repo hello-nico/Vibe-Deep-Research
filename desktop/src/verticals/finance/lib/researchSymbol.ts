@@ -21,6 +21,10 @@ export function researchErrorMessage(status: number, value: unknown): string {
     ? (value as { detail: unknown }).detail
     : undefined;
   if (typeof detail === "string" && detail.trim()) return asResearchErrorMessage(detail);
+  if (detail && typeof detail === "object" && !Array.isArray(detail) && "message" in detail) {
+    const message = String((detail as { message: unknown }).message || "").trim();
+    if (message) return asResearchErrorMessage(message);
+  }
   if (Array.isArray(detail)) {
     const text = detail.map((item) => {
       if (typeof item === "string") return item;

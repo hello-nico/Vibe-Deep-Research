@@ -76,6 +76,10 @@ html body.vibe-dsh-host {
   --dsw-alias-button-primary-fill: hsl(var(--primary));
   --dsw-alias-button-primary-hover: hsl(var(--primary) / .85);
   --dsw-alias-button-primary-dimmed: hsl(var(--primary) / .35);
+  /* rc.1 composer primary/stop uses info-fill (DeepSeek blue), not button-primary. */
+  --dsw-alias-button-info-fill: hsl(var(--primary));
+  --dsw-alias-button-info-hover: hsl(var(--primary) / .85);
+  --dsw-alias-state-business-primary: hsl(var(--primary));
   --dsw-alias-button-ghost-active-fill: hsl(var(--primary) / .12);
   --dsw-alias-button-ghost-active-border: hsl(var(--primary) / .35);
   --dsw-alias-button-ghost-active-hover: hsl(var(--primary) / .18);
@@ -125,15 +129,26 @@ html body.vibe-dsh-host {
 #dsh-settings [role="dialog"] > nav > div:first-child { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
 #dsh-settings [role="dialog"] > nav button { gap: 10px; }
 #dsh-settings [role="dialog"] input { border-radius: 10px; }
-#dsh-conversation { background: hsl(var(--card)); box-shadow: 0 8px 28px rgb(0 0 0 / .06); }
+#dsh-conversation {
+  background: hsl(var(--card));
+  box-shadow: 0 8px 28px rgb(0 0 0 / .06);
+  /* Theme writes DeepSeek blues on body; conversation must re-declare so
+     rc.1 composer stop/send (info-fill) and turn-status shimmer inherit product primary. */
+  --dsw-alias-button-info-fill: hsl(var(--primary));
+  --dsw-alias-button-info-hover: hsl(var(--primary) / .85);
+  --dsw-alias-state-business-primary: hsl(var(--primary));
+  --dsw-static-deepseek-200: hsl(var(--primary) / .45);
+  --dsw-static-deepseek-400: hsl(var(--primary));
+  --dsw-static-deepseek-500: hsl(var(--primary));
+}
 /* DSH draws turn boundaries with a pseudo-element, not a cell border. */
 #dsh-conversation tbody > tr[data-turn-start="true"]:not(:first-child) > td::before {
   height: .5px;
 }
 #dsh-conversation [role="tab"][aria-selected="true"] { color: hsl(var(--primary)); border-color: hsl(var(--primary)); }
 #dsh-conversation [role="tab"][aria-selected="true"]::after { background: hsl(var(--primary)); }
-#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"]) { background: hsl(var(--primary)); color: white; }
-#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"]):hover:not(:disabled) { background: hsl(var(--primary) / .85); }
+#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"], [aria-label="停止生成"], [aria-label="Stop generating"]) { background: hsl(var(--primary)); color: white; }
+#dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"], [aria-label="停止生成"], [aria-label="Stop generating"]):hover:not(:disabled) { background: hsl(var(--primary) / .85); }
 
 /* Native settings uses a fixed overlay inside its trigger. A filtered sidebar
    becomes its containing block and clips the entire dialog to sidebar width. */

@@ -4,6 +4,7 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { hydrateNotes } from "../lib/notes";
+import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { hydrateWatch } from "../lib/watchlist";
 import { storageGet, storageSet } from "../lib/storage";
 import { type SlotProps } from "./NativeDsh";
@@ -86,7 +87,17 @@ export function apply(ctx: Context) {
   let workspace = '';
   let workspaceId = '';
   const companyStarts = new Map<string, Promise<void>>();
-  const remember = (id: string) => { storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id); client.sessions.open(id); };
+  let openedSessionId = "";
+  let openedTopicId = "";
+  const sessionListeners = new Set<() => void>();
+  const remember = (id: string, topicId = "") => {
+    const changed = openedSessionId !== id || openedTopicId !== topicId;
+    openedSessionId = id;
+    openedTopicId = topicId;
+    storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
+    client.sessions.open(id);
+    if (changed) sessionListeners.forEach(listener => listener());
+  };
   async function openSession() {
     const response = await fetch("/finance-host");
     if (!response.ok) throw new Error(`工作区配置读取失败 (${response.status})`);
@@ -139,6 +150,48 @@ export function apply(ctx: Context) {
     })();
     if (key) companyStarts.set(key, run);
     try { await run; } finally { if (key) companyStarts.delete(key); }
+  }, async restoreTopic(topicId: string, title = "", signal?: AbortSignal) {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const bound = await loadTopicSessions();
+    const topicBind = bound.topics[topicId];
+    const reusable = topicBind?.active_session_id
+      && list.byId[topicBind.active_session_id]?.cwd === workspace
+      && !archived.has(topicBind.active_session_id)
+      ? topicBind.active_session_id : undefined;
+    signal?.throwIfAborted();
+    const id = reusable ?? await client.sessions.create({ workspaceId });
+    await bindTopicSession(topicId, id, title || topicBind?.title || topicId);
+    signal?.throwIfAborted();
+    remember(id, topicId);
+    return { topicId, sessionId: id, matched: openedTopicId === topicId && openedSessionId === id };
+  }, async startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }) {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (input.fresh) {
+      const id = await client.sessions.create({ workspaceId });
+      await bindTopicSession(input.topicId, id, input.title);
+      remember(id, input.topicId);
+    } else if (openedTopicId !== input.topicId || !openedSessionId) {
+      await research.restoreTopic(input.topicId, input.title);
+    } else {
+      remember(openedSessionId, input.topicId);
+    }
+    const id = openedSessionId;
+    const scope = client.sessions.scope(id);
+    const face = scope && client.sessions.sessionOf(scope);
+    if (!face) throw new Error('议题会话创建失败');
+    if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
+      throw new Error('议题研究未被接收，请检查模型设置后重试');
+    }
+  }, topicSessionMatches(topicId: string) {
+    return openedTopicId === topicId && !!openedSessionId;
+  }, subscribeSession(listener: () => void) {
+    sessionListeners.add(listener);
+    return () => { sessionListeners.delete(listener); };
   } };
   client.slots.inject('conversation.view', () => client.slots.register<{ openView(view: string, focus?: string): void }>({
     name: 'conversation.view', id: 'finance-history', order: 30, label: () => '历史对话',
@@ -156,9 +209,11 @@ export function apply(ctx: Context) {
       setCreating(true); setError('');
       try {
         if (!workspaceId) throw new Error('研究工作区尚未连接');
+        const topicId = openedTopicId;
         const id = await client.sessions.create({ workspaceId });
+        if (topicId) await bindTopicSession(topicId, id, topicId);
         openView?.('chat');
-        remember(id);
+        remember(id, topicId);
       } catch {
         setError('新建对话失败，请重试');
       } finally {

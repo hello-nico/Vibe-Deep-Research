@@ -7,7 +7,7 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import sectorsData from "@/data/sectors.json";
 
 /**
- * 板块中心 —— **只列已核实环节的板块**。
+ * 行业研究 —— **只列已核实环节的板块**。
  *
  * 🔴 数据文件里还有十几个只有名字、没有环节的板块。产品决定**不做逐赛道看板**
  *    (产业维度靠取数层的产业标签,不靠这里画卡片)⇒ 那些不进展示。
@@ -21,9 +21,9 @@ export function Sectors() {
 
   useAiPage({
     key: "sectors",
-    title: "板块中心",
+    title: "行业研究",
     context:
-      `板块中心 · 已核实 ${sectors.length} 条产业链骨架（其中标热门 ${hotCount} 条）。只有环节，不含标的：\n` +
+      `行业研究 · 已核实 ${sectors.length} 条产业链骨架（其中标热门 ${hotCount} 条）。只有环节，不含标的：\n` +
       sectors.map((s) => `- ${s.label}：${s.tagline}｜环节 ${s.nodes.length} 个`).join("\n"),
     suggestions: ["这几条链哪条更值得看", "帮我比较一下它们的环节结构", "还缺哪些环节"],
   });
@@ -31,7 +31,7 @@ export function Sectors() {
   return (
     <div>
       <PageHeader
-        title="板块中心"
+        title="行业研究"
         subtitle={`${sectors.length} 个赛道的产业链骨架 · 只有环节，不含标的`}
       />
 

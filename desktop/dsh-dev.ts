@@ -79,7 +79,9 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       if (!trusted(req)) { res.writeHead(403); res.end(); return; }
       const pathname = (req.url ?? "/").split("?")[0]!;
       if (pathname.startsWith("/finance-api") || pathname.startsWith("/api/") || pathname.startsWith("/plugins/")
-        || pathname.startsWith("/assets/") || pathname.startsWith("/finance-research/") || pathname === "/finance-stage-model" || pathname === "/finance-model" || pathname === "/finance-host" || pathname === "/finance-ui.css"
+        || pathname.startsWith("/assets/") || pathname.startsWith("/finance-research/") || pathname.startsWith("/finance-notes")
+        || pathname === "/finance-stage-model" || pathname === "/finance-model" || pathname === "/finance-host" || pathname === "/finance-note-digest"
+        || pathname === "/finance-topic-sessions" || pathname === "/finance-wiki-publish" || pathname === "/finance-ui.css"
         || pathname === "/finance-pdfium.wasm" || pathname === "/finance-icon.svg" || pathname === "/favicon.svg" || pathname === "/manifest.webmanifest") return next();
       // A full document request receives the untouched DSH index including its boot kernel.
       if (req.method !== "GET" || (!req.headers.accept?.includes("text/html") && pathname !== "/")) return next();
@@ -98,7 +100,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     configResolved(config) {
       for (const section of [config.server, config.preview]) {
         section.proxy = {
-          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-stage-model", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
+          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-wiki-publish", "/finance-stage-model", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
             target, ws: true, changeOrigin: true,
             configure(proxy: import("vite").HttpProxy.Server) {
               const authorize = (request: import("node:http").ClientRequest, incoming: IncomingMessage) => {

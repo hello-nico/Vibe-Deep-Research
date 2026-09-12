@@ -1,5 +1,5 @@
 diff --git a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
-index 7bb9256..c1894f0 100644
+index 7bb9256..2c69066 100644
 --- a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
 +++ b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
 @@ -1074,7 +1074,10 @@ window.__ModuleLoader__.load({
@@ -14,6 +14,15 @@ index 7bb9256..c1894f0 100644
  		}
  		function ModelRetryItem({ node, active, t }) {
  			const deadline = (0, react.useMemo)(() => Date.now() + node.delayMs, [node.delayMs, node.seq]);
+@@ -2568,7 +2571,7 @@ window.__ModuleLoader__.load({
+ 			"chat.loadError": "历史加载失败：{message}（{code}）",
+ 			"chat.loadOlder": "加载更早",
+ 			"chat.toBottom": "回到底部",
+-			"chat.deepDiving": "深度求索中...",
++			"chat.deepDiving": "研究中…",
+ 			"chat.turnNavigation.label": "轮次导航",
+ 			"chat.turnNavigation.jump": "跳转到第 {turn} 轮",
+ 			"chat.turnNavigation.jumpLoad": "加载并跳转到第 {turn} 轮",
 @@ -2625,6 +2628,8 @@ window.__ModuleLoader__.load({
  			"message.retry.delay": "重试延迟：",
  			"message.retry.failure": "失败原因：",
@@ -23,6 +32,15 @@ index 7bb9256..c1894f0 100644
  			"message.turnError": "本轮运行失败",
  			"message.maxTokens": "已达到输出 token 上限",
  			"message.maxTokens.hint": "回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。",
+@@ -2681,7 +2686,7 @@ window.__ModuleLoader__.load({
+ 			"chat.loadError": "Failed to load history: {message} ({code})",
+ 			"chat.loadOlder": "Load earlier",
+ 			"chat.toBottom": "Back to bottom",
+-			"chat.deepDiving": "Deep diving...",
++			"chat.deepDiving": "Researching…",
+ 			"chat.turnNavigation.label": "Turn navigation",
+ 			"chat.turnNavigation.jump": "Jump to turn {turn}",
+ 			"chat.turnNavigation.jumpLoad": "Load and jump to turn {turn}",
 @@ -2738,6 +2743,8 @@ window.__ModuleLoader__.load({
  			"message.retry.delay": "Retry delay: ",
  			"message.retry.failure": "Failure reason: ",

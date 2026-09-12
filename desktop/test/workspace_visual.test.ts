@@ -6,7 +6,7 @@ const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url)
 test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("const INTEL_LINKS")).replace(/^\s*\/\/.*$/gm, "");
-  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "产业信号", "板块中心", "个股研究", "自选股", "我的研报", "研究记录"]);
+  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "产业信号", "行业研究", "个股研究", "自选股", "我的研报", "我的研究"]);
   assert.match(layout, /id="dsh-settings"/);
   for (const route of ["/intel/investment-news", "/intel/news", "/intel/filings", "/intel/events", "/signals/gpu-rent"]) assert.ok(layout.includes(route));
   assert.doesNotMatch(layout, /SECTOR_LINKS|vr-sectors-open/);
@@ -20,6 +20,15 @@ test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   assert.match(layout, /const closeMobileNav = \(\) => \{\s*setMobileOpen\(false\);[\s\S]*?requestAnimationFrame\(\(\) => menuRef\.current\?\.focus\(\)\)/);
   assert.equal((layout.match(/onClick=\{closeMobileNav\}/g) ?? []).length, 2);
   assert.match(layout, /event\.key === "Escape"[^\n]*closeMobileNav\(\)/);
+});
+test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝与求索文案", () => {
+  const dsh = read("verticals/finance/dsh/native-dsh.css");
+  assert.match(dsh, /#dsh-conversation \{[\s\S]*--dsw-alias-button-info-fill: hsl\(var\(--primary\)\)/);
+  assert.match(dsh, /aria-label="停止生成"/);
+  assert.match(dsh, /#dsh-conversation \{[\s\S]*--dsw-static-deepseek-500: hsl\(var\(--primary\)\)/);
+  const chatPatch = readFileSync(new URL("../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.1.2-rc.1.patch", import.meta.url), "utf8");
+  assert.match(chatPatch, /\+.*"chat\.deepDiving": "研究中…"/);
+  assert.match(chatPatch, /-.*"chat\.deepDiving": "深度求索中\.\.\."/);
 });
 test("公开暖橙玻璃风保留可访问性与非绿色品牌", () => {
   const css = read("index.css");
@@ -58,7 +67,7 @@ test("首页以 Agent 为首屏，保留数据组件但不自动取数或启动�
 });
 test("非首页顶栏只放问助手入口，不再并排投研助手身份字", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /pathname !== "\/" && <FinanceAiDock/);
+  assert.match(layout, /pathname !== "\/" && !pathname.startsWith\("\/my-research\/topics\/"\) && <FinanceAiDock/);
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /fixed right-5 top-4/);

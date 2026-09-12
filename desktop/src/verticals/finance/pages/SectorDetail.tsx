@@ -24,7 +24,7 @@ export function SectorDetail() {
   if (!sector) {
     return (
       <div className="py-20 text-center text-muted-foreground">
-        未找到该板块。<Link to="/sectors" className="text-primary">返回板块中心</Link>
+        未找到该行业。<Link to="/sectors" className="text-primary">返回行业研究</Link>
       </div>
     );
   }
@@ -32,7 +32,7 @@ export function SectorDetail() {
   return (
     <div>
       <Link to="/sectors" className="mb-3 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> 板块中心
+        <ArrowLeft className="h-4 w-4" /> 行业研究
       </Link>
 
       <PageHeader

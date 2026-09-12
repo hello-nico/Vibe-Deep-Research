@@ -64,6 +64,7 @@ export function researchRuntimeEnv(paths: ReturnType<typeof resolveDshPaths>, en
   const local = readResearchEnvFile(paths.researchRepo);
   const hook = env.STOCK_RESEARCH_HOOK_TOKEN ?? local.STOCK_RESEARCH_HOOK_TOKEN;
   runtime.STOCK_RESEARCH_ACCUMULATE = "1";
+  runtime.STOCK_RESEARCH_PRODUCT_NOTES = path.join(paths.dataRoot, "ledger", "note.json");
   if (typeof hook === "string" && hook.trim()) runtime.STOCK_RESEARCH_HOOK_TOKEN = hook.trim();
   return runtime;
 }

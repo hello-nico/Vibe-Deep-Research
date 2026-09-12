@@ -13,19 +13,20 @@ import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { storageGet, storageSet } from "@/lib/storage";
 import { NativeDshHost } from "../../dsh/NativeDsh";
+import { useTopicSessionGate } from "../../dsh/topic-session-gate";
 
 const NAV = [
   { to: "/", icon: MessagesSquare, label: "深度对话" },
   { to: "/daily-review", icon: Activity, label: "大盘行情" },
   { to: "/intel", icon: Radar, label: "资讯雷达" },
   { to: "/signals", icon: Thermometer, label: "产业信号" },
-  { to: "/sectors", icon: LayoutGrid, label: "板块中心" },
+  { to: "/sectors", icon: LayoutGrid, label: "行业研究" },
   { to: "/research", icon: Microscope, label: "个股研究" },
   { to: "/watchlist", icon: Star, label: "自选股" },
   // 暂时隐藏，待持仓模块的产品方案确定后恢复。
   // { to: "/portfolio", icon: Wallet, label: "我的持仓" },
   { to: "/my-reports", icon: FileText, label: "我的研报" },
-  { to: "/notes", icon: NotebookPen, label: "研究记录" },
+  { to: "/my-research", icon: NotebookPen, label: "我的研究" },
 ];
 
 // 资讯雷达的小栏目（缩进子项，顺序即页内 Tab 顺序）。
@@ -59,6 +60,10 @@ export function Layout() {
   }, []);
   const { pathname } = useLocation();
   const navigation = useNavigation();
+  const topicGate = useTopicSessionGate();
+  useEffect(() => {
+    if (!pathname.startsWith("/my-research/topics/")) topicGate.setGate({ blocking: false, message: "" });
+  }, [pathname]);
   useDarkMode();
   const navRef = useRef<HTMLElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -167,7 +172,7 @@ export function Layout() {
           <div id="dsh-status" data-testid="ai-runtime-badge" className="px-3 text-[10px] text-muted-foreground empty:hidden" />
           <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
             {NAV.map(({ to, icon: Icon, label }) => {
-              const active = pathname === to || (to === "/sectors" && pathname.startsWith("/sectors/"));
+              const active = pathname === to || (to === "/sectors" && pathname.startsWith("/sectors/")) || (to === "/my-research" && pathname.startsWith("/my-research"));
               const group = NAV_GROUPS[to];
               const groupOpen = group ? !!openGroups[to] : false;
               return <div key={to}>
@@ -217,10 +222,10 @@ export function Layout() {
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
-            {pathname !== "/" && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
+            {pathname !== "/" && !pathname.startsWith("/my-research/topics/") && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-            <ConversationWorkspace active={pathname === "/"}>
+            <ConversationWorkspace active={pathname === "/" || pathname.startsWith("/my-research/topics/")} split={pathname.startsWith("/my-research/topics/")} title={pathname.startsWith("/my-research/topics/") ? "议题研究" : "深度对话"} subtitle={pathname.startsWith("/my-research/topics/") ? "围绕当前议题读取材料、确认关联并形成可发布草案" : "查阅资料、核对证据，深入探讨你的研究问题"}>
               {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
               <Outlet />
             </ConversationWorkspace>
