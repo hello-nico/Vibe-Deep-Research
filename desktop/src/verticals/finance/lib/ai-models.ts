@@ -66,7 +66,7 @@ export const AI_MODELS: ModelConfig[] = [
   { id: "codebuddy", name: "WorkBuddy / CodeBuddy", description: "用本机 CodeBuddy 已登录账号，免 API key", provider: "cli-codebuddy" },
 
   // —— API 档（填自己的 key）。带模板的排前面 ——
-  { id: "deepseek-v4-flash", name: "DeepSeek V4 Flash", description: "DeepSeek 官方 · 快而省", provider: "deepseek" },
+  { id: "deepseek-flash", name: "DeepSeek V4.1 Flash", description: "DeepSeek 官方 · 快而省，原生视觉", provider: "deepseek" },
   { id: "deepseek-v4-pro", name: "DeepSeek V4 Pro", description: "DeepSeek 官方 · 旗舰推理", provider: "deepseek" },
   { id: "mimo-v2.5", name: "MiMo V2.5", description: "小米 MiMo · 快，日常首选", provider: "mimo" },
   { id: "mimo-v2.5-pro", name: "MiMo V2.5 Pro", description: "小米 MiMo · 推理模型，更准但慢", provider: "mimo" },

@@ -15,7 +15,7 @@ Mac 构建方式见 [打包说明](../packaging/macos/README.md)。历史测试�
 | License | `LICENSE` 与中英文 README 已采用 MIT，不再是待定项 | 发布前核对依赖许可证；引擎 openai/codex 为 Apache-2.0，本仓库不含其源码 |
 | 仓库地址 | 两份 README 不再指向原作者公开仓库 | 发布前核对分支、上游修复及实际发布内容 |
 | 国产模型矩阵 | `providers/{deepseek,qwen,glm,kimi}.json` 的 `matrix.status` 未真测 | 设对应环境变量(`DEEPSEEK_API_KEY` / `DASHSCOPE_API_KEY`——百炼三件套共用;三个百炼模板还要先在 `.local/providers/` 填掉 `{WorkspaceId}`)后 `node orchestrator/src/finance/provider_matrix.ts --provider <id> --model <m>`,按结果回填 `matrix.status / results / note / last_run` 与 `verified_at` |
-| 模板易变字段 | 四个模板有 2026-08-26 的 `verified_at`；这是历史文档核对，不是当前实跑证明 | 发布前重新核对厂商文档与实际兼容矩阵，不把模板日期等同模型验证通过 |
+| 模板易变字段 | DeepSeek 默认模型已按 2026-09-11 官方文档改为 `deepseek-flash`；其余模板仍为 2026-08-26。均不是兼容矩阵实跑证明 | 发布前重新核对厂商文档与实际兼容矩阵，不把模板日期等同模型验证通过 |
 | 联系方式与赞赏 | 产品表面不放置原作者个人身份或赞赏入口 | 不编造未确认的替换联系方式 |
 | Windows | 发布前须检查本次提交的跨平台 CI；Windows 运行选定契约测试 | 本机 Mac 测试与 CI 不能冒充 Windows 客户实机验收，正常退出后的 Job Object 回收保证仍未验证 |
 | 真实模型验收 | M37 原生安装版 core 六阶段无夹具 complete：120 证据、19 计算、最终校验通过；专用配置 Sol/low | complete 门槛已有本机证据；不扩成所有来源 full、所有供应商或所有平台验收。M36 full 的外部缺口仍保留 |

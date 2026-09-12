@@ -8,7 +8,7 @@
     "api_key"
   ],
   "requires_openai_auth": false,
-  "default_model": "deepseek-v4-flash",
+  "default_model": "deepseek-flash",
   "responses_support": "native",
   "stream_format": "responses-sse",
   "tool_calls": true,
@@ -28,7 +28,7 @@
   ],
   "matrix": {
     "status": "untested",
-    "note": "需 DEEPSEEK_API_KEY;重点验多轮(无 previous_response_id)与 function calling,用 provider_matrix 跑 10 项后回填"
+    "note": "需 DEEPSEEK_API_KEY;重点验多轮(无 previous_response_id)与 function calling,用 provider_matrix 跑 10 项后回填。2026-09-11 按官方文档将默认模型改为 deepseek-flash(V4.1-Flash);矩阵未重跑"
   },
-  "verified_at": "2026-08-26"
+  "verified_at": "2026-09-11"
 }

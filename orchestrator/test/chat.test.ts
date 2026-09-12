@@ -405,7 +405,7 @@ test("🔴 用户配了自己的 provider 时,绝不回落到后端默认模型�
 
   const capApi: Cap = { prompts: [] };
   await chatSend({ repoRoot: REPO, dataRoot: root }, { session: "t-api", message: "问", llm: { provider: "deepseek", apiKey: "k" } }, fakeCodex("好", capApi));
-  assert.equal(capApi.opts!.model, "deepseek-v4-flash", "没指定模型时用**该 provider 模板**的默认模型,不是后端默认");
+  assert.equal(capApi.opts!.model, "deepseek-flash", "没指定模型时用**该 provider 模板**的默认模型,不是后端默认");
 });
 
 test("llm 覆盖:配置不对时报出可行动的错误码,而不是悄悄换一家去打", async () => {
@@ -638,7 +638,7 @@ test("🔴 传了 llm 但 provider 为空 —— 必须报错，不许静默回�
 test("🔴 用户的 key 不许出现在回答或报错里 —— 回答上有「存入沉淀」，一点就落盘", async () => {
   const root = tmp();
   const KEY = "sk-user-secret-1234567890";
-  const llm = { provider: "deepseek", apiKey: KEY, model: "deepseek-v4-flash" };
+  const llm = { provider: "deepseek", apiKey: KEY, model: "deepseek-flash" };
 
   resetChatSessions();
   // 模型把 key 念了出来（提示注入让它 `env` 一下就够了）
@@ -738,7 +738,7 @@ test("🔴 浏览器 UI 场景：后端默认缺 key，但用户自己配了 —
     // 带 llm：后端默认缺不缺 key 与这一轮无关，必须放行
     const r = await chatSend(
       { repoRoot: REPO, dataRoot: root },
-      { session: "t-own", message: "问", llm: { provider: "deepseek", apiKey: "sk-mine-000000", model: "deepseek-v4-flash" } },
+      { session: "t-own", message: "问", llm: { provider: "deepseek", apiKey: "sk-mine-000000", model: "deepseek-flash" } },
       fakeCodex("好", { prompts: [] }),
     );
     assert.equal(r.reply, "好");

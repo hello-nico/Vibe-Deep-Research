@@ -109,15 +109,15 @@ key，然后点击“测试并保存”。页面会先通过本机后端向所�
 # 1) 密钥只放环境变量(变量名见模板 env_key;此处以 DeepSeek 为例)
 export DEEPSEEK_API_KEY=...
 # 2) 先跑 10 项兼容矩阵(结果在 .local/provider-matrix/deepseek/<时间>/summary.md,不含密钥)
-node orchestrator/src/finance/provider_matrix.ts --provider deepseek --model deepseek-v4-flash
+node orchestrator/src/finance/provider_matrix.ts --provider deepseek --model deepseek-flash
 # 3) 矩阵可接受后用于研究(或写进 .local/config.json)
-node orchestrator/src/run.ts --symbol 300308 --market SZ --provider deepseek --model deepseek-v4-flash --python "$(pwd)/.venv/bin/python" < /dev/null
+node orchestrator/src/run.ts --symbol 300308 --market SZ --provider deepseek --model deepseek-flash --python "$(pwd)/.venv/bin/python" < /dev/null
 ```
 
 `.local/config.json` 写法:
 
 ```json
-{ "provider": { "profile": "deepseek" }, "defaults": { "model": "deepseek-v4-flash" } }
+{ "provider": { "profile": "deepseek" }, "defaults": { "model": "deepseek-flash" } }
 ```
 
 优先级:`.local/config.json` ← 环境变量 `VRA_PROVIDER` / `VRA_PROVIDER_AUTH` ← CLI `--provider` / `--auth`。环境变量层整体生效(`VRA_PROVIDER` 与 `VRA_CODEX_HOME` / `VRA_PYTHON` 等可同时用)。
@@ -133,12 +133,12 @@ Responses→Chat Completions 网关（此时填 `responses_support: "gateway"`�
 因此直连可以使用已验证的 Chat Completions 端点。`direct.supported=true` 只说明这个独立通道已经验证，
 不能由顶层 Responses 配置自动推导，也不能靠模板存在就开放开关。
 
-内置模板与对应环境变量（下表是 **Agent / Responses 通道**，供应商信息核实于 2026-08-26）：
+内置模板与对应环境变量（下表是 **Agent / Responses 通道**；DeepSeek 默认模型按 2026-09-11 官方文档，其余核实于 2026-08-26）：
 
 | id | 厂商 / 通道 | env_key | 默认模型 | base_url |
 |---|---|---|---|---|
 | `openai` | OpenAI 官方(订阅登录或 API key) | `OPENAI_API_KEY` | 引擎默认 | null(官方端点) |
-| `deepseek` | DeepSeek 官方 Responses | `DEEPSEEK_API_KEY` | `deepseek-v4-flash` | `https://api.deepseek.com` |
+| `deepseek` | DeepSeek 官方 Responses | `DEEPSEEK_API_KEY` | `deepseek-flash` | `https://api.deepseek.com` |
 | `qwen` | 通义千问 · 阿里云百炼 | `DASHSCOPE_API_KEY` | `qwen3.8-max` | `https://{WorkspaceId}.cn-beijing.maas.aliyuncs.com/compatible-mode/v1` |
 | `glm` | 智谱 GLM · 阿里云百炼 | `DASHSCOPE_API_KEY` | `glm-5.2` | 同上 |
 | `kimi` | Kimi · 阿里云百炼 | `DASHSCOPE_API_KEY` | `kimi-k2.7-code` | 同上 |

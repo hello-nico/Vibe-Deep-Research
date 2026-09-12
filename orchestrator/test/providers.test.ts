@@ -115,7 +115,7 @@ test("productConfig:profile=deepseek + 环境变量 → provider 字段由模板
   fs.writeFileSync(path.join(repo, "AGENTS.md"), "#\n");
   const a = loadProductConfig(repo, { env: {} });
   assert.equal(a.provider.name, "openai"); assert.equal(a.providerProfile?.id, "openai"); assert.equal(a.provider.auth, "chatgpt_login");
-  fs.writeFileSync(path.join(repo, ".local", "config.json"), JSON.stringify({ provider: { profile: "deepseek", auth: "api_key" }, defaults: { model: "deepseek-v4-flash" } }));
+  fs.writeFileSync(path.join(repo, ".local", "config.json"), JSON.stringify({ provider: { profile: "deepseek", auth: "api_key" }, defaults: { model: "deepseek-flash" } }));
   assert.throws(() => loadProductConfig(repo, { env: {} }), /DEEPSEEK_API_KEY/);
   const b = loadProductConfig(repo, { env: { DEEPSEEK_API_KEY: "k" } });
   assert.equal(b.provider.name, "deepseek"); assert.equal(b.provider.wire_api, "responses"); assert.equal(b.provider.base_url, "https://api.deepseek.com"); assert.equal(b.provider.env_key, "DEEPSEEK_API_KEY"); assert.equal(b.providerProfile?.id, "deepseek");

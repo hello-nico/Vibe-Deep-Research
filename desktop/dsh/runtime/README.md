@@ -17,8 +17,8 @@
 | dsh-client-ui-model-selection | 模型筛选与选择行为 |
 | dsh-client-ui-deliverables | 已有文件引用呈现 |
 | dsh-llm-pi-ai | 已有 Pi Provider 接入修正 |
-| dsh-llm-deepseek | 区分额度、认证与服务商拒绝 |
-| dsh-client-ui-chat / trajectory | 呈现对应的模型失败语义 |
+| dsh-llm-deepseek | 区分额度、认证与服务商拒绝；默认目录改为官方 `deepseek-flash`(V4.1-Flash，含视觉)与 `deepseek-v4-pro` |
+| dsh-client-ui-chat / trajectory | 呈现对应的模型失败语义；运行中文案改为「研究中…」，不沿用 DeepSeek「深度求索」 |
 
 桌面发行版的窗口、Finder、目录选择桥接及替代布局补丁不带入。产品布局、主题和导航由 `../finance-ui` 的浏览器插件拥有；rc.1 composer 的目录按钮仍是有界 CSS 例外。
 
