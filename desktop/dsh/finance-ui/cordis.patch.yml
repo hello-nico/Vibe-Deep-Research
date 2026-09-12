@@ -2,6 +2,10 @@
   disabled: true
 - id: ui-sidebar
   disabled: true
+- id: ui-reference
+  disabled: true
+- id: ui-deliverables
+  disabled: true
 - insert:
     - id: finance-ui
       name: vibe-finance-ui

@@ -188,3 +188,10 @@ html body.vibe-dsh-host {
 .finance-session-action:disabled { color: var(--dsw-alias-label-dimmed); cursor: wait; }
 .finance-session-action span, .finance-session-action svg { flex: none; white-space: nowrap; }
 .finance-session-action:focus-visible { outline: 2px solid hsl(var(--primary) / .4); outline-offset: 2px; }
+#dsh-conversation code > button[aria-label="打开研究材料"] {
+  font-size: 0;
+}
+#dsh-conversation code > button[aria-label="打开研究材料"]::after {
+  content: attr(aria-label);
+  font-size: 0.875rem;
+}

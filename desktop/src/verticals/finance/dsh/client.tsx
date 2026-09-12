@@ -3,6 +3,8 @@ import { Activity, MessageSquare, Plus, ArrowUpRight, Archive } from "lucide-rea
 import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
+import { researchObjectSource, researchTarget } from './research-input';
+import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { hydrateWatch } from "../lib/watchlist";
@@ -38,10 +40,22 @@ interface Client {
     sessionOf(ctx: Context): { rename(title: string): Promise<{ ok: boolean }>; prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }> } | undefined;
   };
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers"];
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
+  ctx.effect(() => ctx.inputTriggers.registerSource(researchObjectSource));
+  ctx.provide('chatFileMentions', { forClosing() {
+    return { resolve(value: string) {
+      const target = researchTarget(value);
+      if (!target) return undefined;
+      if (target.kind === 'evidence') return undefined;
+      return { label: '打开研究材料', title: '', open() {
+        if (target.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
+        else void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
+      } };
+    } };
+  } });
   const client = ctx as unknown as Client;
   let detailsOpen = false;
   let disposed = false;
