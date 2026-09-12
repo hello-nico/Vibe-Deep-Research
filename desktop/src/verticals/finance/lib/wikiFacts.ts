@@ -64,6 +64,7 @@ export function truncateDecimal(value: string | number, places = 2): string {
 export function formatFactValue(item: Record<string, unknown>): string {
   const unit = String(item.unit ?? '').trim();
   const raw = item.value;
+  if (raw == null || typeof raw === 'boolean' || String(raw).trim() === '' || (typeof raw === 'number' && !Number.isFinite(raw))) return '未获取';
   const numeric = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
   if (!Number.isFinite(numeric)) return [raw == null ? '' : String(raw), unit].filter(Boolean).join(' ');
   if (unit === '元' && Math.abs(numeric) >= 100_000_000) return `${truncateDecimal(numeric / 100_000_000)} 亿元`;
@@ -117,17 +118,16 @@ export function providerDisclosure(item: Record<string, unknown>): ProviderDiscl
 export function providerSnapshot(item: Record<string, unknown>): string {
   const disclosure = providerDisclosure(item);
   if (!disclosure) return '';
-  const lines = [`**${disclosure.name}**`, '', disclosure.summary, ''];
+  const lines = [`**${disclosure.name}**`, ''];
   const fields: [string, string][] = [];
-  if (disclosure.endpoint) fields.push(['接口', `${disclosure.method || 'GET'} ${disclosure.endpoint}`]);
-  if (disclosure.note) fields.push(['接口说明', disclosure.note]);
   if (disclosure.symbol) fields.push(['标的', disclosure.symbol]);
   fields.push(['指标', disclosure.label]);
+  fields.push(['数值', formatFactValue(item)]);
   if (disclosure.basis) fields.push(['口径', disclosure.basis]);
   if (disclosure.observed) fields.push(['数据截至', disclosure.observed]);
   if (disclosure.docs) fields.push(['公开说明', disclosure.docs]);
   if (disclosure.stale) fields.push(['状态', '本次未更新，保留原值']);
-  lines.push(...fields.map(([key, value]) => `- ${key}：${key === '接口' ? `\`${value}\`` : value}`));
+  lines.push(...fields.map(([key, value]) => `- ${key}：${value}`));
   return lines.join('\n');
 }
 

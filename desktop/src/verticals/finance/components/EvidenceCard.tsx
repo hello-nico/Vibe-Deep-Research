@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X } from 'lucide-react';
-import { loadEvidence, type EvidenceView } from '../lib/evidence';
+import { decodeEvidenceLink, loadEvidence, type EvidenceView } from '../lib/evidence';
 import { useAiQuestion } from '../../../core/ai/pageContext';
 import { useFinanceOverlayTarget } from './layout/FinanceAssistantSurface';
 
@@ -13,16 +13,82 @@ const EvidenceContext = createContext<OpenEvidence | null>(null);
 export function EvidenceProvider({ children }: { children: ReactNode }) {
   const [selection, select] = useState<{ reference: string; trigger: HTMLButtonElement | null; locationKey: string; snapshot?: string } | null>(null);
   const location = useLocation();
+  useEffect(() => {
+    const open = (event: Event) => {
+      const reference = (event as CustomEvent<string>).detail;
+      if (typeof reference === 'string') select({ reference, trigger: null, locationKey: location.key });
+    };
+    window.addEventListener('finance-open-evidence', open);
+    return () => window.removeEventListener('finance-open-evidence', open);
+  }, [location.key]);
   useEffect(() => { select(previous => previous?.locationKey === location.key ? previous : null); }, [location.key]);
   const close = () => { select(null); selection?.trigger?.focus(); };
   return <EvidenceContext.Provider value={(reference, trigger, snapshot) => select({ reference, trigger, locationKey: location.key, snapshot })}>{children}
+    <EvidencePreview locationKey={location.key} />
     {selection && selection.locationKey === location.key && <EvidenceCard key={selection.reference} reference={selection.reference} snapshot={selection.snapshot} close={close} />}
   </EvidenceContext.Provider>;
 }
-export function EvidenceLink({ reference, children = '查看依据', snapshot }: { reference: string; children?: ReactNode; snapshot?: string }) {
+export function EvidenceLink({ reference, children = '查看依据', snapshot, citationNumber }: { reference: string; children?: ReactNode; snapshot?: string; citationNumber?: number }) {
   const open = useContext(EvidenceContext);
   const trigger = useRef<HTMLButtonElement>(null);
-  return <button ref={trigger} type="button" disabled={!open} className="text-primary underline underline-offset-4" onClick={() => open?.(reference, trigger.current, snapshot)}>{children}</button>;
+  return <button ref={trigger} type="button" disabled={!open} data-evidence-ref={reference} data-evidence-snapshot={snapshot} data-citation-number={citationNumber} aria-label={citationNumber ? `查看依据 ${citationNumber}` : '查看依据'} className="finance-citation" onClick={() => open?.(reference, trigger.current, snapshot)}>{children}</button>;
+}
+
+/** Shared preview for any conversation opting into ConversationCitations. */
+function EvidencePreview({ locationKey }: { locationKey: string }) {
+  const [anchor, setAnchor] = useState<HTMLButtonElement | null>(null);
+  const [view, setView] = useState<EvidenceView | null>(null);
+  const [failed, setFailed] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const clear = () => { clearTimeout(timer); setAnchor(null); };
+    const enter = (event: Event) => {
+      const element = event.target instanceof Element ? event.target : null;
+      if (element && panel.current?.contains(element)) { clearTimeout(timer); return; }
+      const button = element?.closest<HTMLButtonElement>('.conversation-citations button[data-evidence-ref], .conversation-citations code > button[title="查看依据"]');
+      if (button) { clearTimeout(timer); setAnchor(button); }
+    };
+    const leave = () => { clearTimeout(timer); timer = setTimeout(() => setAnchor(null), 180); };
+    const key = (event: KeyboardEvent) => { if (event.key === 'Escape') clear(); };
+    document.addEventListener('mouseover', enter); document.addEventListener('focusin', enter);
+    document.addEventListener('mouseout', leave); document.addEventListener('focusout', leave);
+    document.addEventListener('click', clear); document.addEventListener('keydown', key);
+    window.addEventListener('resize', clear); window.addEventListener('scroll', clear, true);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener('mouseover', enter); document.removeEventListener('focusin', enter);
+      document.removeEventListener('mouseout', leave); document.removeEventListener('focusout', leave);
+      document.removeEventListener('click', clear); document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', clear); window.removeEventListener('scroll', clear, true);
+    };
+  }, []);
+  useEffect(() => { setAnchor(null); }, [locationKey]);
+  useEffect(() => {
+    setView(null); setFailed(false);
+    if (!anchor) return;
+    const raw = anchor.dataset.evidenceRef ?? anchor.textContent?.trim() ?? '';
+    const reference = decodeEvidenceLink(raw) ?? raw;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      const snapshot = anchor.dataset.evidenceSnapshot;
+      const read = snapshot ? Promise.resolve({ title: '数据来源', text: snapshot, related: [] } as EvidenceView) : loadEvidence(reference, controller.signal);
+      void read.then(async result => {
+        if (result.related.length) result = await loadEvidence(result.related[0]!, controller.signal);
+        if (!controller.signal.aborted) setView(result);
+      }).catch(() => { if (!controller.signal.aborted) setFailed(true); });
+    }, 180);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [anchor]);
+  if (!anchor) return null;
+  const rect = anchor.getBoundingClientRect();
+  const width = Math.min(360, window.innerWidth - 24);
+  const top = rect.bottom + 240 < window.innerHeight ? rect.bottom + 8 : Math.max(12, rect.top - 230);
+  return createPortal(<div ref={panel} role="tooltip" aria-label="来源预览" className="finance-evidence-preview" style={{ width, left: Math.max(12, Math.min(rect.left, window.innerWidth - width - 12)), top }}>
+    {view ? <><div className="font-medium">{view.title}</div>{view.page && <div className="mt-1 text-xs text-muted-foreground">第 {view.page} 页</div>}
+      <div className="mt-3 line-clamp-4 text-sm text-muted-foreground"><ReactMarkdown allowedElements={['p', 'span']} unwrapDisallowed>{view.text}</ReactMarkdown></div>
+      <div className="mt-3 text-xs text-muted-foreground">点击来源查看详情</div></> : <p className="text-sm text-muted-foreground">{failed ? '暂时无法预览，点击来源重试' : '正在读取来源…'}</p>}
+  </div>, document.body);
 }
 function EvidenceCard({ reference, close, snapshot }: { reference: string; close: () => void; snapshot?: string }) {
   const [view, setView] = useState<EvidenceView | null>(snapshot ? { title: '数据来源', text: snapshot, related: [] } : null);

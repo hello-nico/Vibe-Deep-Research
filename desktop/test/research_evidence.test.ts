@@ -17,6 +17,15 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
   const originalFetch = globalThis.fetch;
   try {
     const { decodeEvidenceLink, pinnedBlockPath, readPinnedBlock, loadEvidence } = await server.ssrLoadModule('/src/verticals/finance/lib/evidence.ts');
+    const { createCitationMention } = await import('../src/verticals/finance/lib/citationMarks.ts');
+    const opened: string[] = [];
+    const mention = createCitationMention((reference: string) => opened.push(reference));
+    assert.equal(mention('claim:first').label, '1');
+    assert.equal(mention('claim:second').label, '2');
+    assert.equal(mention('claim:first').label, '1');
+    mention('claim:second').open();
+    assert.deepEqual(opened, ['claim:second']);
+    assert.equal(createCitationMention(() => {})('claim:second').label, '1');
     assert.equal(decodeEvidenceLink('stock-ref://source/doc%3Ar1%3Ahash%3Ar1%3Ap2%3Ab3'), 'source:doc:r1:hash:r1:p2:b3');
     assert.equal(decodeEvidenceLink('javascript:alert(1)'), null);
     assert.equal(decodeEvidenceLink('stock-ref://claim/%ZZ'), null);
@@ -36,6 +45,27 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
   } finally { globalThis.fetch = originalFetch; await server.close(); }
 });
 
+test('引用只使用完整身份，保留缩写和 Markdown 结构', async () => {
+  const { remarkCitationMarks, citationReference } = await import('../src/verticals/finance/lib/citationMarks.ts');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: Markdown } = await import('react-markdown');
+  const source = `source:abc:r1:${'a'.repeat(64)}:r1:p12:b2`;
+  assert.equal(citationReference('...:p14:b2'), null);
+  assert.equal(citationReference('source:abc:r1:hash:r1:p12:b2'), null);
+  const render = (text: string) => renderToStaticMarkup(createElement(Markdown, {
+    remarkPlugins: [remarkCitationMarks], urlTransform: (url: string) => url, children: text,
+  }));
+  for (const text of [source, '`' + source + '`', '[查看依据](' + source + ')']) {
+    const html = render(text);
+    assert.equal((html.match(/<a /g) || []).length, 1);
+    assert.match(html, /href="stock-ref:\/\/source\//);
+    assert.doesNotMatch(html, /<code>/);
+  }
+  assert.match(render('核对 ...:p14:b2 后判断'), /核对 ...:p14:b2 后判断/);
+  assert.match(render('```\n' + source + '\n```'), /<pre><code>source:/);
+  assert.match(render('[原文](https://example.com)'), /href="https:\/\/example.com"/);
+});
 test('产品只开放 pinned block 的读取路径', () => {
   assert.equal(researchRoute('GET', '/wiki/documents/abc123/blocks/r1%3Ap2%3Ab3'), true);
   assert.equal(researchRoute('POST', '/wiki/documents/abc123/blocks/r1%3Ap2%3Ab3'), false);

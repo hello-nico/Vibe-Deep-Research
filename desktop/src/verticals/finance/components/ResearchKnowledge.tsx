@@ -4,6 +4,7 @@ import { Building2, ChartNoAxesCombined, Landmark, Scale, ScanEye, BookOpen } fr
 import { GlassCard } from './ui/GlassCard';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import { decodeEvidenceLink } from '../lib/evidence';
+import { remarkCitationMarks } from '../lib/citationMarks';
 import { EvidenceLink } from './EvidenceCard';
 import remarkGfm from 'remark-gfm';
 import { researchRead, type WikiPage } from '../lib/research';
@@ -12,7 +13,7 @@ import { FACT_SECTIONS, factItems, factLabel, formatFactValue, providerSnapshot 
 export function KnowledgeText({ markdown }: { markdown: string }) {
   // The accepted artifact includes YAML for machines; only its body is reader content.
   const body = markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
-  return <div className="prose prose-sm max-w-none break-words leading-8 prose-headings:tracking-tight prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border/60 prose-h2:pb-3 prose-table:text-xs dark:prose-invert overflow-x-auto"><ReactMarkdown remarkPlugins={[remarkGfm]} urlTransform={url => decodeEvidenceLink(url) ? url : defaultUrlTransform(url)} components={{ a: ({ href, children }) => {
+  return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 prose-headings:tracking-tight prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border/60 prose-h2:pb-3 prose-table:text-xs dark:prose-invert overflow-x-auto"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCitationMarks]} urlTransform={url => decodeEvidenceLink(url) ? url : defaultUrlTransform(url)} components={{ a: ({ href, children }) => {
     const reference = decodeEvidenceLink(href || '');
     return reference ? <EvidenceLink reference={reference}>{children}</EvidenceLink> : <a href={href}>{children}</a>;
   } }}>{body}</ReactMarkdown></div>;
@@ -46,7 +47,7 @@ function CompanySections({ markdown, blocks }: { markdown: string; blocks: WikiP
   })}</div>;
 }
 function FactList({ items }: { items: Record<string, unknown>[] }) {
-  return <div className="prose prose-sm max-w-none break-words leading-8 dark:prose-invert"><ul>{items.map((item, index) => {
+  return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 dark:prose-invert"><ul>{items.map((item, index) => {
     const ref = typeof item.ref === 'string' ? item.ref.trim() : '';
     const snapshot = providerSnapshot(item);
     const link = /^(claim|evidence|source):/.test(ref) ? <EvidenceLink reference={ref}>查看依据</EvidenceLink>
@@ -70,7 +71,7 @@ function SourceTimeline({ content }: { content?: Record<string, unknown> }) {
 }
 export function ReferenceButtons({ refs }: { refs: string[] }) {
   const readable = [...new Set(refs)].filter(ref => /^(claim|evidence|source|provider):/.test(ref));
-  return <section className="mt-8 border-t border-border pt-5"><h3 className="mb-4 font-semibold">研究依据</h3>
+  return <section className="finance-cite-root mt-8 border-t border-border pt-5"><h3 className="mb-4 font-semibold">研究依据</h3>
     <div className="flex flex-wrap gap-3">{readable.map((ref, index) => <EvidenceLink key={ref} reference={ref}>依据 {index + 1}</EvidenceLink>)}</div>
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;

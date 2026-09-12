@@ -417,3 +417,21 @@
 @media (forced-colors: active) {
   .ai-surface, .ai-chat-trigger, .dark .ai-surface, .dark .ai-chat-trigger { background: Canvas; color: CanvasText; border-color: ButtonText; box-shadow: none; }
 }
+/* Compact numbered citations; the raw locator stays on the control, not in the prose. */
+.finance-citation {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.finance-evidence-preview {
+  position: fixed;
+  z-index: 100;
+  max-height: 220px;
+  overflow: hidden;
+  padding: 12px 14px;
+  border: 1px solid hsl(var(--border));
+  border-radius: 12px;
+  background: hsl(var(--card));
+  color: hsl(var(--foreground));
+  box-shadow: 0 8px 28px #0002;
+}

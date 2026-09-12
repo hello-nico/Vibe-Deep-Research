@@ -13,6 +13,8 @@ test('财务估值数字截断两位小数且不四舍五入，API 来源收成�
     assert.equal(truncateDecimal(0.446576), '0.44');
     assert.equal(truncateDecimal(144.1), '144.10');
     assert.equal(formatFactValue({ value: 9.298393, unit: '倍' }), '9.29 倍');
+    for (const value of [null, undefined, '', ' ', false, NaN, Infinity]) assert.equal(formatFactValue({ value, unit: '元' }), '未获取');
+    assert.equal(formatFactValue({ value: 0, unit: '元' }), '0.00 元');
     assert.equal(formatFactValue({ value: '34502809176.39', unit: '元' }), '345.02 亿元');
     assert.equal(factLabel({ metric: 'pe_ttm', period: 'TTM' }), 'TTM 市盈率（TTM）');
     const hithink = providerDisclosure({
@@ -26,12 +28,14 @@ test('财务估值数字截断两位小数且不四舍五入，API 来源收成�
     assert.match(hithink.docs, /valuations/);
     assert.equal(hithink.symbol, '600011.SH');
     const snapshot = providerSnapshot({
+      value: 9.298393,
       source: 'provider', provider: 'hithink', metric: 'pe_ttm', period: 'TTM', unit: '倍',
       observed_at: '2026-08-19T00:00:00+08:00', stale: true,
       ref: 'provider:hithink:600011.SH:pe_ttm:2026-08-19T00:00:00+08:00',
     });
     assert.match(snapshot, /\*\*扶摇\*\*/);
-    assert.match(snapshot, /接口：`GET https:\/\/fuyao\.aicubes\.cn\/api\/a-share\/valuations\/snapshot\?thscodes=600011\.SH`/);
+    assert.match(snapshot, /数值：9.29 倍/);
+    assert.doesNotMatch(snapshot, /GET |REST|\/api\//);
     assert.match(snapshot, /数据截至：2026-08-19 00:00:00/);
     assert.match(snapshot, /本次未更新，保留原值/);
     const sina = providerDisclosure({

@@ -1,0 +1,55 @@
+/* Raise the whole native code wrapper, so its background and line box do not
+   remain on the text baseline. React EvidenceLink uses the same treatment. */
+.conversation-citations code:has(> button[title="查看依据"]),
+.conversation-citations .finance-citation[data-citation-number] {
+  display: inline-block;
+  vertical-align: super;
+  margin: 0 1px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  font-size: 10px;
+  line-height: 0;
+  white-space: nowrap;
+}
+.conversation-citations code:has(> button[title="查看依据"]) {
+  position: relative;
+  top: -.45em;
+}
+.conversation-citations code:has(> button[title="查看依据"])::before,
+.conversation-citations code:has(> button[title="查看依据"])::after { content: none; }
+.conversation-citations .finance-citation[data-citation-number],
+.conversation-citations code > button[title="查看依据"] {
+  position: relative;
+  width: 15px;
+  min-width: 15px;
+  height: 15px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: hsl(var(--muted));
+  color: transparent;
+  font-size: 0;
+  line-height: 15px;
+  text-decoration: none;
+  cursor: pointer;
+}
+.conversation-citations .finance-citation[data-citation-number]::after,
+.conversation-citations code > button[title="查看依据"]::after {
+  content: attr(data-citation-number);
+  position: absolute;
+  inset: 0;
+  color: hsl(var(--muted-foreground));
+  font: 500 10px/15px sans-serif;
+  text-align: center;
+}
+.conversation-citations code > button[title="查看依据"]::after { content: attr(aria-label); }
+.conversation-citations .finance-citation[data-citation-number]:hover,
+.conversation-citations code > button[title="查看依据"]:hover {
+  background: hsl(var(--primary) / .12);
+}
+.conversation-citations .finance-citation[data-citation-number]:focus-visible,
+.conversation-citations code > button[title="查看依据"]:focus-visible {
+  outline: 2px solid hsl(var(--primary));
+  outline-offset: 2px;
+}

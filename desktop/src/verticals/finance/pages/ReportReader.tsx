@@ -16,7 +16,7 @@ function DocumentReader({ id }: { id: string }) {
   const hash = params.get('hash') || '';
   const requestedBlock = params.get('block') || '';
   const source = params.get('from') || '';
-  const from = /^\/(research(?:\?|$)|my-reports(?:\?|$)|sectors(?:\/|\?|$))/.test(source) ? source : '/my-reports';
+  const from = source === '/' || /^\/(research(?:\?|$)|my-research(?:\/topics\/[0-9a-f]{12}|\/material)?(?:\?|$)|my-reports(?:\?|$)|sectors(?:\/|\?|$))/.test(source) ? source : '/my-reports';
   const initialPage = useRef(Math.max(1, Number(params.get('page')) || 1)).current;
   const [page, setPage] = useState(initialPage);
   const [document, setDocument] = useState<Document | null>(null);
@@ -25,7 +25,7 @@ function DocumentReader({ id }: { id: string }) {
   const selectionChanged = useRef(false);
   const [error, setError] = useState('');
   const { ask } = useAiQuestion();
-  const title = document?.title || '资料阅读';
+  const title = document?.title && !/^legacy:/i.test(document.title) ? document.title : '资料原文';
   const kind = document?.document_type === 'research_report' ? '研报阅读' : ['annual_report', 'quarterly_report'].includes(document?.document_type || '') ? '财报阅读' : '资料阅读';
   useEffect(() => {
     const controller = new AbortController();
@@ -65,7 +65,7 @@ function DocumentReader({ id }: { id: string }) {
   }
   return <div className="space-y-3">
     <header className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0"><Link replace to={from} className="mb-2 inline-block text-sm text-primary">← {from.startsWith('/research') ? '返回公司资料' : from.startsWith('/sectors') ? '返回板块资料' : '返回我的研报'}</Link><p className="text-xs text-muted-foreground">{kind}</p><h1 className="mt-1 text-lg font-semibold">{title}</h1></div>
+      <div className="min-w-0"><Link replace to={from} className="mb-2 inline-block text-sm text-primary">← {from === '/' ? '返回深度对话' : from.startsWith('/my-research/topics/') ? '返回研究议题' : from.startsWith('/my-research/material') ? '返回研究材料' : from.startsWith('/my-research') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : from.startsWith('/sectors') ? '返回行业研究' : '返回我的研报'}</Link><p className="text-xs text-muted-foreground">{kind}</p><h1 className="mt-1 text-lg font-semibold">{title}</h1></div>
       {document?.has_raw && <a className="workspace-action" href={raw} target="_blank" rel="noreferrer">打开 / 下载原件</a>}
     </header>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
