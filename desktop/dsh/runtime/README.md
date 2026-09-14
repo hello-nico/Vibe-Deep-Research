@@ -4,6 +4,12 @@
 
 通过仓库 `scripts/setup` 执行 `npm ci`，postinstall 自动应用下面补丁，失败即中断。产品插件通过官方 `plugin add link:` 安装到配置的 Web profile；不复制私人配置与凭据，不要求存在相邻 dsh-desktop。
 
+## 产品运行配置
+
+官方 `web` profile 提供运行底盘。`../finance-ui/cordis.patch.yml` 拥有固定产品组合、人设基础及通用工具权限（关闭 bash、PowerShell、文件读取与文件搜索）；Stock-Research 研究插件拥有原生研究工具及其生命周期，不覆盖这些全局设置。
+
+`desktop/dsh-dev.ts` 启动时只为安装位置生成 `DSH_HOME/finance-runtime.patch.yml`，配置产品预设的绝对目录与默认 `vibe` 预设，不读取用户预设。启动使用 `dsh --profile web --patch <finance-runtime.patch.yml> --port <产品配置端口>`；旧阶段命名的 patch 不再加载。DSH profile 和会话仍留在产品专用 DSH_HOME。
+
 ## 补丁归属
 
 这些补丁来自此前 M3 使用的 rc.1 运行环境，显式保留已有行为；不是当前产品修改上游源码的隐式前提。

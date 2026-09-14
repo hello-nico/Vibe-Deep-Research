@@ -17,7 +17,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     && (!req.headers["sec-fetch-site"] || ["same-origin", "none"].includes(String(req.headers["sec-fetch-site"])));
 
   async function install(server: ViteDevServer | PreviewServer, development: boolean) {
-    if (process.env.VRA_LAN === "1") throw new Error("M3 DSH 仅支持本机访问");
+    if (process.env.VRA_LAN === "1") throw new Error("研究工作台仅支持本机访问");
     const port = development ? server.config.server.port : server.config.preview.port;
     origin = `http://127.0.0.1:${port}`;
     prepareDshPaths(paths);
@@ -50,7 +50,9 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       });
     }
     if (!fs.existsSync(bundle)) throw new Error("产品 UI 插件缺少构建产物，请运行 scripts/setup");
-    const overlay = path.join(paths.home, "vibe-m3.patch.yml");
+    // Only the preset root depends on this installation's absolute path.
+    // Fixed product composition and permissions live in finance-ui/cordis.patch.yml.
+    const overlay = path.join(paths.home, "finance-runtime.patch.yml");
     fs.writeFileSync(overlay, JSON.stringify([{ id: "agent-presets", config: {
       default: "vibe", includeShippedRoot: false, includeUserRoot: false,
       roots: [{ path: path.join(repoRoot, "desktop/dsh/presets"), trust: "system" }],

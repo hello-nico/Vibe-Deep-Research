@@ -3,7 +3,7 @@ import path from "node:path";
 import { parseEnv } from "node:util";
 import { readConfiguredDataRoot, resolveDataRoot } from "./data_root.ts";
 
-/** M3 config contains paths only; model settings and credentials remain DSH-owned. */
+/** Product runtime config contains paths only; model settings and credentials remain DSH-owned. */
 export function resolveDshPaths(repoRoot: string, env: NodeJS.ProcessEnv = process.env) {
   const dataRoot = resolveDataRoot(repoRoot, readConfiguredDataRoot(repoRoot), env);
   const configFile = path.resolve(repoRoot, env.VRA_DSH_CONFIG ?? "dsh.config.json");
@@ -83,5 +83,5 @@ export function prepareDshPaths(paths: Pick<ReturnType<typeof resolveDshPaths>, 
   }
   assertSeparate(fs.realpathSync(paths.home), fs.realpathSync(paths.workspace));
   const manifest = JSON.parse(fs.readFileSync(path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/package.json"), "utf8"));
-  if (manifest.version !== "0.1.2-rc.1") throw new Error("M3 需要钉住的 DSH 0.1.2-rc.1 运行环境");
+  if (manifest.version !== "0.1.2-rc.1") throw new Error("研究工作台需要 DSH 0.1.2-rc.1 运行环境");
 }
