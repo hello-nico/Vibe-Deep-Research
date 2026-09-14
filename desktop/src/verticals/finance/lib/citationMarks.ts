@@ -1,12 +1,56 @@
 import type { Root, RootContent, Link } from 'mdast';
 
-/** Create once per answer: repeated sources keep their number across renders. */
+const MAX_CITATION_TITLE_LENGTH = 48;
+
+function compactCitationTitle(value: string): string {
+  const compact = value.replace(/\s+/g, ' ').trim();
+  if (compact.length <= MAX_CITATION_TITLE_LENGTH) return compact;
+  return compact.slice(0, MAX_CITATION_TITLE_LENGTH - 1).trimEnd() + '…';
+}
+
+/**
+ * Pick the source text that can sit next to the answer without exposing an
+ * opaque reference. Explicit link text wins; URLs fall back to their host;
+ * producer names are safe metadata, while the other internal IDs stay hidden.
+ */
+export function citationTitle(reference: string, explicitTitle?: string): string {
+  const explicit = explicitTitle ? compactCitationTitle(explicitTitle) : '';
+  const generic = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文']);
+  if (explicit && !generic.has(explicit) && !webCitationUrl(explicit) && !/^(?:source|claim|evidence|provider|lookup):/.test(explicit)) return explicit;
+  const web = webCitationUrl(reference);
+  if (web) return new URL(web).hostname.replace(/^www\./, '');
+  const provider = /^provider:([^:\s<>]+):/.exec(reference)?.[1];
+  return provider ? compactCitationTitle(provider) : '来源';
+}
+
+/** Create once per answer: every resolved reference gets a compact source title. */
 export function createCitationMention(open: (reference: string) => void) {
-  const numbers = new Map<string, number>();
   return (reference: string) => {
-    if (!numbers.has(reference)) numbers.set(reference, numbers.size + 1);
-    return { label: String(numbers.get(reference)), title: '查看依据', open: () => open(reference) };
+    // DSH's Markdown renderer puts this field on the native code button. Keep
+    // the exact producer reference there so the shared preview can recover the
+    // identity even when the visible label is only "来源".
+    return { label: citationTitle(reference), title: reference, open: () => open(reference) };
   };
+}
+
+/** http(s) locators belong on the control, never as visible prose. */
+export function webCitationUrl(value: string): string | null {
+  const text = value.trim();
+  if (!text) return null;
+  try {
+    const url = new URL(text);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    if (url.username || url.password || url.hostname === '') return null;
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+export function webCitationView(value: string, explicitTitle?: string): { title: string; text: string; href: string } | null {
+  const href = webCitationUrl(value);
+  if (!href) return null;
+  return { title: citationTitle(href, explicitTitle), text: href, href };
 }
 
 const TOKEN = /(?:claim|evidence|source|provider|lookup):[^\s<>\[\]()（）"'\x60,;，。；]+/g;

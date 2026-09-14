@@ -12,6 +12,24 @@ test('company API refresh has one bounded POST facade', () => {
 });
 import { EventEmitter } from 'node:events';
 
+test('网页预览只取本轮、回答之前的成功检索结果', async () => {
+  const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
+  try {
+    const { searchPreviews } = await server.ssrLoadModule('/src/verticals/finance/dsh/search-previews.tsx');
+    const url = 'https://example.com/article';
+    const tool = (title: string, seq = 8, isError = false, name = 'stock_search_external') => ({ kind: 'tool-call', data: { root: {
+      kind: 'tool-result', seq, isError, call: { name }, content: [{ type: 'text', text: JSON.stringify({ results: [{ url, title, snippet: '真实摘要' }] }) }],
+    } } });
+    const nodes = new Map([['old', tool('其他轮次')], ['good', tool('本轮标题')], ['late', tool('回答之后', 12)], ['error', tool('失败结果', 9, true)], ['other', tool('其他工具', 9, false, 'unrelated')]]);
+    const snapshot = { legacy: { nodes: [{ kind: 'assistant', messageId: 'answer', turn: 2, seq: 10 }] }, nodes,
+      locations: { getTurn: (turn: number) => turn === 2 ? ['good', 'late', 'error', 'other'] : ['old'] } };
+    assert.deepEqual([...searchPreviews(snapshot, 'answer').sources], [[url, { title: '本轮标题', summary: '真实摘要' }]]);
+    assert.equal(searchPreviews(snapshot, 'missing'), null);
+    nodes.set('good', { kind: 'tool-call', data: { root: { kind: 'tool-result', seq: 8, isError: false, call: { name: 'stock_search_external' }, content: [{ type: 'text', text: 'not JSON' }] } } });
+    assert.equal(searchPreviews(snapshot, 'answer').sources.size, 0);
+  } finally { await server.close(); }
+});
+
 test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', async () => {
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
   const originalFetch = globalThis.fetch;
@@ -20,12 +38,13 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
     const { createCitationMention } = await import('../src/verticals/finance/lib/citationMarks.ts');
     const opened: string[] = [];
     const mention = createCitationMention((reference: string) => opened.push(reference));
-    assert.equal(mention('claim:first').label, '1');
-    assert.equal(mention('claim:second').label, '2');
-    assert.equal(mention('claim:first').label, '1');
+    assert.equal(mention('claim:first').label, '来源');
+    assert.equal(mention('claim:first').title, 'claim:first');
+    assert.equal(mention('claim:second').label, '来源');
+    assert.equal(mention('claim:first').label, '来源');
     mention('claim:second').open();
     assert.deepEqual(opened, ['claim:second']);
-    assert.equal(createCitationMention(() => {})('claim:second').label, '1');
+    assert.equal(createCitationMention(() => {})('claim:second').label, '来源');
     assert.equal(decodeEvidenceLink('stock-ref://source/doc%3Ar1%3Ahash%3Ar1%3Ap2%3Ab3'), 'source:doc:r1:hash:r1:p2:b3');
     assert.equal(decodeEvidenceLink('javascript:alert(1)'), null);
     assert.equal(decodeEvidenceLink('stock-ref://claim/%ZZ'), null);
@@ -66,6 +85,24 @@ test('引用只使用完整身份，保留缩写和 Markdown 结构', async () =
   assert.match(render('```\n' + source + '\n```'), /<pre><code>source:/);
   assert.match(render('[原文](https://example.com)'), /href="https:\/\/example.com"/);
 });
+
+test('网页定位符只作为引用身份，不进正文', async () => {
+  const { webCitationUrl, webCitationView, citationReference, citationTitle } = await import('../src/verticals/finance/lib/citationMarks.ts');
+  const href = 'https://www.cnfin.com/hs-lb/detail/20260911/4468987_1.html';
+  assert.equal(webCitationUrl(href), href);
+  assert.equal(webCitationUrl('https://user:pass@example.com/a'), null);
+  assert.equal(webCitationUrl('javascript:alert(1)'), null);
+  assert.equal(webCitationUrl('source:abc:r1:hash'), null);
+  assert.equal(citationReference(href), null);
+  assert.deepEqual(webCitationView(href), { title: 'cnfin.com', text: href, href });
+  assert.deepEqual(webCitationView(href, '新华社：电力行业观察'), { title: '新华社：电力行业观察', text: href, href });
+  assert.equal(citationTitle(href, '新华社：电力行业观察'), '新华社：电力行业观察');
+  assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3', '2025 年年度报告'), '2025 年年度报告');
+  assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3'), '来源');
+  assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3', 'source:166d30c718a64bcf…'), '来源');
+  assert.equal(citationTitle('provider:hithink:query-1'), 'hithink');
+});
+
 test('产品只开放 pinned block 的读取路径', () => {
   assert.equal(researchRoute('GET', '/wiki/documents/abc123/blocks/r1%3Ap2%3Ab3'), true);
   assert.equal(researchRoute('POST', '/wiki/documents/abc123/blocks/r1%3Ap2%3Ab3'), false);

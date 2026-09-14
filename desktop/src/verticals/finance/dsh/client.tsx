@@ -4,7 +4,8 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
-import { createCitationMention } from '../lib/citationMarks';
+import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
+import { SearchPreviews } from './search-previews';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
@@ -50,8 +51,13 @@ export function apply(ctx: Context) {
     const citation = createCitationMention(reference => window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: reference })));
     return { resolve(value: string) {
       const target = researchTarget(value);
+      if (target?.kind === 'evidence') return citation(target.id);
+      const web = webCitationUrl(value);
+      if (web) {
+        const mention = citation(web);
+        return { ...mention, open: () => { window.open(web, '_blank', 'noopener,noreferrer'); } };
+      }
       if (!target) return undefined;
-      if (target.kind === 'evidence') return citation(target.id);
       return { label: '打开研究材料', title: '', open() {
         if (target.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
         else void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
@@ -303,6 +309,9 @@ export function apply(ctx: Context) {
   client.slots.inject('shell.overlay', () => client.slots.register({
     name: 'shell.overlay', id: 'finance-page-assistant',
   }, FinanceAssistantSeat));
+  client.slots.inject('conversation.chat.assistant-actions', () => client.slots.register({
+    name: 'conversation.chat.assistant-actions', id: 'finance-search-previews',
+  }, SearchPreviews));
   client.slots.register<SlotProps>({ name: "sidebar", children: { "sidebar.settings": { kind: "single", scope: "root" } } },
     props => <>{props.renderSlot("sidebar.settings", { wide: true })}</>);
 }
