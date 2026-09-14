@@ -23,7 +23,8 @@ test("首页只留 chat，聊天已开放实际联网与取数能力", () => {
   const home = readFileSync(new URL("../src/verticals/finance/pages/Home.tsx", import.meta.url), "utf8");
   assert.doesNotMatch(home, /<FinanceHomeAgent/);
   assert.match(layout, /<NativeDshHost/);
-  assert.match(layout, /<ConversationWorkspace active=\{pathname === "\/"\}/);
+  assert.match(layout, /<ConversationWorkspace active=\{pathname === "\/" \|\| pathname\.startsWith\("\/my-research\/topics\/"\)\}/);
+  assert.equal((layout.match(/<ConversationWorkspace /g) || []).length, 1, '深度对话与议题共用一个持久会话容器');
   assert.match(readFileSync(new URL("../src/verticals/finance/components/layout/ConversationWorkspace.tsx", import.meta.url), "utf8"), /id="dsh-conversation"/);
   assert.match(home, /<Disclaimer/);
   assert.doesNotMatch(home, /HOME_FEATURE_GROUPS|研究工具，一站直达|data-feature-grid/);

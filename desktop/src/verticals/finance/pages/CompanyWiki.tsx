@@ -7,7 +7,7 @@ import { WikiReader } from '../components/ResearchKnowledge';
 import { companySlug, researchRead, wikiPages, type WikiItem } from '../lib/research';
 import { loadWatch } from '../lib/watchlist';
 import { useAiPage } from '../../../core/ai/pageContext';
-import { ArrowLeft, ArrowRight, ArrowUpRight, ChevronDown, RefreshCw, Star } from 'lucide-react';
+import { ArrowLeft, ArrowRight, ChevronDown, RefreshCw, Star } from 'lucide-react';
 
 export function CompanyWiki() {
   const [pages, setPages] = useState<WikiItem[] | null>(null);
@@ -100,7 +100,7 @@ export function CompanyWiki() {
             </div>
           </div>
         </details></>}
-      {!slug && <Link className="workspace-action" to="/watchlist"><Star />从自选开始</Link>}<Link className="workspace-action" to="/research/legacy"><ArrowUpRight />专题研究</Link>
+      {!slug && <Link className="workspace-action" to="/watchlist"><Star />从自选开始</Link>}
     </div>
     {pages && (slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7"><WikiReader key={`${slug}:${revision}`} slug={slug} onLoadState={setReaderState} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /></GlassCard>
     : <GlassCard className="!p-4 sm:!p-6">

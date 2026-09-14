@@ -3,6 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
+import { marketRequest } from "../src/verticals/finance/lib/marketRequest.ts";
 
 test("全球指数失败进入可见状态与 AI 摘要，不静默消失", async () => {
   const text = fs.readFileSync(new URL("../src/verticals/finance/pages/DailyReview.tsx", import.meta.url), "utf8");
@@ -25,7 +26,7 @@ test("全球指数失败进入可见状态与 AI 摘要，不静默消失", asyn
   const fetchingRef = { current: false };
   const noop = () => {};
   const load = vm.runInNewContext(compile("loadIndices"), {
-    Error,
+    Error, marketRequest,
     fetchingRef, reviewLoading: false,
     api: { indices: async () => [], globalIndices: async () => { throw new Error("全球指数未接入"); },
       emotion: async () => null, turnoverTop: async () => null, marketOverview: async () => null },

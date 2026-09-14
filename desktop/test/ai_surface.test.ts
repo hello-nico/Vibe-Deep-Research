@@ -37,7 +37,7 @@ test("所有对话入口共用主题适配表面，普通数据卡不染色", ()
 test("M3 侧栏展示 DSH 状态，不提供旧 Agent 开关", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   assert.match(layout, /data-ai-identity/);
-  assert.match(layout, /data-ai-identity className="mt-2 space-y-1"/);
+  assert.match(layout, /!compact && <div data-ai-identity/);
   assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /inline-flex min-h-6 items-center/);
   assert.doesNotMatch(read("verticals/finance/components/ui/AgentToggle.tsx"), /flex-col/);
   assert.doesNotMatch(layout, /<AgentToggle/);
