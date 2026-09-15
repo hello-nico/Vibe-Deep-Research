@@ -4,11 +4,10 @@ import os from "node:os";
 import path from "node:path";
 import { test } from "node:test";
 
-import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CONFIG_FILE, loadProductConfig } from "../src/productConfig.ts";
-import { configFromArgs } from "../src/run.ts";
+import { DEFAULT_PRODUCT_CONFIG,PRODUCT_CONFIG_FILE,loadProductConfig } from "../src/productConfig.ts";
 
 
-import "../src/finance/register.ts";   // 测试文件也是入口:插件要先注册
+import "../src/finance/register.ts"; // 测试文件也是入口:插件要先注册
 function tmpRepo(): string { return fs.mkdtempSync(path.join(os.tmpdir(), "vra-pc-")); }
 
 test("产品配置:无文件 → 内置默认;相对路径相对产品根解析", () => {
@@ -61,22 +60,6 @@ test("产品配置:产品文件 ← 用户文件 ← 环境变量 逐层覆盖;s
   assert.throws(() => loadProductConfig(repo, { env: {} }), /schema/);
   fs.writeFileSync(path.join(repo, "data", "config.json"), "{oops");
   assert.throws(() => loadProductConfig(repo, { env: {} }), /JSON/);
-});
-
-test("configFromArgs:产品配置进入 RunConfig;CLI 覆盖配置文件", () => {
-  const repo = tmpRepo();
-  fs.writeFileSync(path.join(repo, PRODUCT_CONFIG_FILE), JSON.stringify({ engine: { codex_path: "engine/bin/codex-engine", codex_home: "home" }, defaults: { turn_timeout_min: 7, gate_retries: 1 } }));
-  let { cfg, sources } = configFromArgs({ symbol: "300308", "repo-root": repo }, {});
-  assert.equal(cfg.codexPath, path.join(repo, "engine", "bin", "codex-engine"));
-  assert.equal(cfg.codexHome, path.join(repo, "home"));
-  assert.equal(cfg.turnTimeoutMs, 7 * 60_000);
-  assert.equal(cfg.gateRetries, 1);
-  assert.equal(cfg.runDir, path.join(repo, ".local", "runs", cfg.runId));
-  assert.ok(sources.some((s) => s.endsWith(PRODUCT_CONFIG_FILE)));
-  ({ cfg } = configFromArgs({ symbol: "300308", "repo-root": repo, "codex-path": "/x/codex", "codex-home": "/x/home", "turn-timeout-min": "3" }, {}));
-  assert.equal(cfg.codexPath, "/x/codex");
-  assert.equal(cfg.codexHome, "/x/home");
-  assert.equal(cfg.turnTimeoutMs, 3 * 60_000);
 });
 
 /* ===== 数据根:代码与用户数据分离 ===== */

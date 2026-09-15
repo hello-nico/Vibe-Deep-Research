@@ -1,5 +1,6 @@
 /** Product read/upload facade. Research validation and persistence stay in Backend. */
 const TOPIC_ID = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}$/i;
+const TOPIC_POOL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/(?:archive|restore)$/i;
 const WIKI_SLUG = /^\/wiki\/pages\/read$/;
 const NBS_INDUSTRY = /^\/wiki\/industries\/nbs$/;
 const DRAFT_TOKEN = /^\/wiki\/page-drafts\/[A-Za-z0-9_-]{32,64}$/;
@@ -11,15 +12,19 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && [
     '/wiki/pages', '/wiki/pages/read', '/wiki/pages/related', '/wiki/research-topics', '/wiki/research-links',
     '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/industries/nbs',
-    '/industries/profiles', '/documents/uploads',
+    '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
+  if (method === 'GET' && /^\/notes\/[^/]+$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/research-results\/result(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
   if (method === 'POST' && [
     '/wiki/refs/resolve', '/wiki/pages/refresh-api', '/documents/uploads',
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
+    '/notes',
   ].includes(pathname)) return true;
-  if (method === 'POST' && TOPIC_ID.test(pathname)) return true;
+  if (method === 'POST' && /^\/notes\/[^/]+\/delete$/.test(pathname)) return true;
+  if (method === 'POST' && (TOPIC_ID.test(pathname) || TOPIC_POOL.test(pathname))) return true;
   return false;
 }
 
@@ -32,7 +37,7 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
   const close = () => { if (!res.writableEnded) controller.abort(); };
   res.on('close', close);
   try {
-    const limit = route === '/documents/uploads' ? 32 * 1024 * 1024 : 256_000;
+    const limit = route === '/documents/uploads' ? 32 * 1024 * 1024 : (req.method === 'POST' && route === '/notes' ? 512_000 : 256_000);
     let size = 0;
     const chunks = [];
     for await (const chunk of req) {

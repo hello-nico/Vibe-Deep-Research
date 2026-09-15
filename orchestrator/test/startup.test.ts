@@ -57,7 +57,7 @@ test("启动预检同时覆盖两端依赖与实际数据根", () => {
   ]);
 
   for (const file of [
-    path.join(root, "orchestrator/node_modules/@openai/codex-sdk/package.json"),
+    path.join(root, "orchestrator/node_modules/ajv/package.json"),
     path.join(root, "desktop/node_modules/vite/package.json"),
     path.join(dataRoot, "config.json"),
   ]) {

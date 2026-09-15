@@ -9,15 +9,24 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { nowIso, readJsonIfExists, writeJson } from "./fsutil.ts";
-import { DEFAULT_PRODUCT_CONFIG, PRODUCT_CONFIG_FILE, USER_CONFIG_FILE } from "./productConfig.ts";
+import { nowIso,readJsonIfExists,writeJson } from "./fsutil.ts";
+import { DEFAULT_PRODUCT_CONFIG,PRODUCT_CONFIG_FILE,USER_CONFIG_FILE } from "./productConfig.ts";
 import { PROVIDER_ID_RE } from "./providers.ts";
-import { parseArgs } from "./run.ts";
 import { repoRootFromHere } from "./service.ts";
-import { installSkillsIsolation } from "./skills_isolation.ts";
-import { ROOT_MARKER_FILENAME, ensureRootMarker, installProjectRootMarkers } from "./instructions_root.ts";
 
-export const LOCAL_SUBDIRS = ["codex-home", "runs", "knowledge", "providers", "mcp"] as const;
+export const LOCAL_SUBDIRS = ["client", "mcp"] as const;
+
+export function parseArgs(argv: string[]): Record<string, string | boolean> {
+  const out: Record<string, string | boolean> = {};
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+    if (!arg.startsWith("--")) continue;
+    const next = argv[i + 1];
+    if (!next || next.startsWith("--")) out[arg.slice(2)] = true;
+    else { out[arg.slice(2)] = next; i++; }
+  }
+  return out;
+}
 
 export interface InitStep { id: string; action: "created" | "exists" | "written" | "kept" | "backed_up" | "appended" | "skipped"; detail: string }
 export interface InitResult { repoRoot: string; dataRoot: string; steps: InitStep[]; next: string[] }
@@ -106,15 +115,6 @@ export function runInit(opts: { repoRoot?: string; python?: string; provider?: s
   const relLocal = path.relative(repoRoot, dataRoot).split(path.sep).join("/") + "/";
   if (gitignoreCovers(giText, relLocal)) steps.push({ id: "gitignore", action: "exists", detail: `${relLocal} 已在 .gitignore(或等价规则)` });
   else { fs.appendFileSync(gi, `${giText.endsWith("\n") || !giText ? "" : "\n"}# 用户私有层(init 追加)\n${relLocal}\n`); steps.push({ id: "gitignore", action: "appended", detail: `已追加 ${relLocal} 到 .gitignore` }); }
-  // 4) skills 隔离块(产品 CODEX_HOME/config.toml):首装就把用户级 / 捆绑 skills 禁掉,doctor 才能在首次运行前就绿;每次研究运行开始时也会刷新
-  const codexHome = path.join(dataRoot, "codex-home");
-  const iso = installSkillsIsolation({ codexHome, repoRoot, python: skeleton.python ?? null });
-  // 4b) 指令发现链:project root marker + project_root_markers 配置。首装就写,否则**下载 zip 解压的用户**
-  //     (没有 .git)在首次运行前一直处于"引擎发现不到宪法与技能、而且不报错"的状态(instructions_root.ts)。
-  const markerCreated = ensureRootMarker(repoRoot);
-  const prm = installProjectRootMarkers({ codexHome });
-  steps.push({ id: "instructions_root", action: markerCreated || prm.changed ? "written" : "exists", detail: `${path.join(repoRoot, ROOT_MARKER_FILENAME)} + ${prm.configTomlPath} 的 project_root_markers(引擎靠它才能发现 AGENTS.md 与 .agents/skills)` });
-  steps.push({ id: "skills_isolation", action: iso.changed ? "written" : "exists", detail: `${path.join(codexHome, "config.toml")}(禁用用户级 skill ${iso.disabledPaths.length} 个;捆绑 skills 已关;max_context_tokens=${iso.maxContextTokens})` });
   const next = [
     "运行 scripts/start（Windows: scripts\\start.cmd）打开产品",
     "在‘接入 AI’里选择订阅或模型 API，测试成功后即可使用",

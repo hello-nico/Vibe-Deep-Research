@@ -32,11 +32,8 @@ export function UploadedReports() {
     } catch (e) { setNotice(''); setError(asResearchErrorMessage(e)); }
     finally { setBusy(false); }
   };
-  useAiPage({ key: 'uploaded-reports', title: '我的研报', context: '已上传研报元数据（本次未附正文）：' + JSON.stringify(items), suggestions: ['阅读研报时应如何区分事实和作者判断？'] });
-  return <div><PageHeader title="我的研报" subtitle="收藏有价值的资料，让每一次阅读成为研究的起点" actions={<button className="workspace-action" disabled={busy} onClick={() => void reload().catch(e => setError(asResearchErrorMessage(e)))}><RefreshCw size={14} />刷新列表</button>} />
-    {/* 暂时隐藏研报归档入口，待明确用途后恢复。
-    <div className="workspace-toolbar"><Link className="workspace-action" to="/my-reports/legacy">研报归档</Link></div>
-    */}
+  useAiPage({ key: 'uploaded-reports', title: '我的资料', context: '已上传资料元数据（本次未附正文）：' + JSON.stringify(items), suggestions: ['阅读资料时应如何区分事实和作者判断？'] });
+  return <div><PageHeader title="我的资料" subtitle="收藏有价值的资料，让每一次阅读成为研究的起点" actions={<button className="workspace-action" disabled={busy} onClick={() => void reload().catch(e => setError(asResearchErrorMessage(e)))}><RefreshCw size={14} />刷新列表</button>} />
     <GlassCard className="mb-6 !p-6"><div className="mb-5 flex items-center gap-3"><span className="rounded-xl bg-primary/10 p-3 text-primary"><Upload size={20} /></span><div><h2 className="font-semibold">添加研报</h2><p className="mt-1 text-xs text-muted-foreground">选择公司与 PDF 文件，开始整理你的研究资料</p></div></div>
       <div className="grid max-w-4xl grid-cols-1 gap-4 sm:grid-cols-[180px_minmax(0,1fr)_auto] sm:items-end">
       <label className="text-xs text-muted-foreground">公司代码<input className="workspace-field mt-2 block h-10 w-full" placeholder="例如 000933" value={symbol} disabled={busy} onChange={e => { setSymbol(e.target.value.trim()); setError(''); setNotice(''); }} /></label>

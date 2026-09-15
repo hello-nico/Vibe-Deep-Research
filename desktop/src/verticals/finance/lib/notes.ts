@@ -1,35 +1,33 @@
 /**
- * 研究记录（沉淀）—— **存在用户自有台账里，不是浏览器缓存**。
- *
- * 🔴 与上游的关键不同：上游存 localStorage。清一次缓存、换一个浏览器，沉淀就没了 ——
- *    清缓存就会消失的东西不配叫沉淀，而且 agent 也读不到它。
- *    ⇒ 落在台账的 `note` 种类里：跟着数据根走、能被 agent 读到、不进仓库。
+ * 研究记录（沉淀）—— Backend `product_notes` 是正文与身份的唯一写入者。
  *
  * ⚠️ **读是同步的、写是异步的**：页面在渲染时同步读（`useState(loadNotes)`），
  *    所以缓存必须在业务页面挂载**之前**灌好（见 `dsh/client.tsx` 的 hydrate）。
  *    写则必须异步——写失败要让调用方看得见，不能默默"保存成功"。
  */
-import { backend, type LedgerRecord } from "./backend";
+import { ResearchError, researchRead } from "./research";
 
 export interface Note {
   id: string;
-  kind: string;    // 复盘 / 今日要点 / 问AI / 多空辩论 / 反思审计
+  kind: string;
   title: string;
-  content: string; // markdown 正文
-  ts: number;      // 保存时间戳(ms)
+  content: string;
+  excerpt?: string;
+  ts: number;
+  hasFullBody?: boolean;
 }
 
 let cache: Note[] = [];
-/** 枚举键 → 中文名。**由后端随台账下发**（`Plugin.ledger.enumLabels`），前端不写死一份 */
-let enumLabels: Record<string, string> = {};
+let hydrateError: Error | null = null;
+const CATEGORY_LABELS: Record<string, string> = {
+  review: "复盘",
+  highlight: "今日要点",
+  ask: "问助手",
+  debate: "多空辩论",
+  audit: "反思审计",
+  backtest: "回测",
+};
 
-/**
- * 界面上的分类叫法 → 台账枚举键。
- * ⚠️ 台账的 `category` 是**枚举**，不是自由文本。界面用的词（"问AI"）与
- *    垂类包给的显示名（"问助手"）不完全一样，所以要有这张别名表。
- * 🔴 映射不上时**抛错，不静默塞一个默认值** —— 悄悄归错类的记录，
- *    事后没人看得出它本来是什么。
- */
 const KIND_TO_CATEGORY: Record<string, string> = {
   复盘: "review",
   今日要点: "highlight",
@@ -45,13 +43,10 @@ const KIND_TO_CATEGORY: Record<string, string> = {
 function toCategory(kind: string): string {
   const direct = KIND_TO_CATEGORY[kind.trim()];
   if (direct) return direct;
-  // 后端下发的显示名也认（垂类包改了措辞时不用回来改这里）
-  const byLabel = Object.entries(enumLabels).find(([, label]) => label === kind.trim())?.[0];
-  if (byLabel) return byLabel;
-  throw new Error(`研究记录的分类「${kind}」没有对应的台账枚举 —— 加分类要同时改垂类包的 note.category`);
+  if (CATEGORY_LABELS[kind.trim()]) return kind.trim();
+  throw new Error(`研究记录的分类「${kind}」没有对应的枚举 —— 加分类要同时改 Backend notes 与产品映射`);
 }
 
-/** 旧界面把 ask 类记成「问 Agent / 问AI」；展示与新标题一律用「问助手」，不改台账原文。 */
 const ASK_KIND_ALIASES = new Set(["问 Agent", "问AI", "问 AI"]);
 const ASK_KIND_LABEL = "问助手";
 
@@ -63,58 +58,137 @@ function displayTitle(title: string): string {
   return title.replace(/^(问 Agent|问AI|问 AI)(?= · |$)/, ASK_KIND_LABEL);
 }
 
-const toNote = (r: LedgerRecord): Note => {
-  const cat = String(r.category ?? "");
-  return {
-    id: r.id,
-    kind: displayKind(enumLabels[cat] ?? cat),
-    title: displayTitle(String(r.title ?? "")),
-    content: String(r.body ?? ""),
-    ts: Date.parse(r.created_at) || 0,
-  };
-};
+function noteError(error: unknown): Error {
+  if (error instanceof ResearchError) {
+    if (error.status === 503) {
+      if (/无法确认研究关联/.test(error.message)) return new Error(error.message);
+      return new Error("研究记录服务暂时不可用，请稍后重试");
+    }
+    if (error.status === 409) return new Error("这条记录已关联议题，不能删除");
+    if (error.status === 413) return new Error("记录正文超过 10 万字符，未截断也未保存");
+    return new Error(error.message);
+  }
+  return error instanceof Error ? error : new Error(String(error));
+}
 
-/**
- * 从台账灌一次缓存。**在 React 挂载前调用**；失败要往上抛，别静默当成"没有记录"。
- *
- * 🔴 慢快照不许覆盖新缓存:hydrate 在途时若 `addNote` 写成功了,先发的那次 hydrate
- *    会带回**不含新记录的旧快照**,落地后表现为"刚存的东西不见了"（台账里其实有）。
- *    ⇒ 用序号把过期结果丢掉。写入也 ++seq,这样写完之后在途的旧 hydrate 一律作废。
- */
+interface NotePayload {
+  note_id?: string;
+  id?: string;
+  category?: string;
+  kind?: string;
+  title?: string;
+  body?: string;
+  content?: string;
+  excerpt?: string;
+  created_at?: string;
+  ts?: number;
+  has_full_body?: boolean;
+}
+
+function toNote(row: NotePayload, full = false): Note {
+  const cat = String(row.category ?? row.kind ?? "");
+  const rawBody = row.body ?? row.content;
+  return {
+    id: String(row.note_id ?? row.id ?? ""),
+    kind: displayKind(CATEGORY_LABELS[cat] ?? cat),
+    title: displayTitle(String(row.title ?? "")),
+    content: full ? String(rawBody ?? "") : String(row.excerpt ?? rawBody ?? ""),
+    excerpt: row.excerpt,
+    ts: typeof row.ts === "number" ? row.ts : Date.parse(String(row.created_at ?? "")) || 0,
+    hasFullBody: full,
+  };
+}
+
 let seq = 0;
 export async function hydrateNotes(): Promise<void> {
   const mine = ++seq;
-  const led = await backend.ledger();
-  if (mine !== seq) return;
-  enumLabels = led.labels.enums ?? {};
-  cache = (led.records.note ?? []).map(toNote).sort((a, b) => b.ts - a.ts);
+  hydrateError = null;
+  try {
+    const items: Note[] = [];
+    for (let offset = 0; ; ) {
+      const page = await researchRead<{ items: NotePayload[]; total: number; next_offset: number | null }>(
+        `/notes?limit=40&offset=${offset}`,
+      );
+      items.push(...page.items.map((row) => toNote(row)));
+      if (page.next_offset == null) break;
+      offset = page.next_offset;
+    }
+    if (mine !== seq) return;
+    cache = items.sort((a, b) => b.ts - a.ts);
+  } catch (error) {
+    if (mine !== seq) return;
+    hydrateError = noteError(error);
+    throw hydrateError;
+  }
 }
 
-/** ⚠️ 返回**副本**:直接交出内部数组的话,调用方一个 `sort()` 就改了缓存而没写台账 */
+export function notesLoadError(): Error | null {
+  return hydrateError;
+}
+
 export function loadNotes(): Note[] {
   return [...cache];
 }
 
-/** 新记录置顶。返回更新后的完整列表。 */
-export async function addNote(kind: string, title: string, content: string): Promise<Note[]> {
-  const saved = await backend.ledgerSave("note", { category: toCategory(kind), title, body: content });
-  seq++;                       // 让在途的旧 hydrate 作废,别把这条新记录冲掉
-  cache = [toNote(saved), ...cache];
-  return [...cache];
+// 可重试的保存入口持有 operationId；独立保存即使内容相同也使用不同 ID。
+export async function addNote(kind: string, title: string, content: string, operationId = `op-${crypto.randomUUID()}`): Promise<Note[]> {
+  try {
+    const saved = await researchRead<NotePayload>("/notes", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        category: toCategory(kind),
+        title,
+        body: content,
+        operation_id: operationId,
+      }),
+    });
+    seq++;
+    cache = [toNote(saved, true), ...cache.filter((n) => n.id !== saved.note_id && n.id !== saved.id)];
+    return [...cache];
+  } catch (error) {
+    throw noteError(error);
+  }
+}
+
+export async function getNote(id: string): Promise<Note> {
+  try {
+    const row = await researchRead<NotePayload>(`/notes/${encodeURIComponent(id)}`);
+    const note = toNote(row, true);
+    cache = cache.map((item) => item.id === note.id ? note : item);
+    if (!cache.some((item) => item.id === note.id)) cache = [note, ...cache];
+    return note;
+  } catch (error) {
+    throw noteError(error);
+  }
+}
+
+export async function searchNotes(query: string, offset = 0, limit = 40, kind = ""): Promise<{ notes: Note[]; total: number; nextOffset: number | null }> {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(limit) });
+  if (query.trim()) params.set("query", query.trim());
+  if (kind.trim()) params.set("category", toCategory(kind));
+  try {
+    const page = await researchRead<{ items: NotePayload[]; total: number; next_offset: number | null }>(`/notes?${params}`);
+    return { notes: page.items.map((row) => toNote(row)), total: page.total, nextOffset: page.next_offset };
+  } catch (error) {
+    throw noteError(error);
+  }
 }
 
 export async function deleteNote(id: string): Promise<Note[]> {
-  await backend.ledgerDelete("note", id);
-  seq++;
-  cache = cache.filter((n) => n.id !== id);
-  return [...cache];
+  try {
+    await researchRead(`/notes/${encodeURIComponent(id)}/delete`, { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" });
+    seq++;
+    cache = cache.filter((n) => n.id !== id);
+    return [...cache];
+  } catch (error) {
+    throw noteError(error);
+  }
 }
 
 export async function clearNotes(): Promise<void> {
-  // 逐条删。⚠️ 一条失败就停下并把已删的反映到缓存里 —— 不要假装"全清了"
   seq++;
   for (const n of [...cache]) {
-    await backend.ledgerDelete("note", n.id);
-    cache = cache.filter((x) => x.id !== n.id);
+    await deleteNote(n.id);
   }
 }

@@ -1,16 +1,13 @@
 /** macOS bundle entry. This process owns both servers; user data stays outside the signed bundle. */
-import fs from "node:fs";
-import path from "node:path";
-import os from "node:os";
 import crypto from "node:crypto";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApiServer } from "./api.ts";
 import { createDesktopGateway } from "./desktop_gateway.ts";
-import { serviceContext } from "./service.ts";
-import { ensureInstructionsRoot } from "./instructions_root.ts";
-import { installSkillsIsolation } from "./skills_isolation.ts";
-import { terminateActiveLocalAgentProcesses } from "./local_agent_runtime.ts";
 import { desktopRuntimePaths } from "./desktop_runtime_paths.ts";
+import { serviceContext } from "./service.ts";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 // These explicit overrides exist for isolated QA; the native launcher does not inherit them.
@@ -31,17 +28,15 @@ process.env.VRA_PYTHON = python;
 process.env.PYTHONDONTWRITEBYTECODE = "1";
 const config = path.join(dataRoot, "config.json");
 if (!fs.existsSync(config)) fs.writeFileSync(config, JSON.stringify({ provider: { profile: "openai" } }), { flag: "wx", mode: 0o600 });
-const ctx = { ...serviceContext({ repoRoot, python }), researchExecutionMode: "controlled_mcp" as const };
-// Reserve the stable UI port BEFORE touching instruction mirrors, so duplicate launches cannot race sync.
+const ctx = serviceContext({ repoRoot, python });
+// Bind the local API and static gateway. Native DSH packaging remains an M9 integration task.
 const token = crypto.randomBytes(32).toString("hex");
-const api = createApiServer(ctx, { token, cookieLogin: false });
+const api = createApiServer(ctx, { token });
 await new Promise<void>((resolve, reject) => { api.once("error", reject); api.listen(0, "127.0.0.1", resolve); });
 const apiPort = (api.address() as import("node:net").AddressInfo).port;
 const ui = createDesktopGateway({ dist: path.join(repoRoot, "desktop/dist"), apiPort, token });
 try {
   await new Promise<void>((resolve, reject) => { ui.once("error", reject); ui.listen(port, "127.0.0.1", resolve); });
-  installSkillsIsolation({ repoRoot, codexHome, python });
-  ensureInstructionsRoot({ repoRoot, dataRoot, codexHome, runDir: path.join(dataRoot, "runs", "preflight") });
   console.log(`READY http://127.0.0.1:${port}/`);
 } catch (error) {
   ui.close(); api.close(); throw error;
@@ -50,10 +45,8 @@ let stopping = false;
 const stop = () => {
   if (stopping) return;
   stopping = true;
-  terminateActiveLocalAgentProcesses();
   ui.close(); api.close();
   ui.closeAllConnections(); api.closeAllConnections();
-  // Independent research is intentionally not killed; cancel it from the research page first.
   setTimeout(() => process.exit(0), 250).unref();
 };
 process.once("SIGTERM", stop);

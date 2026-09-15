@@ -5,9 +5,7 @@ import test from "node:test";
 const read = (file: string) => fs.readFileSync(new URL(`../src/${file}`, import.meta.url), "utf8");
 
 test("所有对话入口共用主题适配表面，普通数据卡不染色", () => {
-  for (const file of ["core/ai/AiDock.tsx", "core/ai/AiConsole.tsx",
-    "verticals/finance/components/ui/FinanceAiDock.tsx", "verticals/finance/pages/Backtest.tsx",
-    "verticals/finance/pages/MyReports.tsx"]) assert.match(read(file), /ai-surface/, file);
+  assert.match(read("core/ai/AiDock.tsx"), /ai-surface/);
   assert.match(read("core/ai/AiMessages.tsx"), /ai-composer/);
   assert.match(read("core/ai/AiMessages.tsx"), /ai-message-assistant/);
   assert.match(read("core/ai/AiDock.tsx"), /ai-chat-trigger/);
@@ -29,7 +27,6 @@ test("所有对话入口共用主题适配表面，普通数据卡不染色", ()
   assert.match(css, /\.dark \.ai-surface \.ai-send\s*\{[^}]*background: #ff6429;/);
   for (const hook of ["ai-message-assistant", "ai-message-user", "ai-input", "ai-send"]) {
     assert.ok(css.includes(`.dark .ai-surface .${hook}`), hook);
-    assert.ok(read("verticals/finance/pages/Backtest.tsx").includes(hook), hook);
   }
   assert.match(css, /\.dark \.ai-surface \.ai-input:focus-within/);
 });
@@ -38,10 +35,6 @@ test("M3 侧栏展示 DSH 状态，不提供旧 Agent 开关", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   assert.match(layout, /data-ai-identity/);
   assert.match(layout, /!compact && <div data-ai-identity/);
-  assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /inline-flex min-h-6 items-center/);
-  assert.doesNotMatch(read("verticals/finance/components/ui/AgentToggle.tsx"), /flex-col/);
   assert.doesNotMatch(layout, /<AgentToggle/);
   assert.match(layout, /id="dsh-status"/);
-  assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /!compact && showHint/);
-  assert.match(read("verticals/finance/components/ui/AgentToggle.tsx"), /（更深入·较慢·费Token）/);
 });

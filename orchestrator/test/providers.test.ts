@@ -5,13 +5,11 @@ import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { codexEnvFor, makeConfig } from "../src/config.ts";
 import { loadProductConfig } from "../src/productConfig.ts";
-import { assertAuth, codexProviderConfig, listProviderIds, loadProviderProfile, providerEnv, structuredOutputMode, validateProfile, withOutputSchema } from "../src/providers.ts";
-import { codexOptionsFor } from "../src/runner.ts";
+import { assertAuth,codexProviderConfig,listProviderIds,loadProviderProfile,providerEnv,structuredOutputMode,validateProfile,withOutputSchema } from "../src/providers.ts";
 
 
-import "../src/finance/register.ts";   // 测试文件也是入口:插件要先注册
+import "../src/finance/register.ts"; // 测试文件也是入口:插件要先注册
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
 /** 把模板里留给用户填的占位符换成一个合法值 —— 只用于"模板本身是否自洽"的校验 */
@@ -158,21 +156,6 @@ test("productConfig:profile=deepseek + 环境变量 → provider 字段由模板
   // 无 providers/ 目录的假仓库:openai 走内置模板
   const bare = fs.mkdtempSync(path.join(os.tmpdir(), "vra-bare-"));
   assert.equal(loadProductConfig(bare, { env: {} }).providerProfile?.id, "openai");
-});
-
-test("runner/config:非 openai provider 注入 model_provider + model_providers;codexEnvFor 透传 env_key;默认模型来自模板;openai 不注入", () => {
-  const ds = loadProviderProfile(REPO, path.join(REPO, ".local"), "deepseek").profile;
-  const cfg = makeConfig({ symbol: "300308", repoRoot: REPO, runId: "t-prov", provider: { name: "deepseek", wire_api: "responses", base_url: ds.base_url, env_key: ds.env_key, auth: "api_key", profile: "deepseek" }, providerProfile: ds });
-  const env = { PATH: "/bin", DEEPSEEK_API_KEY: "k1", OPENAI_API_KEY: "k2" };
-  const opts = codexOptionsFor(cfg, env) as { config: Record<string, unknown>; env: Record<string, string> };
-  assert.equal(opts.config.model_provider, "deepseek");
-  assert.ok((opts.config.model_providers as Record<string, unknown>).deepseek);
-  assert.ok(opts.config.shell_environment_policy, "工具环境策略仍在");
-  assert.equal(opts.env.DEEPSEEK_API_KEY, "k1"); assert.equal(opts.env.CODEX_API_KEY, undefined); assert.equal(opts.env.OPENAI_API_KEY, undefined); assert.equal(opts.env.CODEX_HOME, cfg.codexHome);
-  const oa = makeConfig({ symbol: "300308", repoRoot: REPO, runId: "t-prov2" });
-  const o2 = codexOptionsFor(oa, env) as { config: Record<string, unknown>; env: Record<string, string> };
-  assert.equal(o2.config.model_provider, undefined); assert.equal(o2.env.DEEPSEEK_API_KEY, undefined);
-  assert.deepEqual(Object.keys(codexEnvFor(cfg, env)).filter((k) => k.includes("KEY")), ["DEEPSEEK_API_KEY"]);
 });
 
 test("providers:组合约束——第三方 base_url 不得为空(Codex 会回退到 api.openai.com)/ 第三方不得声明 chatgpt_login / responses_support 与 wire_api 自洽 / auth_modes 去重 / context_limit ≥1", () => {

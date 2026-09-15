@@ -100,7 +100,7 @@ test('网页定位符只作为引用身份，不进正文', async () => {
   assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3', '2025 年年度报告'), '2025 年年度报告');
   assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3'), '来源');
   assert.equal(citationTitle('source:doc:r1:hash:r1:p2:b3', 'source:166d30c718a64bcf…'), '来源');
-  assert.equal(citationTitle('provider:hithink:query-1'), 'hithink');
+  assert.equal(citationTitle('provider:hithink:query-1'), '同花顺');
 });
 
 test('产品只开放 pinned block 的读取路径', () => {

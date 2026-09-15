@@ -203,15 +203,48 @@
   textarea.workspace-field-single { height: 40px; min-height: 40px; resize: none; line-height: 24px; overflow: hidden; }
   .workspace-select {
     appearance: none; -webkit-appearance: none;
+    display: inline-flex; align-items: center; width: auto; max-width: 100%;
     height: 40px; min-height: 40px; border-radius: 12px;
     border: 1px solid hsl(var(--border)); background-color: hsl(var(--background));
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 10px center; background-size: 14px;
-    padding: 8px 36px 8px 12px; font-size: 13px; line-height: 24px;
-    color: hsl(var(--foreground)); outline: none;
+    padding: 8px 36px 8px 12px; font: inherit; font-size: 13px; line-height: 24px;
+    color: hsl(var(--foreground)); outline: none; cursor: pointer; text-align: left;
   }
-  .workspace-select:focus { border-color: hsl(var(--primary) / .5); }
-  .workspace-select:disabled { opacity: .5; }
+  .workspace-select:focus, .workspace-select:focus-visible, .workspace-select[aria-expanded="true"] {
+    outline: none; border-color: hsl(var(--primary) / .5);
+  }
+  .workspace-select:disabled { opacity: .5; cursor: not-allowed; }
+  .workspace-select-value { display: flex; align-items: baseline; gap: 8px; min-width: 0; overflow: hidden; }
+  .workspace-select-value .workspace-select-option-label { min-width: min-content; }
+  .workspace-select-option-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .workspace-select-value-detail, .workspace-select-option-detail {
+    flex-shrink: 0; color: hsl(var(--muted-foreground)); font-size: 12px;
+  }
+  .workspace-select-menu {
+    position: fixed; z-index: 80; box-sizing: border-box; display: flex; flex-direction: column;
+    width: max-content; min-width: 160px; max-width: min(90vw, 36rem); overflow: auto; padding: 6px;
+    border: 1px solid hsl(var(--border) / .65); border-radius: 10px;
+    background: hsl(var(--background));
+    box-shadow: 0 8px 28px rgb(0 0 0 / .16), 0 0 1px rgb(0 0 0 / .08);
+  }
+  .workspace-select-menu-search { width: 100%; margin: 0 0 4px; }
+  .workspace-select-option {
+    position: relative; display: flex; align-items: center; gap: 8px;
+    min-height: 28px; padding: 4px 12px 4px 28px; border-radius: 6px;
+    font-size: 13px; line-height: 20px; color: hsl(var(--foreground)); cursor: default;
+    white-space: nowrap;
+  }
+  .workspace-select-option .workspace-select-option-label { min-width: max-content; overflow: visible; text-overflow: unset; white-space: nowrap; }
+  .workspace-select-option-detail { margin-left: auto; padding-left: 12px; }
+  .workspace-select-check {
+    position: absolute; left: 8px; width: 14px; font-size: 12px; line-height: 1;
+  }
+  .workspace-select-option[data-active="true"] {
+    background: Highlight; color: HighlightText;
+  }
+  .workspace-select-option[data-active="true"] .workspace-select-option-detail { color: inherit; opacity: .9; }
+  .workspace-select-empty { margin: 0; padding: 8px 12px; font-size: 13px; color: hsl(var(--muted-foreground)); }
   .workspace-field-action {
     display: inline-flex; align-items: center; justify-content: center; gap: 6px;
     height: 40px; min-height: 40px; flex-shrink: 0; border-radius: 12px; padding: 0 16px;
@@ -237,9 +270,23 @@
   .conversation-workspace[data-split="true"] .conversation-window-actions { grid-column: 2; text-align: right; margin: 0; }
   .conversation-workspace[data-split="true"] .conversation-window { grid-column: 2; grid-row: 3; min-height: 280px; }
   .conversation-workspace[data-split="true"] .conversation-footer { grid-column: 1; grid-row: 2 / 4; min-width: 0; overflow: auto; }
+  .conversation-workspace[data-expanded="true"] { padding: 12px 16px 16px; }
+  .conversation-workspace[data-expanded="true"] .conversation-heading { display: none; }
+  .conversation-workspace[data-expanded="true"][data-split="true"] { display: flex; flex-direction: column; }
+  .conversation-workspace[data-expanded="true"][data-split="true"] .conversation-window-actions { grid-column: unset; }
+  .conversation-workspace[data-expanded="true"][data-split="true"] .conversation-window { grid-column: unset; grid-row: unset; flex: 1; min-height: 0; }
+  .conversation-workspace[data-expanded="true"] .conversation-footer { display: none; }
+  .topic-panel { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .topic-panel-title { font-family: var(--workspace-display-font); font-size: 20px; font-weight: 650; letter-spacing: -.02em; line-height: 1.35; }
+  .topic-section { border: 1px solid hsl(var(--border)); border-radius: 16px; background: hsl(var(--card)); padding: 16px 18px; }
+  .topic-section h2 { margin-bottom: 10px; font-size: 13px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+  .topic-material { display: block; width: 100%; border-radius: 12px; border: 1px solid hsl(var(--border)); background: transparent; padding: 10px 12px; text-align: left; }
+  .topic-material + .topic-material { margin-top: 8px; }
+  .topic-material:hover { background: hsl(var(--muted) / .4); }
+  .topic-material[aria-current="true"] { border-color: hsl(var(--primary) / .35); background: hsl(var(--primary) / .06); }
   @media (max-width: 1023px) {
-    .conversation-workspace[data-split="true"] { display: flex; flex-direction: column; }
-    .conversation-workspace[data-split="true"] .conversation-footer { flex: 1; min-height: 200px; }
+    .conversation-workspace[data-split="true"]:not([data-expanded="true"]) { display: flex; flex-direction: column; }
+    .conversation-workspace[data-split="true"]:not([data-expanded="true"]) .conversation-footer { flex: 1; min-height: 200px; }
   }
   .conversation-resize { position: absolute; z-index: 20; touch-action: none; user-select: none; }
   .conversation-resize:focus-visible { outline: 2px solid hsl(var(--muted-foreground)); outline-offset: 1px; border-radius: 4px; }

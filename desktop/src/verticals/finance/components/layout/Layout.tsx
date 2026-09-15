@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, FileText, Gauge, MessagesSquare, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp,
+  Activity, ChevronDown, ChevronsLeft, ChevronsRight, FileText, MessagesSquare, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -11,7 +11,7 @@ import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { EvidenceProvider } from '../EvidenceCard';
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { storageGet, storageSet } from "@/lib/storage";
+import { prefGet, prefSet } from "@/lib/prefs";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { useTopicSessionGate } from "../../dsh/topic-session-gate";
 
@@ -19,13 +19,12 @@ const NAV = [
   { to: "/", icon: MessagesSquare, label: "深度对话" },
   { to: "/daily-review", icon: Activity, label: "大盘行情" },
   { to: "/intel", icon: Radar, label: "资讯雷达" },
-  { to: "/signals", icon: Thermometer, label: "产业信号" },
   { to: "/sectors", icon: LayoutGrid, label: "行业研究" },
+  { to: "/sectors/profiles", icon: Thermometer, label: "产业研究" },
   { to: "/research", icon: Microscope, label: "个股研究" },
   { to: "/watchlist", icon: Star, label: "自选股" },
   // 暂时隐藏，待持仓模块的产品方案确定后恢复。
-  // { to: "/portfolio", icon: Wallet, label: "我的持仓" },
-  { to: "/my-reports", icon: FileText, label: "我的研报" },
+  { to: "/my-reports", icon: FileText, label: "我的资料" },
   { to: "/my-research", icon: NotebookPen, label: "我的研究" },
 ];
 
@@ -37,19 +36,12 @@ const INTEL_LINKS = [
   { to: "/intel/events", icon: TrendingUp, label: "事件概率" },
 ];
 
-// 产业信号的小栏目（缩进子项，逐期在此添加；带小三角可展开收起）。
-const SIGNAL_LINKS = [
-  { to: "/signals/gpu-rent", icon: Gauge, label: "GPU租金" },
-];
-
 // 带子栏目的导航组：父项右侧小三角展开/收起，展开状态按组记忆。
-// 带子栏目的导航组。
 // 🔴 存储键**带版本号**：默认值从"展开"改成"收起"时，老键里存着的 "open"
 //    会让已经用过的人照旧全展开 —— 那不是 bug（它在记住你的选择），但新默认就等于没生效。
 //    换个键 = 旧记忆不再适用，所有人重新从收起开始；之后手动展开的仍然会被记住。
-const NAV_GROUPS: Record<string, { storageKey: string; links: typeof SIGNAL_LINKS }> = {
+const NAV_GROUPS: Record<string, { storageKey: string; links: typeof INTEL_LINKS }> = {
   "/intel": { storageKey: "vr-intel-open2", links: INTEL_LINKS },
-  "/signals": { storageKey: "vr-signals-open2", links: SIGNAL_LINKS },
 };
 
 export function Layout() {
@@ -76,24 +68,21 @@ export function Layout() {
     // The opener is inert until React commits the closed state.
     requestAnimationFrame(() => menuRef.current?.focus());
   };
-  const [collapsed, setCollapsed] = useState(() => storageGet("vr-sidebar") === "collapsed");
+  const [collapsed, setCollapsed] = useState(() => prefGet("vr-sidebar") === "collapsed");
   // 各导航组子栏目的展开状态（默认展开；按组记住用户的选择）
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    // 🔴 **默认收起**：一打开先看到一层干净的总览，要什么再展开。
-    //    默认全展开时侧栏一屏塞十几条，一级栏目反而被子项淹掉。
-    //    （`=== "open"` 而不是 `!== "closed"`：没存过就是收起。）
-    Object.fromEntries(Object.entries(NAV_GROUPS).map(([path, g]) => [path, storageGet(g.storageKey) === "open"])));
+    Object.fromEntries(Object.entries(NAV_GROUPS).map(([path, g]) => [path, prefGet(g.storageKey as "vr-intel-open2") === "open"])));
 
   const toggleGroup = (path: string) => {
     setOpenGroups((prev) => {
       const next = { ...prev, [path]: !prev[path] };
-      storageSet(NAV_GROUPS[path]!.storageKey, next[path] ? "open" : "closed");
+      void prefSet(NAV_GROUPS[path]!.storageKey as "vr-intel-open2", next[path] ? "open" : "closed");
       return next;
     });
   };
 
   useEffect(() => {
-    storageSet("vr-sidebar", collapsed ? "collapsed" : "expanded");
+    void prefSet("vr-sidebar", collapsed ? "collapsed" : "expanded");
   }, [collapsed]);
 
   // 品牌区与底部链接固定，导航本身会滚动。窗口偏矮时当前页可能刚好落在
@@ -138,10 +127,12 @@ export function Layout() {
   }, [mobile, mobileOpen]);
   const compact = collapsed && !mobile;
   const currentTitle = NAV.find(n => n.to === pathname)?.label
-    ?? (pathname === '/research/legacy' ? '专题研究' : undefined)
+    ?? (pathname === '/research' || pathname.startsWith('/research/') ? '个股研究' : undefined)
     ?? Object.values(NAV_GROUPS).flatMap(g => g.links).find(n => n.to === pathname)?.label
-    ?? (pathname.startsWith('/my-reports/read/') ? '资料阅读' : NAV.find(n => n.to !== '/' && pathname.startsWith(n.to + '/'))?.label)
-    ?? "工作空间";
+    ?? (pathname.startsWith('/sectors/profiles') || pathname.startsWith('/signals') ? '产业研究' : undefined)
+    ?? (pathname.startsWith('/my-reports/read/') ? '资料阅读' : undefined)
+    ?? NAV.find(n => n.to !== '/' && n.to !== '/sectors' && pathname.startsWith(n.to + '/'))?.label
+    ?? (pathname.startsWith('/sectors/') ? '行业研究' : "工作空间");
 
   return (
     <AiPageProvider>
@@ -172,7 +163,10 @@ export function Layout() {
           <div id="dsh-status" data-testid="ai-runtime-badge" className="px-3 text-[10px] text-muted-foreground empty:hidden" />
           <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
             {NAV.map(({ to, icon: Icon, label }) => {
-              const active = pathname === to || (to === "/sectors" && pathname.startsWith("/sectors/")) || (to === "/my-research" && pathname.startsWith("/my-research"));
+              const active = pathname === to
+                || (to === "/sectors" && (pathname === "/sectors" || (/^\/sectors\//.test(pathname) && !pathname.startsWith("/sectors/profiles"))))
+                || (to === "/sectors/profiles" && (pathname.startsWith("/sectors/profiles") || pathname.startsWith("/signals")))
+                || (to === "/my-research" && pathname.startsWith("/my-research"));
               const group = NAV_GROUPS[to];
               const groupOpen = group ? !!openGroups[to] : false;
               return <div key={to}>

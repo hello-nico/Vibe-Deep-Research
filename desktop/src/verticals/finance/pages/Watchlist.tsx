@@ -1,14 +1,16 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { Plus, X, RefreshCw, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { loadWatch, saveWatch, addCodes } from "@/lib/watchlist";
+import { addCodes, addWatch, loadWatch, removeWatch } from "@/lib/watchlist";
+import { addToRoster, loadRoster } from "../lib/researchRoster";
+import { companySlug } from "../lib/research";
+import { prefGet, prefSet } from "@/lib/prefs";
 import { useLiveQuotes, isTradingHours } from "@/hooks/useLiveQuotes";
 import { cn } from "@/lib/utils";
-import { useResearchSessions } from '../dsh/research-session';
-import { companySlug, wikiPages } from '../lib/research';
 
 // A 股红涨绿跌（与整个看板一致）。
 const color = (v: number | null | undefined) =>
@@ -17,53 +19,29 @@ const pct = (v: number | null | undefined) => (v == null ? "—" : `${v > 0 ? "+
 
 const LIVE_KEY = "vr-watchlist-live";
 
-// localStorage 在隐私模式 / 嵌入式浏览器里可能直接抛异常。读写都要兜底，
-// 否则初始化时一抛整个自选股页就白屏（与 lib/watchlist.ts 的处理保持一致）。
-const loadLive = (): boolean => {
-  try {
-    return localStorage.getItem(LIVE_KEY) === "on";
-  } catch {
-    return false;
-  }
-};
-const saveLive = (on: boolean) => {
-  try {
-    localStorage.setItem(LIVE_KEY, on ? "on" : "off");
-  } catch {
-    /* 存储不可用：开关本次会话内仍生效，只是不被记住 */
-  }
-};
-
 export function Watchlist() {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [input, setInput] = useState("");
   const [hint, setHint] = useState<string | null>(null);
-  const sessions = useResearchSessions();
-  const [joined, setJoined] = useState<Set<string> | null>(null);
-  const [membershipError, setMembershipError] = useState(false);
-  useEffect(() => {
-    let active = true;
-    Promise.all([wikiPages('companies'), sessions.companySymbols()]).then(([pages, symbols]) => {
-      if (active) setJoined(new Set([...pages.map(page => page.slug), ...symbols.map(companySlug).filter((slug): slug is string => slug !== null)]));
-    }).catch(() => { if (active) setMembershipError(true); });
-    return () => { active = false; };
-  }, [sessions]);
+  const [joined, setJoined] = useState<Set<string>>(() => new Set(loadRoster()));
   const [researching, setResearching] = useState<string | null>(null);
-  const joinResearch = async (symbol: string, name: string) => {
-    if (!joined || joined.has(companySlug(symbol)!)) return;
+  const joinResearch = async (symbol: string) => {
+    if (joined.has(symbol)) return;
     setResearching(symbol); setHint(null);
-    try { await sessions.start(`请研究 A 股公司 ${name}（${symbol}）。先复用公司 Wiki 与已有资料，按需获取定期报告和证据，围绕主营、盈利驱动和关键风险开展研究；研究结束后按既有维护规则形成或更新公司 Wiki。区分回答完成、维护草案、校验和正式发布，缺资料时明确说明。`, { symbol, name }); }
-    catch (e) { setHint(String(e)); } finally { setResearching(null); }
+    try {
+      await addToRoster(symbol);
+      setJoined(new Set(loadRoster()));
+      setHint(/^\d{6}$/.test(symbol) ? `已加入研究名单。可打开个股研究查看资料。` : `已加入研究名单。港股 / 美股目前没有公司资料页，名单会保留。`);
+    } catch (e) { setHint(String(e)); } finally { setResearching(null); }
   };
-  // 实时行情默认**关闭**——开着会持续请求，让用户自己决定要不要开。
-  const [live, setLive] = useState(loadLive);
+  const [live, setLive] = useState(() => prefGet(LIVE_KEY) === "on");
 
   const { quotes, loading, updatedAt, polling, error, refresh } = useLiveQuotes(codes, live);
 
   const toggleLive = () => {
     setLive((on) => {
       const next = !on;
-      saveLive(next);
+      void prefSet(LIVE_KEY, next ? "on" : "off");
       return next;
     });
   };
@@ -75,14 +53,16 @@ export function Watchlist() {
       setInput("");
       return;
     }
-    // 写失败就把列表退回台账里的真实状态,别让界面停在"看着加上了"
+    const incoming = next.filter((c) => !codes.includes(c));
     setCodes(next); setInput(""); setHint(`已添加 ${added} 只`);
-    void saveWatch(next).catch((e) => { setCodes(loadWatch()); setHint(`没保存上：${e instanceof Error ? e.message : String(e)}`); });
+    void Promise.all(incoming.map((c) => addWatch(c))).then(() => setCodes(loadWatch())).catch((e) => {
+      setCodes(loadWatch());
+      setHint(`没保存上：${e instanceof Error ? e.message : String(e)}`);
+    });
   };
   const remove = (c: string) => {
-    const next = codes.filter((x) => x !== c);
-    setCodes(next);
-    void saveWatch(next).catch(() => setCodes(loadWatch()));
+    setCodes(codes.filter((x) => x !== c));
+    void removeWatch(c).then(() => setCodes(loadWatch())).catch(() => setCodes(loadWatch()));
   };
 
   const aiContext = useMemo(
@@ -112,7 +92,7 @@ export function Watchlist() {
     <div>
       <PageHeader
         title="自选股"
-        subtitle="批量添加、一屏总览你关注的标的。数据只存本地、不上传。"
+        subtitle="批量添加、一屏总览你关注的标的。"
         actions={
           <div className="flex items-center gap-2">
             <button
@@ -243,7 +223,8 @@ export function Watchlist() {
                         >
                           <X className="h-3.5 w-3.5" />
                         </button>
-                        {/^[0-9]{6}$/.test(c) && <button disabled={researching !== null || !joined || joined.has(companySlug(c)!)} onClick={() => void joinResearch(c, q?.name || c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在打开…' : joined?.has(companySlug(c)!) ? '已加入研究' : membershipError ? '研究状态读取失败' : !joined ? '检查研究状态…' : '加入研究 →'}</button>}
+                        <button disabled={researching !== null || joined.has(c)} onClick={() => void joinResearch(c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在加入…' : joined.has(c) ? '已加入研究' : '加入研究'}</button>
+                        {joined.has(c) && <Link className="workspace-action workspace-action-compact ml-2" to={`/research?company=${encodeURIComponent(companySlug(c) || c)}`}>打开研究</Link>}
                       </td>
                     </tr>
                   );

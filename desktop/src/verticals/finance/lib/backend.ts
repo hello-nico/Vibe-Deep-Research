@@ -1,18 +1,4 @@
-/**
- * 与**我们自己的底座**(Node 编排器)通话的一层。
- *
- * 界面整套来自开源版 Vibe-Research;它原来打的是开源版的 Python 后端(`/api/valuation`
- * 这种一问一答的语义接口)。我们的底座只有一个通用取数入口 `/fetch`(端点 id + 证据信封),
- * 外加台账 / 对话 / 辩论 / 运行。**差异全部收在这一层与 `api.ts` 的映射里**,
- * 上游的页面代码一行不用改。
- *
- * 🔴 **后端鉴权不在这里**:访问底座用的 Bearer token 由 Vite 代理注入,浏览器侧不持有
- *    (见 vite.config.ts)。⚠️ 别把它跟**模型 key** 混为一谈 —— 那是两件事:
- *    底座 token 浏览器永远拿不到;模型 key 是**用户自己的**,存在他自己的 localStorage 里,
- *    随请求发给本机后端、用完即弃(见 llmStore.ts 与「接入 AI」页)。
- */
-import { AI_RUNTIME_CHANGED, readAiRuntime, type ExecutionMode } from "./llmStore.ts";
-import type { ImportResult } from "./importPositions.ts";
+/** 本机数据服务客户端：页面取数、快照、台账及 Client 选择与偏好。 */
 
 export class ApiError extends Error {
   readonly status: number;
@@ -27,98 +13,6 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
   }
-}
-
-const AGENT_AUTH_ERROR = /401|unauthorized|missing bearer|authentication|not[_ -]?authenticated|token[_ -]?revoked|(?:proxy-)?authorization\s*:|bearer\s+[A-Za-z0-9._~+/=-]{4,}/i;
-const AGENT_TRANSPORT_DETAIL = /reconnecting|unexpected status|https?:\/\/|wss?:\/\/|cf-ray|x-(?:request|trace)-id|<\s*!?doctype|<\s*html\b/i;
-/** 只有这些由产品自己定义、文案受控的错误码可以把 message 原样展示。其余 Agent 错误默认收口。 */
-const SAFE_AGENT_MESSAGE_CODES = new Set([
-  "llm_broken", "llm_unavailable",
-  "bad_provider", "unknown_provider", "missing_base_url", "missing_key", "needs_base_url", "bad_base_url",
-  "unsupported_cli", "bad_session", "empty_message", "message_too_long", "bad_message",
-  "bad_translation_items", "bad_translation_output", "report_citation_invalid",
-  // 探针「有响应但没回填令牌」是可行动的产品文案(换个守结构化输出的模型),不能吞成「连接失败」(Codex r1 P2)
-  "probe_bad_output", "bad_probe_request",
-  "chat_engine_unsupported", "chat_engine_missing", "chat_capacity", "chat_busy", "chat_cancelled", "timeout",
-  "agent_quota", "agent_not_installed", "agent_busy", "agent_timeout", "agent_output_too_large",
-  "agent_bad_output", "agent_failed", "agent_empty_output", "agent_cancelled", "agent_start_failed",
-  "tool_context_too_large", "bad_agent_output", "guided_output_blocked", "bad_tool_args", "bad_tool",
-  "bad_agent_state", "not_found", "tool_failed", "debate_source_changed", "debate_exists", "debate_busy",
-  "invalid_task_request", "invalid_task", "invalid_material_resolution", "material_resolution_failed",
-  "operation_not_available", "quick_not_eligible", "quick_provider_unsupported", "route_changed", "cancelled",
-  "ai_not_configured", "agent_required", "agent_runtime_unsupported", "direct_provider_unsupported", "bad_execution_mode",
-  "network_error", "http_error", "bad_json", "upstream_error", "empty_choice",
-  "confirmation_expired", "source_changed",
-]);
-
-/**
- * Agent 错误给用户看的唯一出口。引擎原文仍由后端负责诊断，界面只显示可行动提示。
- * 这层也保护旧后端或代理缓存：即使服务端暂时还返回原始 SDK 文本，也不会把地址 / cf-ray 暴露到页面。
- */
-export function friendlyAgentError(error: unknown): string {
-  const raw = error instanceof Error ? error.message : String(error);
-  const code = error instanceof ApiError ? error.code : "";
-  if (code === "agent_probe_failed") {
-    return "当前 AI 状态检测未完成，请重试；若持续失败，请到「接入 AI」检查运行环境。现有登录不会被清除。";
-  }
-  if (code === "agent_not_ready" || code === "agent_not_authenticated" || AGENT_AUTH_ERROR.test(raw)) {
-    return "当前 AI 登录已失效或尚未完成。请先到「接入 AI」重新连接。";
-  }
-  if (AGENT_TRANSPORT_DETAIL.test(raw)) {
-    return "当前 AI 暂时没有连接成功。请到「接入 AI」检查当前连接后重试。";
-  }
-  if (SAFE_AGENT_MESSAGE_CODES.has(code)) return raw;
-  if (code === "bad_llm" || code === "bad_template") {
-    return "当前 AI 配置无法使用。请到「接入 AI」检查模型与连接配置后重试。";
-  }
-  return "当前 AI 暂时没有连接成功。请到「接入 AI」检查当前连接后重试。";
-}
-
-const isAgentPath = (path: string): boolean =>
-  path === "/chat" || path.startsWith("/chat/") || path.startsWith("/tasks") || path === "/research" || path.startsWith("/debate") ||
-  path === "/import" || path === "/llm-probe" || path === "/translate-headlines" ||
-  path === "/local-agents/codex/login" || path.startsWith("/guided-tool/");
-
-export type TaskMode = "auto" | "quick" | "deep";
-export type TaskRouteTarget = "deterministic" | "quick" | "deep";
-
-export interface ResearchTaskRequest {
-  schemaVersion: 1;
-  id: string;
-  kind: "locate_passages" | "deep_research";
-  requestedMode: TaskMode;
-  objective: string;
-  evidenceScope: "existing" | "open_discovery";
-  workflow: "single_step" | "multi_step";
-  inputRefs: { kind: "report" | "entity"; id: string }[];
-  outputFormat: "text" | "document";
-  operation: null;
-}
-
-export interface TaskRouteDecision {
-  target: TaskRouteTarget;
-  requestedMode: TaskMode;
-  executionMode: ExecutionMode;
-  runtimeFingerprint: string;
-  reasonCode: string;
-  reason: string;
-  routeFingerprint: string;
-  materialState: "not_needed" | "ready" | "partial" | "missing";
-}
-
-export interface UnifiedTaskEvent {
-  runId: string;
-  taskId: string;
-  sequence: number;
-  type: "started" | "progress" | "artifact" | "completed" | "failed";
-  payload?: Record<string, unknown>;
-}
-
-export interface UnifiedTaskResult {
-  status: "routed" | "running" | "completed" | "failed";
-  executionAvailable: boolean;
-  route: TaskRouteDecision;
-  events: UnifiedTaskEvent[];
 }
 
 /** 一条证据。所有端点的 evidence 元素都是这个形状,所以一套读法能服务全部端点。 */
@@ -163,33 +57,7 @@ export interface FetchResult {
   fetched_at: string;
 }
 
-export type GuidedToolReply =
-  | { status: "needs_input"; message: string }
-  | {
-      status: "complete"; message: string; title: string; question: string;
-      hypothesis: string; logic: string[]; report: string; tool_result: unknown;
-    };
-
-function requestRuntime(llm?: unknown, executionMode?: ExecutionMode): { llm: unknown; executionMode: ExecutionMode } {
-  const r = readAiRuntime();
-  if (llm !== undefined) return {
-    llm,
-    executionMode: executionMode ?? (r.status === "ok" && r.config ? r.config.executionMode : "direct"),
-  };
-  if (r.status === "broken") {
-    throw new ApiError("本机存的模型配置读不懂了 —— 请到「接入 AI」重新选一次", 400, "llm_broken");
-  }
-  if (r.status === "unavailable") {
-    throw new ApiError("浏览器不让读本地存储（隐私模式？）—— 「接入 AI」的配置这一轮用不了", 400, "llm_unavailable");
-  }
-  if (r.status === "none" || !r.config) {
-    throw new ApiError("请先到「接入 AI」选择订阅或 API，连接成功后再使用 AI 功能", 409, "ai_not_configured");
-  }
-  return { llm: r.config.source, executionMode: r.config.executionMode };
-}
-
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
-  const agentPath = isAgentPath(path);
   let res: Response;
   try {
     res = await fetch(`/finance-api${path}`, {
@@ -204,9 +72,6 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     // 用户取消/切换模式不是连接故障，保留 AbortError 给界面识别。
     init?.signal?.throwIfAborted();
     // fetch 只在网络层失败时抛。这里不能静默成空数据,否则页面把"连不上"渲染成"没有数据"
-    if (agentPath) {
-      throw new ApiError("当前 AI 暂时没有连接成功。请到「接入 AI」检查当前连接后重试。", 0, "network");
-    }
     throw new ApiError(`连接不到编排器 API:${e instanceof Error ? e.message : String(e)}`, 0, "network");
   }
   const text = await res.text();
@@ -215,88 +80,19 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     body = text ? JSON.parse(text) : null;
   } catch {
     // 代理错误页是 HTML,直接 res.json() 会炸在 "Unexpected token <",把真正原因埋掉
-    if (agentPath) {
-      throw new ApiError("当前 AI 暂时没有连接成功。请到「接入 AI」检查当前连接后重试。", res.status, "bad_response");
-    }
     throw new ApiError(`返回不是 JSON:${text.slice(0, 120)}`, res.status, "bad_response");
   }
   if (!res.ok) {
     const b = body as { error?: string; message?: string } | null;
     const code = b?.error ?? String(res.status);
     const raw = b?.message ?? b?.error ?? `HTTP ${res.status}`;
-    const message = agentPath ? friendlyAgentError(new ApiError(raw, res.status, code)) : raw;
-    throw new ApiError(message, res.status, code === "turn_failed" && AGENT_AUTH_ERROR.test(raw) ? "agent_not_ready" : code);
+    throw new ApiError(raw, res.status, code);
   }
   return body as T;
 }
 
-async function ensureSelectedLocalAgentReady(llm: unknown, signal?: AbortSignal): Promise<void> {
-  signal?.throwIfAborted();
-  if (!llm || typeof llm !== "object" || Array.isArray(llm)) return;
-  const provider = String((llm as { provider?: unknown }).provider ?? "");
-  // 只预检**已经有真实适配器**的三种订阅。未知 cli-* 必须交给后端返回 unsupported_cli，
-  // 不能在这里误报成“没登录”，否则坏配置会被掩盖。
-  if (provider !== "cli-codex" && provider !== "cli-claude" && provider !== "cli-codebuddy") return;
-  const status = (await call<LocalAgentStatus[]>(`/local-agents?provider=${encodeURIComponent(provider)}`, { signal })).find((x) => x.provider === provider);
-  if (status?.available) return;
-  const name = status?.name ?? (provider === "cli-codex" ? "Codex" : "本地助手");
-  const message = status?.status === "not_installed"
-    ? `当前选择的 ${name} 尚未安装。请先到「接入 AI」完成连接。`
-    : !status || status.status === 'probe_failed'
-      ? '当前 AI 状态检测未完成，请重试；若持续失败，请到「接入 AI」检查运行环境。现有登录不会被清除。'
-      : "当前 AI 登录已失效或尚未完成。请先到「接入 AI」重新连接。";
-  const code = status?.status === "not_installed" ? "agent_not_installed"
-    : !status || status.status === "probe_failed" ? "agent_probe_failed" : "agent_not_ready";
-  throw new ApiError(message, 409, code);
-}
-
 export const backend = {
-  importPositions: (files: { name: string; content_base64: string }[], signal?: AbortSignal) => {
-    const runtime = requestRuntime();
-    return call<ImportResult>("/import", { method: "POST", signal,
-      body: JSON.stringify({ kind: "position", files, llm: runtime.llm, executionMode: runtime.executionMode }) });
-  },
   health: () => call<{ ok: boolean; version: string }>("/health"),
-  product: () => call<ProductInfo>("/product"),
-  localAgents: () => call<LocalAgentStatus[]>("/local-agents"),
-  startCodexLogin: (signal?: AbortSignal) => call<{ state: "started" | "pending" }>("/local-agents/codex/login", {
-    method: "POST", body: "{}", signal,
-  }),
-  reports: () => call<{
-    id: string; name: string; size: number; ext: string; ts: number; uploaded_at: string;
-    chars: number; pages: number | null; truncated: boolean; symbols: string[];
-  }[]>("/reports"),
-  reportUpload: (name: string, content: string) => call<{
-    id: string; name: string; size: number; ext: string; ts: number; uploaded_at: string;
-    chars: number; pages: number | null; truncated: boolean; symbols: string[];
-  }>("/reports", { method: "POST", body: JSON.stringify({ name, content }) }),
-  reportDelete: (id: string) => call<{ removed: boolean }>(`/reports/${encodeURIComponent(id)}/delete`, {
-    method: "POST", body: JSON.stringify({ id }),
-  }),
-  reportPreview: (id: string) => call<{ report: { id: string; name: string }; text: string; truncated: boolean }>(`/reports/${encodeURIComponent(id)}/preview`),
-
-  /** 只做内部路由；后端把 AI 来源做成不可逆指纹，执行时换源必须重新路由。 */
-  routeTask: (task: ResearchTaskRequest, signal?: AbortSignal) => {
-    const runtime = requestRuntime();
-    return call<UnifiedTaskResult>("/tasks", {
-      method: "POST", body: JSON.stringify({ task, execute: false, executionMode: runtime.executionMode, llm: runtime.llm }), signal,
-    });
-  },
-
-  /** 执行已由同一高层任务描述过的任务；内部 Quick / Deep 都服从全局 Agent 开关。 */
-  runTask: (task: ResearchTaskRequest, expectedRouteFingerprint: string, signal?: AbortSignal, llm?: unknown) => {
-    const runtime = requestRuntime(llm);
-    return call<UnifiedTaskResult>("/tasks", {
-      method: "POST",
-      body: JSON.stringify({ task, execute: true, expectedRouteFingerprint, executionMode: runtime.executionMode, llm: runtime.llm }),
-      signal,
-    });
-  },
-
-  resumeTask: (runId: string, routeFingerprint: string, signal?: AbortSignal) =>
-    call<{ status: "running" | "completed" | "failed"; events: UnifiedTaskEvent[] }>("/tasks/resume", {
-      method: "POST", body: JSON.stringify({ runId, routeFingerprint }), signal,
-    }),
 
   /**
    * 取一个端点。**默认读上次的快照**(见 service.fetchEndpoint):
@@ -325,112 +121,20 @@ export const backend = {
   ledgerDelete: (kind: string, id: string) =>
     call<{ removed: boolean }>(`/ledger/${encodeURIComponent(kind)}/delete`, { method: "POST", body: JSON.stringify({ id }) }),
 
-  /**
-   * 一轮对话。
-   * ⚠️ `session` **必须按页面分开传**：后端按 session 维护线程，而前端只发最后一句 ——
-   *    全站共用 "default" 的话，后端那条线程会把所有页面的对话串成一段，
-   *    而界面上每页各自干净，这种不一致从界面上完全看不出来。
-   */
-  /**
-   * 一轮对话。`llm` = 用户自己在「接入 AI」里配的那一份；不给则读取全局 AI 来源。
-   * 🔴 key 随请求发给**本机**后端，用完即弃：不写配置文件、不进日志、不入账本。
-   */
-  chat: async (message: string, session = "default", signal?: AbortSignal, llm?: unknown) => {
-    // 🔴 **默认就带上用户那份**，不靠调用方记得传。
-    //    上一版要求每个入口自己传 —— 结果三个入口里有两个（Agent 面板、agents.ts）漏了，
-    //    表现是"用户在界面上选的模型没生效"，而对话照常成功、界面上看不出任何异常。
-    const runtime = requestRuntime(llm);
-    const modeController = new AbortController();
-    const turnSignal = signal ? AbortSignal.any([signal, modeController.signal]) : modeController.signal;
-    const modeChanged = () => {
-      if (readAiRuntime().config?.executionMode !== runtime.executionMode) modeController.abort();
-    };
-    globalThis.addEventListener?.(AI_RUNTIME_CHANGED, modeChanged);
-    globalThis.addEventListener?.("storage", modeChanged);
-    try {
-      if (runtime.executionMode === "agent") await ensureSelectedLocalAgentReady(runtime.llm, turnSignal);
-      turnSignal.throwIfAborted();
-      return await call<{ session: string; reply: string; redacted: number; duration_ms: number; tool_activity?: { name: string; ok: boolean; duration_ms: number }[]; pending_research?: { id: string; symbol: string; company_name?: string; endpoints: string }[] }>("/chat", {
-      method: "POST",
-      // requestRuntime 已按 `!== undefined` 处理调用方覆盖，显式 null 会继续传给后端形状校验，
-      // 不会被真值判断吃掉。AI 来源与 Agent 开关必须在同一请求体里一起发送。
-      body: JSON.stringify({ session, message, executionMode: runtime.executionMode, llm: runtime.llm }),
-      signal: turnSignal,
-      });
-    } finally {
-      globalThis.removeEventListener?.(AI_RUNTIME_CHANGED, modeChanged);
-      globalThis.removeEventListener?.("storage", modeChanged);
-    }
-  },
+  clientWatch: () => call<{ symbols: string[] }>("/client/watch"),
+  clientWatchAdd: (symbol: string) =>
+    call<{ symbols: string[]; added: boolean }>("/client/watch", { method: "POST", body: JSON.stringify({ symbol }) }),
+  clientWatchRemove: (symbol: string) =>
+    call<{ symbols: string[]; removed: boolean }>("/client/watch/delete", { method: "POST", body: JSON.stringify({ symbol }) }),
+  clientResearch: () => call<{ symbols: string[] }>("/client/research"),
+  clientResearchAdd: (symbol: string) =>
+    call<{ symbols: string[]; added: boolean }>("/client/research", { method: "POST", body: JSON.stringify({ symbol }) }),
+  clientResearchRemove: (symbol: string) =>
+    call<{ symbols: string[]; removed: boolean }>("/client/research/delete", { method: "POST", body: JSON.stringify({ symbol }) }),
+  clientPrefs: () => call<{ prefs: Record<string, string> }>("/client/prefs"),
+  clientPrefSet: (key: string, value: string) =>
+    call<{ prefs: Record<string, string> }>("/client/prefs", { method: "POST", body: JSON.stringify({ key, value }) }),
 
-  confirmChatResearch: (id: string, signal?: AbortSignal) => call<{ run_id: string }>("/chat/confirm-research", {
-    method: "POST", body: JSON.stringify({ id, ...requestRuntime() }), signal,
-  }),
-
-  /**
-   * 连接探针：后端固定一次性令牌，不召回资料库、不进聊天会话。设置页「测试并保存」专用。
-   * 🔴 别再用 chat() 做连接检测 —— 那会把资料库片段发给正在测试的 provider（#40）。
-   */
-  llmProbe: async (llm: unknown, signal?: AbortSignal) => {
-    const runtime = requestRuntime(llm);
-    await ensureSelectedLocalAgentReady(runtime.llm, signal);
-    return await call<{ ok: true; duration_ms: number; direct_supported: boolean; direct_reason: string }>("/llm-probe", {
-      method: "POST",
-      body: JSON.stringify({ llm: runtime.llm }),
-      signal,
-    });
-  },
-
-  /** RSS 标题走专用受限转换入口，不借用会记上下文的自由对话。 */
-  translateHeadlines: async (items: { id: string; title: string }[], signal?: AbortSignal, llm?: unknown) => {
-    const runtime = requestRuntime(llm);
-    if (runtime.executionMode === "agent") await ensureSelectedLocalAgentReady(runtime.llm, signal);
-    return await call<{ items: { id: string; zh: string }[]; redacted: number; duration_ms: number }>("/translate-headlines", {
-      method: "POST",
-      body: JSON.stringify({ items, executionMode: runtime.executionMode, llm: runtime.llm }),
-      signal,
-    });
-  },
-
-  /** 垂类工具:清单由后端下发,前端**不写死一份**(写死的那份迟早与真实实现对不上) */
-  tools: () => call<{ tools: { name: string; label: string }[] }>("/tools"),
-  /**
-   * 跑一个垂类工具。
-   * ⚠️ 这类工具要先取数再算,**几十秒**很正常 —— 调用方要自己给足耐心与进度反馈。
-   * 🔴 返回的 JSON 由工具自己定形状(比如"被拦住"与"出错了"分开),这里原样透传。
-   */
-  runTool: async <T>(name: string, body: unknown, signal?: AbortSignal) => {
-    // 未接 AI 也能调用确定性工具；是否需要 Agent 由服务端工具契约校验。
-    const runtime = readAiRuntime().status === "none" ? { executionMode: "direct" as const, llm: undefined } : requestRuntime();
-    return await call<T>(`/tool/${encodeURIComponent(name)}`, {
-      method: "POST",
-      body: JSON.stringify({ input: body, executionMode: runtime.executionMode, llm: runtime.llm }),
-      signal,
-    });
-  },
-  /** Agent 先补问，条件齐备后由后端调用同一个真实工具，并返回可归档报告。 */
-  guidedTool: async (name: string, session: string, message: string, signal?: AbortSignal, llm?: unknown) => {
-    const runtime = requestRuntime(llm);
-    if (runtime.executionMode === "direct") {
-      throw new ApiError("这个功能需要助手调用工具并维持任务状态，请先开启 Vibe Finance 助手", 409, "agent_required");
-    }
-    await ensureSelectedLocalAgentReady(runtime.llm, signal);
-    return await call<GuidedToolReply>(`/guided-tool/${encodeURIComponent(name)}`, {
-      method: "POST",
-      body: JSON.stringify({ session, message, executionMode: runtime.executionMode, llm: runtime.llm }),
-      signal,
-    });
-  },
-  debateStart: (symbol: string, depth?: string, signal?: AbortSignal) => {
-    const runtime = requestRuntime();
-    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要助手，请先开启 Vibe Finance 助手", 409, "agent_required");
-    return call<DebateState>("/debate", { method: "POST", body: JSON.stringify({ symbol, ...(depth ? { depth } : {}), executionMode: runtime.executionMode, llm: runtime.llm }), signal });
-  },
-  debateAdvance: (id: string, signal?: AbortSignal) => {
-    const runtime = requestRuntime();
-    if (runtime.executionMode === "direct") throw new ApiError("多空辩论需要助手，请先开启 Vibe Finance 助手", 409, "agent_required");
-    return call<DebateState>(`/debate/${encodeURIComponent(id)}/advance`, { method: "POST", body: JSON.stringify({ executionMode: runtime.executionMode, llm: runtime.llm }), signal });
-  },
 
   /** 端点观测序列(跨运行累积)。⚠️ 只在**完整研究运行**时追加,手动点看板不写 —— 稀疏是正常的 */
   series: (endpoint: string) =>
@@ -456,36 +160,6 @@ export const backend = {
         ...(opts.blockArgs ? { blockArgs: opts.blockArgs } : {}),
       }),
     }),
-
-  /**
-   * 发起一次**六阶段个股研究**（公司画像 → 财务 → 一致预期 → 估值 → 风险 → 成稿）。
-   *
-   * 🔴 这条链路后端一直都有，界面却**没有任何入口** —— 用户完全不知道产品能生成
-   *    带证据链、确定性计算、数据缺口与裁决点的正式研究；「我的研报」只是上传外部文件的归档柜。
-   * ⚠️ 它会真的花模型额度、跑十几分钟，所以必须由用户显式点，不能页面一打开就跑。
-   */
-  startResearch: (body: { symbol: string; company_name?: string; market?: string; endpoints?: "core" | "full"; knowledge?: "on" | "off"; stages?: string[] }) => {
-    return call<{ run_id: string; log: string; pid?: number }>("/research", {
-      method: "POST", body: JSON.stringify({ ...body, executionMode: 'agent', modelSource: 'dsh' }),
-    });
-  },
-
-  researchStatus: (id: string) => call<ResearchStatus>(`/runs/${encodeURIComponent(id)}/status`),
-  cancelResearch: (id: string) => call<ResearchStatus>("/research/cancel", { method: "POST", body: JSON.stringify({ run_id: id }) }),
-
-  /**
-   * 「昨天以来变了什么」：对齐同一标的最近两次研究。
-   * ⚠️ 只有一次研究时后端报 **need_two_runs** —— 调用方要把它显示成"还没有可比较的第二次"，
-   *    **不能显示成"没有变化"**。这两件事完全不同。
-   */
-  alerts: (symbol: string, market?: string) =>
-    call<{ symbol: string; base: string; next: string; diffs: AlertDiff[] }>(
-      `/alerts?symbol=${encodeURIComponent(symbol)}${market ? `&market=${encodeURIComponent(market)}` : ""}`,
-    ),
-
-  runs: (limit = 50) => call<RunListItem[]>(`/runs?limit=${limit}`),
-  report: (id: string) =>
-    call<{ run_id: string; report: string | null; appendix: string | null; availability: "ready" | "unvalidated" | "missing"; run_status: string | null }>(`/runs/${encodeURIComponent(id)}/report`),
 };
 
 export interface LedgerRecord {
@@ -494,73 +168,6 @@ export interface LedgerRecord {
   created_at: string;
   updated_at: string;
   [field: string]: unknown;
-}
-
-/** `/product` 的脱敏投影。🔴 只有环境变量**名**与一个布尔,**没有密钥值** */
-export interface ProductInfo {
-  version: string;
-  provider: {
-    name: string;
-    profile: string | null;
-    wire_api: string;
-    base_url: string | null;
-    auth: string;
-    env_key: string;
-    key_present: boolean;
-  };
-  defaults: Record<string, unknown>;
-  paths: { data_root: string; codex_home: string; python: string };
-  sources: string[];
-  auth_error: string | null;
-  /**
-   * provider 模板 id → 它自己声明的兼容矩阵状态（`baseline/pass/partial` = 真跑过；`untested` = 只有模板）。
-   * 前端只用它给某一家打「已实测」标 —— **不写死一份**，
-   * 写死的那份迟早与 providers/ 目录对不上，而对不上的表现是
-   * 「明明实测过却没标」或更糟的「没测过却标了已实测」。
-   */
-  provider_templates?: Record<string, string>;
-}
-
-export interface LocalAgentStatus {
-  provider: "cli-codex" | "cli-claude" | "cli-codebuddy";
-  name: "Codex" | "Claude Code" | "WorkBuddy / CodeBuddy";
-  installed: boolean;
-  authenticated: boolean;
-  available: boolean;
-  version: string | null;
-  status: "ready" | "not_installed" | "not_authenticated" | "login_pending" | "login_failed" | "probe_failed";
-  detail: string;
-}
-
-/** 一段产出里数字的着落。三档分开报 —— 混成一个数等于什么都没说 */
-export interface DebateNumberAudit {
-  total: number;
-  /** 对得上资料包里的值 */
-  bound: number;
-  /** 没有对应的值,但写了算式且重算通过 */
-  derived: number;
-  /** 两样都不是。不等于错,但这一档没人在看 */
-  loose: number;
-  /** 🔴 算式是它自己写的、结果对不上 —— 唯一能断言「这里错了」的一类 */
-  badMath: { raw: string; stated: number; recomputed: number; percent: boolean }[];
-}
-export interface DebateStage {
-  id: string;
-  label: string;
-  status: "pending" | "running" | "done" | "failed" | "cancelled";
-  text: string;
-  error?: string;
-  audit?: DebateNumberAudit;
-}
-export interface DebateState {
-  id: string;
-  symbol: string;
-  evidence_count: number;
-  gaps: string[];
-  stages: DebateStage[];
-  /** 跑完了。**不代表跑成了** —— 看 outcome */
-  done: boolean;
-  outcome: "running" | "completed" | "completed_with_errors" | "failed" | "cancelled";
 }
 export interface ThermoObservation {
   run_id: string; run_date: string; as_of: string; fetched_at: string;
@@ -609,47 +216,6 @@ export interface PageResult {
   oldest_fetched_at: string | null;
   /** 这一屏里的数据来自不同业务日 —— 要在界面上说出来，不能让用户以为是同一天的 */
   mixed_ages: boolean;
-}
-
-/** 一次研究运行的状态。**阶段是逐个推进的**，界面据此显示进度而不是一个转圈 */
-export interface ResearchStatus {
-  run_id: string;
-  exists: boolean;
-  status: string;
-  exit_code: number | null;
-  stages: { stage: string; status: string; attempts?: number }[];
-  evidence_count: number | null;
-  calculation_count: number | null;
-  finished_at: string | null;
-  last_events?: unknown[];
-  failure?: { code: string; message: string; action: string; retryable: boolean } | null;
-  report?: boolean;
-  viewer?: boolean;
-}
-
-/** 两次研究之间的一条差异。`kind` 分变了 / 新增 / 消失 —— 三者要分开显示，别糊成"有变化" */
-export interface AlertDiff {
-  key: string; field: string; period: string; unit: string;
-  kind: "changed" | "added" | "removed";
-  /** 🔴 `id` 是证据 id —— **必须带出来**:界面上的每个数字都要能点回它出自哪条证据。
-   *  后端一直在给,是界面此前把它丢了。 */
-  base?: { id?: string; value: unknown; period: string; source: string; as_of?: string };
-  next?: { id?: string; value: unknown; period: string; source: string; as_of?: string };
-}
-
-export interface RunListItem {
-  run_id: string;
-  status: string | null;
-  symbol: string | null;
-  /** 名称来自这次研究已落盘的证据，不在前端猜；归档另展示状态与开始时间。 */
-  name: string | null;
-  /** 同代码不同市场不算时间序列 —— 比较两次运行要带上它 */
-  market: string | null;
-  started_at: string | null;
-  finished_at: string | null;
-  stages_done: number | null;
-  stages_total: number | null;
-  test_scenario: boolean;
 }
 
 /* ---------- 信封读法 ---------- */

@@ -36,7 +36,7 @@ export function startupMissingFiles(
   const configured = readConfiguredDataRoot(repoRoot);
   const dataRoot = resolveDataRoot(repoRoot, configured, env);
   const required = [
-    [path.join(repoRoot, "orchestrator", "node_modules", "@openai", "codex-sdk", "package.json"), "orchestrator 依赖"],
+    [path.join(repoRoot, "orchestrator", "node_modules", "ajv", "package.json"), "orchestrator 依赖"],
     [path.join(repoRoot, "desktop", "node_modules", "vite", "package.json"), "界面依赖"],
     [path.join(dataRoot, "config.json"), "产品初始化配置"],
   ] as const;

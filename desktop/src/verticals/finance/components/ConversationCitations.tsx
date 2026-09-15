@@ -4,7 +4,7 @@ import { decodeEvidenceLink, loadEvidence } from '../lib/evidence';
 import { citationReference, citationTitle, webCitationUrl } from '../lib/citationMarks';
 import './conversation-citations.css';
 
-const GENERIC_CITATION_TITLES = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文']);
+const GENERIC_CITATION_TITLES = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文', 'tencent', 'hithink', 'sina']);
 
 function meaningfulCitationTitle(value: string | undefined): string | null {
   const title = value?.replace(/\s+/g, ' ').trim() || '';

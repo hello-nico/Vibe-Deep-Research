@@ -7,12 +7,11 @@ test("保留全部路由，但非首屏业务按需加载并保留加载/错误�
   const paths = [...source.matchAll(/path: "([^"]+)"/g)].map(m => m[1]);
   assert.deepEqual(paths, [
     "/", "/daily-review", "/intel", "/intel/:tab", "/signals", "/signals/:tab",
-    "/sectors", "/sectors/profiles", "/sectors/profiles/:key", "/sectors/legacy", "/sectors/legacy/:key", "/sectors/:key",
-    "/portfolio", "/stock-data", "/debate", "/backtest", "/watchlist",
-    "/research", "/research/legacy", "/my-reports", "/my-reports/read/:id", "/my-reports/legacy",
-    "/my-research", "/my-research/material", "/my-research/topics/:topicHex", "/notes", "/notes/legacy", "/settings",
+    "/sectors", "/sectors/profiles", "/sectors/profiles/:key", "/sectors/:key", "/watchlist",
+    "/research", "/my-reports", "/my-reports/read/:id",
+    "/my-research", "/my-research/material", "/my-research/topics/:topicHex", "/settings",
   ]);
-  assert.equal((source.match(/lazy: async/g) ?? []).length, 22);
+  assert.equal((source.match(/lazy: async/g) ?? []).length, 16);
   assert.doesNotMatch(source, /^import .* from "@\/pages\/(?!Home|Settings)/m);
   assert.match(source, /hydrateFallbackElement:/);
   assert.match(source, /errorElement: <RouteErrorPage/);

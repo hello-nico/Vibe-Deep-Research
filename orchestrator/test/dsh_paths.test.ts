@@ -47,4 +47,5 @@ test("researchRuntimeEnv injects hook into the child process env only", t => {
   const unauthorized = researchRuntimeEnv(paths, { ...env, STOCK_RESEARCH_HOOK_TOKEN: "" });
   assert.equal(unauthorized.STOCK_RESEARCH_HOOK_TOKEN, undefined);
   assert.equal(unauthorized.STOCK_RESEARCH_ACCUMULATE, "1");
+  assert.equal(runtime.STOCK_RESEARCH_PRODUCT_NOTES, undefined);
 });

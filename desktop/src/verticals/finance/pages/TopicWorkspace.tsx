@@ -1,13 +1,15 @@
-import { useEffect, useLayoutEffect, useMemo, useState } from "react";
+import { useEffect, useLayoutEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Check, ChevronLeft, FileText, Plus, RefreshCw } from "lucide-react";
-import { PageHeader } from "../components/ui/PageHeader";
+import { Archive, Check, ChevronLeft, FileText, Plus, RefreshCw, RotateCcw } from "lucide-react";
+import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { GlassCard } from "../components/ui/GlassCard";
+import { ResearchResult } from '../components/ResearchResult';
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { KnowledgeText, ReferenceButtons, WikiReader } from "../components/ResearchKnowledge";
-import { loadNotes } from "../lib/notes";
+import { ObjectReport } from "../components/ObjectReport";
+import { getNote, type Note } from "../lib/notes";
 import {
-  publishWikiDraft, researchRead, topicIdFromHex, topicPath, type ResearchLink,
+  publishWikiDraft, researchRead, setTopicPool, topicIdFromHex, topicPath, type ResearchLink,
   type ResearchProposal, type ResearchTopic, type WikiDraft,
 } from "../lib/research";
 import { useResearchSessions } from "../dsh/research-session";
@@ -33,6 +35,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const research = useResearchSessions();
   const gate = useTopicSessionGate();
   const [topic, setTopic] = useState<ResearchTopic | null>(null);
+  const [report, setReport] = useState(false);
   const [links, setLinks] = useState<ResearchLink[]>([]);
   const [pages, setPages] = useState<ResearchLink[]>([]);
   const [proposals, setProposals] = useState<ResearchProposal[]>([]);
@@ -49,7 +52,28 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const [draftPreview, setDraftPreview] = useState<WikiDraft | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
-  const notes = useMemo(() => Object.fromEntries(loadNotes().map(note => [note.id, note])), [topicId, proposals, links]);
+  const [noteMap, setNoteMap] = useState<Record<string, Note>>({});
+  useEffect(() => {
+    const ids = [...new Set([
+      ...proposals.map(item => item.note_id?.replace(/^note:/, "")),
+      ...links.map(item => item.note_id?.replace(/^note:/, "")),
+      selected.startsWith("note:") ? selected.slice(5) : "",
+    ].filter((id): id is string => Boolean(id)))];
+    if (!ids.length) return;
+    let active = true;
+    void Promise.all(ids.map(async id => {
+      try { return [id, await getNote(id)] as const; }
+      catch { return [id, null] as const; }
+    })).then(entries => {
+      if (!active) return;
+      setNoteMap(previous => {
+        const next = { ...previous };
+        for (const [id, note] of entries) if (note) next[id] = note;
+        return next;
+      });
+    });
+    return () => { active = false; };
+  }, [proposals, links, selected]);
   const load = (signal?: AbortSignal) => {
     setError("");
     return Promise.all([
@@ -100,7 +124,19 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const start = async (fresh = false) => {
     setBusy(fresh ? "new" : "continue"); setError("");
     try {
+      if (topic?.pool_state === "archived") {
+        const restored = await setTopicPool(topicId, "restore");
+        setTopic(current => current ? { ...current, ...restored, pool_state: "active" } : current);
+      }
       await research.startTopic({ topicId, title: topic?.title || topicId, prompt: prompt(fresh), fresh });
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+    finally { setBusy(""); }
+  };
+  const changePool = async (action: "archive" | "restore") => {
+    setBusy(action); setError("");
+    try {
+      const next = await setTopicPool(topicId, action);
+      setTopic(current => current ? { ...current, ...next, pool_state: action === "archive" ? "archived" : "active" } : current);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(""); }
   };
@@ -116,7 +152,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       await researchRead(`/wiki/research-links/${action}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ proposal_id: proposal.proposal_id, note_id: proposal.note_id, target_id: proposal.target_id }),
+        body: JSON.stringify({ proposal_id: proposal.proposal_id, source_id: proposal.source_id || proposal.note_id, target_id: proposal.target_id }),
       });
       await load();
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -157,79 +193,101 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     suggestions: ["哪些沉淀记录与这个电力问题有关", "可以形成哪些 Theme 或 Comparison"],
   });
   const wikiPages = pages.filter(item => /^(themes|comparisons|industries|companies)\//.test(item.target_id));
-  return <div>
-    <PageHeader title={topic?.title || "议题工作区"} subtitle="围绕问题积累材料，形成判断，继续研究。"
-      actions={<Link className="workspace-action" to="/my-research"><ChevronLeft />全部议题</Link>} />
-    <div className="mb-4 flex flex-wrap gap-2">
-      <button type="button" className="workspace-field-action" disabled={!!busy || gate.blocking} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
-      <button type="button" className="workspace-action" disabled={!!busy || gate.blocking} onClick={() => void start(true)}><Plus className="h-4 w-4" />{busy === "new" ? "正在新开会话…" : "新会话继续"}</button>
-      <button type="button" className="workspace-action" disabled={!!busy} onClick={() => void refresh()}><RefreshCw className={`h-4 w-4 ${busy === "refresh" ? "animate-spin" : ""}`} />{busy === "refresh" ? "正在刷新…" : "刷新材料"}</button>
+  const selectedNote = selected.startsWith("note:") ? noteMap[selected.slice(5)] : undefined;
+  const pendingDrafts = drafts.filter(item => !item.published);
+  if (topic && report) return <div className="topic-panel">
+    <div className="flex justify-end"><button className="workspace-action" onClick={() => setReport(false)}>返回议题</button></div>
+    <ObjectReport title={topic.title} asOf={topic.last_touched_at}>
+      {topic.user_claim?.text && <section><h2>研究问题</h2><KnowledgeText markdown={topic.user_claim.text} /></section>}
+      <section><h2>当前判断</h2><KnowledgeText markdown={topic.judgment?.text || '尚未形成判断，继续结合材料核实。'} /></section>
+      {!!topic.next_questions?.length && <section><h2>继续核实</h2><ul>{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul></section>}
+      {!!topic.observation?.gaps?.length && <section><h2>资料缺口</h2><ul>{topic.observation.gaps.map(gap => <li key={gap}>{gap}</li>)}</ul></section>}
+      {[...new Set(links.map(item => item.source_id).filter((id): id is string => !!id?.startsWith('result:')))].map(id => <ResearchResult key={id} resultId={id} presentation="report" />)}
+      <ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} />
+    </ObjectReport>
+  </div>;
+  return <div className="topic-panel">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0">
+        <Link className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" to="/my-research"><ChevronLeft size={14} />全部议题</Link>
+        <h1 className="topic-panel-title">{topic?.title || "议题工作区"}</h1>
+        <p className="mt-1 text-xs text-muted-foreground">{topic?.pool_state === "archived" ? "已归档。恢复后可以继续研究。" : "围绕问题积累材料，形成判断。"}</p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {topic && <button type="button" className="workspace-action" onClick={() => setReport(true)}>图文报告</button>}
+        <button type="button" className="finance-session-action" disabled={!!busy || gate.blocking} onClick={() => void start(false)}><span>{busy === "continue" ? "正在接上…" : "继续研究"}</span></button>
+        <button type="button" className="finance-session-action" disabled={!!busy || gate.blocking} onClick={() => void start(true)}><Plus size={16} /><span>{busy === "new" ? "正在新开会话…" : "新会话"}</span></button>
+        <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void refresh()}><RefreshCw className={`h-4 w-4 ${busy === "refresh" ? "animate-spin" : ""}`} />{busy === "refresh" ? "刷新中…" : "刷新材料"}</button>
+        {topic && <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void changePool(topic.pool_state === "archived" ? "restore" : "archive")}>
+          {topic.pool_state === "archived" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+          {busy === "archive" || busy === "restore" ? "处理中…" : topic.pool_state === "archived" ? "恢复研究" : "归档议题"}
+        </button>}
+      </div>
     </div>
-    {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-    {!topic && !error && <p role="status">正在读取议题…</p>}
-    {topic && <div className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-      <div className="space-y-4">
-        <GlassCard>
-          <h2 className="mb-3 text-base font-semibold">当前判断</h2>
-          {topic.judgment?.text ? <KnowledgeText markdown={topic.judgment.text} /> : <p className="text-sm text-muted-foreground">从研究对话开始，逐步形成判断。</p>}
-          {!!topic.next_questions?.length && <section className="mt-6 border-t border-border pt-4"><h2 className="mb-3 text-base font-semibold">接下来研究</h2><ul className="list-disc space-y-2 pl-5 text-sm leading-7">{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul></section>}
-          <details className="mt-5"><summary className="cursor-pointer text-sm text-muted-foreground">查看研究依据</summary><ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} /></details>
-        </GlassCard>
-        {selected.startsWith("draft:") && draftPreview && <DraftPreview draft={draftPreview} />}
-        {selected && /^(themes|comparisons|industries|companies)\//.test(selected) && <WikiReader slug={selected} />}
-        {selected.startsWith("note:") && <GlassCard>
-          <h2 className="mb-2 text-base font-semibold">{notes[selected.slice(5)]?.title || "记录"}</h2>
-          <p className="whitespace-pre-wrap text-sm leading-7">{notes[selected.slice(5)]?.content || "这条记录已不在台账中，关联目标失效，原记录若仍存在请从记录页查看。"}</p>
-        </GlassCard>}
-      </div>
-      <div className="space-y-4">
-        <GlassCard>
-          <h2 className="mb-3 text-sm font-semibold">待确认关联</h2>
-          {proposals.length === 0 && <p className="text-sm text-muted-foreground">还没有提议。开始研究后，助手只会建议相关记录。</p>}
-          {proposals.map(item => {
-            const note = notes[item.note_id.replace(/^note:/, "")] || notes[item.note_id];
-            return <div key={item.proposal_id} className="mb-3 rounded-lg border border-border p-3">
-              <p className="text-sm font-medium">{note?.title || item.note_id}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
-              <div className="mt-2 flex gap-2">
-                <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void decide(item, "confirm")}><Check className="h-3.5 w-3.5" />确认关联</button>
-                <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void decide(item, "reject")}>不关联</button>
-              </div>
-            </div>;
-          })}
-        </GlassCard>
-        <GlassCard>
-          <h2 className="mb-3 text-sm font-semibold">已关联材料</h2>
-          {links.length === 0 && wikiPages.length === 0 && <p className="text-sm text-muted-foreground">确认后会出现在这里，刷新和新会话都能读到。</p>}
-          {links.map(item => {
-            const noteKey = item.note_id.replace(/^note:/, "");
-            return <button key={item.link_id} type="button" className="mb-2 block w-full rounded-lg border border-border px-3 py-2 text-left text-sm hover:bg-muted" onClick={() => setSelected(item.note_id.startsWith("note:") ? item.note_id : item.target_id)}>
-              <span className="block truncate">{notes[noteKey]?.title || item.note_id}</span>
-              <span className="text-xs text-muted-foreground">{item.reason || "已确认关联"}</span>
-            </button>;
-          })}
-          {wikiPages.map(item => <button key={`wiki-${item.link_id}`} type="button" className="mb-2 block w-full rounded-lg border border-primary/20 px-3 py-2 text-left text-sm" onClick={() => setSelected(item.target_id)}>
-            <span className="block truncate">{item.title || item.target_id}</span>
-            <span className="text-xs text-muted-foreground">已发布研究材料</span>
-          </button>)}
-        </GlassCard>
-        <GlassCard>
-          <h2 className="mb-3 text-sm font-semibold">待发布草案</h2>
-          {drafts.filter(item => !item.published).length === 0 && <p className="text-sm text-muted-foreground">助手校验成功的 Theme / Comparison 会出现在这里，确认后才写入 Wiki。</p>}
-          {drafts.filter(item => !item.published).map(item => <div key={item.draft_token} className="mb-3 rounded-lg border border-border p-3">
-            <p className="text-sm">{item.titles?.join("、") || "未命名草案"}</p>
+    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {!topic && !error && <ResearchLoading title="正在读取议题" sections={["当前判断", "关联材料"]} />}
+    {topic && <>
+      <section className="topic-section">
+        <h2>当前判断</h2>
+        {topic.judgment?.text ? <KnowledgeText markdown={topic.judgment.text} /> : <p className="text-sm text-muted-foreground">从研究对话开始，逐步形成判断。</p>}
+        {!!topic.next_questions?.length && <ul className="mt-4 list-disc space-y-1.5 pl-5 text-sm leading-6 text-muted-foreground">{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul>}
+        <details className="mt-4"><summary className="cursor-pointer text-xs text-muted-foreground">查看研究依据</summary><ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} /></details>
+      </section>
+      <section className="topic-section">
+        <h2>待确认关联</h2>
+        {proposals.length === 0 && <p className="text-sm text-muted-foreground">还没有提议。开始研究后，助手会建议关联相关的记录或研究成果。</p>}
+        {proposals.map(item => {
+          const note = noteMap[item.note_id?.replace(/^note:/, "") ?? ''];
+          return <div key={item.proposal_id} className="topic-material">
+            <p className="text-sm font-medium">{note?.title || (item.source_id?.startsWith('result:') ? '研究成果' : '研究记录')}</p>
+            {item.source_id?.startsWith('result:') && <ResearchResult resultId={item.source_id} presentation="report" />}
+            <p className="mt-1 text-xs text-muted-foreground">{item.reason}</p>
             <div className="mt-2 flex gap-2">
-              <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void reviewDraft(item.draft_token)}>
-                <FileText className="h-3.5 w-3.5" />{reviewedToken === item.draft_token ? "已审阅" : "审阅草案"}
-              </button>
-              <button type="button" className="workspace-field-action" disabled={!!busy || reviewedToken !== item.draft_token} onClick={() => void publish(item.draft_token)}>
-                {busy === item.draft_token ? "发布中…" : "确认发布"}
-              </button>
+              <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void decide(item, "confirm")}><Check className="h-3.5 w-3.5" />确认关联</button>
+              <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void decide(item, "reject")}>不关联</button>
             </div>
-          </div>)}
-        </GlassCard>
-      </div>
-    </div>}
-    <Disclaimer />
+          </div>;
+        })}
+      </section>
+      <section className="topic-section">
+        <h2>已关联材料</h2>
+        {links.length === 0 && wikiPages.length === 0 && <p className="text-sm text-muted-foreground">确认后会出现在这里，刷新和新会话都能读到。</p>}
+        {links.map(item => {
+          const noteKey = item.note_id?.replace(/^note:/, "") ?? '';
+          const id = item.source_id || item.note_id || item.target_id;
+          return <button key={item.link_id} type="button" className="topic-material" aria-current={selected === id || undefined} onClick={() => setSelected(id)}>
+            <span className="block truncate text-sm">{noteMap[noteKey]?.title || (item.kind === 'result' ? '研究成果' : '研究材料')}</span>
+            <span className="text-xs text-muted-foreground">{item.reason || "已确认关联"}</span>
+          </button>;
+        })}
+        {wikiPages.map(item => <button key={`wiki-${item.link_id}`} type="button" className="topic-material" aria-current={selected === item.target_id || undefined} onClick={() => setSelected(item.target_id)}>
+          <span className="block truncate text-sm">{item.title || item.target_id}</span>
+          <span className="text-xs text-muted-foreground">已发布研究材料</span>
+        </button>)}
+      </section>
+      <section className="topic-section">
+        <h2>待发布草案</h2>
+        {pendingDrafts.length === 0 && <p className="text-sm text-muted-foreground">助手校验成功的 Theme / Comparison 会出现在这里，确认后才写入 Wiki。</p>}
+        {pendingDrafts.map(item => <div key={item.draft_token} className="topic-material">
+          <p className="text-sm">{item.titles?.join("、") || "未命名草案"}</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void reviewDraft(item.draft_token)}>
+              <FileText className="h-3.5 w-3.5" />{reviewedToken === item.draft_token ? "已审阅" : "审阅草案"}
+            </button>
+            <button type="button" className="workspace-field-action" disabled={!!busy || reviewedToken !== item.draft_token} onClick={() => void publish(item.draft_token)}>
+              {busy === item.draft_token ? "发布中…" : "确认发布"}
+            </button>
+          </div>
+        </div>)}
+      </section>
+      {selected.startsWith("draft:") && draftPreview && <DraftPreview draft={draftPreview} />}
+      {selected.startsWith('result:') && <ResearchResult key={selected} resultId={selected} presentation="report" />}
+      {selected && /^(themes|comparisons|industries|companies)\//.test(selected) && <WikiReader slug={selected} />}
+      {selected.startsWith("note:") && <section className="topic-section">
+        <h2>{selectedNote?.title || "记录"}</h2>
+        {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已不在仓储中，关联目标失效，原记录若仍存在请从记录页查看。</p>}
+      </section>}
+    </>}
+    <Disclaimer compact />
   </div>;
 }

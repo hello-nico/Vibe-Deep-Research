@@ -14,7 +14,7 @@ import { displayedHeadlineTranslation, hasChinese, headlineNeedsTranslation, loa
 import { loadWatch } from "@/lib/watchlist";
 import { chatStream, translateHeadlineBatch } from "@/lib/llm";
 import { cn } from "@/lib/utils";
-import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
+import { feedPageContext, investmentNewsPageContext, type FeedRow } from '@/lib/feedPageContext';
 
 // 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
 const TABS = [
@@ -149,6 +149,19 @@ function InvestmentNewsPanel() {
 
   const dg = cur ? digests[cur.key] : undefined;
   const tr = cur ? titleTranslations[cur.key] : undefined;
+  useAiPage(investmentNewsPageContext({
+    industryKey: cur?.key ?? null,
+    industryName: cur?.name ?? null,
+    tracks: industries.map((ind) => ({ key: ind.key, name: ind.name, count: ind.items.length })),
+    items: (cur?.items ?? []).map((it) => {
+      const zh = displayedHeadlineTranslation(it, translationCache.current);
+      return { time: it.time, source: it.source, title: zh || it.title, original: it.title, url: it.url };
+    }),
+    generatedAt: data?.generated_at ?? null,
+    recentDays: data?.recent_days ?? null,
+    sourceCount: data?.stats.total_sources ?? null,
+    loading, refreshing, err, staleNote,
+  }));
 
   return (
     <div>
@@ -446,7 +459,7 @@ export function Intel() {
 
   return (
     <div>
-      {tab !== 'news' && tab !== 'filings' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
+      {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
       <PageHeader title="资讯雷达" subtitle="多来源资讯中心：AI 帮你跨源捞资讯、提炼要点" />
 
       <div className="mb-4 flex flex-wrap gap-2">

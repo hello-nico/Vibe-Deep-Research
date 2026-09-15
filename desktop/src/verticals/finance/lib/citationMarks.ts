@@ -1,4 +1,5 @@
 import type { Root, RootContent, Link } from 'mdast';
+import { sourceName } from './financialDisplay.ts';
 
 const MAX_CITATION_TITLE_LENGTH = 48;
 
@@ -14,13 +15,13 @@ function compactCitationTitle(value: string): string {
  * producer names are safe metadata, while the other internal IDs stay hidden.
  */
 export function citationTitle(reference: string, explicitTitle?: string): string {
-  const explicit = explicitTitle ? compactCitationTitle(explicitTitle) : '';
+  const explicit = explicitTitle ? sourceName(compactCitationTitle(explicitTitle)) : '';
   const generic = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文']);
   if (explicit && !generic.has(explicit) && !webCitationUrl(explicit) && !/^(?:source|claim|evidence|provider|lookup):/.test(explicit)) return explicit;
   const web = webCitationUrl(reference);
   if (web) return new URL(web).hostname.replace(/^www\./, '');
   const provider = /^provider:([^:\s<>]+):/.exec(reference)?.[1];
-  return provider ? compactCitationTitle(provider) : '来源';
+  return provider ? sourceName(compactCitationTitle(provider)) : '来源';
 }
 
 /** Create once per answer: every resolved reference gets a compact source title. */

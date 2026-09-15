@@ -1,0 +1,15 @@
+.research-loading { max-width: 56rem; margin: auto; padding: 1rem 0; }
+.research-loading-stage { position: relative; display: grid; grid-template-columns: minmax(9rem, 12rem) 1fr; gap: 1.5rem; margin-top: 1.5rem; overflow: hidden; }
+.research-loading-rail { list-style: none; margin: 0; padding: 0; }
+.research-loading-rail li { display: flex; align-items: center; gap: .65rem; padding: .65rem .8rem; margin-bottom: .2rem; border-radius: .6rem; color: hsl(var(--muted-foreground)); font-size: .875rem; transition: background .3s, color .3s; }
+.research-loading-rail i { width: .35rem; height: .35rem; border-radius: 50%; background: currentColor; opacity: .4; }
+.research-loading-rail .is-active { color: hsl(var(--primary)); background: hsl(var(--primary) / .07); }
+.research-loading-frame { position: relative; overflow: hidden; align-self: center; min-height: 17rem; padding: 1.8rem; border: 1px solid hsl(var(--border)); border-radius: 1rem; background: hsl(var(--card)); }
+.research-loading-line { height: .55rem; margin: 1.2rem 0; border-radius: .4rem; background: linear-gradient(90deg, hsl(var(--muted)), hsl(var(--primary) / .09), hsl(var(--muted))); background-size: 200% 100%; animation: research-shimmer 2s linear infinite; }
+.research-loading-beam { position: absolute; inset: 0 auto 0 -40%; width: 35%; background: linear-gradient(90deg, transparent, hsl(var(--primary) / .045), transparent); animation: research-beam 2.5s ease-in-out infinite; pointer-events: none; }
+.research-loading-scan { position: absolute; z-index: 1; left: 0; right: 0; height: 1px; background: linear-gradient(90deg, transparent, hsl(var(--primary) / .25), transparent); animation: research-scan 3s ease-in-out infinite; pointer-events: none; }
+@keyframes research-scan { 0% { top: 0; opacity: 0; } 20%, 80% { opacity: 1; } 100% { top: 100%; opacity: 0; } }
+@keyframes research-beam { to { transform: translateX(400%); } }
+@keyframes research-shimmer { to { background-position: -200% 0; } }
+@media (max-width: 640px) { .research-loading-stage { grid-template-columns: 1fr; gap: .5rem; } .research-loading-rail { display: flex; flex-wrap: wrap; } }
+@media (prefers-reduced-motion: reduce) { .research-loading-scan, .research-loading-beam { display: none; } .research-loading-line { animation: none; } }

@@ -1,24 +1,24 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, BookmarkPlus, AlertCircle } from "lucide-react";
 import { addNote } from "@/lib/notes";
 
-/**
- * 把一段 AI 结果存入「研究记录」（沉淀）—— 落**用户自有台账**，不是浏览器缓存。
- *
- * 🔴 写是异步的：**存成功了才显示"已存入"**。
- *    先前是 `addNote(...); setSaved(true)` 一起执行 —— 写失败照样显示成功，
- *    用户以为存下了、关掉页面才发现没有，这种谎比报错难查得多。
- */
+/** Backend 确认保存后才显示成功；同一结果的失败重试沿用操作身份。 */
 export function SaveNoteButton({ kind, title, content }: { kind: string; title: string; content: string }) {
   const [state, setState] = useState<"idle" | "saving" | "saved" | "failed">("idle");
   const [err, setErr] = useState("");
+  const operationId = useMemo(() => `op-${crypto.randomUUID()}`, [kind, title, content]);
+  const currentOperation = useRef(operationId);
+  currentOperation.current = operationId;
+  useEffect(() => { setState("idle"); setErr(""); }, [operationId]);
   if (!content.trim()) return null;
   const save = async () => {
     setState("saving");
     try {
-      await addNote(kind, title, content);
+      await addNote(kind, title, content, operationId);
+      if (currentOperation.current !== operationId) return;
       setState("saved");
     } catch (e) {
+      if (currentOperation.current !== operationId) return;
       setErr(e instanceof Error ? e.message : String(e));
       setState("failed");
     }

@@ -7,6 +7,7 @@ import { execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
+throw new Error('macOS app packaging is retired. The product is Web only; use scripts/start.');
 const isolated = process.argv.includes('--test');
 const appName = isolated ? 'VibeDeepResearchTest' : 'VibeResearch';
 const displayName = isolated ? 'Vibe Deep Research · 测试版' : 'Vibe Research';
@@ -91,17 +92,13 @@ const version = JSON.parse(fs.readFileSync(path.join(repo, 'orchestrator/package
 write(path.join(app, 'Contents/Info.plist'), `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict><key>CFBundleExecutable</key><string>VibeResearch</string><key>CFBundleIdentifier</key><string>${bundleId}</string><key>CFBundleName</key><string>${displayName}</string><key>VRAWorkspacePort</key><integer>${workspacePort}</integer><key>VRADataDirectory</key><string>${dataDirectory}</string><key>CFBundleIconFile</key><string>AppIcon</string><key>CFBundlePackageType</key><string>APPL</string><key>CFBundleShortVersionString</key><string>${version}</string><key>CFBundleVersion</key><string>${buildNumber}</string><key>LSMinimumSystemVersion</key><string>13.0</string><key>NSHighResolutionCapable</key><true/><key>NSAppTransportSecurity</key><dict><key>NSAllowsLocalNetworking</key><true/></dict></dict></plist>`);
-const codexVersion = JSON.parse(fs.readFileSync(path.join(payload, 'orchestrator/node_modules/@openai/codex/package.json'))).version;
-const sdkVersion = JSON.parse(fs.readFileSync(path.join(payload, 'orchestrator/node_modules/@openai/codex-sdk/package.json'))).version;
-const engineVersionOutput = execFileSync(node, [path.join(payload, 'orchestrator/node_modules/@openai/codex/bin/codex.js'), '--version'], { encoding: 'utf8' }).trim();
-if (engineVersionOutput !== `codex-cli ${codexVersion}` || sdkVersion !== codexVersion) throw new Error('Bundled SDK / engine version mismatch.');
-write(path.join(resources, 'build-manifest.json'), JSON.stringify({ status: 'local-test-not-notarized', version, milestone, window: 'AppKit-WKWebView', codex: codexVersion, sdk: sdkVersion, engineVersionOutput, nativeSourceFiles: ['packaging/macos/Launcher.swift', 'packaging/macos/WindowPolicy.swift', 'packaging/macos/build.mjs', 'packaging/macos/source-policy.mjs'].map(p => ({ path: p, sha256: hash(path.join(repo, p)) })), iconSha256: hash(path.join(resources, 'AppIcon.icns')), builtAt: new Date().toISOString(), arch: 'arm64', node: nodeVersion, nodeArchiveSha256: expected, python: '3.12.13', pythonLockSha256: hash(pythonLock), sourceFiles: manifest }, null, 2));
+write(path.join(resources, 'build-manifest.json'), JSON.stringify({ status: 'local-test-not-notarized', version, milestone, window: 'AppKit-WKWebView', nativeSourceFiles: ['packaging/macos/Launcher.swift', 'packaging/macos/WindowPolicy.swift', 'packaging/macos/build.mjs', 'packaging/macos/source-policy.mjs'].map(p => ({ path: p, sha256: hash(path.join(repo, p)) })), iconSha256: hash(path.join(resources, 'AppIcon.icns')), builtAt: new Date().toISOString(), arch: 'arm64', node: nodeVersion, nodeArchiveSha256: expected, python: '3.12.13', pythonLockSha256: hash(pythonLock), sourceFiles: manifest }, null, 2));
 // pip freeze exposes standalone Python's temporary wheel path. The installed
 // name/version inventory includes pip without publishing that build-machine path.
 const packageList = JSON.parse(execFileSync('uv', ['--no-config', 'pip', 'list', '--python', python, '--format', 'json'], { encoding: 'utf8' }));
 const packages = packageList.map(p => `${p.name}==${p.version}`).sort().join('\n') + '\n';
 write(path.join(resources, 'python-packages.txt'), packages);
-write(path.join(resources, 'NOTICE.txt'), `Vibe Research local test bundle. Not notarized or publicly released.\nIncludes Node.js (official LICENSE in node/), Astral python-build-standalone / CPython and packages (licenses in python/), Codex ${codexVersion} (Apache-2.0; package licenses retained in app/orchestrator/node_modules). Source license: app/LICENSE.\n`);
+write(path.join(resources, 'NOTICE.txt'), `Vibe Research local test bundle. Not notarized or publicly released.\nIncludes Node.js (official LICENSE in node/), Astral python-build-standalone / CPython and packages (licenses in python/). Source license: app/LICENSE.\n`);
 // Ad-hoc signing is only a local integrity seal, NOT Developer ID distribution acceptance.
 run('codesign', ['--force', '--deep', '--sign', '-', app]);
 run('codesign', ['--verify', '--deep', '--strict', app]);

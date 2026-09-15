@@ -1,4 +1,5 @@
 import { researchRead } from './research';
+import { providerDisclosure, providerSnapshot } from './wikiFacts';
 
 export function decodeEvidenceLink(href: string): string | null {
   const match = /^stock-ref:\/\/(claim|evidence|source|provider|lookup)\/([^?#]+)$/.exec(href);
@@ -18,7 +19,7 @@ export async function resolveEvidence(ref: string, signal: AbortSignal): Promise
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refs: [ref] }),
   });
   const result = response.results.find(item => item.ref === ref);
-  if (!result || result.status !== 'resolved') throw new Error('这条依据暂时无法读取，请稍后重试。');
+  if (!result || result.status !== 'resolved') throw new Error(ref.startsWith('provider:') ? '这条引用未找到唯一对应的历史数据，暂不能核对原数值。' : '这条依据暂时无法读取，请稍后重试。');
   return result;
 }
 export function pinnedBlockPath(block: Pick<SourceBlock, 'document_id' | 'parse_revision_id' | 'parsed_content_sha256' | 'block_id'>) {
@@ -33,6 +34,7 @@ export async function readPinnedBlock(block: Parameters<typeof pinnedBlockPath>[
 export interface EvidenceView { title: string; text: string; page?: number; block?: SourceBlock; related: string[]; href?: string }
 export async function loadEvidence(ref: string, signal: AbortSignal): Promise<EvidenceView> {
   const { kind, data } = await resolveEvidence(ref, signal);
+  if (kind === 'provider') return { title: providerDisclosure(data)?.name || '数据来源', text: providerSnapshot(data), related: [] };
   if (kind === 'source' || kind === 'evidence') {
     const location = data.location as Record<string, unknown> | undefined;
     const block = await readPinnedBlock({ document_id: String(data.document_id ?? ''), parse_revision_id: String(data.parse_revision_id ?? ''), parsed_content_sha256: String(data.parsed_content_sha256 ?? ''), block_id: String(data.block_id ?? location?.block_id ?? '') }, signal);
@@ -42,5 +44,5 @@ export async function loadEvidence(ref: string, signal: AbortSignal): Promise<Ev
   const groups = Array.isArray(data.support_groups) ? data.support_groups : [];
   const related = [...new Set(groups.flatMap(group => Array.isArray(group.segments) ? group.segments.map((segment: { evidence_id?: string }) => segment.evidence_id).filter((item: unknown): item is string => typeof item === 'string' && item.startsWith('evidence:')) : []))] as string[];
   const text = ['text', 'value', 'unit', 'period', 'as_of'].map(key => data[key]).filter(value => typeof value === 'string' || typeof value === 'number').join(' ');
-  return { title: kind === 'provider' ? '数据来源' : '指标依据', text: text || (kind === 'provider' ? '当前来源未返回可回读的数据快照，暂不能核对具体数值。' : '请打开下方原文依据核对。'), related };
+  return { title: '指标依据', text: text || '请打开下方原文依据核对。', related };
 }

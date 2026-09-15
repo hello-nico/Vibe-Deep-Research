@@ -1,3 +1,4 @@
+import { financialNumber } from './financialDisplay';
 const METRIC_LABELS: Record<string, string> = {
   revenue: '营业收入',
   net_profit: '净利润',
@@ -34,8 +35,8 @@ type ProviderInterface = { method: string; url: string; docs?: string; note?: st
 
 const PROVIDERS: Record<string, ProviderProfile> = {
   hithink: {
-    name: '扶摇',
-    summary: '同花顺扶摇金融数据 REST，由本机研究服务读取。',
+    name: '同花顺',
+    summary: '同花顺金融数据，由本机研究服务读取。',
   },
   tencent: {
     name: '腾讯财经',
@@ -67,8 +68,8 @@ export function formatFactValue(item: Record<string, unknown>): string {
   if (raw == null || typeof raw === 'boolean' || String(raw).trim() === '' || (typeof raw === 'number' && !Number.isFinite(raw))) return '未获取';
   const numeric = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
   if (!Number.isFinite(numeric)) return [raw == null ? '' : String(raw), unit].filter(Boolean).join(' ');
-  if (unit === '元' && Math.abs(numeric) >= 100_000_000) return `${truncateDecimal(numeric / 100_000_000)} 亿元`;
-  return `${truncateDecimal(numeric)} ${unit}`.trim();
+  if (unit === '元' && Math.abs(numeric) >= 100_000_000) return `${financialNumber(truncateDecimal(numeric / 100_000_000))} 亿元`;
+  return `${financialNumber(truncateDecimal(numeric))} ${unit}`.trim();
 }
 
 export function factLabel(item: Record<string, unknown>): string {

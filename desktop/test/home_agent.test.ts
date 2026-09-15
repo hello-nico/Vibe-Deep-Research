@@ -11,35 +11,6 @@ const coreMessages = readFileSync(
   "utf8",
 );
 
-test("首页只留 chat，聊天已开放实际联网与取数能力", () => {
-  assert.doesNotMatch(financeAgent, /notice="直接问市场、公司、行业或研究方法。"/);
-  assert.match(financeAgent, /placeholder="说说要查什么、研究什么…（Shift\+Enter 换行）"/);
-  assert.match(financeAgent, /suggestionStyle="tasks"/);
-  assert.match(financeAgent, /onPick=\{\(text\) => \{ setDraft\(text\)/);
-  assert.doesNotMatch(financeAgent, /onPick=\{\(x\) => void chat\.submit\(x\)\}/);
-  assert.match(financeAgent, /<AiComposer[\s\S]*?highlighted[\s\S]*?\/>/);
-
-  const layout = readFileSync(new URL("../src/verticals/finance/components/layout/Layout.tsx", import.meta.url), "utf8");
-  const home = readFileSync(new URL("../src/verticals/finance/pages/Home.tsx", import.meta.url), "utf8");
-  assert.doesNotMatch(home, /<FinanceHomeAgent/);
-  assert.match(layout, /<NativeDshHost/);
-  assert.match(layout, /<ConversationWorkspace active=\{pathname === "\/" \|\| pathname\.startsWith\("\/my-research\/topics\/"\)\}/);
-  assert.equal((layout.match(/<ConversationWorkspace /g) || []).length, 1, '深度对话与议题共用一个持久会话容器');
-  assert.match(readFileSync(new URL("../src/verticals/finance/components/layout/ConversationWorkspace.tsx", import.meta.url), "utf8"), /id="dsh-conversation"/);
-  assert.match(home, /<Disclaimer/);
-  assert.doesNotMatch(home, /HOME_FEATURE_GROUPS|研究工具，一站直达|data-feature-grid/);
-  assert.doesNotMatch(layout, /多空辩论|回测/);
-  assert.doesNotMatch(layout, /<Navigate/);
-  assert.match(financeAgent, /<QuickAiConnect/);
-  assert.match(financeAgent, /disabled=\{chat.loading \|\| !configured\}/);
-  assert.match(financeAgent, /今天市场有哪些值得关注的变化/);
-  assert.match(financeAgent, /助手可以联网搜索、获取数据、计算并跟进研究任务/);
-  assert.doesNotMatch(financeAgent, /不会自动取数或收集全网研报|不自动取数、不调用工具/);
-  assert.match(financeAgent, /pending_research/);
-  assert.match(financeAgent, /window.confirm/);
-  assert.doesNotMatch(financeAgent, /200份研报|所有研报/);
-});
-
 test("Core 只在有说明时渲染提醒框，长任务使用统一卡片样式", () => {
   assert.match(coreMessages, /msgs\.length === 0 && notice &&/);
   assert.match(coreMessages, /suggestionStyle === "tasks" \? "grid gap-2 sm:grid-cols-2"/);

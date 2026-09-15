@@ -5,7 +5,6 @@ import test from "node:test";
 const api = readFileSync(new URL("../src/verticals/finance/lib/api.ts", import.meta.url), "utf8");
 const backend = readFileSync(new URL("../src/verticals/finance/lib/backend.ts", import.meta.url), "utf8");
 const dailyReview = readFileSync(new URL("../src/verticals/finance/pages/DailyReview.tsx", import.meta.url), "utf8");
-const stockData = readFileSync(new URL("../src/verticals/finance/pages/StockData.tsx", import.meta.url), "utf8");
 const website = readFileSync(new URL("../../website/index.html", import.meta.url), "utf8");
 
 test("取数映射不再用 num0 把缺失字段伪装成数字零", () => {
@@ -20,8 +19,4 @@ test("官网可不展示 Star；展示时缺值为未知，不保留硬编码数
 
 test("页面不把缺失值伪装成零或不完整的二十日合计", () => {
   assert.doesNotMatch(dailyReview, /change_pct\s*\?\?\s*0/);
-  assert.match(stockData, /fundFlow\.slice\(0, 20\)/);
-  assert.doesNotMatch(stockData, /fundFlow\.slice\(-20\)/);
-  assert.match(stockData, /window\.length === 20 && known\.length === 20/);
-  assert.match(stockData, /未合计/);
 });

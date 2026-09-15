@@ -165,6 +165,19 @@ html body.vibe-dsh-host {
 #dsh-conversation .pXSMma_previewBadge:empty { display: none; }
 #dsh-conversation [data-slot="conversation.input.dock"]:has(.finance-recent) { order: 1; }
 .finance-recent { order: 1; }
+#dsh-conversation:has(.finance-recent) [class*="composerHero"] {
+  width: 100%;
+  max-width: none;
+  box-sizing: border-box;
+  padding: 40px 48px 48px;
+}
+#dsh-conversation:has(.finance-recent) [class*="composerHero"] [class*="_card"] {
+  max-width: none;
+  width: 100%;
+}
+#dsh-conversation:has(.finance-recent) .pXSMma_root {
+  height: auto;
+}
 .finance-session-action {
   display: inline-flex;
   align-items: center;

@@ -1,26 +1,7 @@
-/**
- * 历史配置存取接口说明（仅供旧代码）；当前页面调用统一走 DSH，不读取旧配置。
- *
- * 🔴 口径与开源版 Vibe-Research 对齐 —— 那一份经过真实用户验证：
- *    用户在「接入 AI」页选模型、粘自己的 key → 存本地 → **随请求发给本机后端** →
- *    后端把它拼进一个临时 env 交给引擎。**配置文件 / 日志 / 账本一个字节都碰不到。**
- *
- * ⚠️ 上一版的口径是「密钥只从环境变量读，界面只读」。那在终端里启动时没问题，
- *    但只依赖启动服务前配置 shell 环境，浏览器 UI 里就没有可操作的接入入口。
- *    「不进产品配置文件」这条纪律在新做法下照样成立。注意 localStorage 本身会由浏览器落到
- *    本机用户配置中，它不是系统钥匙串，也不承诺加密；这里只承诺不进入产品后端的持久化面。
- *
- * 🔴 浏览器产品只认用户明确保存的这一份配置，不回落到后端环境变量。
- *    否则首次使用会在没做选择时悄悄调用另一家模型，界面也无法解释实际走了哪条路。
- */
-import { ApiError } from "./backend.ts";
+/** 页面助手通过 DSH 执行；模型配置与会话生命周期由 DSH 管理。 */
 import { sendPageModel } from "../dsh/page-model.ts";
-import { parseHeadlineTranslations, type HeadlineTranslationInput } from "./headlineTranslation.ts";
-import { clearUserLlm, loadUserLlm, saveUserLlm, type LlmConfig } from "./llmStore.ts";
-
-export type { LlmConfig };
-// ⚠️ 存取一律走 llmStore —— 这里再抄一份实现，迟早两边判定不一致
-export { loadUserLlm };
+import { ApiError } from "./backend.ts";
+import { parseHeadlineTranslations,type HeadlineTranslationInput } from "./headlineTranslation.ts";
 
 export interface ChatMsg {
   role: "user" | "assistant";
@@ -37,24 +18,6 @@ export interface ChatResult {
 export interface ChatHandlers {
   onDelta?: (text: string) => void;
   onTool?: (tool: string, args: Record<string, unknown>) => void;
-}
-
-export function saveLlm(cfg: LlmConfig, capability?: { directSupported: boolean; directReason: string }): void {
-  try {
-    saveUserLlm(cfg, capability);
-  } catch (e) {
-    // 🔴 存不下要**说出来**：静默失败会让用户以为配好了，下次打开又是空的
-    throw new ApiError(`本地存储写不进去（${e instanceof Error ? e.message : String(e)}）—— 配置没保存`, 500, "storage_failed");
-  }
-}
-
-export function clearLlm(): void {
-  clearUserLlm();
-}
-
-/** 兼容上游签名：上游的 `loadLlm()` 语义是"当前生效的配置"。 */
-export function loadLlm(): LlmConfig | null {
-  return loadUserLlm();
 }
 
 /**
@@ -80,10 +43,6 @@ export async function chatStream(
 
   handlers.onDelta?.(content);
   return { content, trace: [], rounds: 1 };
-}
-
-export function chat(messages: ChatMsg[], context: string): Promise<ChatResult> {
-  return chatStream(messages, context);
 }
 
 /**

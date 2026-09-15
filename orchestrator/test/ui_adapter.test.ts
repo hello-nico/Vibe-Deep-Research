@@ -50,16 +50,16 @@ test("noteKV():终止符要认中文键,否则未登记的中文键会被上一�
   assert.ok(term.test("predictThisYearEps="), "ASCII 键匹配不上,规则写错了");
 });
 
-test("saveWatch():写到一半失败也要把缓存刷成台账真实状态", () => {
+test("addWatch()/removeWatch():写到一半失败也要把缓存刷成台账真实状态", () => {
   assert.ok(/finally\s*\{[\s\S]*hydrateWatch\(\)/.test(watchSrc),
-    "saveWatch 没有在 finally 里重读 —— 中途失败会让界面停在一个从未存在过的列表上");
+    "自选写入没有在 finally 里重读 —— 中途失败会让界面停在一个从未存在过的列表上");
   assert.ok(!/\bcache = want;/.test(watchSrc),
     "还在直接把「想写成的列表」当结果 —— 那不是台账的真实状态");
 });
 
-test("saveWatch():同一页面的连续保存必须串行，旧保存不能反删新代码", () => {
+test("addWatch()/removeWatch():同一页面的连续保存必须串行", () => {
   assert.match(watchSrc, /let saveQueue:\s*Promise<void>/);
-  assert.match(watchSrc, /saveQueue\.catch\(\(\) => undefined\)\.then\(\(\) => writeWatch\(want\)\)/);
+  assert.match(watchSrc, /saveQueue\.catch\(\(\) => undefined\)\.then\(work\)/);
 });
 
 test("hydrate 的慢快照不许覆盖新缓存(读写并发)", () => {
@@ -80,43 +80,6 @@ test("同步读返回副本,不把内部缓存交出去", () => {
 /* ===== 第二轮审计(端点映射)的七条 ===== */
 const apiSrc = fs.readFileSync(path.join(LIB, "api.ts"), "utf8");
 
-test("一致预期按**年份**取,不按数组位置", () => {
-  assert.ok(/const atYear = \(offset: number\)/.test(apiSrc) && /baseYear \+ offset/.test(apiSrc),
-    "按年份索引的实现不见了 —— 上游少给一年时,FY(T+2) 会被当成「次年」显示,数字真、年份错");
-  assert.ok(!/meanByPeriod\[1\]/.test(apiSrc) && !/meanByPeriod\[2\]/.test(apiSrc),
-    "又退回按下标取了");
-});
-
-test("CAGR 两端都要为正 —— 否则 sqrt(负数)=NaN 会送进界面", () => {
-  assert.ok(/eps26 > 0 && eps28 > 0/.test(apiSrc),
-    "只查了起点为正。后年预测为负时 Math.sqrt 出 NaN,round2(NaN) 还是 NaN");
-  assert.ok(Number.isNaN(Math.sqrt(-0.2)), "前提校验:sqrt 负数确实是 NaN");
-  assert.ok(Number.isNaN(Math.round(NaN * 100) / 100), "前提校验:round2(NaN) 仍是 NaN(挡不住)");
-});
-
-test("机构覆盖数取当年那一期,不是证据里的第一条", () => {
-  assert.ok(/field === "eps_analyst_count" && yearOf\(x\.period\) === baseYear/.test(apiSrc),
-    "analyst_count 没有资料期约束 —— 会拿到别的年份的机构数");
-});
-
-test("估值分位先按资料期排序再取「当前」", () => {
-  assert.ok(/\.sort\(\(a, b\) => a\.period\.localeCompare\(b\.period\)\)[\s\S]{0,200}?points\[points\.length - 1\]/.test(apiSrc)
-    || (/const points = e\.evidence/.test(apiSrc) && /\.sort\(\(a, b\) => a\.period\.localeCompare\(b\.period\)\)/.test(apiSrc)),
-    "分位序列没有按 period 排序 —— 上游改成「最新优先」时,「当前」会变成五年前那一天,而分位看着依然合理");
-  assert.ok(/const periodsUsed/.test(apiSrc), "区间没有用「真正参与计算的那些期」,会混进 PE/PB 两段不同覆盖");
-});
-
-test("财报最近一期由核心字段定 —— 别让边角字段把表头带到一个空白期", () => {
-  assert.ok(/const CORE = \["revenue_cum", "net_profit_parent_cum", "eps_basic_cum"\]/.test(apiSrc),
-    "又退回「所有字段资料期的并集」了 —— 会出现「日期很新、整张表空着」");
-});
-
-test("去年同期不靠字符串切片硬拼", () => {
-  assert.ok(/\/\^\\d\{4\}\/\.test\(latest\)/.test(apiSrc),
-    "prevYear 没有校验 period 形状 —— 非 YYYY 开头时会拼出 NaN...,同比静默变成「没有」");
-  assert.ok(Number.isNaN(Number("FY20")), "前提校验:非年份切片确实产出 NaN");
-});
-
 /* ===== 第三轮复审的三条(其中两条是第二轮修复自己引入的回归) ===== */
 
 test("资料期比较要按时间,不按字符串 —— 月份不补零时字符串比会取到旧的那条", () => {
@@ -128,19 +91,6 @@ test("资料期比较要按时间,不按字符串 —— 月份不补零时字�
   assert.ok("2026-10-31" < "2026-9-30", "前提校验:未补零时字符串比较确实是反的");
   const key = (s: string) => s.replace(/\d+/g, (d) => d.padStart(8, "0"));
   assert.ok(key("2026-10-31") > key("2026-9-30"), "补齐之后顺序才对");
-});
-
-test("基年取「能解析出年份的里最小的」—— 上游塞一条 TTM 不该让所有预测被丢弃", () => {
-  assert.ok(/Math\.min\(\.\.\.dated\.map\(\(x\) => x\.year\)\)/.test(apiSrc),
-    "baseYear 又回到「排序后第一条」了 —— 第一条无法解析年份时,后面的有效预测会被整体废弃");
-  assert.ok(!/yearOf\(meanByPeriod\[0\]!\.period\)/.test(apiSrc), "旧写法还在");
-  /**
-   * ⚠️ 前提校验换过一次:复审给的失败输入是 `TTM`,但 `"TTM".localeCompare("FY2026")` 是**正数**
-   *    (F 在 T 前)⇒ TTM 排在最后,那个具体场景**不成立**。批评的方向对(不该把基年押在第 0 条),
-   *    具体输入错。⇒ 换成真能排到前面的无年份标签。
-   */
-  assert.ok("TTM".localeCompare("FY2026") > 0, "TTM 其实排在 FY2026 之后 —— 复审给的那个输入不成立");
-  assert.ok("CURRENT".localeCompare("FY2026") < 0, "前提校验:无年份标签确实可能排在有年份的之前");
 });
 
 test("noteKV 的中文键要从一个字起算(`年=2026`)", () => {

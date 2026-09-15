@@ -6,9 +6,10 @@ const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url)
 test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("const INTEL_LINKS")).replace(/^\s*\/\/.*$/gm, "");
-  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "产业信号", "行业研究", "个股研究", "自选股", "我的研报", "我的研究"]);
+  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "行业研究", "产业研究", "个股研究", "自选股", "我的资料", "我的研究"]);
   assert.match(layout, /id="dsh-settings"/);
-  for (const route of ["/intel/investment-news", "/intel/news", "/intel/filings", "/intel/events", "/signals/gpu-rent"]) assert.ok(layout.includes(route));
+  for (const route of ["/intel/investment-news", "/intel/news", "/intel/filings", "/intel/events"]) assert.ok(layout.includes(route));
+  assert.doesNotMatch(layout, /gpu-rent|GPU租金|SIGNAL_LINKS|vr-signals-open/);
   assert.doesNotMatch(layout, /SECTOR_LINKS|vr-sectors-open/);
   assert.doesNotMatch(layout, /FinanceAiConsole|consoleOpen|vr-ai-console|openAgent|打开普通对话/);
   assert.doesNotMatch(layout, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
@@ -51,19 +52,6 @@ test("左上角使用本地产品标记，不增加外部请求或原作者品�
   assert.match(logo, /viewBox="0 0 64 64"/);
   assert.match(logo, /aria-hidden="true" focusable="false"/);
   assert.doesNotMatch(logo, /<image|<script|<foreignObject|href=|fetch\(/);
-});
-test("首页以 Agent 为首屏，保留数据组件但不自动取数或启动任务", () => {
-  const home = read("verticals/finance/pages/Home.tsx");
-  const overview = read("verticals/finance/components/HomeOverview.tsx");
-  assert.doesNotMatch(home, /<HomeOverview|backend\.fetch|backend\.research/);
-  assert.doesNotMatch(home, /<FinanceHomeAgent/);
-  assert.match(read("verticals/finance/components/layout/Layout.tsx"), /<NativeDshHost/);
-  assert.match(overview, /backend\.fetch\("tx_quotes_batch"/);
-  assert.match(overview, /backend\.runs\(/);
-  assert.match(overview, /fetched_at/);
-  assert.match(overview, /\.id/);
-  assert.match(overview, /test_scenario/);
-  assert.doesNotMatch(overview, /云川|DEMO-|3,268|chatStream|backend\.research\(/);
 });
 test("非首页顶栏只放问助手入口，不再并排投研助手身份字", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");

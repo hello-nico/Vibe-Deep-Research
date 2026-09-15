@@ -73,51 +73,19 @@ export function bindTopicSession({ topic_id, session_id, title }) {
   return store.topics[topic_id];
 }
 
-export function readNoteLedger() {
-  const file = (process.env.STOCK_RESEARCH_PRODUCT_NOTES || '').trim();
-  if (!file) throw new Error('product ledger is not configured');
-  let payload;
-  try { payload = JSON.parse(fs.readFileSync(file, 'utf8')); }
-  catch (error) { if (error.code === 'ENOENT') return { index: [], notes: {} }; throw error; }
-  if (payload.kind !== 'note' || !Array.isArray(payload.records)) throw new Error('invalid product note ledger');
-  const notes = {};
-  const index = [];
-  for (const item of payload.records) {
-    const id = String(item.id || '');
-    if (!id) continue;
-    const content = String(item.body || '');
-    notes[id] = {
-      id,
-      kind: String(item.category || ''),
-      title: String(item.title || '').slice(0, 200),
-      content,
-      ts: Date.parse(item.created_at) || 0,
-    };
-    index.push({ id, kind: notes[id].kind, title: notes[id].title, ts: notes[id].ts });
-  }
-  index.sort((a, b) => b.ts - a.ts);
-  return { index, notes };
+function backendBase() {
+  return (process.env.STOCK_RESEARCH_BACKEND_URL || 'http://127.0.0.1:8700/api/v1').replace(/\/$/, '');
 }
 
-function pageNotes(ledger, offset = 0, limit = 40) {
-  const start = Math.max(0, Number(offset) || 0);
-  const size = Math.min(40, Math.max(1, Number(limit) || 40));
-  const index = Array.isArray(ledger.index) ? ledger.index : [];
-  const notes = ledger.notes && typeof ledger.notes === 'object' ? ledger.notes : {};
-  return {
-    as_of: ledger.as_of || '',
-    offset: start,
-    limit: size,
-    total: index.length,
-    next_offset: start + size < index.length ? start + size : null,
-    items: index.slice(start, start + size).map(item => ({
-      id: item.id,
-      kind: item.kind,
-      title: item.title,
-      excerpt: String(notes[item.id]?.content || '').slice(0, 400),
-      ts: item.ts,
-    })),
-  };
+async function proxyNotes(req, res, route) {
+  const response = await fetch(backendBase() + route, { headers: { Accept: 'application/json' } });
+  const body = await response.text();
+  if (!response.ok && (!body || body === '[]' || body === '{}')) {
+    send(res, response.status || 502, { detail: '研究记录服务不可用' });
+    return;
+  }
+  res.writeHead(response.status, { 'Content-Type': response.headers.get('content-type') || 'application/json', 'Cache-Control': 'no-store' });
+  res.end(body);
 }
 
 export function installHostState(ctx) {
@@ -133,10 +101,10 @@ export function installHostState(ctx) {
   } });
   ctx.webServer.register({ kind: 'exact', path: '/finance-note-digest', async handler(req, res) {
     try {
-      if (req.method === 'GET') { send(res, 200, pageNotes(readNoteLedger(), 0, 40)); return; }
-      res.writeHead(405); res.end();
+      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+      await proxyNotes(req, res, '/notes?limit=40&offset=0');
     } catch (error) {
-      send(res, error.status || 500, { detail: error.message || 'note digest failed' });
+      send(res, error.status || 502, { detail: error.message || 'note digest failed' });
     }
   } });
   ctx.webServer.register({ kind: 'prefix', path: '/finance-notes', async handler(req, res) {
@@ -144,18 +112,14 @@ export function installHostState(ctx) {
       if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
       const url = new URL(req.url, 'http://localhost');
       const rest = url.pathname.slice('/finance-notes'.length);
-      const ledger = readNoteLedger();
       if (!rest || rest === '/') {
-        send(res, 200, pageNotes(ledger, url.searchParams.get('offset'), url.searchParams.get('limit')));
+        const query = url.search || '?limit=40&offset=0';
+        await proxyNotes(req, res, `/notes${query}`);
         return;
       }
-      const id = decodeURIComponent(rest.slice(1));
-      const notes = ledger.notes && typeof ledger.notes === 'object' ? ledger.notes : {};
-      const note = notes[id] || notes[id.replace(/^note:/, '')];
-      if (!note) { send(res, 404, { detail: 'note not in product ledger' }); return; }
-      send(res, 200, note);
+      await proxyNotes(req, res, `/notes/${encodeURIComponent(decodeURIComponent(rest.slice(1)))}`);
     } catch (error) {
-      send(res, error.status || 500, { detail: error.message || 'note read failed' });
+      send(res, error.status || 502, { detail: error.message || 'note read failed' });
     }
   } });
 }

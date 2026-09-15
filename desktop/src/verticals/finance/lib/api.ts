@@ -1,31 +1,14 @@
-/**
- * 上游 UI 的数据接口 —— **类型原样保留,实现全部改接我们的底座**。
- *
- * 上游打的是开源版 Python 后端(`/api/valuation` 这种语义接口);我们的底座只有一个
- * 通用取数入口 `/fetch`(端点 id + 证据信封)。差异收在这一个文件里,
- * **12 个页面一行不用改**。
- *
- * 🔴 三条纪律:
- *  ① 接不上的一律 `notWired()` **抛错**,不返回空数组 ——
- *     返回空会让页面显示"这里没有数据",而真相是"这条链路还没做"。
- *  ② 取不到的数给 `null` 不给 `0`；接口类型必须如实允许 null。
- *  ③ 鉴权与密钥都不在浏览器:Bearer 由 Vite 代理注入(见 vite.config.ts)。
- */
+/** 当前行情与资讯页面的数据适配器。缺失数字保持 null，鉴权由本机代理注入。 */
 import {
-  ApiError, backend, noteKV, num, round2, rows, scalar, str, throwNotWired,
+  ApiError, backend, noteKV, num, round2, rows, scalar, str,
   type Envelope,
 } from "./backend.ts";
 import {
-  currencyLabel, currencyOfSymbol, marketOfSymbol, normalizeMarketSymbol, quoteQueryOfSymbol, symbolFromQuoteKey,
+  currencyOfSymbol, marketOfSymbol, normalizeMarketSymbol, quoteQueryOfSymbol, symbolFromQuoteKey,
   type CurrencyCode, type MarketCode,
 } from "./marketSymbol.ts";
 
 export { ApiError };
-
-export interface MyReport {
-  id: string; name: string; size: number; ext: string; ts: number; uploaded_at: string;
-  chars: number; pages: number | null; truncated: boolean; symbols: string[];
-}
 
 /**
  * 上游用它存"后端访问密钥"到 localStorage。我们**不需要**:
@@ -34,27 +17,6 @@ export interface MyReport {
 export const loadAccessKey = (): string => "";
 export const saveAccessKey = (_key: string): void => undefined;
 export const authHeaders = (): Record<string, string> => ({});
-
-export async function downloadReport(id: string, name: string): Promise<void> {
-  let res: Response;
-  try { res = await fetch(`/finance-api/reports/${encodeURIComponent(id)}/download`); }
-  catch (e) { throw new ApiError(`连接不到编排器 API:${e instanceof Error ? e.message : String(e)}`, 0, "network"); }
-  if (!res.ok) {
-    let message = `HTTP ${res.status}`;
-    let code = String(res.status);
-    try { const body = await res.json() as { error?: string; message?: string }; message = body.message ?? body.error ?? message; code = body.error ?? code; } catch { /* 下载错误不是 JSON 时保留状态码 */ }
-    throw new ApiError(message, res.status, code);
-  }
-  const url = URL.createObjectURL(await res.blob());
-  try {
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = name;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally { URL.revokeObjectURL(url); }
-}
 
 export interface Quote {
   /** 源证据取数时刻，不是浏览器收到回包的时间，也不是逐笔成交时间。 */
@@ -377,174 +339,6 @@ async function quoteMap(codes: string[], refresh = false): Promise<Record<string
   return out;
 }
 
-async function valuationOf(code: string): Promise<Valuation> {
-  const [q, est] = await Promise.all([
-    env("tx_quote", { symbol: code }),
-    // 一致预期可能没有(小票 / 无覆盖)—— 缺了不影响行情部分,单独降级
-    env("fetch_estimates", { symbol: code }).catch(() => undefined),
-  ]);
-  const f = (name: string) => scalar(q, name);
-  const price = num(f("price"));
-
-  /**
-   * 🔴 一致预期是**同一个字段 `eps_consensus_mean` 分三个资料期**(FY2026/27/28),
-   *    不是三个字段。按 period 升序取前两年 —— 当年 + 次年。
-   *    (先前按 `eps_consensus_fy1/fy2` 这种自己编的字段名去取:取不到就回退到"第一条",
-   *     当年那个碰巧对了、次年那个是 null ⇒ **PEG 永远算不出来,还看不出是读错了**。)
-   */
-  const meanByPeriod = (est?.evidence ?? [])
-    .filter((x) => x.field === "eps_consensus_mean")
-    .sort((a, b) => a.period.localeCompare(b.period));
-  /**
-   * 🔴 **按年份取,不按数组位置。**
-   *    上游少给一年时(只有 FY2026 + FY2028),按位置取会把 **FY2028 当成"次年"** 显示成 27E,
-   *    数字是真的、年份是错的 —— 这种错没人看得出来。
-   *    ⇒ 以最早那年为基年,只认 base / base+1 / base+2 的**精确年份**,缺哪年哪年为 null。
-   */
-  const yearOf = (period: string): number | null => {
-    const m = /(\d{4})/.exec(period);
-    return m ? Number(m[1]) : null;
-  };
-  /**
-   * ⚠️ 基年要从**能解析出年份的那些条目里取最小的**,不能直接拿排序后的第一条 ——
-   *    上游若在前面塞一条 `TTM`(排序后排在 `FY2026` 之前),`yearOf` 给 null,
-   *    于是 baseYear=null ⇒ **后面所有有效预测被整体丢弃**,EPS / PEG 全空。
-   *    (这是本轮修复自己引入的回归,复审抓到的。)
-   */
-  const dated = meanByPeriod
-    .map((x) => ({ ev: x, year: yearOf(x.period) }))
-    .filter((x): x is { ev: (typeof meanByPeriod)[number]; year: number } => x.year !== null);
-  const baseYear = dated.length ? Math.min(...dated.map((x) => x.year)) : null;
-  const atYear = (offset: number) =>
-    baseYear === null ? undefined : dated.find((x) => x.year === baseYear + offset)?.ev;
-  const eps26 = num(atYear(0));   // FY(T)   当年
-  const eps27 = num(atYear(1));   // FY(T+1) 次年
-  const eps28 = num(atYear(2));   // FY(T+2) 后年
-  const pe26 = price !== null && eps26 && eps26 > 0 ? round2(price / eps26) : null;
-  /**
-   * 前瞻 CAGR = **两年年化** = (FY(T+2) / FY(T))^(1/2) − 1。
-   *
-   * 🔴 分母那一年必须是 **T+2**。拿 T+1 开平方等于把一年的增速砍成一半,
-   *    算出来的既不是一年增速也不是两年年化 —— 而它长得很像 CAGR,
-   *    PEG 会因此系统性偏大(此例 33.8% vs 真实 59.7%,PEG 0.89 vs 0.51)。
-   * ⚠️ 三年都要拿得到、且起点为正才算;否则给 null 不给 0。
-   */
-  // ⚠️ **两端都必须为正**:只查起点的话,后年预测为负时 `sqrt(负数)` 出 NaN,
-  //    `round2(NaN)` 还是 NaN,一路送进界面显示 "NaN" —— 而约定是给 null。
-  const cagr =
-    eps26 !== null && eps28 !== null && eps26 > 0 && eps28 > 0
-      ? round2((Math.sqrt(eps28 / eps26) - 1) * 100)
-      : null;
-  return {
-    name: str(f("security_name")),
-    code,
-    price,
-    mcap_yi: num(f("market_cap")),
-    pe_ttm: num(f("pe_ttm")),
-    pb: num(f("pb")),
-    eps_26e: eps26,
-    eps_27e: eps27,
-    pe_26e: pe26,
-    base_year: baseYear,
-    quote_at: typeof q.fetched_at === "string" ? q.fetched_at : null,
-    price_evidence_id: (q.evidence.find((x) => x.field === "price")?.id as string | undefined) ?? null,
-    eps_evidence_id: (atYear(0)?.id as string | undefined) ?? null,
-    cagr_pct: cagr,
-    peg: pe26 && cagr && cagr > 0 ? round2(pe26 / cagr) : null,
-    // 消化到 30 倍要几年:ln(PE/30)/ln(1+g)。⚠️ 已经低于 30 倍或没有增速时不给数
-    digest_years:
-      pe26 && cagr && cagr > 0 && pe26 > 30 ? round2(Math.log(pe26 / 30) / Math.log(1 + cagr / 100)) : null,
-    // 取**当年**那一期的机构数;没有资料期约束的 find() 会拿到证据里的第一条(可能是别的年份)
-    analyst_count: num(
-      baseYear === null
-        ? undefined
-        : est?.evidence.find((x) => x.field === "eps_analyst_count" && yearOf(x.period) === baseYear),
-    ),
-    ...(est ? {} : { forecast_note: "没有取到机构一致预期(小票或无覆盖)——前瞻 PE / PEG 因此为空" }),
-  };
-}
-
-/** 估值历史分位。用日频 PE/PB 序列现算分位,**不四舍五入成"看着合理"的数** */
-async function percentileOf(code: string): Promise<ValPercentile> {
-  const e = await env("fetch_pe_history", { symbol: code });
-  // 🔴 **先按资料期排序再取"当前"。** 直接取数组最后一个 = 押在上游按时间升序返回;
-  //    上游哪天改成"最新优先",`current` 就变成**五年前那一天**,而分位数看着依然合理。
-  const periodsUsed: string[] = [];
-  const series = (field: string): ValMetric | undefined => {
-    const points = e.evidence
-      .filter((x) => x.field === field && num(x) !== null)
-      .sort((a, b) => a.period.localeCompare(b.period));
-    const vs = points.map((x) => num(x)!) as number[];
-    if (vs.length < 20) return undefined; // 点太少算不出分位 —— 宁可不给,也不给一个假的
-    periodsUsed.push(points[0]!.period, points[points.length - 1]!.period);
-    const sorted = [...vs].sort((a, b) => a - b);
-    const at = (p: number) => sorted[Math.min(sorted.length - 1, Math.floor((sorted.length - 1) * p))]!;
-    const cur = vs[vs.length - 1]!;
-    const below = sorted.filter((v) => v <= cur).length;
-    return {
-      current: round2(cur)!,
-      percentile: Math.round((below / sorted.length) * 100),
-      min: round2(sorted[0]!)!,
-      max: round2(sorted[sorted.length - 1]!)!,
-      p20: round2(at(0.2))!,
-      p50: round2(at(0.5))!,
-      p80: round2(at(0.8))!,
-      n: vs.length,
-    };
-  };
-  const pe = series("pe_ttm");
-  const pb = series("pb");
-  if (!pe && !pb) throwNotWired("估值历史分位(取到的点数不足以算分位)");
-  // 区间取**真正参与计算的那些期**的首尾。用整封信封的首尾会把 PE / PB 两段不同的覆盖范围
-  // 混成一个既不属于 PE 也不属于 PB 的区间。
-  const sorted = [...periodsUsed].sort();
-  return {
-    period: `${sorted[0] ?? ""}..${sorted[sorted.length - 1] ?? ""}`,
-    metrics: { ...(pe ? { pe_ttm: pe } : {}), ...(pb ? { pb } : {}) },
-  };
-}
-
-/* ---------- 财务 / 公告 / 研报 / 新闻 ---------- */
-
-async function financialsOf(code: string): Promise<Financials> {
-  const e = await env("fetch_financials", { symbol: code });
-  /**
-   * 最近一期 = **核心字段**里最大的那一期。
-   * 🔴 取"所有字段资料期的并集"会出这种事:某个边角字段先发布了新一期 ⇒ 表头显示新一期,
-   *    而营收 / 净利 / EPS 在那一期还没有 ⇒ **整张表空着,却标着一个很新的日期**。
-   */
-  const CORE = ["revenue_cum", "net_profit_parent_cum", "eps_basic_cum"];
-  const periods = [...new Set(e.evidence.filter((x) => CORE.includes(x.field)).map((x) => x.period))].sort();
-  const latest = periods[periods.length - 1] ?? null;
-  const at = (field: string, period: string | null) =>
-    period === null ? undefined : e.evidence.find((x) => x.field === field && x.period === period);
-  const yi = (v: number | null) => (v === null ? null : `${round2(v / 1e8)} 亿`);
-  /**
-   * 去年同期。⚠️ 不做字符串切片拼接 —— period 若不是 `YYYY-...` 形状(`FY2026` / 带时间戳),
-   *    切出来会是 `NaN...` 这种查不到的键,同比于是**静默变成"没有"**。
-   *    ⇒ 用正则确认前四位是年份,替换掉;不是那个形状就明说算不了。
-   */
-  const prevYear = latest && /^\d{4}/.test(latest)
-    ? String(Number(latest.slice(0, 4)) - 1) + latest.slice(4)
-    : null;
-  const yoy = (field: string) => {
-    const now = num(at(field, latest));
-    const before = num(at(field, prevYear));
-    // 🔴 去年同期为 0 或负时不算同比 —— 那个百分比没有意义,给 null 比给一个夸张数字诚实
-    return now !== null && before !== null && before > 0 ? `${round2(((now - before) / before) * 100)}%` : null;
-  };
-  return {
-    period: latest,
-    revenue: yi(num(at("revenue_cum", latest))),
-    revenue_yoy: yoy("revenue_cum"),
-    net_profit: yi(num(at("net_profit_parent_cum", latest))),
-    net_profit_yoy: yoy("net_profit_parent_cum"),
-    eps: num(at("eps_basic_cum", latest)) === null ? null : String(num(at("eps_basic_cum", latest))),
-    // 下面几项这套端点不出,如实给 null(界面显示"—"),不拿别的数硬凑
-    bvps: null, roe: null, gross_margin: null, net_margin: null, op_cf_ps: null,
-  };
-}
-
 async function announcementsOf(code: string, refresh = false): Promise<Announcement[]> {
   const e = await env("cninfo_announcements", { symbol: code, refresh });
   return rows(e).map((r) => {
@@ -554,22 +348,6 @@ async function announcementsOf(code: string, refresh = false): Promise<Announcem
       title: str(r.fields.announcement_title),
       type: kv.type ?? "",
       url: kv.url ?? kv.link ?? "",
-    };
-  });
-}
-
-async function reportsOf(code: string): Promise<Report[]> {
-  const e = await env("em_reports", { symbol: code });
-  return rows(e).map((r) => {
-    const kv = noteKV(r.note);
-    const ev = r.fields.research_report_title;
-    return {
-      title: str(ev),
-      publishDate: ev?.period ?? "",
-      orgSName: kv.orgSName ?? "",
-      ...(kv.emRatingName ? { emRatingName: kv.emRatingName } : {}),
-      ...(kv.indvInduName ? { indvInduName: kv.indvInduName } : {}),
-      ...(kv.pdfUrl ? { pdfUrl: kv.pdfUrl } : {}),
     };
   });
 }
@@ -586,79 +364,6 @@ async function newsOf(code: string, refresh = false): Promise<NewsItem[]> {
       新闻链接: kv.url ?? kv.link ?? "",
     };
   });
-}
-
-/* ---------- 资金面 / 筹码 ---------- */
-
-async function marginOf(code: string): Promise<MarginRow[]> {
-  const e = await env("em_margin_trading", { symbol: code });
-  return rows(e)
-    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.key))
-    .map((r) => ({
-      date: r.key,
-      rzye: num(r.fields.margin_financing_balance),
-      rzmre: num(r.fields.margin_financing_buy),
-      rzche: num(r.fields.margin_financing_repay),
-      rqye: num(r.fields.margin_short_balance),
-      rqmcl: num(r.fields.margin_short_sell_volume),
-      rzrqye: num(r.fields.margin_total_balance),
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date));
-}
-
-async function blockTradeOf(code: string): Promise<BlockTradeRow[]> {
-  const e = await env("em_block_trade", { symbol: code });
-  return rows(e).map((r) => ({
-    date: r.fields.block_trade_price?.period ?? r.key,
-    price: num(r.fields.block_trade_price),
-    close: num(r.fields.block_trade_close),
-    premium_pct: num(r.fields.block_trade_premium_pct),
-    vol: num(r.fields.block_trade_volume),
-    amount: num(r.fields.block_trade_amount),
-    // 🔴 买卖方在 **note** 里,不是字段(端点只给 price / premium / volume / amount / count)。
-    //    原来取不存在的字段 → 空串 → 界面上显示成「买 · 卖」,像是渲染坏了而不是没数据。
-    buyer: noteKV(r.note).买方 ?? "",
-    seller: noteKV(r.note).卖方 ?? "",
-  }));
-}
-
-async function holdersOf(code: string): Promise<HolderRow[]> {
-  const e = await env("em_holder_num", { symbol: code });
-  return rows(e).map((r) => ({
-    date: r.key,
-    holder_num: num(r.fields.shareholder_count),
-    change_ratio: num(r.fields.shareholder_count_change_pct),
-    avg_shares: num(r.fields.shareholder_avg_free_shares),
-  }));
-}
-
-async function dividendOf(code: string): Promise<DividendRow[]> {
-  const e = await env("em_dividend_history", { symbol: code });
-  return rows(e).map((r) => {
-    const kv = noteKV(r.note);
-    return {
-      date: r.key.split("|")[0] ?? "",
-      bonus_rmb: num(r.fields.dividend_pretax_per_share),
-      transfer_ratio: num(r.fields.transfer_per_10_shares),
-      bonus_ratio: num(r.fields.bonus_per_10_shares),
-      plan: kv["进度"] ?? "",
-    };
-  });
-}
-
-async function fundFlowOf(code: string): Promise<FundFlowRow[]> {
-  const e = await env("em_fund_flow_120d", { symbol: code });
-  return rows(e)
-    .filter((r) => /^\d{4}-\d{2}-\d{2}$/.test(r.key))
-    .map((r) => ({
-      date: r.key,
-      main_net: num(r.fields.fund_flow_main_net),
-      small_net: num(r.fields.fund_flow_small_net),
-      mid_net: num(r.fields.fund_flow_mid_net),
-      large_net: num(r.fields.fund_flow_large_net),
-      super_net: num(r.fields.fund_flow_super_net),
-    }))
-    .sort((a, b) => b.date.localeCompare(a.date));
 }
 
 /* ---------- 上游其余接口 ---------- */
@@ -1024,77 +729,6 @@ async function gpuRentOf(refresh = false): Promise<GpuRentData> {
   };
 }
 
-/* ---------- 个股信号 ---------- */
-
-async function dragonTigerOf(code: string): Promise<DragonTiger> {
-  const e = await env("em_dragon_tiger", { symbol: code });
-  const records = rows(e).map((r) => ({
-    date: r.fields.dt_net_buy?.period ?? r.key,
-    reason: noteKV(r.note).reason ?? r.note,
-    net_buy: num(r.fields.dt_net_buy),
-    turnover: num(r.fields.dt_turnover),
-  }));
-  return { records, seats: { buy: [], sell: [] }, institution: { buy_amt: 0, sell_amt: 0, net_amt: 0 } };
-}
-
-async function lockupOf(code: string): Promise<Lockup> {
-  const e = await env("em_lockup_expiry", { symbol: code });
-  const today = new Date().toISOString().slice(0, 10);
-  const all: LockupRow[] = rows(e).map((r) => ({
-    date: r.fields.lockup_shares?.period ?? r.key,
-    type: noteKV(r.note).type ?? r.note,
-    shares: num(r.fields.lockup_shares),
-    able_shares: num(r.fields.lockup_able_shares),
-    ratio: num(r.fields.lockup_ratio),
-  }));
-  return {
-    history: all.filter((x) => x.date < today),
-    upcoming: all.filter((x) => x.date >= today),
-  };
-}
-
-async function blocksOf(code: string): Promise<Blocks> {
-  const e = await env("em_concept_blocks", { symbol: code });
-  const boards: Board[] = rows(e).map((r) => {
-    const kv = noteKV(r.note);
-    return {
-      // 🔴 板块名是**证据的 value**(食品饮料 / 白酒Ⅲ),不在 note 里。
-      //    原来找 `name=` 这个根本不存在的键,取不到就回退 `?? r.note` ——
-      //    于是界面上显示的是 `板块代码=BK0438;当日涨跌=-0.38%;龙头=五芳斋` 这条内部字符串。
-      //    ⚠️ 回退到原始 note 比显示空更糟:它看着像内容,用户不知道那是调试文本。
-      name: str(r.fields.board_membership) || r.key,
-      code: kv.板块代码 ?? r.key,
-      change_pct: kv.当日涨跌 ?? "",
-      lead_stock: kv.龙头 ?? "",
-    };
-  });
-  return { total: boards.length, boards, concept_tags: boards.map((b) => b.name).filter(Boolean) };
-}
-
-async function hotConceptsOf(code: string): Promise<HotConcept[]> {
-  const e = await env("em_hot_concept", { symbol: code });
-  return rows(e)
-    // 端点里混着一条汇总(hot_concept_count,没有 record_key)—— 它不是一个概念,别当条目渲染
-    .filter((r) => r.fields.hot_concept_hit !== undefined)
-    .map((r) => ({
-      // 同上:概念名在 note 的 `概念=` 里,不是 `name=`
-      concept: noteKV(r.note).概念 ?? r.key,
-      bk: r.key,
-      hit: num(r.fields.hot_concept_hit) ?? 0,
-    }));
-}
-
-async function investorQaOf(code: string): Promise<QaRow[]> {
-  const e = await env("cninfo_irm", { symbol: code });
-  return rows(e).map((r) => ({
-    company: str(r.fields.irm_company),
-    question: str(r.fields.irm_question),
-    answer: str(r.fields.irm_answer) || null,
-    answerer: str(r.fields.irm_answerer),
-    ask_time: r.fields.irm_question?.period ?? "",
-  }));
-}
-
 /* ---------- 事件概率 ---------- */
 
 /**
@@ -1131,249 +765,14 @@ async function macroProbabilityOf(refresh = false): Promise<MacroProbability> {
   };
 }
 
-/* ---------- 持仓:走**用户自有台账**,不另起一套存储 ---------- */
-
-/**
- * 上游把持仓存在它自己的后端文件里;我们已经有台账(`position` 种类),
- * 再存一份就会有两个真相。⇒ 这里读台账 + 现拉行情算市值盈亏。
- *
- * 清仓历史存 closed_position 台账，不在浏览器另建存储；币种分别汇总。
- */
-async function portfolioOf(): Promise<PortfolioData> {
-  const led = await backend.ledger();
-  const held = (led.records.position ?? []).filter((r) => normalizeMarketSymbol(r.symbol));
-  const codes = [...new Set(held.map((r) => normalizeMarketSymbol(r.symbol)!).filter(Boolean))];
-  const quotes = codes.length ? await quoteMap(codes).catch(() => ({}) as Record<string, Quote>) : {};
-
-  const holdings: Holding[] = held.map((r) => {
-    const code = normalizeMarketSymbol(r.symbol)!;
-    const market = marketOfSymbol(code)!;
-    const currency = currencyOfSymbol(code)!;
-    const shares = Number(r.shares ?? 0);
-    const cost = Number(r.cost ?? 0);
-    const q = quotes[code];
-    // 🔴 拉不到行情(整只票缺席,或缺了 price 这一项)时一律 null —— 不拿成本冒充现价,
-    //    也不填 0:那会把浮盈显示成"正好不赚不亏",而它其实是没取到。
-    const price = q?.price != null && Number.isFinite(q.price) && q.price > 0 ? q.price : null;
-    const mv = price === null ? null : price * shares;
-    const pnl = price === null ? null : (price - cost) * shares;
-    return {
-      code,
-      name: String(r.name ?? q?.name ?? ""),
-      market,
-      currency,
-      price,
-      shares,
-      cost,
-      market_value: round2(mv),
-      pnl: round2(pnl),
-      pnl_pct: price !== null && cost > 0 ? round2(((price - cost) / cost) * 100) : null,
-    };
-  });
-
-  // 合计只累加**拿到行情的那些**，并且必须按币种分组。
-  // 人民币 10 万 + 美元 2 万 + 港元 3 万没有一个不经换算就成立的「总数」。
-  const totalMap = new Map<CurrencyCode, Holding[]>();
-  for (const h of holdings) {
-    if (h.market_value === null) continue;
-    totalMap.set(h.currency, [...(totalMap.get(h.currency) ?? []), h]);
-  }
-  const totals = [...totalMap.entries()].map(([currency, items]) => {
-    const mv = items.reduce((a, h) => a + (h.market_value ?? 0), 0);
-    const costSum = items.reduce((a, h) => a + h.cost * h.shares, 0);
-    const market = items[0]!.market;
-    return {
-      market,
-      currency,
-      label: currencyLabel(currency),
-      market_value: round2(mv)!,
-      cost: round2(costSum)!,
-      pnl: round2(mv - costSum)!,
-      pnl_pct: costSum > 0 ? round2(((mv - costSum) / costSum) * 100)! : null,
-    };
-  });
-  const closedRecords = led.records.closed_position ?? [];
-  const closed: ClosedPosition[] = closedRecords.flatMap(r => {
-    const code = normalizeMarketSymbol(r.symbol);
-    const price = Number(r.price), shares = Number(r.shares), cost = Number(r.cost);
-    const day = typeof r.closed_at === "string" ? Date.parse(r.closed_at) : NaN;
-    if (!code || ![r.price, r.shares, r.cost].every(v => typeof v === "number" && Number.isFinite(v))
-        || price <= 0 || shares <= 0 || !Number.isFinite((price - cost) * shares)
-        || typeof r.closed_at !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r.closed_at)
-        || !Number.isFinite(day) || new Date(day).toISOString().slice(0, 10) !== r.closed_at) return [];
-    return [{ id: r.id, code, name: String(r.name || code), note: typeof r.note === "string" ? r.note : "", currency: currencyOfSymbol(code)!,
-      date: String(r.closed_at), price, shares, cost, pnl: round2((price - cost) * shares)!,
-      pnl_pct: cost > 0 ? round2((price - cost) / cost * 100) : null }];
-  });
-  const realized = new Map<CurrencyCode, number>();
-  for (const r of closed) realized.set(r.currency, (realized.get(r.currency) ?? 0) + r.pnl);
-  return {
-    holdings,
-    totals,
-    closed,
-    closed_invalid: closedRecords.length - closed.length,
-    realized_totals: [...realized].map(([currency, pnl]) => ({ currency, pnl: round2(pnl)! })),
-    updated: new Date().toISOString(),
-    last_refresh: null,
-  };
-}
-
-/**
- * 加一笔持仓。**同代码是加仓,不是覆盖** —— 页面上写着"按加权平均成本合并",
- * 实现必须真的合并,否则界面说的和做的两回事(而且第二次录入会静默抹掉第一次的股数)。
- */
-async function addHoldingTo(code: string, shares: number, cost: number): Promise<PortfolioData> {
-  if (!Number.isFinite(shares) || shares <= 0 || !Number.isFinite(cost)) throw new ApiError("数量须为正数，成本须为有效数字", 400, "bad_input");
-  const symbol = normalizeMarketSymbol(code);
-  if (!symbol) throw new ApiError("请输入 A 股、港股或美股代码", 400, "bad_symbol");
-  const led = await backend.ledger();
-  const existing = (led.records.position ?? []).find((r) => normalizeMarketSymbol(r.symbol) === symbol);
-
-  let nextShares = shares;
-  let nextCost = cost;
-  if (existing) {
-    const oldShares = Number(existing.shares ?? 0);
-    const oldCost = Number(existing.cost ?? 0);
-    nextShares = oldShares + shares;
-    // 加权平均。⚠️ 合并后股数为 0(或更少)时算不出均价 —— 那是"清掉了",直接删记录
-    nextCost = nextShares > 0 ? Math.round(((oldShares * oldCost + shares * cost) / nextShares) * 1e4) / 1e4 : 0;
-    if (nextShares <= 0) {
-      await backend.ledgerDelete("position", existing.id);
-      return portfolioOf();
-    }
-  }
-
-  await backend.ledgerSave("position", {
-    // 🔴 整条替换,不做字段级合并 —— 台账的更新语义是整条覆盖,
-    //    只发变化的字段会把 name / account / note 一起清空且不报错
-    ...(existing ?? {}),
-    symbol,
-    shares: nextShares,
-    cost: nextCost,
-  });
-  return portfolioOf();
-}
-
-async function removeHoldingFrom(code: string): Promise<PortfolioData> {
-  const symbol = normalizeMarketSymbol(code);
-  if (!symbol) return portfolioOf();
-  const led = await backend.ledger();
-  const hit = (led.records.position ?? []).find((r) => normalizeMarketSymbol(r.symbol) === symbol);
-  if (hit) await backend.ledgerDelete("position", hit.id);
-  return portfolioOf();
-}
-
 /* ---------- 美股 / 港股 ---------- */
-
-/** 代码带 `.HK` / 5 位数字当港股,其余当美股。取数层自己也会再判一次,这里只用来填 market 字段 */
-const guessMarket = (code: string): string =>
-  /\.HK$/i.test(code) || /^\d{4,5}$/.test(code.trim()) ? "HK" : "US";
-
-async function globalStockOf(code: string): Promise<GlobalStock> {
-  const [q, k] = await Promise.all([
-    env("em_global_quote", { symbol: code }),
-    // 关键指标可能没有(ETF / 冷门票)—— 缺了不影响行情部分
-    env("em_global_key_indicators", { symbol: code }).catch(() => undefined),
-  ]);
-  const f = (name: string) => scalar(q, name);
-
-  let metrics: GlobalMetrics | null = null;
-  if (k) {
-    // 最近一期 = period 最大的那一期
-    const periods = [...new Set(k.evidence.map((x) => x.period))].sort();
-    const latest = periods[periods.length - 1];
-    const at = (name: string) => k.evidence.find((x) => x.field === name && x.period === latest);
-    if (latest) {
-      metrics = {
-        report_date: latest,
-        revenue: num(at("revenue")),
-        revenue_yoy: num(at("revenue_yoy")),
-        net_profit: num(at("net_profit_parent")),
-        eps: num(at("eps_diluted")) ?? num(at("eps_basic")),
-        roe: num(at("roe")),
-        gross_margin: num(at("gross_margin")),
-        net_margin: num(at("net_margin")),
-        debt_ratio: num(at("debt_asset_ratio")),
-      };
-    }
-  }
-
-  return {
-    code,
-    name: str(f("security_name")),
-    market: guessMarket(code),
-    quote: {
-      code,
-      name: str(f("security_name")),
-      price: num(f("price")),
-      open: num(f("open")),
-      high: num(f("high")),
-      low: num(f("low")),
-      prev_close: num(f("last_close")),
-      amount: num(f("turnover_amount")),
-      mcap: num(f("market_cap")),   // 端点不一定给,给不出就是 null(页面显示"—")
-      change_pct: num(f("change_pct")),
-    },
-    metrics,
-  };
-}
-
-async function hkCashflowOf(code: string): Promise<HkCashflow> {
-  const e = await env("em_global_cashflow", { symbol: code });
-  // 🔴 record_key 实际是 `<报告期>|<科目>` —— 注释和解构原来都写反了。
-  //    于是 `byPeriod` 按**科目**分组、`order` 收的是**报告期**,整张表两个轴对调:
-  //    表头那句 `report_date.slice(0,7)`(为日期写的)套在科目名上,
-  //    把「投资活动产生的现金流量净额」截成「投资活动产生的」——
-  //    数值因为转置一致所以还对得上,**只有表头是错的**,最难看出来。
-  const order: string[] = [];
-  const byPeriod = new Map<string, HkCashflowPeriod>();
-  for (const r of rows(e)) {
-    const [periodKey = "", item = ""] = r.key.split("|");
-    const amountEv0 = Object.values(r.fields)[0];
-    // ⚠️ 展示用**证据自己的资料期**(真实日期 2026-06-27),不用 record_key 里的标签:
-    //    上游那个标签会出现 `2026/Q9` 这种不存在的季度,直接摆到界面上就是编出来的期间。
-    const period = amountEv0?.period || periodKey;
-    if (!byPeriod.has(period)) {
-      byPeriod.set(period, {
-        report_date: period,
-        report: null,
-        currency: null,
-        account_standard: null,
-        items: {},
-      });
-    }
-    const p = byPeriod.get(period)!;
-    const amountEv = Object.values(r.fields)[0];
-    if (!order.includes(item)) order.push(item);
-    p.items[item] = { amount: num(amountEv), yoy: num(r.fields.yoy) };
-    p.currency ??= amountEv?.currency || null;
-  }
-  const periods = [...byPeriod.values()].sort((a, b) => b.report_date.localeCompare(a.report_date));
-  return {
-    code,
-    name: "",
-    market: guessMarket(code),
-    currency: periods[0]?.currency ?? null,
-    item_order: order,
-    periods,
-  };
-}
 
 export const api = {
   health: () => backend.health().then((h) => ({ ok: h.ok })),
 
   quote: (codes: string, refresh = false) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean), refresh),
-  valuation: valuationOf,
-  percentile: percentileOf,
-  financials: financialsOf,
   announcements: announcementsOf,
-  reports: reportsOf,
   news: newsOf,
-  margin: marginOf,
-  blockTrade: blockTradeOf,
-  holders: holdersOf,
-  dividend: dividendOf,
-  fundFlow: fundFlowOf,
 
   indices: async (refresh = false): Promise<IndexQuote[]> => {
     const codes = ["sh000001", "sh000300", "sz399001", "sz399006"];
@@ -1384,22 +783,6 @@ export const api = {
       change_pct: num(r.fields.change_pct),
       change_amt: subtract(num(r.fields.price), num(r.fields.last_close)),
     }));
-  },
-
-  industry: async (top = 20): Promise<IndustryData> => {
-    const e = await env("em_industry_comparison");
-    const all = rows(e)
-      .map((r, i) => ({
-        rank: i + 1,
-        name: r.note.replace(/^\S+\s/, "") || r.key,
-        change_pct: num(r.fields.industry_board_change_pct),
-        code: r.key,
-        up_count: num(r.fields.industry_board_up_count),
-        down_count: num(r.fields.industry_board_down_count),
-      }))
-      .sort((a, b) => descNullable(a.change_pct, b.change_pct))
-      .map((x, i) => ({ ...x, rank: i + 1 }));
-    return { top: all.slice(0, top), bottom: all.slice(-top).reverse(), total: all.length };
   },
 
   // 下面这些底座还没接:如实抛错,**不返回空**(空会被读成"今天没有数据")
@@ -1430,32 +813,8 @@ export const api = {
     if (!result.some((r) => r.price !== null)) throw new Error("全球指数未取得可用数据，请稍后刷新；不代表市场没有变化。");
     return result;
   },
-  globalStock: globalStockOf,
-  hkCashflow: hkCashflowOf,
   radar: () => radarOf(false),
   radarRefresh: () => radarOf(true),
   gpuRent: () => gpuRentOf(false),
   gpuRentRefresh: () => gpuRentOf(true),
-  portfolio: portfolioOf,
-  addHolding: addHoldingTo,
-  removeHolding: removeHoldingFrom,
-  refreshPortfolio: portfolioOf,
-  closePosition: async (code: string, date: string, price: number, shares: number, cost: number, details: { name?: string; note?: string } = {}): Promise<PortfolioData> => {
-    const symbol = normalizeMarketSymbol(code);
-    if (!symbol || ![price, shares, cost].every(Number.isFinite) || price <= 0 || shares <= 0) throw new ApiError("请检查代码、数量及清仓价格", 400, "bad_input");
-    await backend.ledgerSave("closed_position", { symbol, closed_at: date, price, shares, cost, name: details.name?.trim() || "", note: details.note?.trim() || "" });
-    return portfolioOf();
-  },
-  removeClosed: async (id: string): Promise<PortfolioData> => {
-    await backend.ledgerDelete("closed_position", id);
-    return portfolioOf();
-  },
-  dragonTiger: dragonTigerOf,
-  lockup: lockupOf,
-  blocks: blocksOf,
-  hotConcepts: hotConceptsOf,
-  investorQa: investorQaOf,
-  myReports: (): Promise<MyReport[]> => backend.reports(),
-  uploadReport: (name: string, content: string): Promise<MyReport> => backend.reportUpload(name, content),
-  deleteReport: async (id: string): Promise<{ ok: boolean }> => ({ ok: (await backend.reportDelete(id)).removed }),
 };

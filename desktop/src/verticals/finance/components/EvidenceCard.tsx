@@ -114,6 +114,7 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
   const initialWeb = snapshot ? null : webCitationView(reference);
   const [view, setView] = useState<EvidenceView | null>(snapshot ? { title: '数据来源', text: snapshot, related: [] } : initialWeb ? { title: initialWeb.title, text: initialWeb.text, related: [], href: initialWeb.href } : null);
   const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   const [selected, select] = useState(reference);
   const [related, setRelated] = useState<string[]>([]);
   const { ask } = useAiQuestion();
@@ -135,13 +136,13 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
       if (!controller.signal.aborted) setView(result);
     }).catch(() => { if (!controller.signal.aborted) setError('这条依据暂时无法读取，请稍后重试。'); });
     return () => controller.abort();
-  }, [selected, snapshot]);
+  }, [selected, snapshot, retry]);
   const block = view?.block;
   const readPath = block ? `/my-reports/read/${encodeURIComponent(block.document_id)}?` + new URLSearchParams({ revision: block.parse_revision_id, hash: block.parsed_content_sha256, block: block.block_id, page: String(block.page), from: location.pathname + location.search }) : '';
   const content = <aside role="dialog" aria-label="查看依据" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }} className="finance-evidence-panel fixed bottom-3 right-3 top-[76px] z-[60] flex w-[min(28rem,calc(100vw-1.5rem))] flex-col rounded-2xl border border-border bg-card shadow-xl">
     <header className="flex items-center justify-between border-b p-5"><h2 className="font-semibold">查看依据</h2><button ref={closer} aria-label="关闭依据" onClick={close}><X size={18} /></button></header>
     <div className="min-h-0 flex-1 overflow-auto p-5">
-      {error ? <p role="alert">{error}</p> : !view ? <p role="status">正在读取依据…</p> : <>
+      {error ? <div><p role="alert">{error}</p><button className="workspace-action workspace-action-compact mt-4" onClick={() => setRetry(value => value + 1)}>重新读取</button></div> : !view ? <p role="status">正在读取依据…</p> : <>
         <h3 className="font-medium">{view.title}</h3>{view.page && <p className="mt-2 text-sm text-muted-foreground">第 {view.page} 页</p>}
         <div className="prose prose-sm mt-5 max-w-none break-words overflow-x-auto dark:prose-invert"><ReactMarkdown remarkPlugins={[remarkGfm]}>{view.text}</ReactMarkdown></div>
         {block?.truncated && <p className="mt-3 text-sm text-muted-foreground">片段较长，完整内容请阅读原文。</p>}

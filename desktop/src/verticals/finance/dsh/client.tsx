@@ -6,12 +6,16 @@ import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
 import { SearchPreviews } from './search-previews';
+import { installResultNode } from './result-node';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { hydrateWatch } from "../lib/watchlist";
+import { hydrateRoster } from "../lib/researchRoster";
+import { hydratePrefs } from "../lib/prefs";
 import { storageGet, storageSet } from "../lib/storage";
 import { type SlotProps } from "./NativeDsh";
+import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { FinanceRoot } from '../components/layout/FinanceRoot';
 import { FinanceAssistantSeat } from '../components/layout/FinanceAssistantSurface';
 import "../../../index.css";
@@ -42,10 +46,11 @@ interface Client {
     sessionOf(ctx: Context): { rename(title: string): Promise<{ ok: boolean }>; prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }> } | undefined;
   };
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation"];
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
+  installResultNode(ctx);
   ctx.effect(() => ctx.inputTriggers.registerSource(researchObjectSource));
   ctx.provide('chatFileMentions', { forClosing() {
     const citation = createCitationMention(reference => window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: reference })));
@@ -102,8 +107,9 @@ export function apply(ctx: Context) {
     document.body.classList.remove("vibe-dsh-host");
   });
   presentTheme();
-  // Existing pages synchronously read these durable caches on first render.
-  const ready = Promise.all([hydrateNotes(), hydrateWatch()]);
+  // 自选 / 研究名单 / 偏好走产品本地服务；记录失败不能挡住工作台挂载。
+  const ready = Promise.all([hydrateWatch(), hydrateRoster(), hydratePrefs()]);
+  void hydrateNotes().catch(() => {});
   void ready.catch(() => {}); // The mounted frame presents the failure and retry action.
   let session: Promise<void> | undefined;
   let workspace = '';
@@ -271,7 +277,7 @@ export function apply(ctx: Context) {
       finally { setArchiving(null); }
     };
     if (compact && allIds.length === 0 && !error) return null;
-    return <div className={compact ? 'finance-recent mx-auto mt-5 w-full px-4 pb-4' : 'h-full overflow-auto p-6 sm:p-8'}><div className={compact ? 'w-full' : 'mx-auto max-w-4xl'}>
+    return <div className={compact ? 'finance-recent mx-auto mt-5 w-full px-4' : 'h-full overflow-auto p-6 sm:p-8'}><div className={compact ? 'w-full' : 'mx-auto max-w-4xl'}>
       {compact ? <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-medium text-muted-foreground">最近对话</h2>{allIds.length > 4 && <button className="text-xs text-muted-foreground hover:text-primary" onClick={() => setShowAll(!showAll)}>{showAll ? '收起' : '查看全部'}</button>}</div> : <>
       <div className="mb-6 flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">继续你的研究</h2><p className="mt-2 text-sm text-muted-foreground">找回之前的问题，接着聊。</p></div>
         <NewConversation openView={openView} /></div></>}
@@ -301,7 +307,7 @@ export function apply(ctx: Context) {
       }, error => { if (active) setState(error instanceof Error ? error : new Error(String(error))); });
       return () => { active = false; };
     }, []);
-    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? "正在读取工作台数据…" : `连不上后端，未加载台账：${state.message}`}<button onClick={() => location.reload()}>重新连接</button></div>;
+    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，未加载选择：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
     return <FinanceRoot slots={props} research={research} sessionError={sessionError} showDetails={showDetails}>
       <RouterProvider router={router} />
     </FinanceRoot>;

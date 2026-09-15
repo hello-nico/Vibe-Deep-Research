@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import { Building2, ChartNoAxesCombined, Landmark, Scale, ScanEye, BookOpen } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
@@ -9,6 +9,11 @@ import { EvidenceLink } from './EvidenceCard';
 import remarkGfm from 'remark-gfm';
 import { researchRead, type WikiPage } from '../lib/research';
 import { FACT_SECTIONS, factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
+import { WikiLoading } from './WikiLoading';
+import { ObjectResults } from './ObjectResults';
+import { ObjectReport } from './ObjectReport';
+
+export { WikiLoading, wikiLoadingSections } from './WikiLoading';
 
 export function KnowledgeText({ markdown }: { markdown: string }) {
   // The accepted artifact includes YAML for machines; only its body is reader content.
@@ -18,7 +23,7 @@ export function KnowledgeText({ markdown }: { markdown: string }) {
     return reference ? <EvidenceLink reference={reference}>{children}</EvidenceLink> : <a href={href}>{children}</a>;
   } }}>{body}</ReactMarkdown></div>;
 }
-function CompanySections({ markdown, blocks }: { markdown: string; blocks: WikiPage['spec']['blocks'] }) {
+function WikiSections({ markdown, blocks, company = false, report = false }: { markdown: string; blocks: WikiPage['spec']['blocks']; company?: boolean; report?: boolean }) {
   const sections: { title: string; lines: string[] }[] = [];
   let current = { title: '', lines: [] as string[] };
   let fence = '';
@@ -36,13 +41,14 @@ function CompanySections({ markdown, blocks }: { markdown: string; blocks: WikiP
   }
   if (current.title || current.lines.join('\n').trim()) sections.push(current);
   const icons: Record<string, typeof BookOpen> = { 经营: ChartNoAxesCombined, 财务: Landmark, 估值: Scale, 观察窗口: ScanEye };
-  return <div className="space-y-5">{sections.map((section, index) => {
+  return <div className={report ? 'research-report-story' : 'space-y-5'}>{sections.map((section, index) => {
     const Icon = icons[section.title] || BookOpen;
     const content = section.lines.join('\n').trim();
     const facts = factItems(blocks.find(block => block.kind === FACT_SECTIONS[section.title])?.content);
+    if (report) return <section key={index}><h2>{section.title || '研究概览'}</h2>{company && section.title === '资料时间线' ? <SourceTimeline content={blocks.find(block => block.kind === 'source_timeline')?.content} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="text-sm text-muted-foreground">资料待补充</p>}</section>;
     return <GlassCard glow key={index} className="!p-6">
       <header className="mb-4 flex items-center gap-3 border-b border-border/60 pb-4"><span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon size={20} /></span><h3 className="text-base font-semibold">{section.title || '研究概览'}</h3></header>
-      {section.title === '资料时间线' ? <SourceTimeline content={blocks.find(block => block.kind === 'source_timeline')?.content} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="py-2 text-sm text-muted-foreground">资料待补充</p>}
+      {company && section.title === '资料时间线' ? <SourceTimeline content={blocks.find(block => block.kind === 'source_timeline')?.content} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="py-2 text-sm text-muted-foreground">资料待补充</p>}
     </GlassCard>;
   })}</div>;
 }
@@ -76,7 +82,8 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;
 }
-export function WikiReader({ slug, onMarkdown, onLoadState }: { slug: string; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void }) {
+export function WikiReader({ slug, onMarkdown, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} /> }: { slug: string; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision?: number; renderLoading?: (slug: string) => ReactNode }) {
+  const [report, setReport] = useState(false);
   const [search, setSearch] = useSearchParams();
   const restored = search.get('reader');
   const [trail, setTrail] = useState<string[]>(() => restored && restored !== slug ? [slug, restored] : [slug]);
@@ -104,36 +111,52 @@ export function WikiReader({ slug, onMarkdown, onLoadState }: { slug: string; on
     navigate(existing >= 0 ? trail.slice(0, existing + 1) : [...trail.slice(-31), next]);
   };
   return <div>
+    <div className="mb-4 flex justify-end"><button className="workspace-action" onClick={() => setReport(value => !value)}>{report ? '返回研究页' : '图文报告'}</button></div>
     {trail.length > 1 && <button className="workspace-action mb-4" onClick={() => navigate(trail.slice(0, -1))}>返回上一份材料</button>}
-    <WikiBody key={active} slug={active} onMarkdown={onMarkdown} onLoadState={onLoadState} />
+    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onLoadState={onLoadState} />
+    {report && <ObjectResults key={`results:${active}`} slug={active} />}
     {!!related.length && <GlassCard className="mt-4"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="flex flex-wrap gap-2">{related.map(item => <button key={item.slug} className="workspace-action" onClick={() => open(item.slug)}>{item.title}</button>)}</div></GlassCard>}
     {linkError && <p role="status" className="mt-3 text-sm text-muted-foreground">{linkError}</p>}
   </div>;
 }
-function WikiBody({ slug, onMarkdown, onLoadState }: { slug: string; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void }) {
+
+function WikiBody({ slug, report, onMarkdown, onLoadState, revision, renderLoading }: { slug: string; report: boolean; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision: number; renderLoading: (slug: string) => ReactNode }) {
   const [page, setPage] = useState<WikiPage | null>(null);
   const [error, setError] = useState('');
+  const [retry, setRetry] = useState(0);
   useEffect(() => {
-    const controller = new AbortController(); setPage(null); setError('');
+    const controller = new AbortController(); setError('');
     void researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(slug), { signal: controller.signal }).then(setPage).catch(e => { if (!controller.signal.aborted) setError(String(e)); });
     return () => controller.abort();
-  }, [slug]);
+  }, [slug, revision, retry]);
   useEffect(() => { onMarkdown?.(page?.markdown ?? ''); }, [page, onMarkdown]);
   useEffect(() => { onLoadState?.(error ? 'error' : page ? 'ready' : 'loading'); }, [page, error, onLoadState]);
-  if (error) return <p role="alert">{error}</p>;
-  if (!page) return <p role="status">正在读取 Wiki…</p>;
+  const failure = error ? <p role="alert" className="mb-4 text-sm">资料读取失败{page ? '，仍显示已有内容' : ''}。<button className="workspace-action ml-2" onClick={() => setRetry(value => value + 1)}>重试</button></p> : null;
+  if (!page) return failure || renderLoading(slug);
+  if (report) {
+    const body = page.markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').replace(/^\s*# [^\n]+\r?\n/, '').replace(`主体标识：\`${page.spec.subject_id}\`。`, '');
+    return <>{failure}<ObjectReport title={page.spec.title} asOf={page.spec.as_of}><WikiSections markdown={body} blocks={page.spec.blocks} company={page.spec.type === 'company'} report /></ObjectReport></>;
+  }
   const identity = page.spec.blocks.find(block => block.kind === 'identity')?.content;
   if (page.spec.type === 'company' && identity) {
     const fields = [['symbol', '股票代码'], ['industry', '所属行业'], ['parent_industry', '行业大类']] as const;
     // Keep the Backend's reader text and citation links; replace only its company identity projection.
     const body = page.markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').replace(/^\s*# [^\n]+\r?\n/, '').replace(/^## 身份\s*\r?\n[\s\S]*?(?=^## |$(?![\s\S]))/m, '');
-    return <article className="mx-auto max-w-4xl py-2">
+    return <article className="mx-auto max-w-4xl py-2">{failure}
       <GlassCard glow className="mb-6 !p-6"><div className="flex items-start gap-4"><span className="rounded-2xl bg-primary/10 p-3 text-primary"><Building2 size={24} /></span><div><p className="mb-1 text-xs text-muted-foreground">公司研究 · {page.spec.as_of}</p><h2 className="text-2xl font-semibold tracking-tight">{page.spec.title}</h2></div></div>
         <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-border/60 pt-5 sm:grid-cols-3">{fields.map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-2 text-sm font-medium">{typeof identity[key] === 'string' && identity[key] ? String(identity[key]) : '暂无资料'}</dd></div>)}</dl>
       </GlassCard>
-      <CompanySections markdown={body} blocks={page.spec.blocks} />
+      <WikiSections markdown={body} blocks={page.spec.blocks} company />
     </article>;
   }
-  return <article className="mx-auto max-w-4xl py-2"><p className="mb-6 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">研究资料 · {page.spec.as_of}</p>
+  if (page.spec.type === 'industry') {
+    // The stable object ID remains in the Wiki; readers see its industry name.
+    const body = page.markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').replace(/^\s*# [^\n]+\r?\n/, '').replace(`主体标识：\`${page.spec.subject_id}\`。`, '');
+    return <article className="mx-auto max-w-4xl py-2">{failure}
+      <header className="mb-6"><p className="mb-2 text-xs text-muted-foreground">行业研究 · 内容更新于 {page.spec.as_of}</p><h2 className="text-2xl font-semibold tracking-tight">{page.spec.title}</h2></header>
+      <WikiSections markdown={body} blocks={page.spec.blocks} />
+    </article>;
+  }
+  return <article className="mx-auto max-w-4xl py-2">{failure}<p className="mb-6 inline-flex rounded-full bg-primary/10 px-3 py-1 text-xs text-primary">研究资料 · {page.spec.as_of}</p>
     <KnowledgeText markdown={page.markdown} /><ReferenceButtons key={slug} refs={[...page.spec.blocks, ...(page.spec.research_blocks ?? [])].flatMap(block => block.refs)} /></article>;
 }

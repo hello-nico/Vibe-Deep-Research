@@ -22,8 +22,8 @@ test('财务估值数字截断两位小数且不四舍五入，API 来源收成�
       observed_at: '2026-09-10T19:44:20+08:00', stale: true,
       ref: 'provider:hithink:600011.SH:pe_ttm:2026-09-10T19:44:20+08:00',
     });
-    assert.equal(hithink.name, '扶摇');
-    assert.match(hithink.summary, /同花顺扶摇/);
+    assert.equal(hithink.name, '同花顺');
+    assert.match(hithink.summary, /同花顺/);
     assert.equal(hithink.endpoint, 'https://fuyao.aicubes.cn/api/a-share/valuations/snapshot?thscodes=600011.SH');
     assert.match(hithink.docs, /valuations/);
     assert.equal(hithink.symbol, '600011.SH');
@@ -33,7 +33,7 @@ test('财务估值数字截断两位小数且不四舍五入，API 来源收成�
       observed_at: '2026-08-19T00:00:00+08:00', stale: true,
       ref: 'provider:hithink:600011.SH:pe_ttm:2026-08-19T00:00:00+08:00',
     });
-    assert.match(snapshot, /\*\*扶摇\*\*/);
+    assert.match(snapshot, /\*\*同花顺\*\*/);
     assert.match(snapshot, /数值：9.29 倍/);
     assert.doesNotMatch(snapshot, /GET |REST|\/api\//);
     assert.match(snapshot, /数据截至：2026-08-19 00:00:00/);
