@@ -25,6 +25,7 @@
 | DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts`；[运行时说明](desktop/dsh/runtime/README.md) |
 | 本机数据服务与 Client 存储 | `orchestrator/src/api.ts`、`service.ts`、`client_store.ts`；[M8.5 Task](docs/Client选择与研究数据归属_Task_M8.5_2026-09-14.md) |
 | 研究知识与发布 | Stock-Research 仓库的 Backend 与 DSH 插件；[M8 Task](docs/我的研究与行业入口_Task_M8_2026-09-10.md) |
+| 研究记忆与按需维护 | [M9.3 Task](docs/研究记忆与按需维护_Task_M9.3_2026-09-16.md)：画像、研究连续性、四类 Wiki 后台维护与 Topic 候选；已实施，真实模型与浏览器待验收 |
 | 图表、计算与报告 | `ResearchResult`、`MarketChart` 及 Backend 成果；[M8.6 Task](docs/研究可视化与图数联动_Task_M8.6_2026-09-14.md) |
 | 本轮删除与验收 | [旧系统退役 Task](docs/旧系统退役_Task_2026-09-15.md)、[Human Checklist](human-checklist.md) |
 | 后续总体收敛 | [M9 边界图](artifacts/m9-research-workbench.html)、[待办](todo.md)、[文档索引](docs/README.md) |
