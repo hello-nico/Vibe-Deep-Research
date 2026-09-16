@@ -5,6 +5,18 @@ import type { IncomingMessage } from "node:http";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 import { resolveDshPaths, prepareDshPaths, researchRuntimeEnv } from "../orchestrator/src/dsh_paths.ts";
 
+/** Loopback Vite/DSH proxy: Host must match this origin. Missing Origin is allowed for same-host tools; a present Origin or Fetch site must be same-origin. Reachability is not authorization. */
+export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origin: string) {
+  if (!origin) return false;
+  let expected: URL;
+  try { expected = new URL(origin); } catch { return false; }
+  if (req.headers.host !== expected.host) return false;
+  if (req.headers.origin && req.headers.origin !== origin) return false;
+  const site = req.headers["sec-fetch-site"];
+  if (site && !["same-origin", "none"].includes(String(site))) return false;
+  return true;
+}
+
 /** Serve DSH's original Web entry. Product code is loaded by its plugin manifest. */
 export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
   const paths = resolveDshPaths(repoRoot);
@@ -12,9 +24,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
   let cookie = "";
   let failure = "DSH 正在启动";
   let origin = "";
-  const trusted = (req: IncomingMessage) => req.headers.host === new URL(origin).host
-    && (!req.headers.origin || req.headers.origin === origin)
-    && (!req.headers["sec-fetch-site"] || ["same-origin", "none"].includes(String(req.headers["sec-fetch-site"])));
+  const trusted = (req: IncomingMessage) => isTrustedDevRequest(req, origin);
 
   async function install(server: ViteDevServer | PreviewServer, development: boolean) {
     if (process.env.VRA_LAN === "1") throw new Error("研究工作台仅支持本机访问");
@@ -82,7 +92,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       const pathname = (req.url ?? "/").split("?")[0]!;
       if (pathname.startsWith("/finance-api") || pathname.startsWith("/api/") || pathname.startsWith("/plugins/")
         || pathname.startsWith("/assets/") || pathname.startsWith("/finance-research/") || pathname.startsWith("/finance-notes")
-        || pathname === "/finance-stage-model" || pathname === "/finance-model" || pathname === "/finance-host" || pathname === "/finance-note-digest"
+        || pathname === "/finance-model" || pathname === "/finance-host" || pathname === "/finance-note-digest"
         || pathname === "/finance-topic-sessions" || pathname === "/finance-background-tasks" || pathname === "/finance-wiki-publish" || pathname === "/finance-ui.css"
         || pathname === "/finance-pdfium.wasm" || pathname === "/finance-icon.svg" || pathname === "/favicon.svg" || pathname === "/manifest.webmanifest") return next();
       // A full document request receives the untouched DSH index including its boot kernel.
@@ -102,7 +112,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     configResolved(config) {
       for (const section of [config.server, config.preview]) {
         section.proxy = {
-          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-wiki-publish", "/finance-stage-model", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
+          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-wiki-publish", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
             target, ws: true, changeOrigin: true,
             configure(proxy: import("vite").HttpProxy.Server) {
               const authorize = (request: import("node:http").ClientRequest, incoming: IncomingMessage) => {

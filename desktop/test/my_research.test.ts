@@ -168,6 +168,7 @@ test("开发代理把宿主绑定和发布入口转到 DSH", () => {
   for (const route of ["/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-notes", "/finance-wiki-publish"]) {
     assert.match(source, new RegExp(route.replace("/", "\\/")));
   }
+  assert.doesNotMatch(source, /finance-stage-model/);
 });
 
 test("板块中心目录页不会把空 key 当成第一项行业", () => {

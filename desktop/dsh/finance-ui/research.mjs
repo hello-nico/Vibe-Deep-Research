@@ -81,7 +81,7 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
 }
 
 export function installResearchApi(ctx) {
-  ctx.webServer.register({ kind: 'prefix', path: '/finance-research', async handler(req, res) {
+  return ctx.webServer.register({ kind: 'prefix', path: '/finance-research', async handler(req, res) {
     const url = new URL(req.url, 'http://localhost');
     const route = url.pathname.slice('/finance-research'.length);
     res.setHeader('Cache-Control', 'no-store');
@@ -91,7 +91,7 @@ export function installResearchApi(ctx) {
 }
 
 export function installWikiPublish(ctx) {
-  ctx.webServer.register({ kind: 'exact', path: '/finance-wiki-publish', async handler(req, res) {
+  return ctx.webServer.register({ kind: 'exact', path: '/finance-wiki-publish', async handler(req, res) {
     res.setHeader('Cache-Control', 'no-store');
     if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
     await proxyResearch(req, res, { route: '/wiki/page-drafts/publish', search: '', injectHook: true });
