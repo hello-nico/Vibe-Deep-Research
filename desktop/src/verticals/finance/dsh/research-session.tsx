@@ -11,6 +11,7 @@ export interface ResearchSessions {
   start(question: string, company?: { symbol: string; name: string }): Promise<void>;
   restoreTopic(topicId: string, title?: string, signal?: AbortSignal): Promise<TopicSessionMatch>;
   startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }): Promise<void>;
+  openSession(sessionId: string): Promise<void>;
   topicSessionMatches(topicId: string): boolean;
   subscribeSession(listener: () => void): () => void;
 }

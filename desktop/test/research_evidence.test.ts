@@ -24,6 +24,8 @@ test('网页预览只取本轮、回答之前的成功检索结果', async () =>
     const snapshot = { legacy: { nodes: [{ kind: 'assistant', messageId: 'answer', turn: 2, seq: 10 }] }, nodes,
       locations: { getTurn: (turn: number) => turn === 2 ? ['good', 'late', 'error', 'other'] : ['old'] } };
     assert.deepEqual([...searchPreviews(snapshot, 'answer').sources], [[url, { title: '本轮标题', summary: '真实摘要' }]]);
+    nodes.set('good', tool('新版工具标题', 8, false, 'search_external'));
+    assert.deepEqual([...searchPreviews(snapshot, 'answer').sources], [[url, { title: '新版工具标题', summary: '真实摘要' }]]);
     assert.equal(searchPreviews(snapshot, 'missing'), null);
     nodes.set('good', { kind: 'tool-call', data: { root: { kind: 'tool-result', seq: 8, isError: false, call: { name: 'stock_search_external' }, content: [{ type: 'text', text: 'not JSON' }] } } });
     assert.equal(searchPreviews(snapshot, 'answer').sources.size, 0);

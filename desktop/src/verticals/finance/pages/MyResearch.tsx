@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Archive, BookOpen, NotebookPen, Plus, RotateCcw } from "lucide-react";
+import { Archive, BookOpen, ListTodo, NotebookPen, Plus, RotateCcw } from "lucide-react";
+import { ResearchSessionContext } from "../dsh/research-session";
 import { PageHeader } from "../components/ui/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Disclaimer } from "../components/ui/Disclaimer";
@@ -23,10 +24,16 @@ import {
 } from "../lib/research";
 import { useAiPage } from "../../../core/ai/pageContext";
 
+const TASK_STATUS: Record<string, string> = {
+  running: "执行中", waiting_ingest: "等待报告入库", interrupted: "已中断", no_increment: "无新增",
+  awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消",
+};
+
 export function MyResearch() {
   const navigate = useNavigate();
+  const researchSessions = useContext(ResearchSessionContext);
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "notes" ? "notes" : "topics";
+  const tab = params.get("tab") === "notes" ? "notes" : params.get("tab") === "tasks" ? "tasks" : "topics";
   const status = params.get("status") === "archived" ? "archived" : "active";
   const [query, setQuery] = useState("");
   const [topics, setTopics] = useState<ResearchTopicSummary[] | null>(null);
@@ -42,6 +49,8 @@ export function MyResearch() {
   const [notesError, setNotesError] = useState(notesLoadError()?.message || "");
   const [notesBusy, setNotesBusy] = useState(false);
   const [notesTick, setNotesTick] = useState(0);
+  const [tasks, setTasks] = useState<{ id: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null>(null);
+  const [tasksError, setTasksError] = useState("");
   const [topicQuestion, setTopicQuestion] = useState("");
   const [topicRouteResult, setTopicRouteResult] = useState<ResearchTopicRouteResult | null>(null);
   const [topicRouteError, setTopicRouteError] = useState("");
@@ -83,6 +92,28 @@ export function MyResearch() {
     }).finally(() => { if (!controller.signal.aborted) setNotesBusy(false); });
     return () => controller.abort();
   }, [tab, query, notesOffset, notesTick]);
+  useEffect(() => {
+    if (tab !== "tasks") return;
+    const controller = new AbortController();
+    let first = true;
+    const load = () => fetch("/finance-background-tasks", { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error("任务读取失败");
+        const body = await response.json() as { items?: typeof tasks };
+        if (!controller.signal.aborted) {
+          setTasksError("");
+          setTasks(Array.isArray(body.items) ? body.items : []);
+        }
+      })
+      .catch(e => {
+        if (!controller.signal.aborted && first) setTasksError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => { first = false; });
+    setTasksError(""); setTasks(null);
+    void load();
+    const timer = window.setInterval(() => { void load(); }, 4000);
+    return () => { controller.abort(); window.clearInterval(timer); };
+  }, [tab]);
   const replaceParams = (mutate: (next: URLSearchParams) => void) => {
     const next = new URLSearchParams(params);
     mutate(next);
@@ -96,10 +127,10 @@ export function MyResearch() {
     topicRouteTimer.current = null;
     setTopicRouteBusy(false);
   };
-  const setTab = (value: "topics" | "notes") => {
-    if (value === "notes") cancelTopicRoute();
+  const setTab = (value: "topics" | "notes" | "tasks") => {
+    if (value === "notes" || value === "tasks") cancelTopicRoute();
     replaceParams(next => {
-      if (value === "notes") next.set("tab", "notes"); else next.delete("tab");
+      if (value === "notes" || value === "tasks") next.set("tab", value); else next.delete("tab");
     });
     if (value === "notes") setNotesOffset(0);
   };
@@ -180,18 +211,20 @@ export function MyResearch() {
     title: "我的研究",
     context: tab === "notes"
       ? (notesError ? "记录读取失败" : (notes?.length ? `独立沉淀记录 ${notesTotal || notes.length} 条` : "还没有独立沉淀记录"))
+      : tab === "tasks"
+        ? (tasksError ? "任务读取失败" : (tasks?.length ? `知识整理 ${tasks.length} 条` : "还没有任务"))
       : (topics?.length ? `${status === "archived" ? "已归档" : "研究中"}议题 ${topics.length} 个` : status === "archived" ? "还没有已归档议题" : "还没有研究中的议题"),
     suggestions: ["帮我找出现在最该继续的电力议题", "这些记录里哪些和行业议题有关"],
   });
   return <div>
     <PageHeader title="我的研究" subtitle="继续未完成的议题，或回看已归档的问题和记录。" />
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <WorkspaceFilter aria-label="研究类型" value={tab} onChange={setTab} options={[{ value: "topics", label: "议题" }, { value: "notes", label: "记录" }]} />
+      <WorkspaceFilter aria-label="研究类型" value={tab} onChange={setTab} options={[{ value: "topics", label: "议题" }, { value: "notes", label: "记录" }, { value: "tasks", label: "任务" }]} />
       {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
     </div>
-    <WorkspaceSearch placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />
+    {tab !== "tasks" && <WorkspaceSearch placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
     {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-    {tab === "topics" ? <>
+    {tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpen={id => researchSessions?.openSession(id)} /> : tab === "topics" ? <>
       <GlassCard className="mb-5">
         <form onSubmit={startTopic}>
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
@@ -261,6 +294,30 @@ export function MyResearch() {
     </> : <NotesPanel notes={notes} total={notesTotal} busy={notesBusy} error={notesError} offset={notesOffset} nextOffset={notesNext} onPage={setNotesOffset} onRetry={() => setNotesTick(value => value + 1)} />}
     <Disclaimer />
   </div>;
+}
+
+function BackgroundTaskList({ tasks, error, onOpen }: {
+  tasks: { id: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null;
+  error: string; onOpen?: (sessionId: string) => void | Promise<void>;
+}) {
+  if (error) return <GlassCard><p role="alert" className="text-sm text-destructive">{error}</p></GlassCard>;
+  if (!tasks) return <ResearchLoading title="正在读取任务" sections={["执行状态", "成果摘要"]} />;
+  if (!tasks.length) return <GlassCard><div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话结束后若有原文缺口才会出现在这里，不会自动建立议题。</div></GlassCard>;
+  return <div className="space-y-2">{tasks.map(task => {
+    const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
+    const sessionId = task.parent_session_id || task.child_session_id;
+    return <GlassCard key={task.id} className="!p-4">
+      <p className="text-xs text-muted-foreground">{TASK_STATUS[task.display_status || ""] || task.display_status || "未知"}</p>
+      <h2 className="mt-2 text-base font-semibold">{task.title || "知识整理"}</h2>
+      <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{task.summary || task.question || "无摘要"}</p>
+      <p className="mt-3 text-xs text-muted-foreground">{task.targets?.join("、") || "未绑定公司页"}{task.started_at ? ` · ${new Date(task.started_at).toLocaleString("zh-CN")}` : ""}{duration != null ? ` · ${duration} 秒` : ""}</p>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpen?.(sessionId)}>查看来源对话</button>}
+        {task.child_session_id && task.child_session_id !== sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpen?.(task.child_session_id!)}>打开执行记录</button>}
+        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ""))}`}>打开目标 Wiki</Link>}
+      </div>
+    </GlassCard>;
+  })}</div>;
 }
 
 function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onRetry }: {

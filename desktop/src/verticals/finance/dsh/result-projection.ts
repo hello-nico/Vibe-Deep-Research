@@ -22,7 +22,8 @@ function resultReference(content: readonly { type: string; text?: string }[]) {
 export const resultDefinition: ConversationNodeDefinition<State> = {
   kind: 'finance-result', target: 'chat',
   match(event) {
-    if (event.type === 'tool/call' && ['stock_generate_market_result', 'stock_generate_financial_result'].includes(event.data.name))
+    if (event.type === 'tool/call' && ['generate_market_result', 'generate_financial_result',
+      'stock_generate_market_result', 'stock_generate_financial_result'].includes(event.data.name))
       return { id: String(event.data.callId), role: 'start' };
     if (event.type === 'tool/result') return { id: String(event.data.message.source.callId), role: 'update' };
     return null;

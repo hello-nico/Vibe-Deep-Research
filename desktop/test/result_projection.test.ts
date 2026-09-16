@@ -11,6 +11,10 @@ const project = (event: ReturnType<typeof result>) => definition.update({ state:
 const call = (name: string, callId = 'call-1') => ({ type: 'tool/call', seq: 4, data: { name, callId } });
 
 test('only result generation calls create display nodes', () => {
+  assert.deepEqual(definition.match(call('generate_market_result') as never), { id: 'call-1', role: 'start' });
+  assert.deepEqual(definition.match(call('generate_financial_result', 'call-2') as never), { id: 'call-2', role: 'start' });
+  assert.equal(definition.match(call('read_research_result', 'call-read') as never), null);
+  assert.equal(definition.match(call('calculate_market_result', 'call-calculate') as never), null);
   assert.deepEqual(definition.match(call('stock_generate_market_result') as never), { id: 'call-1', role: 'start' });
   assert.deepEqual(definition.match(call('stock_generate_financial_result', 'call-2') as never), { id: 'call-2', role: 'start' });
   assert.equal(definition.match(call('stock_read_research_result', 'call-read') as never), null);

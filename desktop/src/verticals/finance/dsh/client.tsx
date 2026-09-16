@@ -215,6 +215,13 @@ export function apply(ctx: Context) {
     if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
       throw new Error('议题研究未被接收，请检查模型设置后重试');
     }
+  }, async openSession(sessionId: string) {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    await client.sessions.refresh();
+    if (!client.sessions.list.getSnapshot().byId[sessionId]) throw new Error('找不到该执行记录');
+    remember(sessionId);
+    await router.navigate('/');
   }, topicSessionMatches(topicId: string) {
     return openedTopicId === topicId && !!openedSessionId;
   }, subscribeSession(listener: () => void) {

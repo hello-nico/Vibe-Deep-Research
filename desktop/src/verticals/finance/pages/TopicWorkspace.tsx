@@ -116,9 +116,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   }, [topicId]);
   const prompt = (fresh = false) => [
     `当前议题：${topic?.title || topicId}（${topicId}）。`,
-    "产品已提供可分页的沉淀记录。请用 stock_list_product_notes 翻页，并用 stock_read_product_note 补读正文后再提议相关记录。",
-    "用户确认前不要声称已写入关联。Theme / Comparison 用 stock_read_composition_skill 与 stock_validate_page_draft；校验成功不等于已发布。",
-    "先读取 stock_list_research_links 的当前议题已有关系；已关联记录不重复提议，不把旧会话中的提案状态当作当前状态。",
+    "产品已提供可分页的沉淀记录。请用 note_list 翻页，并用 note_read 补读正文后再提议相关记录。",
+    "用户确认前不要声称已写入关联。Theme / Comparison 用 read_composition_skill 与 wiki_validate_page_draft；校验成功不等于已发布。",
+    "先读取 topic_list_links 的当前议题已有关系；已关联记录不重复提议，不把旧会话中的提案状态当作当前状态。",
     fresh ? "这是同一议题的新会话，读取持久 Topic / Wiki / Link 继续，不要复制旧会话全文。" : "继续当前议题研究。",
   ].join("\n");
   const start = async (fresh = false) => {

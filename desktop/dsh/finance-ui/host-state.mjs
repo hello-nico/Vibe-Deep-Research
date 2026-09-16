@@ -44,6 +44,51 @@ export function topicSessionPath() {
   return path.join(researchDir(), 'topic-sessions.json');
 }
 
+export function backgroundTasksPath() {
+  return path.join(researchDir(), 'background-tasks.json');
+}
+
+const RUNNING_STALE_MS = 180000;
+
+export function displayBackgroundStatus(task, now = Date.now()) {
+  if (!task || typeof task !== 'object') return 'failed';
+  if (task.finished_at) return task.status;
+  if (task.status === 'running') {
+    const started = Date.parse(task.started_at || '');
+    if (!Number.isFinite(started) || now - started > RUNNING_STALE_MS) return 'interrupted';
+    return 'running';
+  }
+  return task.status || 'failed';
+}
+
+export function loadBackgroundTasks() {
+  const data = readJson(backgroundTasksPath(), { tasks: [] });
+  const tasks = Array.isArray(data.tasks) ? data.tasks : [];
+  const now = Date.now();
+  return tasks.map(task => ({ ...task, ingest: Array.isArray(task.ingest) ? task.ingest.map(job => ({ ...job })) : task.ingest, display_status: displayBackgroundStatus(task, now) }));
+}
+
+export async function overlayIngestStatus(tasks) {
+  await Promise.all((tasks || []).flatMap(task => (task.ingest || []).map(async job => {
+    if (!job?.job_id || ['ready', 'failed'].includes(job.status)) return;
+    try {
+      const response = await fetch(`${backendBase()}/wiki/periodic-reports/jobs/${encodeURIComponent(job.job_id)}`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) });
+      if (!response.ok) return;
+      const latest = await response.json();
+      if (latest.status) job.status = latest.status;
+      if (latest.document_id) job.document_id = latest.document_id;
+    } catch { /* listing still shows the last recorded job status */ }
+  })));
+  for (const task of tasks || []) {
+    const pending = (task.ingest || []).some(job => job.job_id && !['ready', 'failed'].includes(job.status));
+    if (!pending && task.status === 'waiting_ingest') {
+      task.status = task.draft_token ? 'awaiting_authorization' : 'partial';
+    }
+    task.display_status = displayBackgroundStatus(task);
+  }
+  return tasks;
+}
+
 export function loadTopicSessions() {
   const data = readJson(topicSessionPath(), { sessions: {}, topics: {} });
   return {
@@ -52,9 +97,29 @@ export function loadTopicSessions() {
   };
 }
 
-export function bindTopicSession({ topic_id, session_id, title }) {
+export function persistedSessionExists(sessionId) {
+  const home = (process.env.DSH_HOME || '').trim();
+  if (!home || !SESSION_ID.test(sessionId || '')) return false;
+  const root = path.join(home, 'sessions');
+  let entries;
+  try { entries = fs.readdirSync(root, { withFileTypes: true }); }
+  catch (error) { if (error.code === 'ENOENT') return false; throw error; }
+  return entries.some(entry => entry.isDirectory() && (
+    fs.existsSync(path.join(root, entry.name, sessionId, 'session.jsonl.zstd'))
+    || fs.existsSync(path.join(root, entry.name, sessionId, 'session.jsonl'))
+  ));
+}
+
+function liveSessionExists(ctx, sessionId) {
+  try { return Boolean(ctx?.sessions?.get?.(sessionId)); }
+  catch { return false; }
+}
+
+export function bindTopicSession({ topic_id, session_id, title }, { sessionExists } = {}) {
   if (!TOPIC_ID.test(topic_id || '')) throw Object.assign(new Error('invalid topic'), { status: 422 });
   if (!SESSION_ID.test(session_id || '')) throw Object.assign(new Error('invalid session'), { status: 422 });
+  const exists = sessionExists || persistedSessionExists;
+  if (!exists(session_id)) throw Object.assign(new Error('session not found'), { status: 404 });
   const store = loadTopicSessions();
   if (store.sessions[session_id] && store.sessions[session_id].topic_id !== topic_id) {
     throw Object.assign(new Error('session already belongs to another topic'), { status: 409 });
@@ -88,38 +153,50 @@ async function proxyNotes(req, res, route) {
   res.end(body);
 }
 
-export function installHostState(ctx) {
-  ctx.webServer.register({ kind: 'exact', path: '/finance-topic-sessions', async handler(req, res) {
-    try {
-      if (req.method === 'GET') { send(res, 200, loadTopicSessions()); return; }
-      if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
-      const body = await readBody(req);
-      send(res, 200, bindTopicSession(body));
-    } catch (error) {
-      send(res, error.status || 500, { detail: error.message || 'topic session bind failed' });
-    }
-  } });
-  ctx.webServer.register({ kind: 'exact', path: '/finance-note-digest', async handler(req, res) {
-    try {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      await proxyNotes(req, res, '/notes?limit=40&offset=0');
-    } catch (error) {
-      send(res, error.status || 502, { detail: error.message || 'note digest failed' });
-    }
-  } });
-  ctx.webServer.register({ kind: 'prefix', path: '/finance-notes', async handler(req, res) {
-    try {
-      if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
-      const url = new URL(req.url, 'http://localhost');
-      const rest = url.pathname.slice('/finance-notes'.length);
-      if (!rest || rest === '/') {
-        const query = url.search || '?limit=40&offset=0';
-        await proxyNotes(req, res, `/notes${query}`);
-        return;
+export function installHostState(ctx, track = disposer => disposer) {
+  return [
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-background-tasks', async handler(req, res) {
+      try {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+        send(res, 200, { items: await overlayIngestStatus(loadBackgroundTasks()) });
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || 'background task list failed' });
       }
-      await proxyNotes(req, res, `/notes/${encodeURIComponent(decodeURIComponent(rest.slice(1)))}`);
-    } catch (error) {
-      send(res, error.status || 502, { detail: error.message || 'note read failed' });
-    }
-  } });
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-topic-sessions', async handler(req, res) {
+      try {
+        if (req.method === 'GET') { send(res, 200, loadTopicSessions()); return; }
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+        const body = await readBody(req);
+        send(res, 200, bindTopicSession(body, {
+          sessionExists: sessionId => liveSessionExists(ctx, sessionId) || persistedSessionExists(sessionId),
+        }));
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || 'topic session bind failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-note-digest', async handler(req, res) {
+      try {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+        await proxyNotes(req, res, '/notes?limit=40&offset=0');
+      } catch (error) {
+        send(res, error.status || 502, { detail: error.message || 'note digest failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'prefix', path: '/finance-notes', async handler(req, res) {
+      try {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+        const url = new URL(req.url, 'http://localhost');
+        const rest = url.pathname.slice('/finance-notes'.length);
+        if (!rest || rest === '/') {
+          const query = url.search || '?limit=40&offset=0';
+          await proxyNotes(req, res, `/notes${query}`);
+          return;
+        }
+        await proxyNotes(req, res, `/notes/${encodeURIComponent(decodeURIComponent(rest.slice(1)))}`);
+      } catch (error) {
+        send(res, error.status || 502, { detail: error.message || 'note read failed' });
+      }
+    } })),
+  ];
 }

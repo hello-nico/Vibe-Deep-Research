@@ -9,6 +9,8 @@
 
 ## 工作包
 
+2026-09-16 已确认的后续有界闭环：合并 Wiki 正文、关系导航、方法/示例读取；关系词汇退出普通深研，统一 DSH 注册名及产品消费者。校验原角色绑定、中止/错误归集、历史图表展示与核心页阅读状态。文档工具、动态能力加载、Backend/Pi 不在本轮改动范围。合并后的精确数量以注册结果为准，旧结果段为前一轮证据。
+
 1. 从真实 DSH request/header 提取全部工具、schema 和工具调用统计；与当前角色注册对照。
 2. 全工具覆盖职责、输入、输出、状态前置、副作用、错误恢复；区分真实失败和静态风险。
 3. 按真实业务场景提出保留、合并、限制可见、内部化和退役建议；不预设工具数量指标。
@@ -40,6 +42,16 @@
 
 - 数据迁移、Topic 清理、提交和 push；Backend 公开 API/持久化变更。
 - 恢复六阶段、引入新框架、重建事实准入或发布权限。
+
+## 同类读取收敛结果（2026-09-16）
+
+- 已合并核心/组合 Wiki 正文为 `wiki_read`、入出边/遍历为 `wiki_relations`、方法/示例为 `read_research_method`；关系词汇仅“我的研究”可见。其余工具统一去旧前缀，原始行情仍是通用计算的合法算子，因此用 `calculate_metrics` 而非财务专名。
+- 导航工具改为 Agent 作用域注册；中止与错误归集引用同一角色工具集合。Topic 原绑定权限保留，无旧名注册别名；产品保留历史生成/搜索事件展示，同步新 Topic 提示。
+- 使用本机安装的 GBrain operation schema，在真实 DSH ToolRuntime 注册得到普通深研 25 个、“我的研究”34 个。清单及验证日志在 `../.local/tool-convergence-2026-09-16/`；这不是现用服务的新模型请求。
+- `pnpm --dir dsh test`：72/72；产品 `npm test --prefix desktop`：88/88；`npm run build --prefix desktop` 与两仓 `git diff --check` 通过。新增回归覆盖核心页不可旁路、改名后中止/错误归集、角色目录、资源枚举、旧会话投影；HTTP/MCP/模型使用受控 fixture，实际 DSH 生命周期接线运行。
+- 真实 Backend 只读验证：`wiki_read` 返回 `companies/600674-sh` 已接受页面并保留 readPages；`read_research_result` 连读已有 243 行行情快照一致，未生成新成果。首次辅助查询误传证券代码而非对象 slug 返回 422；核对现有 API 后使用返回的对象 slug，不改 Backend 校验。
+- 独立差异审查发现搜索结果过期错误仍提示旧名；仅将 Backend 两处恢复文案改为运行时中立表达，API/缓存/Pi 行为不变。`pytest -q tests/test_external_search.py`：16 passed、2 项依赖弃用警告。其余无新增阻断问题。
+- 未重启现用 DSH/Backend、未进行新模型对照或真实 GBrain 图数据查询；没有创建 Topic、发布页面、提交或 push。本轮实现与机械回归完成，模型选择改善仍待同条件实际问题验证。
 
 ## Stop Conditions
 

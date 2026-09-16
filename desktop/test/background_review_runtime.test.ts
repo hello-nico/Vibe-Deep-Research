@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createRequire } from 'node:module';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { maintenanceDefinition, researchStatusDefinition } from '../src/verticals/finance/dsh/result-projection.ts';
 
 // Exercise the installed product runtime; only the model and Backend are controlled.
@@ -9,7 +12,7 @@ const runtime = async (name: string) => import(requireRuntime.resolve(`@deepseek
 const { Context } = await runtime('cordis');
 const { LlmAdapter } = await runtime('dsh-llm');
 const stock = new URL('../../../Stock-Research/dsh/dist/', import.meta.url);
-const { runBackgroundReview } = await import(new URL('background-review.mjs', stock).href);
+const { runBackgroundReview, listBackgroundTasks } = await import(new URL('background-review.mjs', stock).href);
 const { installResearchTools } = await import(new URL('research-tools.mjs', stock).href);
 const snapshot = {
   questionIdentity: 'first-question', question: '第一题材料快照', reviewed_as_of: '2026-09-15',
@@ -19,6 +22,17 @@ const snapshot = {
 const emptyResult = { noIncrementReason: '无增量', slug: '', baseInputHash: '', content: '', refs: [], rationale: '' };
 
 test('native spawn isolates requests, tools, completion and cancellation from parent', { timeout: 15000 }, async (t) => {
+  const previous = { enabled: process.env.STOCK_RESEARCH_ACCUMULATE, token: process.env.STOCK_RESEARCH_HOOK_TOKEN, home: process.env.DSH_HOME };
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'native-settlement-'));
+  process.env.DSH_HOME = home;
+  process.env.STOCK_RESEARCH_ACCUMULATE = '1';
+  process.env.STOCK_RESEARCH_HOOK_TOKEN = 'controlled-test-token';
+  t.after(() => {
+    for (const [key, value] of [['STOCK_RESEARCH_ACCUMULATE', previous.enabled], ['STOCK_RESEARCH_HOOK_TOKEN', previous.token], ['DSH_HOME', previous.home]]) {
+      if (value === undefined) delete process.env[key!]; else process.env[key!] = value;
+    }
+    fs.rmSync(home, { recursive: true, force: true });
+  });
   const ctx = new Context();
   const requests: any[] = [];
   let childStarted: () => void = () => {};
@@ -29,10 +43,15 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
   class ControlledModel extends LlmAdapter {
     async *stream(options: any) {
       requests.push(options);
-      const child = JSON.stringify(options.messages).includes('Compare the newly read original source blocks');
+      const packed = JSON.stringify(options.messages);
+      const child = packed.includes('Settle knowledge after the main answer');
       if (child) {
-        assert.deepEqual(options.tools.map((tool: any) => tool.name), ['structured_output']);
         childStarted();
+        const names = (options.tools || []).map((tool: any) => tool.name);
+        assert.ok(!names.includes('generate_market_result'));
+        assert.ok(!names.includes('topic_update'));
+        assert.ok(names.includes('source_read_blocks'));
+        assert.ok(names.includes('stage_extraction'));
         await new Promise<void>((resolve, reject) => {
           releaseChild = resolve;
           if (options.signal.aborted) reject(new Error('aborted'));
@@ -41,7 +60,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         if (mode === 'fail') throw new Error('controlled failure');
         yield { type: 'block-start', index: 0, blockType: 'tool-call' };
         const result = mode === 'draft' ? { noIncrementReason: '', slug: 'companies/test', baseInputHash: 'a'.repeat(64),
-          content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b1'], rationale: '新增原文' } : emptyResult;
+          content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文' } : emptyResult;
         yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: result } };
         yield { type: 'finish', reason: 'tool-calls' };
       } else {
@@ -75,7 +94,8 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       await Promise.race([started, outcome.then((result: any) => { throw result.error || new Error('child completed before model request'); })]);
       const child = ctx.agents.list().find((agent: any) => agent.id !== parent.id);
       assert.ok(child);
-      assert.equal(ctx.tools.get('stock_read_wiki_research', child), undefined);
+      assert.equal(ctx.tools.get('generate_market_result', child), undefined);
+      assert.equal(ctx.tools.get('topic_update', child), undefined);
       const before = requests.length;
       parent.followup({ content: [{ type: 'text', text: `后续问题 ${scenario}` }], source: { kind: 'user' } });
       await parent.whenIdle();
@@ -85,7 +105,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       else await new Promise(resolve => setTimeout(resolve, 120));
       const result = await outcome;
       if (scenario === 'complete') assert.equal(result.value.status, 'no_increment');
-      else assert.ok(result.error);
+      else assert.ok(result.error || result.value?.status === 'failed' || result.value?.status === 'cancelled');
       await new Promise(resolve => setImmediate(resolve));
       assert.equal(requests.length, before + 1, 'child result must not request another parent response');
       assert.equal(parent.inbox.hasPending, false);
@@ -104,16 +124,19 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       if (pathname.endsWith('/wiki/page-drafts/research')) {
         value = options.method === 'POST' ? { draft_token: 'controlled-draft', published: false }
           : { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64) };
-      } else if (pathname.endsWith('/blocks/b1')) {
-        value = { document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64), block_id: 'b1', text: '原文材料' };
+      } else if (pathname.endsWith('/wiki/extractions/finalize')) {
+        const body = JSON.parse(options.body);
+        value = { results: body.candidates.map(() => ({ outcome: 'accepted' })) };
+      } else if (/\/blocks\/b[12]$/.test(pathname)) {
+        value = { document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64), block_id: pathname.split('/').at(-1), text: '原文材料' };
       } else throw new Error(`Unexpected Backend request ${pathname}`);
       return new Response(JSON.stringify(value));
     });
     parent.followup({ content: [{ type: 'text', text: '读取原文并回答' }], source: { kind: 'user' } });
     await mainReady;
     for (const [name, args] of [
-      ['stock_read_wiki_research', { slug: 'companies/test' }],
-      ['stock_read_source_blocks', { sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b1'] }] }],
+      ['wiki_read', { slug: 'companies/test' }],
+      ['source_read_blocks', { sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b1'] }] }],
     ]) {
       const result = await ctx.tools.execute({ agent: parent, name, arguments: args, callId: name, signal: new AbortController().signal });
       assert.ok(!result.isError, JSON.stringify(result.content));
@@ -121,32 +144,155 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     releaseMain();
     await parent.whenIdle();
     await reviewReady;
+    const settlementChild = ctx.agents.list().find((agent: any) => agent.id !== parent.id);
+    const childRead = await ctx.tools.execute({ agent: settlementChild, name: 'source_read_blocks', arguments: {
+      sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b2'] }],
+    }, callId: 'child-read', signal: new AbortController().signal });
+    assert.ok(!childRead.isError, JSON.stringify(childRead.content));
+    const staged = await ctx.tools.execute({ agent: settlementChild, name: 'stage_extraction', arguments: {
+      document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64), block_id: 'b2', candidate_kind: 'entity',
+      entities: [{ key: 'company', entity_type: 'Company', canonical_name: '原文材料', entity_id: 'company:600011.SH' }],
+      supports: [{ block_id: 'b2', role: 'entity:company' }],
+    }, callId: 'child-stage', signal: new AbortController().signal });
+    assert.ok(!staged.isError, JSON.stringify(staged.content));
     assert.equal(parent.inbox.hasPending, false);
-    const status = parent.session.snapshotEvents().find((event: any) => event.type === 'stock-research/status');
-    assert.ok(status);
-    assert.ok(researchStatusDefinition.match(status));
-    assert.equal(researchStatusDefinition.start({} as never, { event: status } as never).text, status.data.text);
     const requestCount = requests.length;
-    const reviewDone = new Promise<void>(resolve => {
+    const reviewDone = new Promise<void>((resolve, reject) => {
       ctx.on('session/event', (session: any, event: any) => {
         if (session.id === parent.id && event.type === 'stock-research/maintenance') {
+          try {
           assert.equal(event.data.status, 'awaiting_authorization');
           assert.equal(event.data.question, '读取原文并回答');
+          assert.equal(event.data.extraction.accepted, 1);
           assert.ok(maintenanceDefinition.match(event));
           resolve();
+          } catch (error) { reject(error); }
         }
       });
     });
     releaseChild();
     await reviewDone;
+    const saved = listBackgroundTasks().find((task: any) => task.id === settlementChild.session.id);
+    assert.equal(saved.extraction.accepted, 1);
+    assert.equal(saved.draft_token, 'controlled-draft');
+    assert.equal(saved.parent_session_id, parent.session.id);
     assert.equal(requests.length, requestCount);
     assert.equal(parent.inbox.hasPending, false);
     assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'turn/start').length, 5);
+
+    // A renamed tool failure must still suppress maintenance for this question.
+    const failedTurnReady = new Promise<void>(resolve => { mainStarted = resolve; });
+    parent.followup({ content: [{ type: 'text', text: '来源失败时不启动维护' }], source: { kind: 'user' } });
+    await failedTurnReady;
+    for (const [name, args] of [
+      ['wiki_read', { slug: 'companies/test' }],
+      ['source_read_blocks', { sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b1'] }] }],
+    ]) {
+      const result = await ctx.tools.execute({ agent: parent, name, arguments: args, callId: name, signal: new AbortController().signal });
+      assert.ok(!result.isError);
+    }
+    const failed = await ctx.tools.execute({ agent: parent, name: 'search_external', arguments: { query: '来源请求失败' }, callId: 'failed-search', signal: new AbortController().signal });
+    assert.equal(failed.isError, true);
+    const beforeFailedClose = requests.length;
+    releaseMain();
+    await parent.whenIdle();
+    await parent.runMaintenance(async () => {});
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.length, beforeFailedClose, 'failed renamed tool must prevent a maintenance model call');
+    assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'stock-research/maintenance').length, 1);
+    await handle.dispose();
+  } finally { await ctx.fiber.dispose(); }
+});
+
+test('slow parent finalize does not delay the next user model request', { timeout: 15000 }, async t => {
+  const previous = { enabled: process.env.STOCK_RESEARCH_ACCUMULATE, token: process.env.STOCK_RESEARCH_HOOK_TOKEN, home: process.env.DSH_HOME };
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'native-finalize-'));
+  process.env.DSH_HOME = home;
+  process.env.STOCK_RESEARCH_ACCUMULATE = '1';
+  process.env.STOCK_RESEARCH_HOOK_TOKEN = 'controlled-test-token';
+  t.after(() => {
+    for (const [key, value] of [['STOCK_RESEARCH_ACCUMULATE', previous.enabled], ['STOCK_RESEARCH_HOOK_TOKEN', previous.token], ['DSH_HOME', previous.home]]) {
+      if (value === undefined) delete process.env[key!]; else process.env[key!] = value;
+    }
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const ctx = new Context();
+  const requests: any[] = [];
+  let mainStarted: () => void = () => {};
+  let releaseMain: () => void = () => {};
+  let releaseFinalize: () => void = () => {};
+  const finalizeStarted = Promise.withResolvers<void>();
+  const followupStarted = Promise.withResolvers<number>();
+  class ControlledModel extends LlmAdapter {
+    async *stream(options: any) {
+      requests.push(options);
+      if (requests.length === 1) {
+        mainStarted();
+        await new Promise<void>(resolve => { releaseMain = resolve; });
+      } else {
+        followupStarted.resolve(Date.now());
+      }
+      yield { type: 'block-start', index: 0, blockType: 'text' };
+      yield { type: 'block-end', index: 0, block: { type: 'text', text: '主回答完成' } };
+      yield { type: 'finish', reason: 'stop' };
+    }
+  }
+  try {
+    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
+      await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' } : {});
+    }
+    await ctx.plugin(await runtime('dsh-subagent-spawn-in-process'), {});
+    ctx.llm.registerAdapter(['controlled'], new ControlledModel());
+    await ctx.plugin(Object.assign((inner: any) => installResearchTools(inner, async () => ({ tools: [], close() {} })),
+      { inject: ['tools', 'agents', 'subagents', 'skills', 'systemPrompt'] }));
+    t.mock.method(globalThis, 'fetch', async (url: any, options: any) => {
+      const pathname = new URL(url).pathname;
+      if (pathname.endsWith('/wiki/extractions/finalize')) {
+        finalizeStarted.resolve();
+        await new Promise<void>(resolve => { releaseFinalize = resolve; });
+        const body = JSON.parse(options.body);
+        return new Response(JSON.stringify({ results: (body.candidates || []).map(() => ({ outcome: 'accepted' })) }));
+      }
+      if (/\/blocks\//.test(pathname)) {
+        return new Response(JSON.stringify({
+          document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64),
+          block_id: pathname.split('/').at(-1), text: '原文材料',
+        }));
+      }
+      throw new Error(`Unexpected Backend request ${pathname}`);
+    });
+    const handle = await ctx.agents.create({ sessionId: 'finalize-runtime-parent', agentOptions: { provider: 'controlled', model: 'controlled' } });
+    const parent = handle.agent;
+    const mainReady = new Promise<void>(resolve => { mainStarted = resolve; });
+    parent.followup({ content: [{ type: 'text', text: '读取原文并回答' }], source: { kind: 'user' } });
+    await mainReady;
+    const read = await ctx.tools.execute({
+      agent: parent, name: 'source_read_blocks',
+      arguments: { sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b1'] }] },
+      callId: 'read', signal: new AbortController().signal,
+    });
+    assert.ok(!read.isError, JSON.stringify(read.content));
+    releaseMain();
+    await finalizeStarted.promise;
+    const queuedAt = Date.now();
+    parent.followup({ content: [{ type: 'text', text: '立刻下一问' }], source: { kind: 'user' } });
+    const followupAt = await Promise.race([
+      followupStarted.promise,
+      new Promise<number>((_resolve, reject) => setTimeout(() => reject(new Error('followup blocked by finalize')), 1000)),
+    ]);
+    assert.ok(followupAt - queuedAt < 1000);
+    assert.equal(requests.length, 2);
+    assert.ok(!JSON.stringify(requests.at(-1).messages).includes('读取原文并回答') || JSON.stringify(requests.at(-1).messages).includes('立刻下一问'));
+    releaseFinalize();
+    await parent.whenIdle();
     await handle.dispose();
   } finally { await ctx.fiber.dispose(); }
 });
 
 test('maintenance projection is silent except for validated drafts and keeps question identity', () => {
+  const status = { type: 'stock-research/status', data: { text: '未授权写入' } };
+  assert.ok(researchStatusDefinition.match(status as never));
+  assert.equal(researchStatusDefinition.start({} as never, { event: status } as never).text, status.data.text);
   const event = (status: string) => ({ type: 'stock-research/maintenance', seq: 12, data: {
     status, questionIdentity: 'question-a', proposal: { research_blocks: [{ content: '草案正文' }] },
     draft: { draft_token: 'test-token', published: false },

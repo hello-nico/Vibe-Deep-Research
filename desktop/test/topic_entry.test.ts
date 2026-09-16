@@ -143,5 +143,5 @@ test("页面卸载、输入变化和延迟导航都有旧响应保护", () => {
   assert.match(source, /topicRouteMounted\.current && attempt === topicRouteAttempt\.current/);
   assert.match(source, /startResearchTopic\(request, controller\.signal\)/);
   assert.match(source, /topicRouteBusy \|\| topicRouteController\.current/);
-  assert.match(source, /if \(value === "notes"\) cancelTopicRoute\(\)/);
+  assert.match(source, /if \(value === "notes" \|\| value === "tasks"\) cancelTopicRoute\(\)/);
 });

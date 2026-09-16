@@ -13,7 +13,8 @@ export function searchPreviews(snapshot: ChatSnapshot, messageId: string) {
     const node = snapshot.nodes.get(key);
     if (node?.kind !== 'tool-call') continue;
     const { root } = node.data as { root: ToolCallBlock };
-    if (!('kind' in root) || root.kind !== 'tool-result' || root.isError || root.seq > closing.seq || root.call?.name !== 'stock_search_external') continue;
+    if (!('kind' in root) || root.kind !== 'tool-result' || root.isError || root.seq > closing.seq
+      || !['search_external', 'stock_search_external'].includes(root.call?.name ?? '')) continue;
     for (const block of root.content) {
       if (block.type !== 'text') continue;
       let payload;
