@@ -1,10 +1,18 @@
 # Product composition owns the global persona and general-purpose permissions.
 # Research bundles register domain tools; they do not redefine this policy.
+# surfaceContext is a developer-orientation injection (checkout path and GUI URL);
+# the product research assistant must not receive it.
 - id: system-prompt
   config:
     includeHarnessIdentity: false
     includeRuntimeContext: false
     persona: ""
+- id: web-runtime
+  config:
+    openBrowser: !!js ctx.webStartup.openBrowser
+    printUrl: true
+    surfaceContext: false
+    trustedHosts: !!js ctx.webStartup.trustedHosts
 - id: tool-bash
   name: "@deepseek-ai/dsh-tool-bash"
   disabled: true

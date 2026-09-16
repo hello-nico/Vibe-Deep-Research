@@ -82,5 +82,7 @@ export function prepareDshPaths(paths: Pick<ReturnType<typeof resolveDshPaths>, 
   }
   assertSeparate(fs.realpathSync(paths.home), fs.realpathSync(paths.workspace));
   const manifest = JSON.parse(fs.readFileSync(path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/package.json"), "utf8"));
-  if (manifest.version !== "0.1.2-rc.1") throw new Error("研究工作台需要 DSH 0.1.2-rc.1 运行环境");
+  if (manifest.version !== "0.1.2-rc.1") {
+    throw new Error(`研究工作台需要 DSH 0.1.2-rc.1 运行环境，当前为 ${manifest.version || "未知版本"}`);
+  }
 }

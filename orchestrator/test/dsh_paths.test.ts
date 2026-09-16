@@ -28,6 +28,19 @@ test("DSH state and workspace cannot overlap, including symlink aliases", t => {
   assert.throws(() => prepareDshPaths({ home, workspace: alias, runtime: root }), /不能相同/);
 });
 
+test("DSH version mismatch names expected and actual versions", t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-dsh-version-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const home = path.join(root, "state");
+  const workspace = path.join(root, "work");
+  const runtime = path.join(root, "runtime");
+  fs.mkdirSync(home);
+  fs.mkdirSync(workspace);
+  fs.mkdirSync(path.join(runtime, "node_modules/@deepseek-ai/dsh"), { recursive: true });
+  fs.writeFileSync(path.join(runtime, "node_modules/@deepseek-ai/dsh/package.json"), JSON.stringify({ version: "9.9.9" }));
+  assert.throws(() => prepareDshPaths({ home, workspace, runtime }), /需要 DSH 0\.1\.2-rc\.1.*当前为 9\.9\.9/);
+});
+
 test("researchRuntimeEnv injects hook into the child process env only", t => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-dsh-hook-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
