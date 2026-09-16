@@ -23,6 +23,7 @@ import {
   type ResearchTopicSummary,
 } from "../lib/research";
 import { useAiPage } from "../../../core/ai/pageContext";
+import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
 const TASK_STATUS: Record<string, string> = {
   running: "执行中", waiting_ingest: "等待报告入库", interrupted: "已中断", no_increment: "无新增",
@@ -33,7 +34,7 @@ export function MyResearch() {
   const navigate = useNavigate();
   const researchSessions = useContext(ResearchSessionContext);
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "notes" ? "notes" : params.get("tab") === "tasks" ? "tasks" : "topics";
+  const tab = params.get("tab") === "notes" ? "notes" : params.get("tab") === "tasks" ? "tasks" : params.get("tab") === "memory" ? "memory" : "topics";
   const status = params.get("status") === "archived" ? "archived" : "active";
   const [query, setQuery] = useState("");
   const [topics, setTopics] = useState<ResearchTopicSummary[] | null>(null);
@@ -127,10 +128,10 @@ export function MyResearch() {
     topicRouteTimer.current = null;
     setTopicRouteBusy(false);
   };
-  const setTab = (value: "topics" | "notes" | "tasks") => {
-    if (value === "notes" || value === "tasks") cancelTopicRoute();
+  const setTab = (value: "topics" | "notes" | "tasks" | "memory") => {
+    if (value !== "topics") cancelTopicRoute();
     replaceParams(next => {
-      if (value === "notes" || value === "tasks") next.set("tab", value); else next.delete("tab");
+      if (value === "notes" || value === "tasks" || value === "memory") next.set("tab", value); else next.delete("tab");
     });
     if (value === "notes") setNotesOffset(0);
   };
@@ -213,18 +214,20 @@ export function MyResearch() {
       ? (notesError ? "记录读取失败" : (notes?.length ? `独立沉淀记录 ${notesTotal || notes.length} 条` : "还没有独立沉淀记录"))
       : tab === "tasks"
         ? (tasksError ? "任务读取失败" : (tasks?.length ? `知识整理 ${tasks.length} 条` : "还没有任务"))
+      : tab === "memory"
+        ? "用户画像、近期记忆与 Topic 建议"
       : (topics?.length ? `${status === "archived" ? "已归档" : "研究中"}议题 ${topics.length} 个` : status === "archived" ? "还没有已归档议题" : "还没有研究中的议题"),
     suggestions: ["帮我找出现在最该继续的电力议题", "这些记录里哪些和行业议题有关"],
   });
   return <div>
     <PageHeader title="我的研究" subtitle="继续未完成的议题，或回看已归档的问题和记录。" />
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <WorkspaceFilter aria-label="研究类型" value={tab} onChange={setTab} options={[{ value: "topics", label: "议题" }, { value: "notes", label: "记录" }, { value: "tasks", label: "任务" }]} />
+      <WorkspaceFilter aria-label="研究类型" value={tab} onChange={setTab} options={[{ value: "topics", label: "议题" }, { value: "notes", label: "记录" }, { value: "tasks", label: "任务" }, { value: "memory", label: "记忆" }]} />
       {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
     </div>
-    {tab !== "tasks" && <WorkspaceSearch placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
+    {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
     {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-    {tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpen={id => researchSessions?.openSession(id)} /> : tab === "topics" ? <>
+    {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpen={id => researchSessions?.openSession(id)} /> : tab === "topics" ? <>
       <GlassCard className="mb-5">
         <form onSubmit={startTopic}>
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
@@ -371,5 +374,94 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
       <button className="workspace-action" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - 40))}>上一页</button>
       <button className="workspace-action" disabled={nextOffset === null} onClick={() => nextOffset !== null && onPage(nextOffset)}>下一页</button>
     </div>}
+  </div>;
+}
+
+function MemoryPanel() {
+  const [soul, setSoul] = useState<MemoryDoc | null>(null);
+  const [recent, setRecent] = useState<MemoryDoc | null>(null);
+  const [candidates, setCandidates] = useState<TopicCandidate[] | null>(null);
+  const [choices, setChoices] = useState<Record<string, NonNullable<ResearchTopicRouteResult['candidates']>>>({});
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState("");
+  const [editId, setEditId] = useState("");
+  const [editText, setEditText] = useState("");
+  const reload = () => {
+    setError("");
+    void Promise.all([loadMemory("soul"), loadMemory("recent"), loadCandidates()]).then(([nextSoul, nextRecent, listed]) => {
+      setSoul(nextSoul); setRecent(nextRecent); setCandidates(listed.items);
+    }).catch(err => setError(err instanceof Error ? err.message : "记忆读取失败"));
+  };
+  useEffect(() => {
+    reload();
+    const changed = () => { void loadCandidates().then(listed => setCandidates(listed.items)).catch(err => setError(err instanceof Error ? err.message : "候选读取失败")); };
+    window.addEventListener(CANDIDATE_CHANGED, changed);
+    return () => window.removeEventListener(CANDIDATE_CHANGED, changed);
+  }, []);
+  const save = async (kind: "soul" | "recent", id: string, version: number, text: string) => {
+    setBusy(id);
+    try {
+      const next = await saveMemory(kind, version, [{ op: "upsert", id, stance: "corrected", text, user_authorized: true }]);
+      if (kind === "soul") setSoul(next); else setRecent(next);
+      setEditId("");
+    } catch (err) { setError(err instanceof Error ? err.message : "纠正失败"); }
+    finally { setBusy(""); }
+  };
+  const remove = async (kind: "soul" | "recent", id: string, version: number) => {
+    setBusy(id);
+    try {
+      const next = await saveMemory(kind, version, [{ op: "delete", id }]);
+      if (kind === "soul") setSoul(next); else setRecent(next);
+    } catch (err) { setError(err instanceof Error ? err.message : "删除失败"); }
+    finally { setBusy(""); }
+  };
+  const act = async (item: TopicCandidate, action: "adopt" | "ignore", topicId?: string) => {
+    setBusy(item.id);
+    setError("");
+    try {
+      const next = action === "adopt" ? await adoptCandidate(item, topicId) : await disposeCandidate(item.id, "ignored");
+      setCandidates(list => (list || []).map(row => row.id === item.id ? next : row));
+      setChoices(previous => ({ ...previous, [item.id]: [] }));
+    } catch (err) {
+      if (err instanceof CandidateChoiceNeeded) setChoices(previous => ({ ...previous, [item.id]: err.candidates }));
+      else setError(err instanceof Error ? err.message : "候选处理失败");
+    }
+    finally { setBusy(""); }
+  };
+  const STANCE: Record<string, string> = { stated: "明确表达", inferred: "推断", corrected: "已纠正" };
+  const section = (title: string, doc: MemoryDoc | null, kind: "soul" | "recent") => <GlassCard className="mb-4">
+    <h2 className="text-base font-semibold">{title}</h2>
+    {!doc && !error && <p className="mt-2 text-sm text-muted-foreground">正在读取…</p>}
+    {doc && doc.entries.length === 0 && <p className="mt-2 text-sm text-muted-foreground">还没有条目。</p>}
+    {doc?.entries.map(item => <div key={item.id} className="mt-3 border-t border-border/40 pt-3 text-sm">
+      <p><span className="text-xs text-muted-foreground">{STANCE[item.stance] || item.stance}</span> {item.text}</p>
+      {item.source_session && <p className="mt-1 text-xs text-muted-foreground">来源会话 {item.source_session}{item.source_turn != null ? ` · 第 ${item.source_turn} 轮` : ""}</p>}
+      {editId === item.id && <textarea className="workspace-field mt-2 min-h-16 w-full" value={editText} onChange={event => setEditText(event.target.value)} />}
+      <div className="mt-2 flex flex-wrap gap-2">
+        {editId === item.id
+          ? <button type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void save(kind, item.id, doc.version, editText)}>保存纠正</button>
+          : <button type="button" className="workspace-action workspace-action-compact" onClick={() => { setEditId(item.id); setEditText(item.text); }}>纠正</button>}
+        <button type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void remove(kind, item.id, doc.version)}>删除</button>
+      </div>
+    </div>)}
+  </GlassCard>;
+  return <div>
+    {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
+    {section("用户画像", soul, "soul")}
+    {section("近期研究记忆", recent, "recent")}
+    <GlassCard>
+      <h2 className="text-base font-semibold">Topic 建议</h2>
+      {candidates && candidates.length === 0 && <p className="mt-2 text-sm text-muted-foreground">还没有待处理建议。</p>}
+      {candidates?.map(item => <div key={item.id} className="mt-3 border-t border-border/40 pt-3 text-sm">
+        <p className="font-medium">{item.question}</p>
+        <p className="mt-1 text-muted-foreground">{item.reason}</p>
+        <p className="mt-1 text-xs">{item.status === "open" ? "待处理" : item.status === "adopted" ? "已采用" : "已忽略"}</p>
+        {item.status === "open" && choices[item.id]?.map(topic => <button key={topic.topic_id} type="button" className="workspace-action mt-2 mr-2" disabled={busy === item.id} onClick={() => void act(item, "adopt", topic.topic_id)}>继续：{topic.title}</button>)}
+        {item.status === "open" && <div className="mt-2 flex gap-2">
+          <button type="button" className="workspace-action" disabled={busy === item.id} onClick={() => void act(item, "adopt")}>采用</button>
+          <button type="button" className="workspace-action" disabled={busy === item.id} onClick={() => void act(item, "ignore")}>忽略</button>
+        </div>}
+      </div>)}
+    </GlassCard>
   </div>;
 }

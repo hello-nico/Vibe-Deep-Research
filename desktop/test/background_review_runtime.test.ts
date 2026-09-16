@@ -35,6 +35,10 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
   });
   const ctx = new Context();
   const requests: any[] = [];
+  t.mock.method(globalThis, 'fetch', async (url: any) => {
+    if (!String(url).includes('/wiki/research-memory')) throw new Error('Unexpected Backend request');
+    return new Response(JSON.stringify({ version: 1, entries: [{ stance: 'stated', text: '先给结论' }] }));
+  });
   let childStarted: () => void = () => {};
   let releaseChild: () => void = () => {};
   let mode = 'complete';
@@ -64,6 +68,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: result } };
         yield { type: 'finish', reason: 'tool-calls' };
       } else {
+        if (mode === 'cancel-main') throw new Error('controlled main failure');
         if (mode === 'draft') {
           mainStarted();
           await new Promise<void>(resolve => { releaseMain = resolve; });
@@ -86,6 +91,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     const parent = handle.agent;
     parent.followup({ content: [{ type: 'text', text: '主问题' }], source: { kind: 'user' } });
     await parent.whenIdle();
+    assert.match(JSON.stringify(requests[0]), /先给结论/);
     for (const scenario of ['complete', 'fail', 'timeout']) {
       mode = scenario;
       const started = new Promise<void>(resolve => { childStarted = resolve; });
@@ -114,6 +120,9 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     const events = parent.session.snapshotEvents();
     assert.equal(events.filter((event: any) => event.type === 'turn/start').length, 4);
     assert.ok(events.filter((event: any) => event.type === 'turn/end').every((event: any) => event.data.reason.kind === 'completed'));
+    mode = 'cancel-main';
+    parent.followup({ content: [{ type: 'text', text: '失败的一问' }], source: { kind: 'user' } });
+    await parent.whenIdle();
     // Drive the actual installer/host handoff, including its finalization notification.
     mode = 'draft';
     const mainReady = new Promise<void>(resolve => { mainStarted = resolve; });
@@ -121,7 +130,9 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     t.mock.method(globalThis, 'fetch', async (url: any, options: any) => {
       const pathname = new URL(url).pathname;
       let value;
-      if (pathname.endsWith('/wiki/page-drafts/research')) {
+      if (pathname.endsWith('/wiki/research-memory')) {
+        value = { version: 9, entries: [{ stance: 'corrected', text: '本轮更正的偏好' }] };
+      } else if (pathname.endsWith('/wiki/page-drafts/research')) {
         value = options.method === 'POST' ? { draft_token: 'controlled-draft', published: false }
           : { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64) };
       } else if (pathname.endsWith('/wiki/extractions/finalize')) {
@@ -144,6 +155,10 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     releaseMain();
     await parent.whenIdle();
     await reviewReady;
+    const handedOff = JSON.stringify(requests.at(-1));
+    assert.match(handedOff, /本轮更正的偏好/);
+    assert.match(handedOff, /sourceTurn\\?":6/);
+    assert.match(handedOff, /finalAnswer\\?":\\?"主回答完成/);
     const settlementChild = ctx.agents.list().find((agent: any) => agent.id !== parent.id);
     const childRead = await ctx.tools.execute({ agent: settlementChild, name: 'source_read_blocks', arguments: {
       sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b2'] }],
@@ -178,7 +193,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     assert.equal(saved.parent_session_id, parent.session.id);
     assert.equal(requests.length, requestCount);
     assert.equal(parent.inbox.hasPending, false);
-    assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'turn/start').length, 5);
+    assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'turn/start').length, 6);
 
     // A renamed tool failure must still suppress maintenance for this question.
     const failedTurnReady = new Promise<void>(resolve => { mainStarted = resolve; });

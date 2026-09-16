@@ -35,6 +35,12 @@ test("我的研究 facade 允许 Topic 冒号 ID、确认关联与记录接口�
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2/restore"), true);
   assert.equal(researchRoute("GET", "/wiki/industries/nbs"), true);
   assert.equal(researchRoute("POST", "/wiki/research-links/confirm"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-memory"), true);
+  assert.equal(researchRoute("PUT", "/wiki/research-memory"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-candidates"), true);
+  assert.equal(researchRoute("POST", "/wiki/research-candidates/cand-1/dispose"), true);
+  assert.equal(researchRoute("POST", "/wiki/research-candidates/cand-1/adopt"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-candidates/cand-1"), true);
   assert.equal(researchRoute("GET", "/notes"), true);
   assert.equal(researchRoute("POST", "/notes"), true);
   assert.equal(researchRoute("GET", "/notes/note-11111111-1111-4111-8111-111111111111"), true);
@@ -109,7 +115,11 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(layout, /label: "个股研究"/);
   assert.match(layout, /label: "我的资料"/);
   assert.doesNotMatch(layout, /GPU租金/);
-  assert.match(mine, /value: "topics".*value: "notes".*value: "tasks"/s);
+  assert.match(mine, /value: "topics".*value: "notes".*value: "tasks".*value: "memory"/s);
+  assert.match(mine, /保存纠正/);
+  const node = readFileSync(new URL("../src/verticals/finance/dsh/result-node.tsx", import.meta.url), "utf8");
+  assert.match(node, /loadCandidate/);
+  assert.match(node, /CandidateChoiceNeeded/);
   assert.match(mine, /label: "任务"/);
   assert.doesNotMatch(mine, /后台任务/);
   assert.match(mine, /finance-background-tasks/);

@@ -12,6 +12,7 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && [
     '/wiki/pages', '/wiki/pages/read', '/wiki/pages/related', '/wiki/research-topics', '/wiki/research-links',
     '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/industries/nbs',
+    '/wiki/research-memory', '/wiki/research-candidates',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
@@ -21,8 +22,11 @@ export function researchRoute(method, pathname) {
     '/wiki/refs/resolve', '/wiki/pages/refresh-api', '/documents/uploads',
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
-    '/notes',
+    '/wiki/research-candidates', '/notes',
   ].includes(pathname)) return true;
+  if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
+  if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
+  if (method === 'POST' && /^\/wiki\/research-candidates\/[^/]+\/(dispose|adopt)$/.test(pathname)) return true;
   if (method === 'POST' && /^\/notes\/[^/]+\/delete$/.test(pathname)) return true;
   if (method === 'POST' && (TOPIC_ID.test(pathname) || TOPIC_POOL.test(pathname))) return true;
   return false;
@@ -53,7 +57,7 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
     }
     const response = await fetch(backendBase() + route + search, {
       method: req.method, signal: controller.signal, headers,
-      ...(req.method === 'POST' ? { body: Buffer.concat(chunks) } : {}),
+      ...(['POST', 'PUT'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
     });
     const reader = response.body?.getReader();
     const prefix = [];

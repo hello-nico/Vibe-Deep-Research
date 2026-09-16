@@ -71,6 +71,29 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
   },
 };
 
+export interface TopicCandidateData {
+  id: string; question: string; reason: string; objects?: string[]; match_topic_id?: string; status?: string;
+}
+export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidateData> = {
+  kind: 'finance-topic-candidate', target: 'chat',
+  match(event) {
+    const value = event as unknown as { type: string; data?: TopicCandidateData };
+    if (value.type !== 'stock-research/topic-candidate' || !value.data?.id || !value.data.question) return null;
+    return { id: value.data.id, role: 'start' };
+  },
+  start(_context, match) { return match.event.data as unknown as TopicCandidateData; },
+  update(context, match) {
+    const next = match.event.data as unknown as TopicCandidateData | undefined;
+    return next?.id ? { ...context.state, ...next } : context.state;
+  },
+  buildViewNode(context) {
+    if (!context.state?.id) return null;
+    return { key: context.key, kind: 'finance-topic-candidate', id: context.id, target: 'chat',
+      anchorSeq: context.start?.event?.seq ?? 0, location: context.start?.location ?? { kind: 'unresolved' as const },
+      visibility: 'visible', data: context.state };
+  },
+};
+
 export const researchStatusDefinition: ConversationNodeDefinition<{ text: string }> = {
   kind: 'finance-research-status', target: 'chat',
   match(event) {
