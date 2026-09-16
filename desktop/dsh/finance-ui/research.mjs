@@ -26,6 +26,7 @@ export function researchRoute(method, pathname) {
   ].includes(pathname)) return true;
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/provider-snapshot$/.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/research-candidates\/[^/]+\/(dispose|adopt)$/.test(pathname)) return true;
   if (method === 'POST' && /^\/notes\/[^/]+\/delete$/.test(pathname)) return true;
   if (method === 'POST' && (TOPIC_ID.test(pathname) || TOPIC_POOL.test(pathname))) return true;

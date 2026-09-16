@@ -41,6 +41,9 @@ test("我的研究 facade 允许 Topic 冒号 ID、确认关联与记录接口�
   assert.equal(researchRoute("POST", "/wiki/research-candidates/cand-1/dispose"), true);
   assert.equal(researchRoute("POST", "/wiki/research-candidates/cand-1/adopt"), true);
   assert.equal(researchRoute("GET", "/wiki/research-candidates/cand-1"), true);
+  assert.equal(researchRoute("GET", "/wiki/companies/002403.SZ/provider-snapshot"), true);
+  assert.equal(researchRoute("POST", "/wiki/companies/002403.SZ/provider-snapshot"), false);
+  assert.equal(researchRoute("GET", "/wiki/companies/002403/provider-snapshot"), false);
   assert.equal(researchRoute("GET", "/notes"), true);
   assert.equal(researchRoute("POST", "/notes"), true);
   assert.equal(researchRoute("GET", "/notes/note-11111111-1111-4111-8111-111111111111"), true);

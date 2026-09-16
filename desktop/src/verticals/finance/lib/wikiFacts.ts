@@ -1,4 +1,4 @@
-import { financialNumber } from './financialDisplay';
+import { financialNumber, sourceName } from './financialDisplay';
 const METRIC_LABELS: Record<string, string> = {
   revenue: '营业收入',
   net_profit: '净利润',
@@ -47,6 +47,11 @@ const PROVIDERS: Record<string, ProviderProfile> = {
     summary: '新浪公开合并报表接口，用于三表补缺；字段按报表项目标题对齐。',
   },
 };
+
+export function providerName(id: string): string {
+  const key = id.trim().toLowerCase();
+  return PROVIDERS[key]?.name || sourceName(id);
+}
 
 export const FACT_SECTIONS: Record<string, string> = {
   财务: 'financial_facts',

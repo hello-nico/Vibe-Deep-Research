@@ -21,6 +21,10 @@ export async function wikiPages(kind: string, signal?: AbortSignal): Promise<Wik
 }
 export const companySlug = (symbol: string) => /^\d{6}$/.test(symbol) ? `companies/${symbol}-${/^[569]/.test(symbol) ? 'sh' : /^[48]/.test(symbol) ? 'bj' : 'sz'}` : null;
 export const symbolFromCompanySlug = (slug: string) => /^companies\/(\d{6})-(?:sh|sz|bj)$/.exec(slug)?.[1] ?? null;
+export const aShareQualified = (symbol: string) => {
+  const match = companySlug(symbol)?.match(/^companies\/(\d{6})-(sh|sz|bj)$/);
+  return match?.[1] && match[2] ? `${match[1]}.${match[2].toUpperCase()}` : null;
+};
 
 export const topicPath = (topicId: string) => `/wiki/research-topics/${encodeURIComponent(topicId)}`;
 export const topicHex = (topicId: string) => topicId.replace(/^topic:/, "");

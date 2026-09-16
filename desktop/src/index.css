@@ -484,3 +484,11 @@
   color: hsl(var(--foreground));
   box-shadow: 0 8px 28px #0002;
 }
+.finance-company-peek {
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  z-index: 100;
+  padding: 14px 16px;
+  color: hsl(var(--foreground));
+}
