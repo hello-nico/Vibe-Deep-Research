@@ -14,6 +14,7 @@ import {
   removeResearchSymbol,
   removeWatch,
   setPref,
+  touchResearchSymbol,
 } from "../src/client_store.ts";
 
 afterEach(() => closeClientStores());
@@ -61,10 +62,23 @@ test("研究名单默认空开始，不从自选回填", () => {
   assert.deepEqual(listResearchRoster(ctx).symbols, []);
 });
 
+test("研究名单在同一毫秒内仍按最近打开排序", (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: new Date("2026-09-18T00:00:00Z") });
+  const ctx = { dataRoot: dataRoot() };
+  addResearchSymbol(ctx, "600519");
+  addResearchSymbol(ctx, "000933");
+  assert.deepEqual(listResearchRoster(ctx).symbols, ["000933", "600519"]);
+  assert.equal(touchResearchSymbol(ctx, "600519").touched, true);
+  assert.deepEqual(listResearchRoster(ctx).symbols, ["600519", "000933"]);
+  closeClientStores();
+  assert.deepEqual(listResearchRoster(ctx).symbols, ["600519", "000933"]);
+});
+
 test("只持久化白名单偏好键", () => {
   const ctx = { dataRoot: dataRoot() };
   setPref(ctx, "vr-theme", "light");
   setPref(ctx, "vr-sidebar", "collapsed");
-  assert.deepEqual(listPrefs(ctx), { "vr-theme": "light", "vr-sidebar": "collapsed" });
+  setPref(ctx, "vr-company-roster-view", "list");
+  assert.deepEqual(listPrefs(ctx), { "vr-theme": "light", "vr-sidebar": "collapsed", "vr-company-roster-view": "list" });
   assert.throws(() => setPref(ctx, "vr-llm", "secret"), /不是可持久化/);
 });

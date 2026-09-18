@@ -9,7 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { ServiceError, safePath, type ServiceContext } from "./service.ts";
 
 const SCHEMA_VERSION = "1";
-const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live"]);
+const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view"]);
 const SYMBOL_RE = /^(?:\d{6}|\d{5}\.HK|[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?)$/;
 
 const dbs = new Map<string, DatabaseSync>();
@@ -38,6 +38,7 @@ function openDb(ctx: Pick<ServiceContext, "dataRoot">): DatabaseSync {
   }
   migrateWatch(ctx, db);
   markRosterInitialized(db);
+  migrateRosterOpened(db);
   dbs.set(file, db);
   return db;
 }
@@ -76,6 +77,12 @@ function migrateWatch(ctx: Pick<ServiceContext, "dataRoot">, db: DatabaseSync): 
   }
 }
 
+function migrateRosterOpened(db: DatabaseSync): void {
+  const cols = db.prepare("PRAGMA table_info(research_roster)").all() as { name: string }[];
+  if (cols.some(col => col.name === "last_opened_at")) return;
+  db.exec("ALTER TABLE research_roster ADD COLUMN last_opened_at TEXT");
+}
+
 function markRosterInitialized(db: DatabaseSync): void {
   const done = db.prepare("SELECT value FROM meta WHERE key = 'roster_initialized'").get() as { value?: string } | undefined;
   if (done?.value === "1") return;
@@ -107,14 +114,27 @@ export function removeWatch(ctx: Pick<ServiceContext, "dataRoot">, symbol: unkno
 }
 
 export function listResearchRoster(ctx: Pick<ServiceContext, "dataRoot">): { symbols: string[] } {
-  const rows = openDb(ctx).prepare("SELECT symbol FROM research_roster ORDER BY added_at ASC, symbol ASC").all() as { symbol: string }[];
+  const rows = openDb(ctx).prepare("SELECT symbol FROM research_roster ORDER BY COALESCE(last_opened_at, added_at) DESC, symbol ASC").all() as { symbol: string }[];
   return { symbols: rows.map((row) => row.symbol) };
 }
 
 export function addResearchSymbol(ctx: Pick<ServiceContext, "dataRoot">, symbol: unknown): { symbols: string[]; added: boolean } {
   const code = normalizeSymbol(symbol);
-  const result = openDb(ctx).prepare("INSERT OR IGNORE INTO research_roster(symbol, added_at) VALUES (?, ?)").run(code, nowIso());
+  const now = nextRosterTime(ctx);
+  const result = openDb(ctx).prepare("INSERT OR IGNORE INTO research_roster(symbol, added_at, last_opened_at) VALUES (?, ?, ?)").run(code, now, now);
   return { ...listResearchRoster(ctx), added: Number(result.changes) > 0 };
+}
+
+export function touchResearchSymbol(ctx: Pick<ServiceContext, "dataRoot">, symbol: unknown): { symbols: string[]; touched: boolean } {
+  const code = normalizeSymbol(symbol);
+  const result = openDb(ctx).prepare("UPDATE research_roster SET last_opened_at = ? WHERE symbol = ?").run(nextRosterTime(ctx), code);
+  return { ...listResearchRoster(ctx), touched: Number(result.changes) > 0 };
+}
+
+function nextRosterTime(ctx: Pick<ServiceContext, "dataRoot">): string {
+  const row = openDb(ctx).prepare("SELECT MAX(COALESCE(last_opened_at, added_at)) AS latest FROM research_roster").get() as { latest: string | null };
+  // Keep successive opens ordered even when the clock has not advanced a millisecond.
+  return new Date(Math.max(Date.now(), (Date.parse(row.latest || "") || 0) + 1)).toISOString();
 }
 
 export function removeResearchSymbol(ctx: Pick<ServiceContext, "dataRoot">, symbol: unknown): { symbols: string[]; removed: boolean } {

@@ -1,7 +1,7 @@
 import { backend } from "./backend";
 import { storageGet, storageSet } from "./storage";
 
-const PERSISTED = ["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live"] as const;
+const PERSISTED = ["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view"] as const;
 type PrefKey = (typeof PERSISTED)[number];
 
 let cache: Record<string, string> = {};

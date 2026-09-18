@@ -39,6 +39,20 @@ export function addToRoster(symbol: string): Promise<void> {
   });
 }
 
+export function touchRoster(symbol: string): Promise<void> {
+  const code = normalizeMarketSymbol(symbol);
+  if (!code) return Promise.reject(new Error("无法识别的代码"));
+  return enqueue(async () => {
+    try {
+      const result = await backend.clientResearchTouch(code);
+      seq++;
+      cache = result.symbols;
+    } finally {
+      await hydrateRoster().catch(() => undefined);
+    }
+  });
+}
+
 export function removeFromRoster(symbol: string): Promise<void> {
   const code = normalizeMarketSymbol(symbol);
   if (!code) return Promise.reject(new Error("无法识别的代码"));

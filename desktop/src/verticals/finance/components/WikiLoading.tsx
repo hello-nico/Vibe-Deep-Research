@@ -6,6 +6,6 @@ export function wikiLoadingSections(slug: string): string[] {
   return ['标题', '章节', '依据', '时间线'];
 }
 
-export function WikiLoading({ slug }: { slug: string }) {
-  return <ResearchLoading sections={wikiLoadingSections(slug)} />;
+export function WikiLoading({ slug, title }: { slug: string; title?: string }) {
+  return <ResearchLoading title={title} sections={wikiLoadingSections(slug)} />;
 }

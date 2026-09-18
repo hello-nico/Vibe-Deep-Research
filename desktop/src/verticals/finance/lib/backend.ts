@@ -131,6 +131,8 @@ export const backend = {
     call<{ symbols: string[]; added: boolean }>("/client/research", { method: "POST", body: JSON.stringify({ symbol }) }),
   clientResearchRemove: (symbol: string) =>
     call<{ symbols: string[]; removed: boolean }>("/client/research/delete", { method: "POST", body: JSON.stringify({ symbol }) }),
+  clientResearchTouch: (symbol: string) =>
+    call<{ symbols: string[]; touched: boolean }>("/client/research/touch", { method: "POST", body: JSON.stringify({ symbol }) }),
   clientPrefs: () => call<{ prefs: Record<string, string> }>("/client/prefs"),
   clientPrefSet: (key: string, value: string) =>
     call<{ prefs: Record<string, string> }>("/client/prefs", { method: "POST", body: JSON.stringify({ key, value }) }),

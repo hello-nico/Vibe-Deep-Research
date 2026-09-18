@@ -18,8 +18,24 @@ test('Wiki 加载卡片按行业和公司对象给出研究块名', async () => 
     assert.match(profile, /产业结构/);
     assert.match(profile, /需求变化/);
     assert.doesNotMatch(profile, /正在更新|data-state|progressbar/);
-    const refresh = renderToStaticMarkup(createElement(ResearchLoading, { compact: true, title: '正在更新财务与估值数据' }));
+    const { WikiLoading } = await server.ssrLoadModule('/src/verticals/finance/components/WikiLoading.tsx');
+    const creating = renderToStaticMarkup(createElement(WikiLoading, { slug: 'companies/601899-sh', title: '正在创建公司资料页' }));
+    assert.match(creating, /正在创建公司资料页/);
+    assert.match(creating, /research-loading-scan/);
+    assert.match(creating, /经营/);
+    assert.match(creating, /财务/);
+    const refresh = renderToStaticMarkup(createElement(ResearchLoading, { compact: true, title: '正在更新财务与估值数据', sections: ['财务', '估值'] }));
     assert.match(refresh, /正在更新财务与估值数据/);
-    assert.doesNotMatch(refresh, /animate-pulse|产业结构/);
+    assert.match(refresh, /research-loading-compact/);
+    assert.match(refresh, /research-loading-scan/);
+    assert.match(refresh, /财务/);
+    assert.match(refresh, /估值/);
+    assert.doesNotMatch(refresh, /animate-pulse|产业结构|animate-spin|progressbar/);
+    const { ResearchRefreshStatus } = await server.ssrLoadModule('/src/verticals/finance/components/ui/ResearchLoading.tsx');
+    const chip = renderToStaticMarkup(createElement(ResearchRefreshStatus));
+    assert.match(chip, /正在刷新…/);
+    assert.match(chip, /research-refresh-status/);
+    assert.match(chip, /research-loading-scan/);
+    assert.doesNotMatch(chip, /animate-spin|progressbar/);
   } finally { await server.close(); }
 });

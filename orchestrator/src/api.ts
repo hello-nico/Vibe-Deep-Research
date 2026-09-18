@@ -13,6 +13,7 @@ import crypto from "node:crypto";
 
 import {
 addResearchSymbol,addWatch,listPrefs,listResearchRoster,listWatch,
+touchResearchSymbol,
 removeResearchSymbol,removeWatch,setPref,
 } from "./client_store.ts";
 import { NOFOLLOW_FLAG,restrictPrivateFile } from "./fsutil.ts";
@@ -175,6 +176,10 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string }): h
       if (req.method === "POST" && url.pathname === "/client/research/delete") {
         const b = await readBody(req);
         return send(res, 200, removeResearchSymbol(ctx, b.symbol));
+      }
+      if (req.method === "POST" && url.pathname === "/client/research/touch") {
+        const b = await readBody(req);
+        return send(res, 200, touchResearchSymbol(ctx, b.symbol));
       }
       if (req.method === "GET" && url.pathname === "/client/prefs") return send(res, 200, { prefs: listPrefs(ctx) });
       if (req.method === "POST" && url.pathname === "/client/prefs") {
