@@ -10,7 +10,10 @@ export async function researchRead<T>(route: string, init?: RequestInit): Promis
   return value as T;
 }
 export interface WikiItem { slug: string; title: string }
-export interface WikiPage { markdown: string; published: boolean; spec: { title: string; type?: string; subject_id?: string; as_of: string; status?: string; blocks: { kind: string; content?: Record<string, unknown>; refs: string[] }[]; research_blocks?: { refs: string[] }[] } }
+export interface WikiBlock { kind: string; content?: Record<string, unknown> | string; refs: string[]; reviewed_as_of?: string }
+export interface WikiPageLink { to: string; type: string; basis?: string; ref?: string }
+export interface WikiComparisonScope { question: string; horizon: string; subjects: { entity_id: string; snapshot_as_of: string }[]; dimensions: { id: string; title: string; basis: string; direction: string; weight?: number; refs?: string[] }[] }
+export interface WikiPage { markdown: string; published: boolean; input_hash?: string; spec: { slug?: string; title: string; type?: string; subject_id?: string; as_of: string; status?: string; valid_until?: string; superseded_by?: string; labels?: string[]; driver?: string[]; horizon?: string; comparison_scope?: WikiComparisonScope; comparability?: { level: string; reasons: string[] }; links?: WikiPageLink[]; blocks: WikiBlock[]; research_blocks?: WikiBlock[] } }
 export async function wikiPages(kind: string, signal?: AbortSignal): Promise<WikiItem[]> {
   const items: WikiItem[] = [];
   for (let offset = 0; ; offset += 100) {
@@ -180,6 +183,39 @@ export interface NbsIndustry {
   slug: string;
   subject_id: string;
   published: boolean;
+}
+
+export interface BackgroundTask {
+  id: string;
+  title?: string;
+  question?: string;
+  status?: string;
+  display_status?: string;
+  started_at?: string;
+  finished_at?: string;
+  summary?: string;
+  parent_session_id?: string;
+  child_session_id?: string;
+  targets?: string[];
+  draft_token?: string;
+}
+
+// 后台沉淀任务记录：DSH 回合结束后由后台评审/落库子会话产生；页面据此区分
+// "执行结束"与"成果已确认"。注意一条记录可能晚于会话结束若干秒才出现。
+export async function loadBackgroundTasks(signal?: AbortSignal): Promise<BackgroundTask[]> {
+  const response = await fetch("/finance-background-tasks", { signal });
+  if (!response.ok) throw new Error("任务读取失败");
+  const body = await response.json() as { items?: BackgroundTask[] };
+  return Array.isArray(body.items) ? body.items : [];
+}
+
+// 找某会话最新一条后台任务（按开始时间倒序）。
+export function backgroundTaskForSession(tasks: BackgroundTask[], sessionId: string | null | undefined): BackgroundTask | null {
+  if (!sessionId) return null;
+  const matches = tasks.filter(task => task.parent_session_id === sessionId);
+  if (!matches.length) return null;
+  matches.sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || "")));
+  return matches[0] ?? null;
 }
 
 export async function publishWikiDraft(draftToken: string, signal?: AbortSignal) {

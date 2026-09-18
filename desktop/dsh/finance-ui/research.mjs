@@ -12,14 +12,15 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && [
     '/wiki/pages', '/wiki/pages/read', '/wiki/pages/related', '/wiki/research-topics', '/wiki/research-links',
     '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/industries/nbs',
-    '/wiki/research-memory', '/wiki/research-candidates',
+    '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'GET' && /^\/notes\/[^/]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/research-results\/result(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/reports\/report(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
   if (method === 'POST' && [
-    '/wiki/refs/resolve', '/wiki/pages/refresh-api', '/documents/uploads',
+    '/wiki/refs/resolve', '/wiki/pages/refresh-api', '/wiki/pages/ensure', '/documents/uploads',
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
     '/wiki/research-candidates', '/notes',

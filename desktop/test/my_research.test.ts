@@ -5,7 +5,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { researchRoute } from "../dsh/finance-ui/research.mjs";
-import { bindTopicSession, displayBackgroundStatus, loadBackgroundTasks, loadTopicSessions, overlayIngestStatus } from "../dsh/finance-ui/host-state.mjs";
+import { bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
 
 test("后台状态区分仍在执行的子会话和已结束后等待入库", async t => {
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ status: "ready", document_id: "report" })));
@@ -79,6 +79,194 @@ test("Topic 会话绑定落在宿主文件，不按标题猜测", t => {
   assert.equal(loadTopicSessions().sessions["sess-missing-1"], undefined);
 });
 
+test("报告任务绑定落在宿主文件，运行态探测失败不能挡住绑定", t => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-report-bind-"));
+  process.env.DSH_HOME = home;
+  t.after(() => {
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  writePersistedSession(home, "session-report-1");
+  const hash = "a".repeat(64);
+  const bound = bindReportTask({
+    session_id: "session-report-1",
+    slug: "companies/600011-sh",
+    input_hash: hash,
+  }, { isRunning: () => { throw new Error('cannot get property "sessions" without inject'); } });
+  assert.equal(bound.slug, "companies/600011-sh");
+  assert.equal(loadReportTasks().sessions["session-report-1"].input_hash, hash);
+  assert.throws(() => bindReportTask({
+    session_id: "session-report-1",
+    slug: "companies/600011-sh",
+    input_hash: "b".repeat(64),
+  }, { isRunning: () => true }), /session is running/);
+});
+
+test("过程历史加载完成不抢回用户新选中的聊天", async () => {
+  const source = fs.readFileSync(new URL('../src/verticals/finance/dsh/client.tsx', import.meta.url), 'utf8');
+  const body = source.match(/const ensureTaskHistory = async \(sessionId: string\) => \{([\s\S]*?)\n  \};/)![1];
+  let finish!: () => void;
+  const history = new Promise<void>(resolve => { finish = resolve; });
+  let current = 'chat-A';
+  const switches: string[] = [];
+  const client = { sessions: { list: { getSnapshot: () => ({ current }) }, open(id: string) { current = id; switches.push(id); } } };
+  const load = new Function('client', 'historyFace', `return async function(sessionId) {${body}}`)(client, () => ({ open: () => history }));
+  const pending = load('report-task');
+  current = 'chat-B';
+  finish();
+  await pending;
+  assert.equal(current, 'chat-B');
+  assert.deepEqual(switches, []);
+});
+
+for (const window of ['create', 'spawn']) {
+  test(`卸载覆盖 ${window} 等待窗口、排队请求和晚到的句柄`, async t => {
+    const previous = process.env.DSH_HOME;
+    const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-report-unload-'));
+    process.env.DSH_HOME = home;
+    t.after(async () => {
+      await disposeReportRuntime();
+      if (previous === undefined) delete process.env.DSH_HOME;
+      else process.env.DSH_HOME = previous;
+      fs.rmSync(home, { recursive: true, force: true });
+    });
+    let release!: () => void, entered!: () => void;
+    const gate = new Promise<void>(resolve => { release = resolve; });
+    const waiting = new Promise<void>(resolve => { entered = resolve; });
+    let creates = 0, spawns = 0, hostDisposes = 0, runDisposes = 0;
+    let spawnSignal: AbortSignal | undefined;
+    const ctx = {
+      agents: {
+        get() { return null; },
+        async create({ sessionId }) {
+          creates++;
+          if (window === 'create') { entered(); await gate; }
+          return { agent: { session: { id: sessionId } }, dispose: async () => { hostDisposes++; } };
+        },
+      },
+      subagents: { async start(_provider, request) {
+        spawns++;
+        spawnSignal = request.signal;
+        entered(); await gate;
+        return { id: 'child-unload-test', result: Promise.reject(new Error('cancelled')), dispose: async () => { runDisposes++; } };
+      } },
+    };
+    const input = { slug: 'companies/600011-sh', input_hash: 'a'.repeat(64), prompt: '生成报告' };
+    const first = assert.rejects(startReportRun(ctx, input), /运行时已卸载/);
+    const queued = assert.rejects(startReportRun(ctx, input), /运行时已卸载/);
+    await waiting;
+    await disposeReportRuntime();
+    if (window === 'spawn') assert.equal(spawnSignal?.aborted, true);
+    release();
+    await Promise.all([first, queued]);
+    await assert.rejects(startReportRun(ctx, input), /运行时已卸载/);
+    assert.equal(creates, 1);
+    assert.equal(spawns, window === 'spawn' ? 1 : 0);
+    assert.equal(hostDisposes, 1);
+    assert.equal(runDisposes, window === 'spawn' ? 1 : 0);
+    assert.equal(loadReportTasks().pending, null);
+  });
+}
+
+test("agents.create 返回 AgentHandle，不得把 handle 当成 Agent", () => {
+  const agent = { session: { id: "host-1" } };
+  assert.equal(unwrapCreatedAgent({ agent, dispose: async () => {} }), agent);
+  assert.equal(unwrapCreatedAgent(agent), null);
+  assert.equal(unwrapCreatedAgent({ dispose: async () => {} }), null);
+});
+
+test("create 返回裸 Agent 时首次启动失败，不会 spawn", async t => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-report-handle-"));
+  process.env.DSH_HOME = home;
+  t.after(async () => {
+    await disposeReportRuntime();
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const starts = [];
+  const ctx = {
+    agents: {
+      get() { return null; },
+      async create({ sessionId }) { return { session: { id: sessionId } }; },
+    },
+    subagents: { async start() { starts.push(1); return { id: "child-x", result: Promise.resolve({}), dispose: async () => {} }; } },
+  };
+  await assert.rejects(() => startReportRun(ctx, { slug: "companies/600011-sh", input_hash: "c".repeat(64), prompt: "生成报告" }), /任务宿主不可用/);
+  assert.equal(starts.length, 0);
+});
+
+test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 AbortSignal，失败清 pending", async t => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-report-spawn-"));
+  process.env.DSH_HOME = home;
+  t.after(async () => {
+    await disposeReportRuntime();
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  });
+  const hash = "c".repeat(64);
+  const starts = [];
+  let hostAgent = { session: { id: "host-task", header: { id: "host-task" } } };
+  const hostDisposes = [];
+  const runDisposes = [];
+  const ctx = {
+    agents: {
+      get(id) { return id === hostAgent.session.id ? hostAgent : null; },
+      async create({ sessionId }) {
+        hostAgent = { session: { id: sessionId, header: { id: sessionId } } };
+        return { agent: hostAgent, dispose: async () => { hostDisposes.push(sessionId); } };
+      },
+    },
+    subagents: {
+      async start(provider, request) {
+        starts.push({ provider, request, pending: loadReportTasks().pending });
+        assert.equal(request.parent.session.id, hostAgent.session.id);
+        const childId = "child-report-" + starts.length;
+        const store = loadReportTasks();
+        store.sessions[childId] = { slug: store.pending.slug, input_hash: store.pending.input_hash, bound_at: new Date().toISOString() };
+        store.pending = null;
+        fs.writeFileSync(path.join(home, "research", "report-tasks.json"), JSON.stringify(store, null, 2) + "\n");
+        let settle;
+        const result = new Promise(resolve => { settle = resolve; });
+        request.signal.addEventListener("abort", () => settle({ stopReason: "aborted" }), { once: true });
+        return { id: childId, result, dispose: async () => { runDisposes.push(childId); } };
+      },
+    },
+  };
+  const first = await startReportRun(ctx, { slug: "companies/600011-sh", input_hash: hash, prompt: "生成报告", title: "报告生成" });
+  assert.equal(first.status, "started");
+  assert.equal(starts[0].provider, "spawn");
+  assert.deepEqual(starts[0].request.toolFilter, { allow: [] });
+  assert.equal(starts[0].pending.parent_id, starts[0].request.parent.session.id);
+  assert.equal(starts[0].pending.slug, "companies/600011-sh");
+  assert.equal(starts[0].request.prompt[0].text, "生成报告");
+  const again = await startReportRun(ctx, { slug: "companies/600011-sh", input_hash: hash, prompt: "生成报告" });
+  assert.equal(again.status, "running");
+  assert.equal(starts.length, 1);
+  const other = await startReportRun(ctx, { slug: "companies/600011-sh", input_hash: "d".repeat(64), prompt: "另一版" });
+  assert.equal(other.status, "busy_other_version");
+  assert.equal(starts.length, 1);
+  const cancelled = cancelReportRun(first.session_id);
+  assert.equal(cancelled.status, "cancelling");
+  assert.equal(loadReportTasks().sessions[first.session_id].slug, "companies/600011-sh");
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.deepEqual(runDisposes, [first.session_id]);
+
+  ctx.subagents.start = async () => { throw Object.assign(new Error("spawn failed"), { status: 503 }); };
+  await assert.rejects(() => startReportRun(ctx, { slug: "companies/600900-sh", input_hash: hash, prompt: "再试" }), /spawn failed/);
+  assert.equal(loadReportTasks().pending, null);
+  const stored = loadReportTasks();
+  assert.ok(stored.sessions[first.session_id]);
+  assert.ok(stored.host_session_id);
+  await disposeReportRuntime();
+  assert.equal(hostDisposes.length, 1);
+});
+
 test("沉淀记录宿主入口改走 Backend，不再读产品文件", () => {
   const host = readFileSync(new URL("../dsh/finance-ui/host-state.mjs", import.meta.url), "utf8");
   assert.match(host, /\/notes\?limit=40/);
@@ -100,8 +288,22 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.doesNotMatch(source, /fromWatchlist|从自选开始/);
   const company = readFileSync(new URL("../src/verticals/finance/pages/CompanyWiki.tsx", import.meta.url), "utf8");
   assert.match(company, /loadRoster\(\)/);
+  assert.match(company, /quoteNames/);
+  assert.match(company, /vr-company-roster-view/);
+  assert.match(company, /LayoutGrid/);
+  assert.match(company, /RECENT_LIMIT = 9/);
+  assert.match(company, /搜索名称或代码/);
+  assert.match(company, /xl:grid-cols-3/);
+  assert.match(company, /资料待生成/);
+  assert.doesNotMatch(company, /setJoinOpen|加入研究<\//);
+  assert.doesNotMatch(company, /setSlug\(row\.hasWiki \? row\.slug : row\.slug\)/);
   assert.doesNotMatch(company, /打开六阶段研究|research\/legacy/);
   assert.match(company, /在深度对话中研究/);
+  assert.match(company, /图文报告/);
+  assert.match(company, /hideToggle/);
+  assert.match(company, /WikiLoading/);
+  assert.match(company, /ResearchRefreshStatus/);
+  assert.match(company, /正在创建公司资料页/);
   assert.match(company, /Boolean\(current\?\.hasWiki\) && readerState === 'loading'/);
   assert.doesNotMatch(company, /取消选择不会删除 Wiki/);
   assert.doesNotMatch(company, /从自选开始/);
@@ -128,6 +330,30 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(mine, /finance-background-tasks/);
   assert.match(mine, /setInterval/);
   assert.match(mine, /不会自动建立议题/);
+  assert.match(mine, /openTaskProcess/);
+  assert.match(mine, /查看过程/);
+  assert.match(client, /startReportRun/);
+  assert.match(client, /isBackgroundChat/);
+  assert.match(client, /openTaskProcess/);
+  assert.match(client, /origin === 'subagent'/);
+  assert.match(client, /item\?\.parentId/);
+  assert.match(client, /item\?\.blank/);
+  assert.match(client, /lastTrajectory/);
+  assert.match(client, /status !== 'ready'/);
+  assert.match(client, /research\.openSession/);
+  assert.match(client, /face\?\.open/);
+  assert.match(client, /ensureTaskHistory/);
+  assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
+  const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");
+  assert.match(processPanel, /emptySnapshot/);
+  assert.match(processPanel, /调用参数/);
+  assert.match(processPanel, /task-process-step/);
+  assert.doesNotMatch(processPanel, /react-router-dom/);
+  assert.doesNotMatch(processPanel, /openSession/);
+  const host = readFileSync(new URL("../dsh/finance-ui/host-state.mjs", import.meta.url), "utf8");
+  assert.match(host, /unwrapCreatedAgent/);
+  assert.match(host, /watchReportRun/);
+  assert.match(host, /disposeReportRuntime/);
 });
 
 test("后台任务列表把超时运行映射为中断，不读 DSH 原始日志", t => {
@@ -178,7 +404,7 @@ test("议题工作区先恢复会话、审阅草案正文，并用 source_id 读
 
 test("开发代理把宿主绑定和发布入口转到 DSH", () => {
   const source = readFileSync(new URL("../dsh-dev.ts", import.meta.url), "utf8");
-  for (const route of ["/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-notes", "/finance-wiki-publish"]) {
+  for (const route of ["/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-notes", "/finance-wiki-publish", "/finance-report-runs"]) {
     assert.match(source, new RegExp(route.replace("/", "\\/")));
   }
   assert.doesNotMatch(source, /finance-stage-model/);

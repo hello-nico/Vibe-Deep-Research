@@ -10,6 +10,9 @@ import { installResultNode } from './result-node';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
+import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
+import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
+import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot } from "./research-session";
 import { hydrateWatch } from "../lib/watchlist";
 import { hydrateRoster } from "../lib/researchRoster";
 import { hydratePrefs } from "../lib/prefs";
@@ -39,12 +42,37 @@ interface Client {
   };
   sessions: {
     refresh(): Promise<void>;
-    list: { getSnapshot(): { ids: string[]; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: string; parentId?: string }> }; subscribe(callback: () => void): () => void };
+    list: { getSnapshot(): { ids: string[]; current?: string; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: string; parentId?: string; origin?: string }> }; subscribe(callback: () => void): () => void };
     create(input: { workspaceId: string }): Promise<string>;
     open(id: string): void;
     scope(id: string): Context | undefined;
-    sessionOf(ctx: Context): { rename(title: string): Promise<{ ok: boolean }>; prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }> } | undefined;
+    sessionOf(ctx: Context): HistorySession | undefined;
+    binding?(id: string): { sessionId: string; session?: HistorySession } | undefined;
   };
+  uiConversation?: {
+    binding(source: string): {
+      activate(target: string): void;
+      target(target: string): { getSnapshot(): unknown; subscribe(callback: () => void): () => void };
+    };
+  };
+}
+interface HistorySession {
+  open?(): Promise<void>;
+  loadOlder?(): Promise<void>;
+  rename(title: string): Promise<{ ok: boolean }>;
+  prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }>;
+  getSnapshot?(): {
+    running?: boolean;
+    lastAgentError?: string | null;
+    promptError?: { op?: string; error?: unknown } | null;
+    removed?: boolean;
+    awaitingFirstTurn?: boolean;
+    openState?: 'cold' | 'loading' | 'open' | 'error';
+    openError?: { message?: string } | string | null;
+    hasMore?: boolean;
+    loadingOlder?: boolean;
+  };
+  subscribe?(callback: () => void): () => void;
 }
 export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation"];
 
@@ -114,10 +142,13 @@ export function apply(ctx: Context) {
   let session: Promise<void> | undefined;
   let workspace = '';
   let workspaceId = '';
-  const companyStarts = new Map<string, Promise<void>>();
+  const companyStarts = new Map<string, Promise<StartSessionResult>>();
+  const reportStarts = new Map<string, Promise<StartSessionResult>>();
   let openedSessionId = "";
   let openedTopicId = "";
   const sessionListeners = new Set<() => void>();
+  let taskProcess: TaskProcessRef | null = null;
+  const taskProcessListeners = new Set<() => void>();
   const remember = (id: string, topicId = "") => {
     const changed = openedSessionId !== id || openedTopicId !== topicId;
     openedSessionId = id;
@@ -125,6 +156,64 @@ export function apply(ctx: Context) {
     storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
     client.sessions.open(id);
     if (changed) sessionListeners.forEach(listener => listener());
+  };
+  type HiddenChats = { status: 'loading' } | { status: 'ready'; ids: Set<string> } | { status: 'error' };
+  let hiddenChats: HiddenChats = { status: 'loading' };
+  const hiddenListeners = new Set<() => void>();
+  const notifyHidden = () => hiddenListeners.forEach(listener => listener());
+  const nativeBackground = (item: { parentId?: string; origin?: string; blank?: boolean } | undefined) =>
+    Boolean(item?.parentId || item?.origin === 'subagent' || item?.blank);
+  const isBackgroundChat = (id: string, item: { parentId?: string; origin?: string; blank?: boolean } | undefined, hidden: HiddenChats) => {
+    if (nativeBackground(item)) return true;
+    if (hidden.status !== 'ready') return true;
+    return hidden.ids.has(id);
+  };
+  const refreshHiddenChats = async (): Promise<HiddenChats> => {
+    try {
+      const store = await loadReportTasks();
+      const ids = new Set(Object.keys(store.sessions || {}));
+      if (store.host_session_id) ids.add(store.host_session_id);
+      hiddenChats = { status: 'ready', ids };
+    } catch {
+      hiddenChats = { status: 'error' };
+    }
+    notifyHidden();
+    return hiddenChats;
+  };
+  const historyFace = (sessionId: string) => {
+    const bound = client.sessions.binding?.(sessionId)?.session;
+    if (bound) return bound;
+    const scope = client.sessions.scope(sessionId);
+    return scope ? client.sessions.sessionOf(scope) : undefined;
+  };
+  const openErrorText = (snap?: ReturnType<NonNullable<HistorySession['getSnapshot']>>) => {
+    if (!snap?.openError) return undefined;
+    return '执行记录读取失败';
+  };
+  const lastTrajectory = new Map<string, TaskTrajectorySnapshot>();
+  const trajectoryStores = new Map<string, { subscribe(listener: () => void): () => void; getSnapshot(): TaskTrajectorySnapshot; loadOlder(): Promise<void> }>();
+  const projectTrajectory = (sessionId: string, raw: unknown): TaskTrajectorySnapshot => {
+    const list = client.sessions.list.getSnapshot();
+    const item = list.byId[sessionId];
+    const face = historyFace(sessionId);
+    const snap = face?.getSnapshot?.();
+    const next = projectTaskTrajectory({
+      running: Boolean(item?.running || snap?.running),
+      failed: Boolean(snap?.lastAgentError || snap?.promptError),
+      openState: snap?.openState || 'cold',
+      openError: openErrorText(snap),
+      hasMore: Boolean(snap?.hasMore),
+      loadingOlder: Boolean(snap?.loadingOlder),
+      raw,
+    });
+    const prev = lastTrajectory.get(sessionId);
+    if (prev && sameTaskTrajectory(prev, next)) return prev;
+    lastTrajectory.set(sessionId, next);
+    return next;
+  };
+  const ensureTaskHistory = async (sessionId: string) => {
+    const face = historyFace(sessionId);
+    if (typeof face?.open === 'function') await face.open();
   };
   async function openSession() {
     const response = await fetch("/finance-host");
@@ -135,14 +224,35 @@ export function apply(ctx: Context) {
     workspaceId = registered.workspaceId;
     await client.sessions.refresh();
     if (disposed) return;
+    const hidden = await refreshHiddenChats();
+    if (disposed) return;
     const list = client.sessions.list.getSnapshot();
     const key = `vibe-dsh-session:vibe:${registered.workspaceId}`;
     const saved = storageGet(key);
-    const existing = saved && list.byId[saved]?.cwd === workspace && !client.workspaces.list.getSnapshot().archivedSessionIds.includes(saved) ? saved : undefined;
-    const id = existing ?? await client.sessions.create({ workspaceId: registered.workspaceId });
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const existing = saved && list.byId[saved]?.cwd === workspace && !archived.has(saved) && !isBackgroundChat(saved, list.byId[saved], hidden) ? saved : undefined;
+    const fallback = list.ids.find(id => list.byId[id]?.cwd === workspace && !archived.has(id) && !isBackgroundChat(id, list.byId[id], hidden));
+    const id = existing ?? fallback ?? await client.sessions.create({ workspaceId: registered.workspaceId });
     if (disposed) return;
     storageSet(key, id);
     client.sessions.open(id);
+  }
+  // 报告任务走宿主 spawn；绑定写在子 Agent 创建窗口，早于 followup 首请求。
+  async function startReportTask(question: string, task: { slug: string; inputHash: string; title?: string }): Promise<StartSessionResult> {
+    const key = `${task.slug}:${task.inputHash}`;
+    if (reportStarts.has(key)) return reportStarts.get(key)!;
+    const run = (async (): Promise<StartSessionResult> => {
+      const result = await startReportRun({
+        slug: task.slug,
+        input_hash: task.inputHash,
+        prompt: question,
+        title: task.title || `报告生成 · ${task.slug}`,
+      });
+      await client.sessions.refresh().catch(() => {});
+      return { sessionId: result.session_id, status: result.status };
+    })();
+    reportStarts.set(key, run);
+    try { return await run; } finally { reportStarts.delete(key); }
   }
   const research = { async companySymbols() {
     await session;
@@ -156,17 +266,24 @@ export function apply(ctx: Context) {
         ? /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1] : undefined;
       return symbol ? [symbol] : [];
     });
-  }, async start(question: string, company?: { symbol: string; name: string }) {
+  }, async start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult> {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
+    const task = options?.task;
+    if (task?.kind === 'report') return startReportTask(question, task);
     const key = company?.symbol;
     if (key && companyStarts.has(key)) return companyStarts.get(key)!;
-    const run = (async () => {
+    const go = options?.navigate !== false;
+    const run = (async (): Promise<StartSessionResult> => {
       await client.sessions.refresh();
       const title = company ? `公司研究 · ${company.symbol} · ${company.name}` : undefined;
       const list = client.sessions.list.getSnapshot();
       const existing = title && list.ids.find(id => list.byId[id]?.cwd === workspace && list.byId[id]?.title === title && list.byId[id]?.running);
-      if (existing) { remember(existing); await router.navigate('/'); return; }
+      if (existing) {
+        remember(existing);
+        if (go) await router.navigate('/');
+        return { sessionId: existing, status: 'running' };
+      }
       const id = await client.sessions.create({ workspaceId });
       const scope = client.sessions.scope(id);
       const face = scope && client.sessions.sessionOf(scope);
@@ -174,10 +291,59 @@ export function apply(ctx: Context) {
       if (title && !(await face.rename(title)).ok) throw new Error('公司研究绑定失败，请重试');
       remember(id);
       if (!(await face.prompt([{ type: 'text', text: question }], 'queue')).ok) throw new Error('研究问题未被接收，请检查模型设置后回到深度对话重试');
-      await router.navigate('/');
+      if (go) await router.navigate('/');
+      return { sessionId: id, status: 'started' };
     })();
     if (key) companyStarts.set(key, run);
-    try { await run; } finally { if (key) companyStarts.delete(key); }
+    try { return await run; } finally { if (key) companyStarts.delete(key); }
+  }, async findCompanySession(symbol: string) {
+    await session;
+    if (!workspaceId) return null;
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const prefix = `公司研究 · ${symbol} · `;
+    const ids = list.ids.filter(id => {
+      const item = list.byId[id];
+      return item?.cwd === workspace && !archived.has(id) && (item.title ?? '').startsWith(prefix);
+    });
+    ids.sort((a, b) => (new Date(list.byId[b]?.updatedAt ?? 0).getTime() || 0) - (new Date(list.byId[a]?.updatedAt ?? 0).getTime() || 0));
+    const id = ids[0];
+    if (!id) return null;
+    const item = list.byId[id];
+    return { sessionId: id, title: item?.title ?? '', running: Boolean(item?.running), updatedAt: item?.updatedAt };
+  }, async findReportTask(slug: string) {
+    await session;
+    if (!workspaceId) return null;
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const store = await loadReportTasks().catch(() => ({ sessions: {} as Record<string, { slug: string; input_hash: string; bound_at?: string }>, host_session_id: '' }));
+    const bindings = store.sessions || {};
+    const ids = Object.keys(bindings).filter(id => bindings[id]?.slug === slug && !archived.has(id) && id !== store.host_session_id);
+    ids.sort((a, b) => {
+      const run = Number(Boolean(list.byId[b]?.running)) - Number(Boolean(list.byId[a]?.running));
+      if (run) return run;
+      const updated = (new Date(list.byId[b]?.updatedAt ?? 0).getTime() || 0) - (new Date(list.byId[a]?.updatedAt ?? 0).getTime() || 0);
+      if (updated) return updated;
+      return (new Date(bindings[b]?.bound_at ?? 0).getTime() || 0) - (new Date(bindings[a]?.bound_at ?? 0).getTime() || 0);
+    });
+    const id = ids[0];
+    const bound = id ? bindings[id] : undefined;
+    if (!id || !bound) return null;
+    return { sessionId: id, slug, inputHash: bound.input_hash, running: Boolean(list.byId[id]?.running), updatedAt: list.byId[id]?.updatedAt };
+  }, sessionState(sessionId: string): SessionState | null {
+    const scope = client.sessions.scope(sessionId);
+    const face = scope && client.sessions.sessionOf(scope);
+    const snap = face?.getSnapshot?.();
+    if (!snap) return null;
+    return {
+      running: Boolean(snap.running),
+      lastAgentError: snap.lastAgentError ?? null,
+      promptError: snap.promptError ? 'prompt failed' : null,
+      removed: Boolean(snap.removed),
+      awaitingFirstTurn: Boolean(snap.awaitingFirstTurn),
+    };
   }, async restoreTopic(topicId: string, title = "", signal?: AbortSignal) {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
@@ -219,14 +385,75 @@ export function apply(ctx: Context) {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
     await client.sessions.refresh();
-    if (!client.sessions.list.getSnapshot().byId[sessionId]) throw new Error('找不到该执行记录');
+    const list = client.sessions.list.getSnapshot();
+    const hidden = await refreshHiddenChats();
+    const item = list.byId[sessionId];
+    if (hidden.status !== 'ready' && !nativeBackground(item)) throw new Error('后台任务身份暂时无法核对，请稍后重试');
+    if (isBackgroundChat(sessionId, item, hidden)) {
+      research.openTaskProcess({ sessionId, title: item?.displayTitle || item?.title || '任务过程', kind: hidden.status === 'ready' && hidden.ids.has(sessionId) ? 'report' : 'knowledge' });
+      return;
+    }
+    if (!item) throw new Error('找不到该执行记录');
     remember(sessionId);
     await router.navigate('/');
+  }, openTaskProcess(task: TaskProcessRef) {
+    taskProcess = task;
+    taskProcessListeners.forEach(listener => listener());
+    void ensureTaskHistory(task.sessionId).catch(() => {});
+  }, closeTaskProcess() {
+    taskProcess = null;
+    taskProcessListeners.forEach(listener => listener());
+  }, getTaskProcess() {
+    return taskProcess;
+  }, subscribeTaskProcess(listener: () => void) {
+    taskProcessListeners.add(listener);
+    return () => { taskProcessListeners.delete(listener); };
+  }, trajectory(sessionId: string) {
+    const existing = trajectoryStores.get(sessionId);
+    if (existing) return existing;
+    const store = {
+      subscribe(listener: () => void) {
+        void ensureTaskHistory(sessionId).catch(() => {});
+        try {
+          const binding = client.uiConversation?.binding(sessionId);
+          binding?.activate('trajectory');
+          const source = binding?.target('trajectory');
+          const face = historyFace(sessionId);
+          const offList = client.sessions.list.subscribe(listener);
+          const offTarget = source?.subscribe(listener);
+          const offFace = face?.subscribe?.(listener);
+          return () => { offTarget?.(); offList(); offFace?.(); };
+        } catch {
+          return client.sessions.list.subscribe(listener);
+        }
+      },
+      getSnapshot() {
+        try {
+          const binding = client.uiConversation?.binding(sessionId);
+          binding?.activate('trajectory');
+          return projectTrajectory(sessionId, binding?.target('trajectory')?.getSnapshot());
+        } catch {
+          return projectTrajectory(sessionId, undefined);
+        }
+      },
+      async loadOlder() {
+        const face = historyFace(sessionId);
+        if (typeof face?.loadOlder === 'function') await face.loadOlder();
+      },
+    };
+    trajectoryStores.set(sessionId, store);
+    return store;
+  }, async cancelTask(sessionId: string) {
+    await cancelReportRun(sessionId);
   }, topicSessionMatches(topicId: string) {
     return openedTopicId === topicId && !!openedSessionId;
   }, subscribeSession(listener: () => void) {
     sessionListeners.add(listener);
     return () => { sessionListeners.delete(listener); };
+  }, subscribeSessionList(listener: () => void) {
+    const offSessions = client.sessions.list.subscribe(listener);
+    const offArchives = client.workspaces.list.subscribe(listener);
+    return () => { offSessions(); offArchives(); };
   } };
   client.slots.inject('conversation.view', () => client.slots.register<{ openView(view: string, focus?: string): void }>({
     name: 'conversation.view', id: 'finance-history', order: 30, label: () => '历史对话',
@@ -271,11 +498,21 @@ export function apply(ctx: Context) {
     const subscribeArchives = React.useCallback((notify: () => void) => client.workspaces.list.subscribe(notify), []);
     const readArchives = React.useCallback(() => client.workspaces.list.getSnapshot(), []);
     const archives = React.useSyncExternalStore(subscribeArchives, readArchives);
+    const subscribeHidden = React.useCallback((notify: () => void) => {
+      hiddenListeners.add(notify);
+      return () => { hiddenListeners.delete(notify); };
+    }, []);
+    const readHidden = React.useCallback(() => hiddenChats, []);
+    const hidden = React.useSyncExternalStore(subscribeHidden, readHidden, readHidden);
     const [archiving, setArchiving] = React.useState<string | null>(null);
     const [showAll, setShowAll] = React.useState(false);
     React.useEffect(() => { void client.sessions.refresh().catch(() => setError('历史对话读取失败')); }, []);
+    React.useEffect(() => { void refreshHiddenChats(); }, [list.ids.join(',')]);
     const updated = (id: string) => new Date(list.byId[id]?.updatedAt ?? 0).getTime() || 0;
-    const allIds = list.ids.filter(id => list.byId[id]?.cwd === workspace && !list.byId[id]?.parentId && !list.byId[id]?.blank && !archives.archivedSessionIds.includes(id)).sort((a, b) => updated(b) - updated(a));
+    const readyHidden = hidden.status === 'ready';
+    const allIds = readyHidden
+      ? list.ids.filter(id => list.byId[id]?.cwd === workspace && !archives.archivedSessionIds.includes(id) && !isBackgroundChat(id, list.byId[id], hidden)).sort((a, b) => updated(b) - updated(a))
+      : [];
     const ids = compact && !showAll ? allIds.slice(0, 4) : allIds;
     const archive = async (id: string) => {
       setError(''); setArchiving(id);
@@ -283,14 +520,17 @@ export function apply(ctx: Context) {
       catch { setError('归档失败，请重试'); }
       finally { setArchiving(null); }
     };
+    if (compact && hidden.status === 'loading') return null;
     if (compact && allIds.length === 0 && !error) return null;
     return <div className={compact ? 'finance-recent mx-auto mt-5 w-full px-4' : 'h-full overflow-auto p-6 sm:p-8'}><div className={compact ? 'w-full' : 'mx-auto max-w-4xl'}>
       {compact ? <div className="mb-3 flex items-center justify-between"><h2 className="text-sm font-medium text-muted-foreground">最近对话</h2>{allIds.length > 4 && <button className="text-xs text-muted-foreground hover:text-primary" onClick={() => setShowAll(!showAll)}>{showAll ? '收起' : '查看全部'}</button>}</div> : <>
       <div className="mb-6 flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">继续你的研究</h2><p className="mt-2 text-sm text-muted-foreground">找回之前的问题，接着聊。</p></div>
         <NewConversation openView={openView} /></div></>}
       {error && <p role="alert">{error}</p>}
-      {ids.length === 0 && <div className="rounded-2xl border border-dashed border-border p-12 text-center"><MessageSquare size={28} className="mx-auto mb-4 text-muted-foreground/50" /><p className="text-sm text-muted-foreground">还没有历史对话，从一个感兴趣的问题开始吧。</p></div>}
-      <div className={compact ? 'grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2' : 'space-y-3'}>{ids.map(id => <div key={id} className="group flex items-center rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30 focus-within:border-primary/40"><button className="flex min-w-0 flex-1 items-center gap-4 rounded-xl px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" onClick={() => { openView('chat'); remember(id); }}>
+      {hidden.status === 'loading' && !compact && <p role="status" className="text-sm text-muted-foreground">正在核对对话列表…</p>}
+      {hidden.status === 'error' && <p role="alert" className="text-sm text-destructive">后台任务身份暂时无法核对，历史对话暂不展示。<button type="button" className="workspace-action workspace-action-compact ml-2" onClick={() => { void refreshHiddenChats(); }}>重试</button></p>}
+      {readyHidden && ids.length === 0 && <div className="rounded-2xl border border-dashed border-border p-12 text-center"><MessageSquare size={28} className="mx-auto mb-4 text-muted-foreground/50" /><p className="text-sm text-muted-foreground">还没有历史对话，从一个感兴趣的问题开始吧。</p></div>}
+      <div className={compact ? 'grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2' : 'space-y-3'}>{ids.map(id => <div key={id} className="group flex items-center rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30 focus-within:border-primary/40"><button className="flex min-w-0 flex-1 items-center gap-4 rounded-xl px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" onClick={() => { void research.openSession(id).then(() => openView('chat')).catch(err => setError(err instanceof Error ? err.message : '无法打开该对话')); }}>
         <span className="rounded-xl bg-primary/10 p-2.5 text-primary"><MessageSquare size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{list.byId[id]?.displayTitle || list.byId[id]?.title || '新对话'}</span><span className="mt-1 block text-xs text-muted-foreground">{list.byId[id]?.running ? '研究进行中' : '继续研究'}{updated(id) > 0 && <span> · {new Date(updated(id)).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}</span></span><ArrowUpRight size={16} className="shrink-0 text-muted-foreground group-hover:text-primary" />
       </button><div className="mr-3 shrink-0 border-l border-border pl-3"><button type="button" disabled={archiving !== null || list.byId[id]?.running} title={list.byId[id]?.running ? '研究结束后可归档' : '归档后从历史列表移除，保留对话内容'} aria-label={`归档 ${list.byId[id]?.displayTitle || list.byId[id]?.title || '新对话'}`} className="inline-flex h-10 w-24 items-center justify-center gap-2 rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => { void archive(id); }}><Archive size={16} />{archiving === id ? '归档中' : '归档'}</button></div></div>)}</div>
     </div></div>;

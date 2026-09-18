@@ -22,12 +22,13 @@ import {
   type ResearchTopicRouteResult,
   type ResearchTopicSummary,
 } from "../lib/research";
+import { loadReportTasks } from "../lib/reportTasks";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
 const TASK_STATUS: Record<string, string> = {
   running: "执行中", waiting_ingest: "等待报告入库", interrupted: "已中断", no_increment: "无新增",
-  awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消",
+  awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消", recorded: "已记录",
 };
 
 export function MyResearch() {
@@ -50,7 +51,7 @@ export function MyResearch() {
   const [notesError, setNotesError] = useState(notesLoadError()?.message || "");
   const [notesBusy, setNotesBusy] = useState(false);
   const [notesTick, setNotesTick] = useState(0);
-  const [tasks, setTasks] = useState<{ id: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null>(null);
+  const [tasks, setTasks] = useState<{ id: string; kind?: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null>(null);
   const [tasksError, setTasksError] = useState("");
   const [topicQuestion, setTopicQuestion] = useState("");
   const [topicRouteResult, setTopicRouteResult] = useState<ResearchTopicRouteResult | null>(null);
@@ -97,19 +98,33 @@ export function MyResearch() {
     if (tab !== "tasks") return;
     const controller = new AbortController();
     let first = true;
-    const load = () => fetch("/finance-background-tasks", { signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) throw new Error("任务读取失败");
-        const body = await response.json() as { items?: typeof tasks };
-        if (!controller.signal.aborted) {
-          setTasksError("");
-          setTasks(Array.isArray(body.items) ? body.items : []);
-        }
-      })
-      .catch(e => {
+    const load = async () => {
+      try {
+        const [bgResponse, reports] = await Promise.all([
+          fetch("/finance-background-tasks", { signal: controller.signal }),
+          loadReportTasks().catch(() => ({ sessions: {} as Record<string, { slug: string; input_hash: string; bound_at?: string }>, host_session_id: '' })),
+        ]);
+        if (!bgResponse.ok) throw new Error("任务读取失败");
+        const body = await bgResponse.json() as { items?: NonNullable<typeof tasks> };
+        if (controller.signal.aborted) return;
+        const reportItems = Object.entries(reports.sessions || {}).filter(([id]) => id && id !== reports.host_session_id).map(([id, bind]) => ({
+          id,
+          kind: 'report' as const,
+          title: `图文报告 · ${bind.slug}`,
+          display_status: researchSessions?.sessionState(id)?.running ? 'running' : 'recorded',
+          started_at: bind.bound_at,
+          child_session_id: id,
+          targets: [bind.slug],
+          summary: bind.slug,
+        }));
+        const items = [...reportItems, ...(Array.isArray(body.items) ? body.items.map(item => ({ ...item, kind: item.kind || 'knowledge' })) : [])];
+        items.sort((a, b) => String(b.started_at || '').localeCompare(String(a.started_at || '')));
+        setTasksError("");
+        setTasks(items);
+      } catch (e) {
         if (!controller.signal.aborted && first) setTasksError(e instanceof Error ? e.message : String(e));
-      })
-      .finally(() => { first = false; });
+      } finally { first = false; }
+    };
     setTasksError(""); setTasks(null);
     void load();
     const timer = window.setInterval(() => { void load(); }, 4000);
@@ -227,7 +242,10 @@ export function MyResearch() {
     </div>
     {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
     {error && <p role="alert" className="mb-4 text-sm text-destructive">{error}</p>}
-    {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpen={id => researchSessions?.openSession(id)} /> : tab === "topics" ? <>
+    {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target) => researchSessions?.openTaskProcess({
+      sessionId: id, kind, title, parentSessionId: parentId,
+      resultHref: target ? `/research?company=${encodeURIComponent(target.replace(/^companies\//, ""))}` : undefined,
+    })} onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "topics" ? <>
       <GlassCard className="mb-5">
         <form onSubmit={startTopic}>
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
@@ -299,24 +317,27 @@ export function MyResearch() {
   </div>;
 }
 
-function BackgroundTaskList({ tasks, error, onOpen }: {
-  tasks: { id: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null;
-  error: string; onOpen?: (sessionId: string) => void | Promise<void>;
+function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
+  tasks: { id: string; kind?: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null;
+  error: string;
+  onOpenProcess?: (sessionId: string, kind: 'report' | 'knowledge', title: string, parentSessionId?: string, target?: string) => void;
+  onOpenSource?: (sessionId: string) => void | Promise<void>;
 }) {
   if (error) return <GlassCard><p role="alert" className="text-sm text-destructive">{error}</p></GlassCard>;
   if (!tasks) return <ResearchLoading title="正在读取任务" sections={["执行状态", "成果摘要"]} />;
   if (!tasks.length) return <GlassCard><div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话结束后若有原文缺口才会出现在这里，不会自动建立议题。</div></GlassCard>;
   return <div className="space-y-2">{tasks.map(task => {
     const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
-    const sessionId = task.parent_session_id || task.child_session_id;
+    const processId = task.child_session_id || task.id;
+    const kind = task.kind === 'report' ? 'report' as const : 'knowledge' as const;
     return <GlassCard key={task.id} className="!p-4">
       <p className="text-xs text-muted-foreground">{TASK_STATUS[task.display_status || ""] || task.display_status || "未知"}</p>
-      <h2 className="mt-2 text-base font-semibold">{task.title || "知识整理"}</h2>
+      <h2 className="mt-2 text-base font-semibold">{task.title || (kind === 'report' ? '图文报告' : '知识整理')}</h2>
       <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{task.summary || task.question || "无摘要"}</p>
       <p className="mt-3 text-xs text-muted-foreground">{task.targets?.join("、") || "未绑定公司页"}{task.started_at ? ` · ${new Date(task.started_at).toLocaleString("zh-CN")}` : ""}{duration != null ? ` · ${duration} 秒` : ""}</p>
       <div className="mt-3 flex flex-wrap gap-2">
-        {sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpen?.(sessionId)}>查看来源对话</button>}
-        {task.child_session_id && task.child_session_id !== sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpen?.(task.child_session_id!)}>打开执行记录</button>}
+        {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0])}>查看过程</button>}
+        {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
         {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ""))}`}>打开目标 Wiki</Link>}
       </div>
     </GlassCard>;

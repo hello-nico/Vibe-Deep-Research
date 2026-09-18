@@ -71,6 +71,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   assert.equal(fs.existsSync(new URL("../dsh/finance-ui/stage-model.mjs", import.meta.url)), false);
   const server = readFileSync(new URL("../dsh/finance-ui/server.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(server, /installStageModel|stage-model/);
+  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "agents", "subagents"\]/);
   const patch = readFileSync(new URL("../dsh/finance-ui/cordis.patch.yml", import.meta.url), "utf8");
   assert.match(patch, /surfaceContext:\s*false/);
   assert.match(patch, /includeRuntimeContext:\s*false/);
@@ -82,7 +83,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {
-  for (let failAt = 1; failAt <= 11; failAt++) {
+  for (let failAt = 1; failAt <= 13; failAt++) {
     const webServer = fakeWebServer();
     const register = webServer.register.bind(webServer);
     let count = 0;
@@ -95,7 +96,7 @@ test("真实插件的每个注册失败点都回滚，并可重装卸载", () =>
     assert.equal(webServer.routes.size, 0, `registration ${failAt}`);
     webServer.register = register;
     apply(ctx);
-    assert.equal(webServer.routes.size, 11);
+    assert.equal(webServer.routes.size, 13);
     for (const dispose of ctx.effects.splice(0).reverse()) dispose();
     assert.equal(webServer.routes.size, 0);
   }

@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import { spawn } from "node:child_process";
-import type { IncomingMessage } from "node:http";
+import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 import { resolveDshPaths, prepareDshPaths, researchRuntimeEnv } from "../orchestrator/src/dsh_paths.ts";
+
+const DSH_PROXY_PREFIXES = ["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-report-tasks", "/finance-report-runs", "/finance-background-tasks", "/finance-wiki-publish", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"] as const;
 
 /** Loopback Vite/DSH proxy: Host must match this origin. Missing Origin is allowed for same-host tools; a present Origin or Fetch site must be same-origin. Reachability is not authorization. */
 export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origin: string) {
@@ -15,6 +17,20 @@ export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origi
   const site = req.headers["sec-fetch-site"];
   if (site && !["same-origin", "none"].includes(String(site))) return false;
   return true;
+}
+
+export function isDshProxiedPath(pathname: string) {
+  return DSH_PROXY_PREFIXES.some(prefix => pathname === prefix || pathname.startsWith(`${prefix}/`));
+}
+
+export function dshUnavailableBody(failure: string) {
+  return JSON.stringify({ error: "dsh_unavailable", message: failure || "DSH 正在启动" });
+}
+
+function sendJson(res: ServerResponse, status: number, body: string, extra: Record<string, string> = {}) {
+  if (res.headersSent) return;
+  res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extra });
+  res.end(body);
 }
 
 /** Serve DSH's original Web entry. Product code is loaded by its plugin manifest. */
@@ -72,29 +88,52 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     ], { cwd: paths.workspace, env: { ...process.env, ...researchRuntimeEnv(paths), DSH_HOME: paths.home, VRA_FINANCE_DATA_ROOT: paths.dataRoot }, stdio: ["ignore", "pipe", "pipe"] });
     child.on("error", () => { failure = "DSH 进程无法启动，请检查运行环境"; console.error(`[dsh] ${failure}`); });
     child.on("exit", (code, signal) => { cookie = ""; failure = `DSH 服务已停止（退出码 ${code}，信号 ${signal ?? "无"}）`; console.error(`[dsh] ${failure}`); });
-    let output = "";
-    child.stdout.on("data", async chunk => {
-      output = (output + String(chunk)).slice(-8192);
-      const match = output.match(/dsh web: (http:\/\/127\.0\.0\.1:\d+\/\S*)/);
-      if (!match?.[1]) return;
-      output = "";
-      try {
-        const response = await fetch(match[1], { redirect: "manual" });
-        cookie = response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
-        if (!cookie) throw new Error("Missing startup cookie");
-        failure = "";
-      } catch { failure = "DSH 启动认证失败"; console.error(`[dsh] ${failure}`); }
-    });
     child.stderr.on("data", () => { /* Runtime diagnostics may contain credentials. */ });
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        child.kill("SIGTERM");
+        reject(new Error("DSH 启动超时"));
+      }, 30_000);
+      let output = "";
+      let settled = false;
+      const finish = (error?: Error) => {
+        if (settled) return;
+        settled = true;
+        clearTimeout(timer);
+        if (error) reject(error);
+        else resolve();
+      };
+      child.stdout.on("data", chunk => {
+        output = (output + String(chunk)).slice(-8192);
+        const match = output.match(/dsh web: (http:\/\/127\.0\.0\.1:\d+\/\S*)/);
+        if (!match?.[1]) return;
+        output = "";
+        void fetch(match[1], { redirect: "manual" }).then(async response => {
+          const next = response.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+          if (!next) throw new Error("Missing startup cookie");
+          cookie = next;
+          failure = "";
+          finish();
+        }).catch(() => {
+          failure = "DSH 启动认证失败";
+          console.error(`[dsh] ${failure}`);
+          finish(new Error("DSH 启动认证失败"));
+        });
+      });
+      child.once("exit", (code, signal) => {
+        if (cookie) return;
+        finish(new Error(`DSH 服务已停止（退出码 ${code}，信号 ${signal ?? "无"}）`));
+      });
+    });
     server.httpServer?.once("close", () => { watch?.kill("SIGTERM"); child.kill("SIGTERM"); });
     server.middlewares.use((req, res, next) => {
       if (!trusted(req)) { res.writeHead(403); res.end(); return; }
       const pathname = (req.url ?? "/").split("?")[0]!;
-      if (pathname.startsWith("/finance-api") || pathname.startsWith("/api/") || pathname.startsWith("/plugins/")
-        || pathname.startsWith("/assets/") || pathname.startsWith("/finance-research/") || pathname.startsWith("/finance-notes")
-        || pathname === "/finance-model" || pathname === "/finance-host" || pathname === "/finance-note-digest"
-        || pathname === "/finance-topic-sessions" || pathname === "/finance-background-tasks" || pathname === "/finance-wiki-publish" || pathname === "/finance-ui.css"
-        || pathname === "/finance-pdfium.wasm" || pathname === "/finance-icon.svg" || pathname === "/favicon.svg" || pathname === "/manifest.webmanifest") return next();
+      if (pathname.startsWith("/finance-api")) return next();
+      if (isDshProxiedPath(pathname)) {
+        if (!cookie) { sendJson(res, 503, dshUnavailableBody(failure), { "Retry-After": "1" }); return; }
+        return next();
+      }
       // A full document request receives the untouched DSH index including its boot kernel.
       if (req.method !== "GET" || (!req.headers.accept?.includes("text/html") && pathname !== "/")) return next();
       if (!cookie) {
@@ -112,17 +151,36 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     configResolved(config) {
       for (const section of [config.server, config.preview]) {
         section.proxy = {
-          ...Object.fromEntries(["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-background-tasks", "/finance-wiki-publish", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"].map(prefix => [prefix, {
+          ...Object.fromEntries(DSH_PROXY_PREFIXES.map(prefix => [prefix, {
             target, ws: true, changeOrigin: true,
             configure(proxy: import("vite").HttpProxy.Server) {
-              const authorize = (request: import("node:http").ClientRequest, incoming: IncomingMessage) => {
-                if (!origin || !trusted(incoming) || !cookie) { request.destroy(); return; }
+              const attachCookie = (request: ClientRequest) => {
                 request.setHeader("cookie", cookie);
                 request.setHeader("origin", target);
               };
-              proxy.on("proxyReq", authorize);
-              proxy.on("proxyReqWs", authorize);
+              proxy.on("proxyReq", (request, incoming, res) => {
+                if (!origin || !trusted(incoming) || !cookie) {
+                  if (res && "writeHead" in res) {
+                    if (!trusted(incoming) || !origin) sendJson(res, 403, JSON.stringify({ error: "forbidden" }));
+                    else sendJson(res, 503, dshUnavailableBody(failure), { "Retry-After": "1" });
+                  }
+                  request.destroy();
+                  return;
+                }
+                attachCookie(request);
+              });
+              proxy.on("proxyReqWs", (request, incoming) => {
+                if (!origin || !trusted(incoming) || !cookie) { request.destroy(); return; }
+                attachCookie(request);
+              });
               proxy.on("proxyRes", response => { delete response.headers["set-cookie"]; });
+              proxy.on("error", (_error, _req, res) => {
+                if (res && "writeHead" in res) {
+                  sendJson(res as ServerResponse, cookie ? 502 : 503, cookie
+                    ? JSON.stringify({ error: "dsh_unreachable", message: failure || "研究运行时暂时不可用" })
+                    : dshUnavailableBody(failure), cookie ? {} : { "Retry-After": "1" });
+                }
+              });
             },
           }])),
           ...section.proxy,

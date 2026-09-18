@@ -1,0 +1,63 @@
+.task-process-panel {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.task-process-step {
+  border: 1px solid hsl(var(--border) / 0.7);
+  border-radius: 0.75rem;
+}
+
+.task-process-step.is-failed {
+  border-color: hsl(var(--destructive) / 0.4);
+}
+
+.task-process-step-head {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+}
+
+.task-process-step-head:disabled {
+  cursor: default;
+}
+
+.task-process-step-title {
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.task-process-step-meta {
+  flex-shrink: 0;
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
+}
+
+.task-process-step-body {
+  border-top: 1px solid hsl(var(--border) / 0.6);
+  padding: 0.5rem 0.75rem 0.75rem;
+}
+
+.task-process-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  font-variant-numeric: tabular-nums;
+}
+
+.task-process-details {
+  margin-top: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.task-process-error {
+  margin: 0 0 0.5rem;
+  color: hsl(var(--destructive));
+  font-size: 0.8125rem;
+}
