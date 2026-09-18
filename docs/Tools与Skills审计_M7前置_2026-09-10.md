@@ -290,3 +290,106 @@ my_research 额外六项：源码已核对，尚无本轮真实加载/调用验�
 独立复核确认上述三项修复成立，当前有界改动无阻塞残余；复核者实际执行 DSH 定向 12/12 与 UI 入口 6/6 通过。最终主线程整合回归为 DSH 69/69、前端议题相关 14/14；不把这些数字当作新模型端到端通过率。
 
 **残余范围。** 本轮不将两张 K 线归因于单一原因：此前华能轨迹是错误日期后重新生成；只读成果不出图已成立，但新工具收敛不等于日期依赖行为已获模型验收。来源失败、历史抽取合法性、回答质量、延迟、图表次数仍需固定同条件的新模型多会话验收。未重启正在使用的 DSH 服务，不能声称内存里的旧会话已加载新协议；没有提交、push、生产 Topic 清理或 Backend 准入改动。
+
+## G. 全工具失败协议复审（2026-09-18）
+
+### 结论与证据边界
+
+这次问题是贯穿工具链的失败信息和恢复契约缺口，不能归结为模型偶发选错参数。此前审计确实检查过错误恢复，但主要围绕历史已出现的参数错误、角色边界与成功路径；没有把“错误经过每层以后还剩什么”“已写成功但回执失败怎么办”做成系统故障矩阵。历史文档明确留下 Provider 归因未完成；因此此前的“全工具”代表清单覆盖，并不代表全失败路径闭合。
+
+基线：Vibe `48405a7`、Stock `379d853`，均包含现有未提交改动；本轮审的是当前工作树。只更新审计记录与复现制品，不实施产品修复，不重启、不调用模型、不写生产数据。
+
+四种角色源码目录：普通深研 25、我的研究 34、知识整理 12、报告 4，去重 35 个业务工具。清单来自当前导出的 allowlist；不冒充运行中服务的模型请求。全部逐项检查公开参数、执行前置、输出适配、副作用和错误出口。故障注入覆盖公共适配器及高风险分支，未逐个工具进行真实 Provider/数据库故障注入。
+
+### 优先缺陷
+
+| 编号 / 优先级 | 证据、影响 | 修复归属与验收要求 |
+| --- | --- | --- |
+| F01 / P1 行情失败原因消失 | `Stock/backend/app/market/providers/composite.py:34–49` 捕获每尺度异常仅留 code，全失败又丢掉整个 missing。受控 Provider 抛 `provider_timeout`，最终只剩 `no_available_scales`。`observation-tools.mjs:145–165` 只验代码形态，允许把指数放入个股 symbol。 | Backend 保留逐尺度身份、失败类别和安全原因；DSH 保留完整诊断。区分填错尺度、Provider 不支持、空区间、暂时失败。只对可确定的身份做语义拒绝，不按代码前缀误伤股票，也不悄悄换基准。 |
+| F02 / P1 Radar 投影删掉诊断 | `Stock/dsh/src/observation-tools.mjs:65–86` 只给 community_narrative 附 failure，当前工具实际请求的四通道都不适用；丢 code/message/warnings/channel。故障注入后模型只见 `ok:false,ready:false`。 | DSH projection 保留通道身份、状态、公开原因和 warnings；部分失败仍返回已有候选。Backend 已提供的安全消息无需另造。 |
+| F03 / P1 公共 HTTP 适配误报和信息损失 | `Stock/dsh/src/research-backend.mjs:1–21` JSON 解析失败一律 `{}`。受控 200 HTML 被当成功，503 文本只剩 `Backend 503: {}`；结构化 429 的 message 不含 status、对象不含 Retry-After。 | 公共适配器识别响应协议错误，保留 status/code、安全摘要、重试等待信息；区分网络/取消/业务拒绝。禁止直接暴露代理 HTML、凭据和内部堆栈。写请求断连必须标为结果未知，不能推断未写入。 |
+| F04 / P1 报告角色的两类 Wiki 读取必失败 | `Stock/dsh/src/research-material-tools.mjs:128–149` 报告分支返回 markdown/spec，Theme/Comparison 的 render 却取 value.content。真实 DSH ToolRuntime + 合法合成 HTTP：公司可读，两类组合页报 `output.render returned non-lossless JSON`。 | 统一输出适配与角色分支的契约。测试四类 Wiki × 普通/报告允许角色的模型可见 content，不能只检查 execute 返回值或公司报告。 |
+| F05 / P1 Topic 冲突重试替换版本 | `Stock/dsh/src/topic-tools.mjs:6–19,176–183` 冲突直接缓存 current_revision，latestRevision 优先用缓存；attach 同样使用。受控重放模型两次都给版本 2，实际请求为 2、9，中间无 GET。 | 区分本会话成功写入推进与外部冲突。外部冲突后先读最新内容，再提交对应 revision；不得拿新版本号给旧判断自动通行。已证实绕过原 expectedRevision；真实覆盖损失未发生/未验证。 |
+| F06 / P1 草案部分成功丢恢复身份 | `Stock/backend/app/api/v1/wiki.py:1766–1792` issue 已保存草案，再 remember_draft；后者失败返回 503 和“请重试”，没有 token。`services/page_drafts.py:82–98` 每次 issue 新随机 token。源码确认。 | Backend 返回已完成/未完成部分和已保存 token，后续仅补关联或幂等恢复；不可笼统重做完整操作。不改 Wiki 正式发布权限。 |
+| F07 / P2 成果重试不具备业务去重 | `Stock/dsh/src/result-tools.mjs:29–36` operation_id 绑定 session+callId；Backend `services/research_results.py:81–105` 仅按 operation_id 幂等。同参数新调用经 DSH 实测产生不同 operation_id。 | 若保存成功后丢回执，模型新调用可能另存成果并再出图。需 host 保留操作身份/可回查结果，显式区分重试与主动刷新；不能永久按参数去重。该窗口是风险，不是对历史双图的新归因。 |
+| F08 / P2 部分公开约束仍缺失 | `resolve_refs` 没公开 1..100，执行只报 invalid length；`topic_list.limit` 未公开 Backend 上限100；`wiki_report_publish.html` 未公开400000字符上限，错误也只说超过限制。 | 在既有 schema/说明补齐范围和带字段路径的修复信息；对照执行值生成负例。无需新增工具。 |
+
+产品只读轨迹 `Vibe/desktop/src/verticals/finance/lib/taskTrajectory.ts:134–137` 显示工具返回文本和 isError；这一层不能还原已被上游删除的诊断。仅润色 UI 报错或加 system prompt 无法闭合 F01–F06。
+
+### 35 项逐项覆盖清单
+
+“未见新增”仅表示本次源码及既有回归未发现独立缺陷；使用 HTTP 的工具仍共同受 F03 影响，不等于真实运行已验收。
+
+| 工具 | 前置 / 副作用与本轮结论 |
+| --- | --- |
+| today | 本地日期；无写入，未见新增 |
+| resolve_refs | 引用批次、pending lookup；F08 |
+| source_list_documents | 已入库文档元信息，空列表不是无外部资料；未见新增 |
+| source_get_index | 固定文档版本、分页；已公开限额与后续固定身份，未见新增 |
+| source_scan_sections | 固定 revision/hash、多源及标题限额；预览不算证据，未见新增 |
+| source_read_blocks | 固定身份、当前轮 scan 范围、块数/字符限额；未见新增 |
+| stage_extraction | 读过的块、实体别名、support角色；只是暂存，终态由结算负责，未见新增 |
+| topic_list | 只读检索；F08 |
+| topic_get | 读内容并记录版本；与冲突后的恢复一起验 F05 |
+| search_external | 每轮最多2次，发起HTTP即消耗；已公开成本，限流恢复受 F03 |
+| query_observation | 只读已有事实/关系/Wiki，不强制补取；未见新增 |
+| fetch_company_data | 外部数据获取；HTTP与返回缺口应分别验证，未见新增独立缺陷 |
+| observe_market | 三尺度独立，不能把指数当个股；F01 |
+| observe_radar | 四通道、多来源部分成功；F02 |
+| source_ingest_periodic_report | Backend异步job，取消不回滚；先记job再poll的保护已存在，未见新增独立缺陷 |
+| calculate_metrics | 具名数量、单位/报告期/来源校验；现有前置与Backend错误透传，未见新增 |
+| read_research_method | 实际资源名枚举，省略可查目录；未见新增 |
+| wiki_read | 普通与报告不同Owner输出；F04 |
+| wiki_list_pages | MCP字段裁剪/分页，上游isError转错误；未见新增，真实MCP断连未重放 |
+| wiki_search | MCP字段裁剪/分页；同上 |
+| wiki_relations | 入出边/遍历、深度上限；同上 |
+| generate_market_result | 保存/展示成果；F07，身份语义需同F01覆盖 |
+| generate_financial_result | 保存/展示成果；F07 |
+| read_research_result | result身份校验，重读不出图；未见新增 |
+| calculate_market_result | 已存成果1..10窗口，不重新取数；未见新增 |
+| topic_update | 已绑定Topic、CAS、串行写；F05 |
+| topic_attach_radar_card | 临时token、已绑定Topic、CAS；F05 |
+| read_composition_skill | 仅我的研究、theme/comparison枚举；未见新增 |
+| note_list | 分页Backend账本，limit会夹到40；坏响应被称为unavailable，需跟F03区别空集合与协议异常 |
+| note_read | Backend正文读取，坏形状也被称为不在库；需跟F03区别不存在与响应损坏 |
+| topic_propose_link | 临时proposal，不是已确认Link；已公开二选一及期限，未见新增 |
+| topic_list_links | 只读已确认关系，in/out枚举；未见新增 |
+| wiki_validate_page_draft | 校验/缓存后可挂Topic待审，非发布；F06 |
+| wiki_schema_graph | 仅我的研究MCP关系词汇；未见新增，真实MCP断连未重放 |
+| wiki_report_publish | 绑定页/hash/已读模板、写HTML制品；已有引用/授权门禁；F08，保存回执丢失需纳入写入矩阵 |
+
+### 复现与验证
+
+- [可执行故障探针](../artifacts/tool-failure-probes-2026-09-18.mjs)、[安全结果](../artifacts/tool-failure-probes-2026-09-18.json)。先在 Stock/dsh 运行 `pnpm run build`，再在 Vibe 运行 `node artifacts/tool-failure-probes-2026-09-18.mjs`。真实安装版 ToolRuntime，HTTP全部替换为内存合成响应，不访问生产服务。
+- 构建通过；`node --test test/*.test.mjs` 为 **95/95**。新增探针同时复现 F02/F03/F04/F05，并验证 F07 的调用身份变化。这证明现有全绿测试遗漏这些失败分支，不能证明产品稳定。
+- F01 直接实例化真实 CompositeMarketProvider，合成 Provider 抛 timeout，确认原code/message均被丢弃；不进行真实行情取数。F06为源码顺序证据，未实际制造Backend写入失败。
+- 本轮未跑真实模型、浏览器、生产写入和网络故障；未宣称全35项端到端通过。实际历史指数误传为本轮入口证据，不能据泛化错误断言真实底层故障类型。
+
+### 收敛顺序与新的完成标准
+
+1. 先修现有 Owner 的 F03、F01、F02，保留结构化诊断直到模型可见 content；再修 F04。不要让每个工具自造一层错误包装。
+2. 单独收 F05/F06/F07 的写入恢复：明确未执行、部分完成、结果未知、完成；保存原操作身份及已完成对象；冲突后必须重新取得有效内容。
+3. 补 F08 与 note 坏响应分类。测试至少包含：合法输入、语义错位、缺对象/版本漂移、暂时故障、部分/全失败、保存后丢回执、取消；仅对实际适用工具执行。
+4. 每个失败用例断言最终模型可见错误，不只断言HTTP状态或抛异常；新增角色/页面类型必须扩充矩阵。确定性覆盖后，再用少量冻结的自然问题验证恢复动作是否正确。
+
+以上为修复前审计基线。原故障探针保留旧行为断言，仅供复现旧版本；修复后的回归以 Stock `dsh/test/failure-protocol.test.mjs` 为准，不再把旧探针当通过标准。
+
+### 2026-09-18 主 Agent 修复结果
+
+用户随后明确授权“这事情很重要，你亲自修复”。主 Agent 直接实施 F01–F08，保留两仓既有未提交改动，没有委派实施。
+
+| 编号 | 已实施行为 | 验证 |
+| --- | --- | --- |
+| F01 | Composite 全失败和部分失败均保留尺度、身份、code/message；HTTP 与工具输出保留 failures。已知宽基错填 security 在同花顺 Provider 发请求前拒绝，提示 marketBenchmarkId；不按前缀误伤 000001.SZ。 | 实际 Provider/Composite 代码＋受控数据、FastAPI TestClient、DSH 最终错误输出；不是完整证券身份目录。 |
+| F02 | Radar 投影保留每个通道 status/code/message 与 warnings。 | 安装版 ToolRuntime 的 content 断言。 |
+| F03 | 非 JSON 响应明确报协议错误；保留 HTTP status、Retry-After、业务 detail。传输断连的写请求标 unknown，不回显代理正文；取消保留取消语义。轮询同步识别新传输错误类型。 | 200/503 坏正文、429、断连、partial 回执及预取消测试。取消不代表撤销已发出的写入。 |
+| F04 | 四类报告 Wiki 共用可渲染的快照输出；普通 Theme/Comparison 导航仍保留原 content。 | 四类 slug 经实际 DSH execute→render 验证。 |
+| F05 | 不用缓存覆盖显式 expectedRevision；冲突标记必须经 topic_get 清除，重新评估后才能写。 | 冲突→直接重试被阻止→重读→仍不覆盖显式旧版本；旧测试中要求静默升级版本的断言已纠正。 |
+| F06 | 关联失败返回 partial＋已保存 draft_token；retryDraftToken 经 Backend 检查同 specs/candidate 后复用，不再重新 issue。 | 临时文件仓真实保存、关联故障注入、同 token 恢复、改内容拒绝；PageSpec 校验在该恢复测试中隔离，原校验测试另跑。 |
+| F07 | 成果失败回执携带 operation_id；显式 retryOperationId 可跨 callId 恢复同一保存操作，保留会话边界；正常新生成仍创建新操作。 | DSH 受控 HTTP 模拟保存后丢回执；Backend 原 SQLite 测试验证同操作复用、不同内容冲突。不是生产断网实验。 |
+| F08 | refs 1..100、Topic limit 1..100、HTML 400000 上限写入说明并在执行前校验；Note 坏响应不再冒充不存在。 | 超限无 HTTP、Note 坏响应测试。安装版 DSH DSL 不支持 JSON Schema minItems/maxLength，因此使用其支持的说明与运行校验。 |
+
+- Stock `pnpm --dir dsh test`（含构建）：**103/103**；新增 8 个故障协议测试。
+- Backend：`test_market_composite.py`、`test_market_hithink.py`、`test_wiki_market_observe.py`、`wiki/test_page_drafts.py`、`test_research_results.py` 共 **52 passed**；两项依赖弃用警告。
+- 两仓 `git diff --check` 通过。产品 UI 无本轮改动；没有用前端静态检查冒充真实链路验收。
+- 未重启 DSH/Backend、未提交、未跑真实模型或浏览器。上线加载后仍需少量自然问题验证模型选择与恢复策略；本包不声称全部 35 工具所有 Provider 故障均已端到端覆盖。

@@ -1,0 +1,177 @@
+{
+  "mode": "synthetic HTTP with real DSH ToolRuntime; no live acceptance",
+  "rows": [
+    {
+      "name": "scope_inventory",
+      "evidence": {
+        "deep": [
+          "today",
+          "resolve_refs",
+          "source_list_documents",
+          "source_get_index",
+          "source_scan_sections",
+          "source_read_blocks",
+          "stage_extraction",
+          "topic_list",
+          "topic_get",
+          "search_external",
+          "query_observation",
+          "fetch_company_data",
+          "observe_market",
+          "observe_radar",
+          "source_ingest_periodic_report",
+          "calculate_metrics",
+          "read_research_method",
+          "wiki_read",
+          "wiki_list_pages",
+          "wiki_search",
+          "wiki_relations",
+          "generate_market_result",
+          "generate_financial_result",
+          "read_research_result",
+          "calculate_market_result"
+        ],
+        "topic": [
+          "today",
+          "resolve_refs",
+          "source_list_documents",
+          "source_get_index",
+          "source_scan_sections",
+          "source_read_blocks",
+          "stage_extraction",
+          "topic_list",
+          "topic_get",
+          "search_external",
+          "query_observation",
+          "fetch_company_data",
+          "observe_market",
+          "observe_radar",
+          "source_ingest_periodic_report",
+          "calculate_metrics",
+          "read_research_method",
+          "wiki_read",
+          "wiki_list_pages",
+          "wiki_search",
+          "wiki_relations",
+          "generate_market_result",
+          "generate_financial_result",
+          "read_research_result",
+          "calculate_market_result",
+          "topic_update",
+          "topic_attach_radar_card",
+          "read_composition_skill",
+          "note_list",
+          "note_read",
+          "topic_propose_link",
+          "topic_list_links",
+          "wiki_validate_page_draft",
+          "wiki_schema_graph"
+        ],
+        "settlement": [
+          "today",
+          "resolve_refs",
+          "source_list_documents",
+          "source_get_index",
+          "source_scan_sections",
+          "source_read_blocks",
+          "stage_extraction",
+          "query_observation",
+          "source_ingest_periodic_report",
+          "wiki_read",
+          "topic_list",
+          "topic_get"
+        ],
+        "report": [
+          "today",
+          "wiki_read",
+          "read_research_method",
+          "wiki_report_publish"
+        ],
+        "union": 35
+      }
+    },
+    {
+      "name": "non_json_200",
+      "evidence": {
+        "returned": {},
+        "error": false
+      }
+    },
+    {
+      "name": "non_json_503",
+      "evidence": {
+        "message": "Backend 503: {}"
+      }
+    },
+    {
+      "name": "structured_429",
+      "evidence": {
+        "message": "{\"code\":\"rate_limited\"}",
+        "ownProperties": [
+          "name",
+          "status",
+          "body"
+        ],
+        "retryAfter": null
+      }
+    },
+    {
+      "name": "radar_failure_projection",
+      "evidence": [
+        {
+          "type": "text",
+          "text": "{\"symbol\":\"600900.SH\",\"asOf\":null,\"since\":null,\"entersFactLayer\":false,\"summaries\":[{\"kind\":\"及时外部资料\",\"ok\":false,\"ready\":false}],\"items\":[]}"
+        }
+      ]
+    },
+    {
+      "name": "result_retry_identity",
+      "evidence": {
+        "sameArgumentsNewCallProducesNewOperation": true
+      }
+    },
+    {
+      "name": "report_read_companies",
+      "evidence": {
+        "isError": false,
+        "content": [
+          {
+            "type": "text",
+            "text": "{\"markdown\":\"# audit\",\"spec\":{\"slug\":\"companies/audit\"},\"input_hash\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"published\":true}"
+          }
+        ],
+        "value": {
+          "markdown": "# audit",
+          "spec": {
+            "slug": "companies/audit"
+          },
+          "input_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "published": true
+        }
+      }
+    },
+    {
+      "name": "report_read_themes",
+      "evidence": {
+        "error": "Error: tool \"wiki_read\" returned invalid output: output.render returned non-lossless JSON"
+      }
+    },
+    {
+      "name": "report_read_comparisons",
+      "evidence": {
+        "error": "Error: tool \"wiki_read\" returned invalid output: output.render returned non-lossless JSON"
+      }
+    },
+    {
+      "name": "topic_conflict_retry",
+      "evidence": {
+        "modelExpectedRevision": 2,
+        "transmittedVersions": [
+          2,
+          9
+        ],
+        "interveningRead": false
+      }
+    }
+  ]
+}
