@@ -33,7 +33,7 @@ export function researchErrorMessage(status: number, value: unknown): string {
     }).filter(Boolean).join("；");
     if (text) return asResearchErrorMessage(text);
   }
-  if (status === 413) return "研报不能超过 32 MB";
-  if (status === 415) return "请上传 PDF 研报";
-  return "研报没有保存成功，请稍后重试";
+  if (status === 413) return "文件不能超过 32 MB";
+  if (status === 415) return "仅支持 PDF、TXT 或 Markdown";
+  return "资料没有保存成功，请稍后重试";
 }

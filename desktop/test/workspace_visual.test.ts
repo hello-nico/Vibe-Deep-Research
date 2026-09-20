@@ -65,3 +65,25 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /trigger: "问助手"/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /panel: "问助手"/);
 });
+
+test("行业、个股、我的资料共用行业卡片；资料列表单独用总览表", () => {
+  const card = read("verticals/finance/components/IndustryDashboardCard.tsx");
+  const panel = read("verticals/finance/components/ui/DashboardPanel.tsx");
+  const panelCss = read("verticals/finance/components/ui/dashboard-panel.css");
+  assert.match(card, /export function DashboardCard/);
+  assert.match(panel, /export function DashboardPanel/);
+  assert.match(panel, /border-b border-border\/50/);
+  assert.match(panelCss, /th:last-child/);
+  assert.match(panelCss, /width: 1%/);
+  for (const path of [
+    "verticals/finance/pages/IndustryCenter.tsx",
+    "verticals/finance/pages/IndustryProfiles.tsx",
+    "verticals/finance/pages/CompanyWiki.tsx",
+    "verticals/finance/pages/UploadedReports.tsx",
+  ]) {
+    assert.match(read(path), /DashboardCard/, path);
+  }
+  assert.match(read("verticals/finance/pages/UploadedReports.tsx"), /DashboardPanel/);
+  assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /DashboardPanel/);
+  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
+});

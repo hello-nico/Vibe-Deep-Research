@@ -5,7 +5,7 @@ const WIKI_SLUG = /^\/wiki\/pages\/read$/;
 const NBS_INDUSTRY = /^\/wiki\/industries\/nbs$/;
 const DRAFT_TOKEN = /^\/wiki\/page-drafts\/[A-Za-z0-9_-]{32,64}$/;
 const BLOCK = /^\/wiki\/documents\/[a-f0-9]+\/blocks\/[A-Za-z0-9_%:.-]+$/;
-const DOCUMENT = /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index))?$/;
+const DOCUMENT = /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index|reparse))?$/;
 const PROFILE = /^\/industries\/profiles\/[A-Za-z0-9.]+$/;
 
 export function researchRoute(method, pathname) {
@@ -16,6 +16,8 @@ export function researchRoute(method, pathname) {
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
+  if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
+  if (method === 'PATCH' && /^\/documents\/[a-f0-9]{32}$/.test(pathname)) return true;
   if (method === 'GET' && /^\/notes\/[^/]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/research-results\/result(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/reports\/report(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
@@ -59,7 +61,7 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
     }
     const response = await fetch(backendBase() + route + search, {
       method: req.method, signal: controller.signal, headers,
-      ...(['POST', 'PUT'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
+      ...(['POST', 'PUT', 'PATCH'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
     });
     const reader = response.body?.getReader();
     const prefix = [];

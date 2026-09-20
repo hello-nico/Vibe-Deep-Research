@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
+import { DashboardCard } from '../components/IndustryDashboardCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
@@ -13,7 +14,7 @@ import { prefGet, prefSet } from '../lib/prefs';
 import { cn } from '@/lib/utils';
 import { useResearchSessions } from '../dsh/research-session';
 import { useAiPage } from '../../../core/ai/pageContext';
-import { ArrowLeft, ArrowRight, ArrowUpRight, Building2, FileText, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, FileText, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 
 const VIEW_KEY = 'vr-company-roster-view';
@@ -370,27 +371,14 @@ export function CompanyWiki() {
       <p className="mb-3 text-[11px] text-muted-foreground">{searching ? `匹配 ${visible.length} / ${rows.length}` : `最近 ${visible.length} 家${rows.length > RECENT_LIMIT ? ` · 共 ${rows.length} 家，输入关键字搜索` : ''}`}</p>
       {visible.length === 0 ? <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{rows.length === 0 ? '还没有加入研究的公司。到自选股把公司加进名单。' : '没有匹配的公司，请调整搜索。'}</p></GlassCard>
       : view === 'grid' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map(row => (
-        <div key={row.symbol} className="relative">
-          <button type="button" onClick={() => setSlug(row.slug)} className="group w-full text-left">
-            <GlassCard glow className="flex h-full min-h-44 flex-col justify-between transition-transform group-hover:-translate-y-1">
-              <div>
-                <Building2 size={20} className="mb-4 text-primary" />
-                <h2 className="truncate text-base font-bold">{row.title}</h2>
-                <p className="mt-2 font-mono text-xs text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</p>
-              </div>
-              <div className="mt-5 flex items-center justify-between border-t border-border/50 pt-3 text-xs">
-                <span className="text-muted-foreground">{row.hasWiki ? '打开资料' : '资料待生成'}</span>
-                <ArrowUpRight size={16} className="text-primary" />
-              </div>
-            </GlassCard>
-          </button>
-          <div className="absolute right-3 top-3 flex gap-1">
-            <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-background/70 text-muted-foreground hover:bg-muted" onClick={() => void toggleWatch(row.symbol)} aria-label={watched.has(row.symbol) ? '移出自选' : '加入自选'}>
-              <Star size={14} className={watched.has(row.symbol) ? 'fill-current text-primary' : ''} />
-            </button>
-            <button type="button" className="workspace-action workspace-action-compact" onClick={() => void leave(row.symbol)}>移除</button>
-          </div>
-        </div>
+        <DashboardCard
+          key={row.symbol}
+          title={row.title}
+          description={`${row.symbol}${row.hasWiki ? '' : ' · 资料待生成'}`}
+          footer={row.hasWiki ? '打开资料' : '资料待生成'}
+          icon={Building2}
+          onClick={() => setSlug(row.slug)}
+        />
       ))}</div>
       : <GlassCard className="!p-2 sm:!p-3">
         <div className="space-y-1">

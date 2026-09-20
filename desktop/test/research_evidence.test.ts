@@ -110,6 +110,11 @@ test('产品只开放 pinned block 的读取路径', () => {
   assert.equal(researchRoute('POST', '/wiki/documents/abc123/blocks/r1%3Ap2%3Ab3'), false);
   assert.equal(researchRoute('GET', '/wiki/documents/abc123/blocks/../../raw'), false);
   assert.equal(researchRoute('GET', '/wiki/documents/abc123/blocks/r1/extra'), false);
+  assert.equal(researchRoute('PATCH', '/documents/' + 'a'.repeat(32)), true);
+  assert.equal(researchRoute('POST', '/documents/' + 'a'.repeat(32) + '/reparse'), true);
+  assert.equal(researchRoute('POST', '/documents/' + 'a'.repeat(32) + '/hide-from-library'), true);
+  assert.equal(researchRoute('DELETE', '/documents/' + 'a'.repeat(32)), false);
+  assert.equal(researchRoute('PATCH', '/documents/uploads'), false);
 });
 
 test('原件代理仅将实际 PDF 字节设为内嵌类型，保持正文完整', async () => {

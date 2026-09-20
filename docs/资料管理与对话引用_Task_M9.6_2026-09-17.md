@@ -1,6 +1,6 @@
 # M9.6：资料管理、双入口上传与对话引用
 
-状态：2026-09-17 调研与交接稿；本轮仅写 Task，未实施、未做真实上传/模型/浏览器验收。
+状态：2026-09-18 Review 指出的 5 项已补修；Stock DSH 可编译。真模型问答、完整浏览器视觉与用户最终验收仍待。
 
 ## 目标与范围
 
@@ -36,7 +36,7 @@
 4. 点击资料打开阅读页或右侧预览，沿用既有阅读/依据组件；保留列表筛选与滚动位置，返回无需重找。窄屏采用独立阅读页。
 5. 行内主操作为阅读、引用到对话；下载原件、修改显示标题、重试处理放合适的操作菜单。修改标题不改文件内容、document_id 或历史引用。
 6. 支持多选后引用到对话。首期不引入文件夹树、批量移动、复杂标签系统、装饰性统计卡或独立知识图。
-7. 本期不新增永久删除；若沿用已有移除功能，必须明确移除资料库条目与删除原件/证据的区别，不级联破坏历史研究。缺失引用仍可解释。
+7. 本期不新增永久删除。从「我的资料」移除只隐藏资料库条目（`extra.library_hidden`），不删原件、解析、证据或历史引用；GET/阅读/旧对话仍可打开。读不到时明确说已移除。同内容再上传会重新出现。不级联破坏历史研究。
 8. 遵循产品明暗主题、橙色强调、字体与共享控件；用清晰层次、文档缩略预览、选择反馈和细腻过渡改善质感。不得给 TXT/MD 伪造 PDF 封面或生成装饰图占位。
 9. 加载、空库、筛选无结果、读取失败、处理中、部分失败分别呈现；错误不在大块空白中静默消失。
 
@@ -87,7 +87,17 @@
 | 产品页面 | 资料列表/筛选/预览/队列、引用选择与阅读跳转；不私存研究正文 |
 | Client / orchestrator | 仅沿现有选择/界面偏好、代理边界，不拥有另一套资料库 |
 
-实施前在本 Task 记录实际 DSH 扩展点、请求/返回差异、通用 Document 最小变更、引用版本规则；涉及身份或存量数据迁移需按 Stop Conditions 处理。
+## 实施前在本 Task 记录实际 DSH 扩展点、请求/返回差异、通用 Document 最小变更、引用版本规则；涉及身份或存量数据迁移需按 Stop Conditions 处理。
+
+### 实施核对（2026-09-18）
+
+- DSH 原生 `+` 仍只接指令菜单；未改 `node_modules`。对话文件入口落在 `conversation.input.left`（`finance-library-upload`，输入框工具行回形针），与「我的资料」上传弹层都 POST `/documents/uploads`。不再占用 `conversation.input.dock`。
+- 引用插入走会话作用域 `conversation.input.insertReference`（`slash/input-insert-reference`），不自动 `submit`。插入失败时提示改用 `@`。
+- `@` 在现有「研究对象」源增加「资料」分组；稳定身份 `document:{32hex}`。发送时 `serialize` 附带当时可读的 `parse_revision_id` 与 `parsed_content_sha256`；未解析则明确不能按正文引用。
+- Backend：`Document.symbol` 可空（alembic `0011_optional_document_symbol`）；公司+PDF 仍为 `research_report`，其余为 `user_material`，不进公司时间线。TXT/MD 走 UTF-8 解析，不经 LiteParse。
+- 列表 `GET /documents/uploads` 返回 `items/total/offset/limit`，支持标题搜索、类型与状态筛选。`PATCH /documents/{id}` 只改显示标题。
+- 体积 32 MB；批量最多 10 个文件、最多 4 路并发。去重仍按内容哈希；同内容绑不同公司返回 409。
+- 存量公司研报行为保留。通用资料不写虚假股票代码。URL/YouTube 未做。
 
 ## 未来链接来源（明确延期）
 
@@ -116,3 +126,42 @@ URL/YouTube 实际导入、更多办公格式、笔记编辑器、文件夹/复�
 - 去掉公司必填会破坏现有文档身份/证据/去重或需要破坏性迁移：先列出具体影响和最小方案，不用虚假股票代码占位。
 - 只能依赖 DSH 临时文件或 Client 正文副本实现列表，或无法绑定历史引用：停止该路径，修正 Owner 契约。
 - 两次补丁仍不闭合上传/引用，或只能用假状态掩盖处理失败：保留轨迹重审契约，不继续补丁叠加。
+
+## Execute / Review / Smoke（2026-09-18）
+
+Execute：Backend 通用上传/列表/标题、我的资料双栏与队列、对话 dock 上传、`@` 资料与 `document:{id}` 序列化已接入当前正式入口；未恢复旧资料库，未改 DSH 原生 `+`。
+
+Review 补修（同日）：
+1. Stock DSH `prompt.ts` 去掉模板字符串内反引号，`pnpm run typecheck` / `pnpm test` 可通过。
+2. 对话 dock 在上传开始时绑定会话；默认会话在工作台连接后 `remember()`；资料页引用按插入成功/排队/失败回执处理，失败内容进入待引用队列，不静默丢弃。
+3. 历史引用打开与 TXT/MD 正文读取携带 `parse_revision_id` + `parsed_content_sha256`；版本缺失或哈希不符返回 404/409，不回退最新稿。mention 身份可带版本。
+4. `POST /documents/{id}/reparse` 接入已有 `IngestService.reparse`；资料菜单「重试处理」保留 document_id。重复上传仍走内容去重。
+5. 预览状态绑定 `document_id`，切换时先清空再进加载态。
+
+已跑：Stock-Research `backend/.venv/bin/python -m pytest backend/tests/test_api.py -q`（18 passed）；`Stock-Research/dsh` `pnpm test`（103 passed，含 tsc）；`npm test --prefix desktop`（132 passed）；`npm run typecheck --prefix desktop`（通过）。
+
+浏览器：在本机 `http://127.0.0.1:5930/my-reports` 打开新资料页，列表读出已有「神火股份-研报.pdf」，「上传资料」弹层含可选公司代码与 PDF/TXT/MD 拖入区；点选条目后右栏出现预览标题。未做真实新文件上传、@ 发送与真模型读 Block。
+
+Postgres 需执行 alembic `0011_optional_document_symbol` 后 `symbol` 才可空；未跑迁移时无公司代码的 TXT/MD 上传会失败。
+
+Review / Smoke：测试夹具通过不等于验收完成；用户拥有最终视觉验收。未验证：真模型按引用读 Block、完整明暗/窄屏截图、对话 dock 上传后不发送再回读。
+
+### 二次 Review 收尾（2026-09-18）
+
+- 引用队列按批次保留目标会话；无目标时首次交接绑定，后续切换不改目标。每条插入成功后才移出待办，部分失败不重复已插入项，其他会话的队列不被清空。资料页事件传递该批次，避免再次入队。
+- PostgreSQL 状态回读以 active parse revision 为准，不让上传时保留的 parse_error 覆盖当前成功状态；原失败历史仍保留。
+- 本轮实跑：desktop `node --test test/library.test.ts test/research_input.test.ts test/research_upload.test.ts`（5 passed，含跨会话/部分失败恢复用例）；`npm run typecheck` 通过。Backend `pytest tests/test_postgres_store.py tests/test_api.py -q`（34 passed）；Postgres 测试连接独立真实测试库，解析器使用受控失败/成功替身，未宣称真实 PDF 解析验收。
+- 未提交、未重启产品服务、未执行产品库迁移。浏览器与真模型验收边界保持不变。
+
+### 对话上传入口收进输入框（2026-09-20）
+
+- 去掉 `conversation.input.dock` 上单独描边的「上传到我的资料」。文件入口改到 `conversation.input.left`，与原生加号同一工具行，回形针按钮；上传状态走 composer `notify`，不再在消息和输入框之间占一行。工具行用 CSS `order` 把回形针排在加号和「仅可查看」之间，不改 DSH 插槽渲染顺序。
+- 2026-09-20：对话上传转圈不是传输慢。`POST /documents/uploads` 原先同步等 LiteParse（超时 600s）和证据索引。现改为 PDF 原件落库即返回 `processing`，解析后台 `reparse`；TXT/MD 仍同步 UTF-8。对话入口不再在请求前挂「将保存到我的资料…」。运行中的 Backend 镜像需重启后才生效。
+- 未改 DSH `node_modules`，未改原生 `+`。资料页上传弹层不变。
+
+### 我的资料对齐个股名单（2026-09-20）
+
+- 对话成功提示改为「资料已经保存」，不再说「已放入输入框」。引用仍先进入输入框待用户补问题，不隐式发送。
+- 我的资料去掉刷新按钮和右侧正文预览；类型/状态筛选复用 `WorkspaceSelect`。卡片用行业/产业同一套 `DashboardCard`，列表用自选总览同一套 `DashboardPanel` 表线。卡片模式不再放勾选和菜单。个股列表和自选股不改成这张总览表。
+- 2026-09-20：列表菜单与阅读页可「从我的资料移除」。`PATCH /documents/{id}` 写 `library_hidden`，工作台现有代理即可转发；`POST .../hide-from-library` 同样可用。列表和 `@` 不再出现；原件与 GET 仍在。同哈希再上传会取消隐藏。不是永久删除。
+- 列表行使用对象摘要，不直接倾倒 Markdown 预览。视图偏好 `vr-library-view`。

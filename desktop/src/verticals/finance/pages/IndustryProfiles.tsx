@@ -4,7 +4,7 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { ResearchLoading } from '../components/ui/ResearchLoading';
-import { IndustryDashboardCard } from '../components/IndustryDashboardCard';
+import { DashboardCard } from '../components/IndustryDashboardCard';
 import { researchRead } from '../lib/research';
 import { useAiPage } from '../../../core/ai/pageContext';
 import { ArrowUpRight, Layers3, ChevronLeft } from 'lucide-react';
@@ -41,7 +41,7 @@ export function IndustryProfiles() {
     {key && <div className="workspace-toolbar justify-between"><Link className="workspace-action" to="/sectors/profiles"><ChevronLeft />行业目录</Link>{sectorsLink}</div>}
     {error && <p role="alert">{error}</p>}{!items && !profile && !error && <ResearchLoading title="正在读取产业研究" sections={["产业结构", "需求变化"]} />}
     {items && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(item => (
-      <IndustryDashboardCard
+      <DashboardCard
         key={item.industry_code}
         title={item.industry_name}
         description={item.card_count ? `${item.card_count} 个研究切入点，了解行业的关键变化` : '行业资料正在积累'}

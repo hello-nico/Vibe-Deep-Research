@@ -5,7 +5,7 @@ import { PageHeader } from "../components/ui/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
-import { IndustryDashboardCard } from "../components/IndustryDashboardCard";
+import { DashboardCard } from "../components/IndustryDashboardCard";
 import { WorkspaceSelect } from "../components/ui/WorkspaceSelect";
 import { WikiLoading, WikiReader } from "../components/ResearchKnowledge";
 import { industryIcon } from "../lib/industryIcons";
@@ -51,7 +51,7 @@ export function IndustryCenter() {
       ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7"><WikiLoading slug={`industries/${key}`} /></GlassCard>
       : <ResearchLoading title="正在读取行业入口" sections={["行业身份", "经营结构"]} />)}
     {items && !selected && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(item => (
-      <IndustryDashboardCard
+      <DashboardCard
         key={item.subject_id}
         title={item.official_name}
         description={item.summary || "行业资料待补充。"}

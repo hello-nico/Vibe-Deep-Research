@@ -294,6 +294,8 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /RECENT_LIMIT = 9/);
   assert.match(company, /搜索名称或代码/);
   assert.match(company, /xl:grid-cols-3/);
+  assert.match(company, /DashboardCard/);
+  assert.doesNotMatch(company, /DashboardPanel/);
   assert.match(company, /资料待生成/);
   assert.doesNotMatch(company, /setJoinOpen|加入研究<\//);
   assert.doesNotMatch(company, /setSlug\(row\.hasWiki \? row\.slug : row\.slug\)/);
@@ -303,6 +305,9 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /hideToggle/);
   assert.match(company, /WikiLoading/);
   assert.match(company, /ResearchRefreshStatus/);
+  assert.doesNotMatch(company, /ResearchRefreshSurface/);
+  assert.doesNotMatch(company, /holdResearchRefresh/);
+  assert.match(company, /setNotice\(\{ slug: '', text: '已重新读取公司列表' \}\); return/);
   assert.match(company, /正在创建公司资料页/);
   assert.match(company, /Boolean\(current\?\.hasWiki\) && readerState === 'loading'/);
   assert.doesNotMatch(company, /取消选择不会删除 Wiki/);

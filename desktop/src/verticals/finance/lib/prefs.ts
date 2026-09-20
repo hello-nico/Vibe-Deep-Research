@@ -1,7 +1,7 @@
 import { backend } from "./backend";
 import { storageGet, storageSet } from "./storage";
 
-const PERSISTED = ["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view"] as const;
+const PERSISTED = ["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view", "vr-library-view"] as const;
 type PrefKey = (typeof PERSISTED)[number];
 
 let cache: Record<string, string> = {};
@@ -16,7 +16,11 @@ export async function hydratePrefs(): Promise<void> {
     if (next[key] != null) continue;
     const local = storageGet(key);
     if (local == null) continue;
-    await backend.clientPrefSet(key, local);
+    try {
+      await backend.clientPrefSet(key, local);
+    } catch {
+      // 本机服务尚未登记新键时仍用本地值，避免整页停在加载态。
+    }
     next[key] = local;
   }
   if (mine !== seq) return;
@@ -34,5 +38,9 @@ export async function prefSet(key: PrefKey, value: string): Promise<void> {
   cache[key] = value;
   storageSet(key, value);
   seq++;
-  await backend.clientPrefSet(key, value);
+  try {
+    await backend.clientPrefSet(key, value);
+  } catch {
+    // 远程白名单未同步时保留本地偏好。
+  }
 }

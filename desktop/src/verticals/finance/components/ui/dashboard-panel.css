@@ -1,0 +1,9 @@
+.dashboard-table th:not(:first-child),
+.dashboard-table td:not(:first-child) {
+  width: 1%;
+  white-space: nowrap;
+}
+.dashboard-table th:last-child,
+.dashboard-table td:last-child {
+  text-align: right;
+}

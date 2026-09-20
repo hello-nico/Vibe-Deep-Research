@@ -1,10 +1,11 @@
 import * as React from "react";
-import { Activity, MessageSquare, Plus, ArrowUpRight, Archive } from "lucide-react";
+import { Activity, Archive, ArrowUpRight, Loader2, MessageSquare, Paperclip, Plus } from "lucide-react";
 import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
+import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentReadSearch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, parseDocumentRef, pendingLibraryCites, queueLibraryCites, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
 import { SearchPreviews } from './search-previews';
 import { installResultNode } from './result-node';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
@@ -55,6 +56,18 @@ interface Client {
       target(target: string): { getSnapshot(): unknown; subscribe(callback: () => void): () => void };
     };
   };
+  conversation?: {
+    input: {
+      for(actx: Context): {
+        insertReference(
+          ref: { source: string; ref: string; label: string; appearance?: 'file'; clipboardText: string },
+          span: { start: number; end: number; draftRev: number },
+        ): boolean;
+        notify(level: 'info' | 'error', text: string): void;
+        state: { getSnapshot(): { draft: string; draftRev: number } };
+      };
+    };
+  };
 }
 interface HistorySession {
   open?(): Promise<void>;
@@ -74,7 +87,7 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation", "conversation"];
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
@@ -91,6 +104,11 @@ export function apply(ctx: Context) {
         return { ...mention, open: () => { window.open(web, '_blank', 'noopener,noreferrer'); } };
       }
       if (!target) return undefined;
+      if (target.kind === 'document') return { label: '打开资料', title: '', open() {
+        const parsed = parseDocumentRef(target.id);
+        if (!parsed) return;
+        void router.navigate('/my-reports/read/' + encodeURIComponent(parsed.document_id) + '?' + documentReadSearch(parsed));
+      } };
       return { label: '打开研究材料', title: '', open() {
         if (target.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
         else void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
@@ -146,6 +164,49 @@ export function apply(ctx: Context) {
   const reportStarts = new Map<string, Promise<StartSessionResult>>();
   let openedSessionId = "";
   let openedTopicId = "";
+  const insertLibraryCitations = (items: LibraryCite[], sessionId: string) => {
+    const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
+    const input = scope && client.conversation?.input.for(scope);
+    if (!input) return false;
+    for (const item of items) {
+      const snap = input.state.getSnapshot();
+      const end = snap.draft.length;
+      const ok = input.insertReference({
+        source: '研究对象',
+        ref: documentRef(item.document_id, item.parse_revision_id, item.parsed_content_sha256),
+        label: item.has_parsed ? item.title : `${item.title}（正文未就绪）`,
+        appearance: 'file',
+        clipboardText: item.title,
+      }, { start: end, end, draftRev: snap.draftRev });
+      if (!ok) {
+        input.notify('error', '无法放入输入框，请用 @ 选择同一份资料。');
+        return false;
+      }
+    }
+    input.notify(items.every(item => item.has_parsed) ? 'info' : 'error', items.every(item => item.has_parsed)
+      ? '资料已经保存。'
+      : '资料已经保存；正文未就绪的资料发送前不能按正文阅读。');
+    return true;
+  };
+  const currentSessionId = () => client.sessions.list.getSnapshot().current || openedSessionId;
+  const deliverLibraryCitations = (items: LibraryCite[], preferredSessionId?: string) => {
+    return deliverLibraryCiteBatch(queueLibraryCites(items, preferredSessionId), currentSessionId(),
+      (item, id) => insertLibraryCitations([item], id));
+  };
+  const flushPendingCites = () => {
+    for (const pending of pendingLibraryCites()) {
+      deliverLibraryCiteBatch(pending, currentSessionId(), (item, id) => insertLibraryCitations([item], id));
+    }
+  };
+  ctx.effect(() => {
+    const onCite = (event: Event) => {
+      const batch = (event as CustomEvent<PendingLibraryCites>).detail;
+      if (!batch?.items.length) return;
+      deliverLibraryCiteBatch(batch, currentSessionId(), (item, id) => insertLibraryCitations([item], id));
+    };
+    window.addEventListener(LIBRARY_CITE_EVENT, onCite);
+    return () => window.removeEventListener(LIBRARY_CITE_EVENT, onCite);
+  });
   const sessionListeners = new Set<() => void>();
   let taskProcess: TaskProcessRef | null = null;
   const taskProcessListeners = new Set<() => void>();
@@ -156,6 +217,7 @@ export function apply(ctx: Context) {
     storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
     client.sessions.open(id);
     if (changed) sessionListeners.forEach(listener => listener());
+    flushPendingCites();
   };
   type HiddenChats = { status: 'loading' } | { status: 'ready'; ids: Set<string> } | { status: 'error' };
   let hiddenChats: HiddenChats = { status: 'loading' };
@@ -234,8 +296,7 @@ export function apply(ctx: Context) {
     const fallback = list.ids.find(id => list.byId[id]?.cwd === workspace && !archived.has(id) && !isBackgroundChat(id, list.byId[id], hidden));
     const id = existing ?? fallback ?? await client.sessions.create({ workspaceId: registered.workspaceId });
     if (disposed) return;
-    storageSet(key, id);
-    client.sessions.open(id);
+    remember(id);
   }
   // 报告任务走宿主 spawn；绑定写在子 Agent 创建窗口，早于 followup 首请求。
   async function startReportTask(question: string, task: { slug: string; inputHash: string; title?: string }): Promise<StartSessionResult> {
@@ -487,6 +548,58 @@ export function apply(ctx: Context) {
       {error && <span role="alert" className="text-xs text-destructive">{error}</span>}
     </div>;
   }
+  const notifyUpload = (sessionId: string, level: 'info' | 'error', text: string) => {
+    const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
+    const input = scope && client.conversation?.input.for(scope);
+    input?.notify(level, text);
+    return Boolean(input);
+  };
+  client.slots.inject('conversation.input.left', () => client.slots.register({
+    name: 'conversation.input.left', id: 'finance-library-upload', order: 10,
+  }, function LibraryUploadAttach() {
+    const inputRef = React.useRef<HTMLInputElement>(null);
+    const boundSessionId = React.useRef('');
+    const [busy, setBusy] = React.useState(false);
+    const [status, setStatus] = React.useState('');
+    const upload = async (files: File[]) => {
+      boundSessionId.current = currentSessionId();
+      const chosen = files.slice(0, LIBRARY_BATCH_MAX);
+      if (!chosen.length) return;
+      setBusy(true);
+      setStatus('');
+      const saved: LibraryCite[] = [];
+      const failed: string[] = [];
+      try {
+        await mapPool(chosen, LIBRARY_CONCURRENCY, async file => {
+          if (file.size > LIBRARY_MAX_BYTES) { failed.push(`${file.name}：文件不能超过 32 MB`); return; }
+          if (!libraryFileKind(file)) { failed.push(`${file.name}：仅支持 PDF、TXT 或 Markdown`); return; }
+          try {
+            const item = await uploadLibraryFile(file);
+            saved.push(libraryCiteFromItem({ ...item, title: item.title || file.name }));
+          } catch (error) {
+            failed.push(`${file.name}：${libraryUploadError(error)}`);
+          }
+        });
+        if (saved.length) deliverLibraryCitations(saved, boundSessionId.current);
+        const summary = [
+          saved.length ? `已保存 ${saved.length} 份到我的资料` : '',
+          failed.length ? failed.join('；') : '',
+        ].filter(Boolean).join('。');
+        if (failed.length) notifyUpload(boundSessionId.current, 'error', failed.join('；'));
+        else if (!saved.length && summary) notifyUpload(boundSessionId.current, 'error', summary);
+        setStatus(summary);
+      } finally {
+        setBusy(false);
+      }
+    };
+    return <div className="finance-library-attach">
+      <input ref={inputRef} className="sr-only" type="file" multiple accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" disabled={busy} onChange={event => { void upload(Array.from(event.target.files || [])); event.target.value = ''; }} />
+      <button type="button" className="finance-library-attach-btn" disabled={busy} aria-label={busy ? '正在保存到我的资料' : '上传到我的资料'} title={busy ? '正在保存到我的资料' : '上传 PDF、TXT 或 Markdown 到我的资料'} onClick={() => inputRef.current?.click()}>
+        {busy ? <Loader2 size={14} className="animate-spin" /> : <Paperclip size={14} />}
+      </button>
+      {status && <p role="status" className="sr-only">{status}</p>}
+    </div>;
+  }));
   client.slots.inject('conversation.input.dock', () => client.slots.register<{ session: { blank: boolean } }>({
     name: 'conversation.input.dock', id: 'finance-recent', order: 40,
   }, function Recent({ session }) {

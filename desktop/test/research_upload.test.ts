@@ -33,6 +33,6 @@ test("研报上传错误不露出 HTTP 状态和英文校验原文", () => {
     "公司代码无法识别，请核对 6 位 A 股代码后重试",
   );
   assert.equal(researchErrorMessage(422, { detail: [{ msg: "文件不是有效的 PDF" }] }), "文件不是有效的 PDF");
-  assert.equal(researchErrorMessage(500, null), "研报没有保存成功，请稍后重试");
-  assert.equal(asResearchErrorMessage(new Error("研报不能超过 32 MB")), "研报不能超过 32 MB");
+  assert.equal(researchErrorMessage(500, null), "资料没有保存成功，请稍后重试");
+  assert.equal(asResearchErrorMessage(new Error("文件不能超过 32 MB")), "文件不能超过 32 MB");
 });

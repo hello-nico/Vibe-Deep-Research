@@ -9,7 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { ServiceError, safePath, type ServiceContext } from "./service.ts";
 
 const SCHEMA_VERSION = "1";
-const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view"]);
+const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view", "vr-library-view"]);
 const SYMBOL_RE = /^(?:\d{6}|\d{5}\.HK|[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?)$/;
 
 const dbs = new Map<string, DatabaseSync>();

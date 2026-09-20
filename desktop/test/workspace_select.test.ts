@@ -9,6 +9,7 @@ const SELECT_PAGES = [
   "verticals/finance/pages/IndustryCenter.tsx",
   "verticals/finance/pages/CompanyWiki.tsx",
   "verticals/finance/components/ResearchResult.tsx",
+  "verticals/finance/pages/UploadedReports.tsx",
 ];
 
 test("产品下拉共用 WorkspaceSelect，页面不再各自写原生 select", () => {
@@ -38,6 +39,14 @@ test("下拉菜单优先出现在触发器下方，底部空间不够时翻到�
   );
   assert.ok(above.top < 500);
   assert.ok(above.top >= 12);
+  const end = workspaceSelectMenuBox(
+    { top: 40, left: 700, bottom: 80, width: 36 },
+    { width: 800, height: 600 },
+    { height: 200, width: 176, align: "end" },
+  );
+  assert.equal(end.minWidth, 176);
+  assert.ok(end.left + end.minWidth <= 788);
+  assert.ok(end.left >= 700 + 36 - 176);
 });
 
 test("可搜索下拉按名称和附加信息过滤", () => {
