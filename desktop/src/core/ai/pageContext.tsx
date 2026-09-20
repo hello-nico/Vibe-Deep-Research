@@ -34,29 +34,104 @@ export interface AiPage {
   suggestions?: string[];
 }
 
+export interface AssistantObjectRef {
+  kind: string;
+  id: string;
+  label: string;
+  version?: string;
+  locator?: string;
+  url?: string;
+  ready?: boolean;
+  detail?: string;
+  section?: string;
+  hint?: string;
+  source?: string;
+  time?: string;
+  readable?: boolean;
+}
+
+export type PageAssistantObject = AssistantObjectRef;
+
 interface Store {
   page: AiPage | null;
   set: Dispatch<SetStateAction<AiPage | null>>;
-  question: { context: string; pageKey: string; pageContext: string; sequence: number; reference?: { title: string; text: string } } | null;
-  ask: (context: string, reference?: { title: string; text: string }) => void;
+  question: { context: string; pageKey: string; pageContext: string; sequence: number; reference?: { title: string; text: string }; object?: AssistantObjectRef } | null;
+  objects: AssistantObjectRef[];
+  registered: PageAssistantObject[];
+  ask: (context: string, reference?: { title: string; text: string } | AssistantObjectRef) => void;
+  cite: (object: AssistantObjectRef) => void;
+  uncitate: (id: string) => void;
   clearQuestion: () => void;
+  registerPageObjects: (pageKey: string, generation: number, objects: PageAssistantObject[]) => void;
+  unregisterPageObjects: (pageKey: string, generation: number) => void;
+  queryPageObjects: (query: string) => PageAssistantObject[];
 }
 
 const Ctx = createContext<Store | null>(null);
 
+function objectSig(objects: PageAssistantObject[]): string {
+  return JSON.stringify(objects.map(item => [item.id, item.label, item.version, item.url, item.hint]));
+}
+
+function matchesQuery(object: PageAssistantObject, query: string): boolean {
+  if (!query) return true;
+  const haystack = [object.label, object.id, object.hint, object.source, object.section, object.time, object.url]
+    .filter(Boolean)
+    .join('\u0000')
+    .toLowerCase();
+  return haystack.includes(query.toLowerCase());
+}
+
 export function AiPageProvider({ children }: { children: ReactNode }) {
   const [page, setPage] = useState<AiPage | null>(null);
   const [question, setQuestion] = useState<Store['question']>(null);
+  const [objects, setObjects] = useState<AssistantObjectRef[]>([]);
+  const [registered, setRegistered] = useState<PageAssistantObject[]>([]);
+  const registration = useRef({ pageKey: '', generation: 0 });
   const sequence = useRef(0);
-  const value = useMemo<Store>(() => ({ page, set: setPage, question, clearQuestion: () => setQuestion(null), ask: (context, reference) => {
-    if (page) setQuestion({ context, reference, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
-  } }), [page, question]);
+  const value = useMemo<Store>(() => ({
+    page, set: setPage, question, objects, registered,
+    clearQuestion: () => setQuestion(null),
+    cite: (object) => {
+      setObjects(prev => prev.some(item => item.id === object.id) ? prev : [...prev, object]);
+      if (page) setQuestion({ context: object.detail || object.label, object, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
+    },
+    uncitate: (id) => setObjects(prev => prev.filter(item => item.id !== id)),
+    ask: (context, reference) => {
+      if (!page) return;
+      const object = reference && 'id' in reference && 'kind' in reference
+        ? reference as AssistantObjectRef
+        : reference && 'title' in reference
+          ? { kind: 'excerpt', id: `excerpt:${page.key}:${reference.title}`, label: reference.title, locator: reference.title, detail: reference.text, ready: true }
+          : undefined;
+      if (object) setObjects(prev => prev.some(item => item.id === object.id) ? prev : [...prev, object]);
+      setQuestion({ context, reference: reference && 'title' in reference ? reference : undefined, object, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
+    },
+    registerPageObjects: (pageKey, generation, next) => {
+      registration.current = { pageKey, generation };
+      setRegistered(prev => objectSig(prev) === objectSig(next) ? prev : next);
+    },
+    unregisterPageObjects: (pageKey, generation) => {
+      if (registration.current.pageKey !== pageKey || registration.current.generation !== generation) return;
+      registration.current = { pageKey: '', generation: 0 };
+      setRegistered([]);
+    },
+    queryPageObjects: (query) => registered.filter(item => item.readable !== false && matchesQuery(item, query.trim())),
+  }), [page, question, objects, registered]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
 export function useAiQuestion() {
   const store = useContext(Ctx);
-  return { question: store?.question, ask: store?.ask, clearQuestion: store?.clearQuestion };
+  return { question: store?.question, ask: store?.ask, clearQuestion: store?.clearQuestion, objects: store?.objects ?? [], cite: store?.cite, uncitate: store?.uncitate };
+}
+
+export function usePageAssistantObjects() {
+  const store = useContext(Ctx);
+  return {
+    objects: store?.registered ?? [],
+    query: store?.queryPageObjects ?? (() => [] as PageAssistantObject[]),
+  };
 }
 
 /**
@@ -113,4 +188,23 @@ export function useAiPage(page: AiPage | null): void {
       set((prev) => (prev === mine.current ? null : prev));
     };
   }, [set, has, key, title, context, sig]);
+}
+
+/** 当前页已加载对象进入问助手 `@` 范围；卸载或换批次时注销，不抓正文。 */
+export function useAiPageObjects(pageKey: string | undefined, objects: PageAssistantObject[]): void {
+  const ctx = useContext(Ctx);
+  const gen = useRef(0);
+  const latest = useRef(objects);
+  const register = useRef(ctx?.registerPageObjects);
+  const unregister = useRef(ctx?.unregisterPageObjects);
+  latest.current = objects;
+  register.current = ctx?.registerPageObjects;
+  unregister.current = ctx?.unregisterPageObjects;
+  const sig = objectSig(objects);
+  useEffect(() => {
+    if (!pageKey || !register.current) return;
+    const generation = ++gen.current;
+    register.current(pageKey, generation, latest.current);
+    return () => unregister.current?.(pageKey, generation);
+  }, [pageKey, sig]);
 }

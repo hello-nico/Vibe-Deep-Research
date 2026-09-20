@@ -7,6 +7,8 @@ const TOPIC_ID = /^topic:[0-9a-f]{12}$/;
 const SESSION_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 const REPORT_SLUG = /^(companies|industries|themes|comparisons)\/[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
 const INPUT_HASH = /^[a-f0-9]{64}$/;
+const PAGE_KEY = /^[A-Za-z0-9._:/-]{1,180}$/;
+const ASSISTANT_MODE = /^(ask|agent)$/;
 
 function researchDir() {
   const home = (process.env.DSH_HOME || '').trim() || path.join(os.tmpdir(), 'vibe-dsh-home');
@@ -49,6 +51,10 @@ export function topicSessionPath() {
 
 export function reportTasksPath() {
   return path.join(researchDir(), 'report-tasks.json');
+}
+
+export function assistantSessionsPath() {
+  return path.join(researchDir(), 'assistant-sessions.json');
 }
 
 export function backgroundTasksPath() {
@@ -110,6 +116,14 @@ export function loadReportTasks() {
     sessions: data.sessions && typeof data.sessions === 'object' ? data.sessions : {},
     host_session_id: typeof data.host_session_id === 'string' ? data.host_session_id : '',
     pending: data.pending && typeof data.pending === 'object' ? data.pending : null,
+  };
+}
+
+export function loadAssistantSessions() {
+  const data = readJson(assistantSessionsPath(), { sessions: {}, pages: {} });
+  return {
+    sessions: data.sessions && typeof data.sessions === 'object' ? data.sessions : {},
+    pages: data.pages && typeof data.pages === 'object' ? data.pages : {},
   };
 }
 
@@ -310,6 +324,64 @@ export function bindReportTask({ session_id, slug, input_hash }, { sessionExists
   return record;
 }
 
+function writeAssistantStore(store) {
+  writeJson(assistantSessionsPath(), {
+    sessions: store.sessions && typeof store.sessions === 'object' ? store.sessions : {},
+    pages: store.pages && typeof store.pages === 'object' ? store.pages : {},
+  });
+}
+
+const ASSISTANT_PLUGIN = /^(company_wiki|industry_wiki|deep_research|market|intel|industry_profile)$/;
+const ASSISTANT_TARGET = /^(companies|industries)\/[^\s]{1,180}$/;
+
+function assistantBindKey(plugin, target, page_key) {
+  return target ? `${plugin}:${target}` : `${plugin}:${page_key || ''}`;
+}
+
+export function bindAssistantSession({ session_id, plugin, mode, target, page_key }, { sessionExists, isRunning } = {}) {
+  if (!ASSISTANT_MODE.test(mode || '')) throw Object.assign(new Error('invalid assistant mode'), { status: 422 });
+  if (plugin && !ASSISTANT_PLUGIN.test(plugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
+  if (page_key && !PAGE_KEY.test(page_key)) throw Object.assign(new Error('invalid page key'), { status: 422 });
+  if (target && !ASSISTANT_TARGET.test(target)) throw Object.assign(new Error('invalid assistant target'), { status: 422 });
+  if (!SESSION_ID.test(session_id || '')) throw Object.assign(new Error('invalid session'), { status: 422 });
+  const exists = sessionExists || persistedSessionExists;
+  if (!exists(session_id)) throw Object.assign(new Error('session not found'), { status: 404 });
+  if (loadTopicSessions().sessions[session_id]) {
+    throw Object.assign(new Error('session already belongs to a Topic'), { status: 409 });
+  }
+  if (loadReportTasks().sessions[session_id]) {
+    throw Object.assign(new Error('session already belongs to a report task'), { status: 409 });
+  }
+  const store = loadAssistantSessions();
+  const bound = store.sessions[session_id];
+  const nextPlugin = plugin || bound?.plugin || 'deep_research';
+  if (!ASSISTANT_PLUGIN.test(nextPlugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
+  const nextTarget = target || bound?.target || '';
+  let running = false;
+  try { running = isRunning ? Boolean(isRunning(session_id)) : false; }
+  catch { running = false; }
+  if (running) {
+    if (bound && bound.mode === mode && bound.plugin === nextPlugin && (bound.target || '') === nextTarget
+      && (!page_key || bound.page_key === page_key)) return bound;
+    throw Object.assign(new Error('session is running; assistant mode cannot be switched'), { status: 409 });
+  }
+  const record = {
+    plugin: nextPlugin,
+    mode,
+    target: nextTarget,
+    page_key: page_key || bound?.page_key || '',
+    bound_at: new Date().toISOString(),
+  };
+  store.sessions[session_id] = record;
+  const bindKey = assistantBindKey(record.plugin, record.target, record.page_key);
+  if (bindKey !== `${record.plugin}:`) {
+    store.pages[bindKey] = { session_id, plugin: record.plugin, mode, target: record.target };
+    if (record.page_key) store.pages[record.page_key] = { session_id, plugin: record.plugin, mode, target: record.target };
+  }
+  writeAssistantStore(store);
+  return record;
+}
+
 export async function startReportRun(ctx, { slug, input_hash, prompt, title }) {
   if (!REPORT_SLUG.test(slug || '')) throw Object.assign(new Error('invalid report target'), { status: 422 });
   if (!INPUT_HASH.test(input_hash || '')) throw Object.assign(new Error('invalid input hash'), { status: 422 });
@@ -462,6 +534,19 @@ export function installHostState(ctx, track = disposer => disposer) {
         send(res, 200, await startReportRun(ctx, body));
       } catch (error) {
         send(res, error.status || 500, { detail: error.message || 'report run failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-assistant-sessions', async handler(req, res) {
+      try {
+        if (req.method === 'GET') { send(res, 200, loadAssistantSessions()); return; }
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+        const body = await readBody(req);
+        send(res, 200, bindAssistantSession(body, {
+          sessionExists: sessionId => liveSessionExists(ctx, sessionId) || persistedSessionExists(sessionId),
+          isRunning: sessionId => sessionRunning(ctx, sessionId),
+        }));
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || 'assistant session bind failed' });
       }
     } })),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-note-digest', async handler(req, res) {

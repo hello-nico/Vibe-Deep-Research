@@ -39,6 +39,7 @@ test("HTTP 插件卸载会注销路由，再次挂载不会留下旧 handler", (
   bindPluginRoutes(ctx, track => { track(installPageModel(ctx)); track(installHostState(ctx)); });
   assert.equal(webServer.routes.has("exact:/finance-model"), true);
   assert.equal(webServer.routes.has("exact:/finance-topic-sessions"), true);
+  assert.equal(webServer.routes.has("exact:/finance-assistant-sessions"), true);
   const first = webServer.routes.get("exact:/finance-model")?.handler;
   for (const dispose of ctx.effects.splice(0).reverse()) dispose();
   assert.equal(webServer.routes.size, 0);
@@ -83,7 +84,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {
-  for (let failAt = 1; failAt <= 13; failAt++) {
+  for (let failAt = 1; failAt <= 14; failAt++) {
     const webServer = fakeWebServer();
     const register = webServer.register.bind(webServer);
     let count = 0;
@@ -96,7 +97,7 @@ test("真实插件的每个注册失败点都回滚，并可重装卸载", () =>
     assert.equal(webServer.routes.size, 0, `registration ${failAt}`);
     webServer.register = register;
     apply(ctx);
-    assert.equal(webServer.routes.size, 13);
+    assert.equal(webServer.routes.size, 14);
     for (const dispose of ctx.effects.splice(0).reverse()) dispose();
     assert.equal(webServer.routes.size, 0);
   }

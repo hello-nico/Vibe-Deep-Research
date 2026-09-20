@@ -6,7 +6,53 @@ const TOOL_LABELS: Record<string, string> = {
   read_research_method: '读取研究方法',
   wiki_report_publish: '发布报告',
   wiki_validate_page_draft: '校验 Wiki 草案',
+  fetch_source_url: '读取来源网页',
+  observe_market: '观察行情',
+  observe_radar: '观察资讯',
+  read_industry_profile: '读取产业研究',
+  generate_market_result: '生成行情成果',
+  generate_financial_result: '生成财务成果',
+  source_ingest_periodic_report: '入库定期报告',
+  query_observation: '查询观察',
+  wiki_search: '搜索 Wiki',
+  resolve_refs: '解析引用',
+  search_external: '检索外部资料',
 };
+
+export function visibleUserPrompt(body: string): string {
+  const match = /\n用户问题：\n([\s\S]+)$/.exec(body || '');
+  return (match ? match[1] : body || '').trim();
+}
+
+export function visibleProcessPrompt(body: string): string {
+  const visible = visibleUserPrompt(body);
+  if (/为 Wiki 页 .+ 生成一份交互图文报告/.test(visible)) return '按当前研究页生成图文报告';
+  return visible;
+}
+
+export function extractResultIds(text: string): string[] {
+  return [...new Set(String(text || '').match(/result:[0-9a-f]{32}/g) || [])];
+}
+
+export function extractBoundSources(body: string): { label: string; url?: string; version?: string; fetchedAt?: string }[] {
+  const section = (body || '').split('用户问题：')[0] || '';
+  if (!/本轮已绑定的 URL 依据|本轮 URL 依据/.test(section)) return [];
+  const items: { label: string; url?: string; version?: string; fetchedAt?: string }[] = [];
+  for (const block of section.split(/\n- /).slice(1)) {
+    const label = block.split('\n')[0]?.replace(/`[^`]+`/g, '').trim();
+    const url = /URL：(\S+)/.exec(block)?.[1];
+    const versionRaw = /内容版本：(\S+)/.exec(block)?.[1];
+    const fetchedAt = /读取时点：(\S+)/.exec(block)?.[1];
+    if (!label) continue;
+    items.push({
+      label,
+      url,
+      version: versionRaw && versionRaw !== '不可用' ? versionRaw : undefined,
+      fetchedAt,
+    });
+  }
+  return items;
+}
 
 export const emptyTaskTrajectory: TaskTrajectorySnapshot = {
   running: false, failed: false, openState: 'cold', hasMore: false, loadingOlder: false,
@@ -48,7 +94,6 @@ function assistantText(blocks: unknown): { text: string; reasoning: string } {
     const item = block as { kind?: string; text?: string; name?: string };
     if (item.kind === 'reasoning' && item.text) reasoning.push(item.text);
     else if (item.kind === 'text' && item.text) text.push(item.text);
-    else if (item.kind === 'tool-call' && item.name) text.push(toolLabel(item.name));
   }
   return { text: text.join('\n').trim(), reasoning: reasoning.join('\n').trim() };
 }

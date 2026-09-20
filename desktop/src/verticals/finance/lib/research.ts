@@ -9,7 +9,7 @@ export async function researchRead<T>(route: string, init?: RequestInit): Promis
   if (!response.ok) throw new ResearchError(response.status, researchErrorMessage(response.status, value));
   return value as T;
 }
-export interface WikiItem { slug: string; title: string }
+export interface WikiItem { slug: string; title: string; input_hash?: string }
 export interface WikiBlock { kind: string; content?: Record<string, unknown> | string; refs: string[]; reviewed_as_of?: string }
 export interface WikiPageLink { to: string; type: string; basis?: string; ref?: string }
 export interface WikiComparisonScope { question: string; horizon: string; subjects: { entity_id: string; snapshot_as_of: string }[]; dimensions: { id: string; title: string; basis: string; direction: string; weight?: number; refs?: string[] }[] }

@@ -86,6 +86,20 @@ export function documentIdFromRef(value: string): string | null {
   return parseDocumentRef(value)?.document_id ?? null;
 }
 
+const mentionLabels = new Map<string, string>();
+
+export function rememberMentionLabel(ref: string, label: string) {
+  const title = label.replace(/\s+/g, ' ').trim();
+  if (!ref || !title) return;
+  mentionLabels.set(ref, title);
+  const id = documentIdFromRef(ref);
+  if (id) mentionLabels.set(id, title);
+}
+
+export function mentionLabel(ref: string, fallback: string) {
+  return mentionLabels.get(ref) || mentionLabels.get(documentIdFromRef(ref) || '') || fallback;
+}
+
 export function documentReadSearch(ref: DocumentRef, from = '/'): string {
   const search = new URLSearchParams({ from });
   if (ref.parse_revision_id) search.set('revision', ref.parse_revision_id);
@@ -245,7 +259,11 @@ export async function listLibraryDocuments(params: {
   if (params.query) search.set('query', params.query);
   if (params.contentType && params.contentType !== 'all') search.set('content_type', params.contentType);
   if (params.status && params.status !== 'all') search.set('status', params.status);
-  return researchRead<LibraryList>(`/documents/uploads?${search}`, { signal: params.signal });
+  const listed = await researchRead<LibraryList>(`/documents/uploads?${search}`, { signal: params.signal });
+  for (const item of listed.items) {
+    rememberMentionLabel(documentRef(item.document_id, item.extra.parse_revision_id, item.extra.parsed_content_sha256), item.title || '未命名资料');
+  }
+  return listed;
 }
 
 export async function uploadLibraryFile(file: File, symbol = ''): Promise<LibraryDocument> {

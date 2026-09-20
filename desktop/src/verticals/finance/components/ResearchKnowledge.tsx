@@ -9,9 +9,22 @@ import { WikiLoading } from './WikiLoading';
 import { ObjectReport } from './ObjectReport';
 import { KnowledgeText, SourceTimeline } from './WikiReport';
 import { WikiReportPane } from './WikiReportPane';
+import { cn } from '@/lib/utils';
 
 export { WikiLoading, wikiLoadingSections } from './WikiLoading';
 export { KnowledgeText } from './WikiReport';
+
+export function WikiViewTabs({ report, onChange }: { report: boolean; onChange: (report: boolean) => void }) {
+  return <div role="tablist" aria-label="资料视图" className="flex w-fit shrink-0 rounded-full border border-border p-0.5">
+    {([[false, '研究页'], [true, '图文报告']] as const).map(([id, label]) => (
+      <button key={label} type="button" role="tab" aria-label={label} aria-selected={report === id}
+        className={cn('rounded-full px-3 py-1.5 text-sm', report === id ? 'bg-muted text-foreground' : 'text-muted-foreground')}
+        onClick={() => onChange(id)}>
+        {label}
+      </button>
+    ))}
+  </div>;
+}
 
 const blockDict = (content: unknown): Record<string, unknown> | undefined =>
   content && typeof content === 'object' && !Array.isArray(content) ? content as Record<string, unknown> : undefined;
@@ -62,9 +75,10 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;
 }
-export function WikiReader({ slug, onMarkdown, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false }: {
+export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false }: {
   slug: string;
   onMarkdown?: (markdown: string) => void;
+  onPage?: (page: WikiPage | null) => void;
   onLoadState?: (state: 'loading' | 'ready' | 'error') => void;
   revision?: number;
   renderLoading?: (slug: string) => ReactNode;
@@ -102,15 +116,15 @@ export function WikiReader({ slug, onMarkdown, onLoadState, revision = 0, render
     navigate(existing >= 0 ? trail.slice(0, existing + 1) : [...trail.slice(-31), next]);
   };
   return <div>
-    {!hideToggle && <div className="mb-4 flex justify-end"><button type="button" className="workspace-action" onClick={() => setReport(!report)}>{report ? '研究页' : '图文报告'}</button></div>}
+    {!hideToggle && <div className="mb-4"><WikiViewTabs report={report} onChange={setReport} /></div>}
     {trail.length > 1 && <button type="button" className="workspace-action mb-4" onClick={() => navigate(trail.slice(0, -1))}>返回上一份材料</button>}
-    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onLoadState={onLoadState} />
+    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onPage={active === slug ? onPage : undefined} onLoadState={onLoadState} />
     {!report && !!related.length && <GlassCard className="mt-4"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="flex flex-wrap gap-2">{related.map(item => <button key={item.slug} className="workspace-action" onClick={() => open(item.slug)}>{item.title}</button>)}</div></GlassCard>}
     {linkError && <p role="status" className="mt-3 text-sm text-muted-foreground">{linkError}</p>}
   </div>;
 }
 
-function WikiBody({ slug, report, onMarkdown, onLoadState, revision, renderLoading }: { slug: string; report: boolean; onMarkdown?: (markdown: string) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision: number; renderLoading: (slug: string) => ReactNode }) {
+function WikiBody({ slug, report, onMarkdown, onPage, onLoadState, revision, renderLoading }: { slug: string; report: boolean; onMarkdown?: (markdown: string) => void; onPage?: (page: WikiPage | null) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision: number; renderLoading: (slug: string) => ReactNode }) {
   const [page, setPage] = useState<WikiPage | null>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -120,6 +134,7 @@ function WikiBody({ slug, report, onMarkdown, onLoadState, revision, renderLoadi
     return () => controller.abort();
   }, [slug, revision, retry]);
   useEffect(() => { onMarkdown?.(page?.markdown ?? ''); }, [page, onMarkdown]);
+  useEffect(() => { onPage?.(page); }, [page, onPage]);
   useEffect(() => { onLoadState?.(error ? 'error' : page ? 'ready' : 'loading'); }, [page, error, onLoadState]);
   const failure = error ? <p role="alert" className="mb-4 text-sm">{page ? `资料读取失败，仍显示已有内容：${error}` : error}<button className="workspace-action ml-2" onClick={() => setRetry(value => value + 1)}>重试</button></p> : null;
   if (!page) return failure || renderLoading(slug);

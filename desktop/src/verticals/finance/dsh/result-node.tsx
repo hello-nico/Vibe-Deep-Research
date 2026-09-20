@@ -2,6 +2,7 @@ import type { Context } from '@deepseek-ai/cordis';
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import { ResearchResult } from '../components/ResearchResult';
+import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { maintenanceDefinition, researchStatusDefinition, resultDefinition, topicCandidateDefinition, type MaintenanceData, type TopicCandidateData } from './result-projection';
 import { adoptCandidate, CANDIDATE_CHANGED, CandidateChoiceNeeded, disposeCandidate, loadCandidate, type TopicCandidate } from '../lib/memory';
 import type { ResearchTopicRouteCandidate } from '../lib/research';
@@ -38,6 +39,7 @@ function MaintenanceNode({ node }: ChatNodeViewProps<'finance-maintenance'>) {
     {node.data.question && <p className="mt-2 break-words">来自研究：{node.data.question}</p>}
     <p className="my-2 text-[var(--text-secondary)]">{node.data.rationale}</p>
     <div className="whitespace-pre-wrap break-words">{node.data.content}</div>
+    {node.data.draftToken && <WikiDraftPublish draftToken={node.data.draftToken} />}
   </details>;
 }
 

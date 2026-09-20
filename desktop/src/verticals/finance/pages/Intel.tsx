@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { TrendingUp, FileText, Newspaper, Rss, RefreshCw, Loader2, ExternalLink, AlertCircle, Sparkles, Lightbulb, Star } from "lucide-react";
+import { TrendingUp, FileText, Newspaper, Rss, RefreshCw, Loader2, AlertCircle, Sparkles, Lightbulb, Star } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAiPage } from "../../../core/ai/pageContext";
+import { WorkspaceTabs } from "@/components/ui/WorkspaceTabs";
+import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { useArchiveThenRefresh } from "../../../core/data/useArchiveThenRefresh";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -149,7 +150,7 @@ function InvestmentNewsPanel() {
 
   const dg = cur ? digests[cur.key] : undefined;
   const tr = cur ? titleTranslations[cur.key] : undefined;
-  useAiPage(investmentNewsPageContext({
+  const newsPage = investmentNewsPageContext({
     industryKey: cur?.key ?? null,
     industryName: cur?.name ?? null,
     tracks: industries.map((ind) => ({ key: ind.key, name: ind.name, count: ind.items.length })),
@@ -161,7 +162,9 @@ function InvestmentNewsPanel() {
     recentDays: data?.recent_days ?? null,
     sourceCount: data?.stats.total_sources ?? null,
     loading, refreshing, err, staleNote,
-  }));
+  });
+  useAiPage(newsPage);
+  useAiPageObjects(newsPage.key, newsPage.objects);
 
   return (
     <div>
@@ -285,16 +288,14 @@ function InvestmentNewsPanel() {
                     const zh = displayedHeadlineTranslation(it, translationCache.current);
                     const translated = Boolean(zh && zh !== it.title);
                     return (
-                      <a key={i} href={it.url} target="_blank" rel="noreferrer"
-                        className="group flex items-start gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
+                      <div key={i} className="group flex items-start gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
                         <span className="w-24 shrink-0 pt-0.5 font-mono text-xs text-muted-foreground/70">{it.time}</span>
                         <span className="w-20 shrink-0 truncate pt-0.5 text-xs text-muted-foreground">{it.source}</span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block group-hover:text-primary">{zh || it.title}</span>
+                        <a href={it.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 hover:text-primary">
+                          <span className="block">{zh || it.title}</span>
                           {translated && <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground/65">{it.title}</span>}
-                        </span>
-                        <ExternalLink className="mt-1 h-3 w-3 shrink-0 text-muted-foreground/0 group-hover:text-primary/60" />
-                      </a>
+                        </a>
+                      </div>
                     );
                   })
                 )}
@@ -373,7 +374,9 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
     useArchiveThenRefresh<FeedRow[]>(load, [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
-  useAiPage(feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote }));
+  const feedPage = feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote });
+  useAiPage(feedPage);
+  useAiPageObjects(feedPage.key, feedPage.objects);
 
   // 刷新时顺便把关注列表重新读一遍（用户可能刚在别的页面加了自选）
   const refresh = () => {
@@ -425,14 +428,12 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
       ) : (
         <div className="space-y-2">
           {rows.map((r, i) => (
-            <a key={i} href={r.url || undefined} target={r.url ? "_blank" : undefined} rel="noreferrer"
-              className={cn("group flex items-baseline gap-3 border-b border-border/30 pb-2 text-sm last:border-0", r.url && "cursor-pointer")}>
+            <div key={i} className="group flex items-baseline gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
               <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground/70">{(r.when || "").slice(kind === "filings" ? 0 : 5, kind === "filings" ? 10 : 16)}</span>
               <span className="w-16 shrink-0 truncate text-xs text-primary/90" title={r.code}>{r.name}</span>
               {kind === "filings" && r.meta && <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block">{r.meta}</span>}
-              <span className="flex-1 group-hover:text-primary">{r.title}</span>
-              {r.url && <ExternalLink className="mt-0.5 h-3 w-3 shrink-0 text-muted-foreground/0 group-hover:text-primary/60" />}
-            </a>
+              {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:text-primary">{r.title}</a> : <span className="flex-1">{r.title}</span>}
+            </div>
           ))}
         </div>
       )}
@@ -462,15 +463,18 @@ export function Intel() {
       {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
       <PageHeader title="资讯雷达" subtitle="多来源资讯中心：AI 帮你跨源捞资讯、提炼要点" />
 
-      <div className="mb-4 flex flex-wrap gap-2">
-        {TABS.map(({ key, label, icon: Icon, integrated }) => (
-          <button key={key} onClick={() => navigate(`/intel/${key}`)}
-            className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-              tab === key ? "bg-primary/15 font-medium text-primary shadow-glow" : "text-muted-foreground hover:bg-muted/50")}>
-            <Icon className="h-4 w-4" /> {label}
-            {integrated && <span className="rounded-full bg-primary/20 px-1.5 py-0.5 text-[9px] font-medium text-primary">集成</span>}
-          </button>
-        ))}
+      <div className="mb-4">
+        <WorkspaceTabs
+          aria-label="资讯栏目"
+          value={tab}
+          onChange={key => navigate(`/intel/${key}`)}
+          options={TABS.map(({ key, label, icon, integrated }) => ({
+            value: key,
+            label,
+            icon,
+            badge: integrated ? "集成" : undefined,
+          }))}
+        />
       </div>
 
       <GlassCard glow>

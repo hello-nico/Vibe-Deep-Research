@@ -25,6 +25,7 @@ export interface StartSessionResult {
   // started：本次已投递；running：同题任务仍在执行（直接关联，未重复投递）；
   // busy_other_version：绑定会话正生成另一输入版本，需等其结束。
   status: 'started' | 'running' | 'busy_other_version';
+  mode?: 'ask' | 'agent';
 }
 
 // 报告任务引用：来自 report-tasks 绑定索引；inputHash 是任务钉住的 Wiki 输入版本。
@@ -90,6 +91,38 @@ export interface ResearchSessions {
   sessionState(sessionId: string): SessionState | null;
   restoreTopic(topicId: string, title?: string, signal?: AbortSignal): Promise<TopicSessionMatch>;
   startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }): Promise<void>;
+  startAssistant(input: {
+    pageKey: string;
+    title: string;
+    mode: 'ask' | 'agent';
+    plugin?: 'company_wiki' | 'industry_wiki' | 'deep_research' | 'market' | 'intel' | 'industry_profile';
+    target?: string;
+    prompt?: string;
+    objects?: { kind?: string; id: string; label: string; version?: string; url?: string; hint?: string; source?: string; time?: string }[];
+    fresh?: boolean;
+  }): Promise<StartSessionResult>;
+  ensureAssistant(input: {
+    pageKey: string;
+    title: string;
+    mode: 'ask' | 'agent';
+    plugin?: 'company_wiki' | 'industry_wiki' | 'deep_research' | 'market' | 'intel' | 'industry_profile';
+    target?: string;
+    fresh?: boolean;
+  }): Promise<StartSessionResult>;
+  insertAssistantObjects(sessionId: string, objects: { source: string; ref: string; label: string; clipboardText: string }[]): void;
+  assistantModel?(sessionId: string): {
+    subscribe(listener: () => void): () => void;
+    getSnapshot(): {
+      current: { provider: string; model: string } | null;
+      groups: { id: string; name: string; models: { id: string; name: string }[] }[];
+      status: string;
+      error: string | null;
+    };
+    load(): Promise<void>;
+    select(selection: { provider: string; model: string }): Promise<void>;
+  } | null;
+  switchAssistantMode(sessionId: string, mode: 'ask' | 'agent', pageKey?: string): Promise<void>;
+  focusAssistantSession(sessionId: string): () => void;
   openSession(sessionId: string): Promise<void>;
   openTaskProcess(task: TaskProcessRef): void;
   closeTaskProcess(): void;

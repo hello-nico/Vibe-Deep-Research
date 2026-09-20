@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, type ReactNode } from "react";
 import { backend, type PageResult } from "@/lib/backend";
 import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAiPage } from "../../../core/ai/pageContext";
+import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
+import { dailyReviewQuoteObjects, marketAssistantObject, marketIndicesObject } from "../lib/pageAssistantObjects";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
@@ -138,66 +139,31 @@ export function DailyReview() {
     { k: "活跃度", v: sentiment.active, up: null },
   ] : []).filter((c) => c.v !== null && c.v !== "" && c.v !== undefined);
 
-  /**
-   * 喂给 AI 的那份数据。
-   *
-   * 🔴 上一版这里**只拼了指数**（名/点位/涨跌幅），而页面下方的市场情绪、连板、成交额、
-   *    板块资金一条都没进提示词 —— 界面上却写着"把当天客观数据打包给 AI"，那句话是不准确的。
-   *    现在把整屏结构化数据都带上，**并且带上每块的读法护栏与状态**：
-   *    只给数字不给读法，等于让模型替上游打包票。
-   */
-  const dataSummary = (() => {
-    const lines: string[] = [];
-    if (!dataReady) lines.push("【加载中】本轮数据尚未全部返回，可能暂留上轮快照。不要据此作整屏复盘，等待加载结束。");
-    if (idxDone && !indices.length) lines.push("【缺口】A股指数未取得，不据此下结论。");
-    if (emoDone && !emotion) lines.push("【缺口】短线情绪未取得，不据此下结论。");
-    if (toDone && !turnover) lines.push("【缺口】成交排行未取得，不据此下结论。");
-    if (ovDone && (pageErr || !pageMeta)) lines.push("【缺口】资金与涨停页面未取得，业务日和相关读法不可用，不将其他快照认作今日数据。");
-    const ctx = pageMeta?.context;
-    if (ctx?.review_date) lines.push(`【业务日】${ctx.review_date}（${ctx.review_reason ?? ctx.session_phase}）`);
-    if (pageMeta?.mixed_ages) {
-      // 🔴 只说"跨了业务日"是**不可操作**的 —— 模型不知道该怀疑哪一块。
-      //    把各块的取数时刻一并给出，它才能在引用时限定"这条是几点的"。
-      const stamps = pageMeta.blocks
-        .filter((b) => b.fetched_at)
-        .map((b) => `${b.title} ${b.fetched_at!.slice(0, 16).replace("T", " ")}`)
-        .join("；");
-      lines.push(`⚠️ 这一屏的数据来自不同业务日，跨日比较要当心。各块更新时间：${stamps || "未记录"}`);
-    }
-
-    const validIndices = indices.filter((i) => i.price !== null && i.change_pct !== null);
-    lines.push(validIndices.length
-      ? `【A股指数】${validIndices.map((i) => `${i.name} ${i.price}（${i.change_pct! > 0 ? "+" : ""}${i.change_pct}%）`).join("；")}`
-      : "【A股指数】未取到");
-    // 拿不到价的那条**不写进去** —— 让模型看到 null 比不给还糟
-    const gi = globalIdx.filter((i) => i.price !== null && i.change_pct !== null);
-    lines.push(gi.length
-      ? `【海外指数·腾讯快照，非逐笔实时】${gi.map((i) => `${i.name} ${i.price}（${i.change_pct! > 0 ? "+" : ""}${i.change_pct}%）；数据时间 ${i.fetched_at ?? "未知"}；价格证据 ${i.evidence_id ?? "未提供"}${i.note ? `；读法 ${i.note}` : ""}`).join("；")}`
-      : `【海外指数】${globalErr ?? (globalDone ? "未取得可用数据" : "仍在加载")}；没有可引用的数据，不就此下结论。`);
-    const missingGlobal = globalIdx.filter((i) => i.price === null || i.change_pct === null);
-    if (missingGlobal.length) lines.push(`【海外指数缺口】${missingGlobal.map((i) => i.name).join("、")}报价不完整，不据此下结论。`);
-    if (sentCells.length) lines.push(`【市场情绪】${sentCells.map((c) => `${c.k} ${c.v}`).join("；")}`);
-    if (emotion) lines.push(`【短线情绪】${JSON.stringify(emotion).slice(0, 400)}`);
-    const validSectors = sectors.filter((x) => x.net !== null);
-    if (validSectors.length) lines.push(`【板块资金】${validSectors.slice(0, 12).map((x) => `${x.name} ${x.net}`).join("；")}`);
-    if (turnover?.stocks?.length) lines.push(`【成交额居前】${turnover.stocks.slice(0, 10).map((r) => r.name).join("、")}`);
-
-    // 取数层写的读法护栏 + 哪些块没取到 —— 两样都要让模型知道
-    for (const b of pageMeta?.blocks ?? []) {
-      if (b.note) lines.push(`【读法·${b.title}】${b.note}`);
-      if (b.status === "failed") lines.push(`【缺口】${b.title} 这次没取到，不要就它下结论`);
-      else if (b.status === "partial") lines.push(`【不完整】${b.title} 只取到一部分`);
-    }
-    return lines.join("\n");
-  })();
-
-  // 右上角那个 AI 按钮聊的就是这一页（登记处见 core/ai/pageContext）
+  const reviewDate = pageMeta?.context?.review_date;
+  const indexObjects = indices.flatMap(item => {
+    if (item.price === null) return [];
+    const object = marketAssistantObject({ name: item.name, asOf: reviewDate });
+    return object ? [object] : [];
+  });
+  const collection = marketIndicesObject(indexObjects);
+  const quoteObjects = dailyReviewQuoteObjects({
+    asOf: reviewDate || emotion?.date,
+    lianban: emotion?.lianban_stocks,
+    turnover: turnover?.stocks,
+  });
+  const marketObjects = [...(collection ? [...indexObjects, collection] : indexObjects), ...quoteObjects];
   useAiPage({
     key: "daily-review",
     title: "大盘行情",
-    context: `今日大盘数据：${dataSummary}`,
+    context: [
+      reviewDate ? `业务日 ${reviewDate}` : "大盘行情页",
+      dataReady
+        ? "当前已加载宽基指数，以及本页连板股与成交额榜中可见个股的行情身份。连板、现价、涨跌幅是页面展示，不是对象版本；发送后按公司身份读取当时行情，不把页面数字当已绑定快照。情绪、资金流与涨停榜集合没有稳定读取身份，不进入引用。"
+        : "指数仍在加载。",
+    ].join("。"),
     suggestions: ["今天大盘怎么走", "哪些指数领涨领跌", "盘面有什么值得注意"],
   });
+  useAiPageObjects("daily-review", marketObjects);
 
   return (
     <div>
@@ -212,7 +178,9 @@ export function DailyReview() {
 
       {/* 1. 大盘指数（实时） */}
       <SectionHead title="大盘指数" action={
-        <button onClick={() => loadIndices(true)} disabled={!dataReady} className="workspace-action workspace-action-compact" aria-label="刷新大盘行情" aria-busy={!dataReady} title={dataReady ? "刷新大盘行情" : "正在获取行情，最长等待60秒"}><RefreshCw className={cn("h-4 w-4", !dataReady && "animate-spin")} />{dataReady ? "刷新" : "刷新中…"}</button>
+        <span className="flex items-center gap-2">
+          <button onClick={() => loadIndices(true)} disabled={!dataReady} className="workspace-action workspace-action-compact" aria-label="刷新大盘行情" aria-busy={!dataReady} title={dataReady ? "刷新大盘行情" : "正在获取行情，最长等待60秒"}><RefreshCw className={cn("h-4 w-4", !dataReady && "animate-spin")} />{dataReady ? "刷新" : "刷新中…"}</button>
+        </span>
       } />
       <div className="mb-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
         {indices.length === 0

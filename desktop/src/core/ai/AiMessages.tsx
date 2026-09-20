@@ -115,7 +115,7 @@ export function AiWaiting() {
 
 /** 输入条：两个外壳共用（Enter 发送、Shift+Enter 换行） */
 export function AiComposer({
-  placeholder, disabled, onSend, onStop, highlighted = false, value, onValueChange,
+  placeholder, disabled, onSend, onStop, highlighted = false, value, onValueChange, leading,
 }: {
   placeholder: string;
   disabled: boolean;
@@ -125,6 +125,7 @@ export function AiComposer({
   /** 传 value 时变成受控输入；首页用它把任务模板先填进来，而不是点击即发送。 */
   value?: string;
   onValueChange?: (text: string) => void;
+  leading?: ReactNode;
 }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const fire = () => {
@@ -140,6 +141,7 @@ export function AiComposer({
       highlighted ? "border-warning/30 bg-warning/[0.035]" : "border-border/60",
     )}>
       <div className="flex items-end gap-2">
+        {leading}
         <textarea
           ref={ref}
           onKeyDown={(e) => {

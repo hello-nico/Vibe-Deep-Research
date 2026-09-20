@@ -47,7 +47,7 @@ export const resultDefinition: ConversationNodeDefinition<State> = {
   },
 };
 
-export interface MaintenanceData { content: string; rationale: string; question?: string }
+export interface MaintenanceData { content: string; rationale: string; question?: string; draftToken?: string }
 export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> = {
   kind: 'finance-maintenance', target: 'chat',
   match(event) {
@@ -58,9 +58,10 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
     return { id: value.data.questionIdentity, role: 'start' };
   },
   start(_context, match) {
-    const data = match.event.data as unknown as { question?: string; proposal: { research_blocks: { content: string }[] } };
+    const data = match.event.data as unknown as { question?: string; proposal: { research_blocks: { content: string }[] }; draft?: { draft_token?: string } };
     return { content: data.proposal.research_blocks[0]?.content ?? '', question: data.question,
-      rationale: '本次研究整理出一份知识更新草案，尚未发布。请核对内容后再授权发布。' };
+      rationale: '本次研究整理出一份知识更新草案，尚未发布。请核对内容后再授权发布。',
+      draftToken: data.draft?.draft_token };
   },
   update(context) { return context.state; },
   buildViewNode(context) {

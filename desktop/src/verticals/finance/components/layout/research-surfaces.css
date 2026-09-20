@@ -4,8 +4,93 @@
     margin-right: 29.5rem;
   }
 }
-@media (max-width: 1099px) {
-  body.vibe-dsh-host:has(.finance-assistant-panel, .finance-evidence-panel, .finance-task-process) #workspace-main {
-    visibility: hidden;
-  }
+.finance-assistant-composer {
+  z-index: 10;
+  flex-shrink: 0;
+  background: #fff0e3;
+}
+.finance-assistant-composer textarea:focus {
+  border-color: hsl(var(--primary) / .45);
+}
+.dark .finance-assistant-composer {
+  background: #1a1b1f;
+}
+.finance-assistant-mentions {
+  overscroll-behavior: contain;
+}
+.finance-assistant-mode-trigger {
+  display: inline-flex;
+  min-width: 4.25rem;
+  max-width: 11rem;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.75rem;
+  padding: 0 0.375rem 0 0.5rem;
+  border: 0;
+  border-radius: 0.375rem;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 0.75rem;
+  line-height: 1;
+}
+.finance-assistant-mode-trigger:disabled { opacity: 0.4; }
+.finance-assistant-mode-trigger:hover:not(:disabled) { background: hsl(var(--muted) / .6); }
+.finance-assistant-menu {
+  position: fixed;
+  z-index: 80;
+  min-width: 7.5rem;
+  overflow: hidden;
+  border: 1px solid hsl(var(--border));
+  border-radius: 0.5rem;
+  background: #fff7f0;
+  box-shadow: 0 12px 28px hsl(var(--foreground) / .08);
+}
+.dark .finance-assistant-menu {
+  background: #1a1b1f;
+  border-color: #484046;
+}
+.finance-assistant-menu [role="option"] {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  border: 0;
+  background: transparent;
+  color: hsl(var(--foreground));
+  font-size: 0.8125rem;
+  text-align: left;
+}
+.finance-assistant-menu [role="option"]:hover,
+.finance-assistant-menu [role="option"].is-current {
+  background: hsl(var(--primary) / .12);
+  color: hsl(var(--primary));
+}
+.finance-assistant-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.finance-assistant-turn.is-user {
+  display: flex;
+  justify-content: flex-end;
+}
+.finance-assistant-user-bubble {
+  max-width: 85%;
+  padding: 0.625rem 0.875rem;
+  border-radius: 1.125rem;
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  font-size: 0.875rem;
+  line-height: 1.6;
+}
+.finance-assistant-turn.is-assistant {
+  max-width: 100%;
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+.finance-assistant-turn.is-process {
+  font-size: 0.75rem;
+  color: hsl(var(--muted-foreground));
 }

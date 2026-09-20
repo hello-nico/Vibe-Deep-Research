@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projectTaskTrajectory, toolLabel } from '../src/verticals/finance/lib/taskTrajectory.ts';
+import { projectTaskTrajectory, toolLabel, visibleProcessPrompt } from '../src/verticals/finance/lib/taskTrajectory.ts';
+
+test('报告任务用户提示不把内部生成指令整段展示', () => {
+  assert.equal(visibleProcessPrompt('为 Wiki 页 companies/a 生成一份交互图文报告。这是一次受限的报告生成任务。'), '按当前研究页生成图文报告');
+  assert.equal(visibleProcessPrompt('普通用户问题'), '普通用户问题');
+});
 
 test('过程投影保留工具名、参数、结果、耗时和错误，而不是通用标签', () => {
   const snap = projectTaskTrajectory({

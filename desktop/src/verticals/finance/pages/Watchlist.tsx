@@ -1,8 +1,7 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, X, RefreshCw, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useAiPage } from "../../../core/ai/pageContext";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { addCodes, addWatch, loadWatch, removeWatch } from "@/lib/watchlist";
@@ -64,29 +63,6 @@ export function Watchlist() {
     setCodes(codes.filter((x) => x !== c));
     void removeWatch(c).then(() => setCodes(loadWatch())).catch(() => setCodes(loadWatch()));
   };
-
-  const aiContext = useMemo(
-    () =>
-      codes.length
-        ? "我的自选股（本地）：\n" +
-          codes
-            .map((c) => {
-              const q = quotes[c];
-              return q
-                ? `${q.name}(${c},${q.currency}) 现价${q.price ?? "未取到"} ${pct(q.change_pct)} PE(TTM)${q.pe_ttm ?? "—"} 换手${q.turnover_pct ?? "—"}%`
-                : `${c}（行情未取到）`;
-            })
-            .join("\n")
-        : "还没有自选股。",
-    [codes, quotes],
-  );
-
-  useAiPage({
-    key: "watchlist",
-    title: "自选股",
-    context: aiContext,
-    suggestions: ["这几只里哪些估值偏高", "帮我按赛道分组看看", "各自最大的风险点是什么"],
-  });
 
   return (
     <div>

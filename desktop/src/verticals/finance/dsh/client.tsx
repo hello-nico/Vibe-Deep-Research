@@ -4,16 +4,19 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
+import { companySlug } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
-import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentReadSearch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, parseDocumentRef, pendingLibraryCites, queueLibraryCites, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
+import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentReadSearch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, mentionLabel, parseDocumentRef, pendingLibraryCites, queueLibraryCites, rememberMentionLabel, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
 import { SearchPreviews } from './search-previews';
 import { installResultNode } from './result-node';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
+import { bindAssistantSession, loadAssistantSessions, assistantBindingForPage, subscribeAssistantSeat, assistantSeatSnapshot, type AssistantPlugin } from "../lib/assistantSessions";
+import { bindAssistantPrompt } from "../lib/assistantPrompt";
 import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
 import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
-import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot } from "./research-session";
+import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
 import { hydrateWatch } from "../lib/watchlist";
 import { hydrateRoster } from "../lib/researchRoster";
 import { hydratePrefs } from "../lib/prefs";
@@ -49,11 +52,28 @@ interface Client {
     scope(id: string): Context | undefined;
     sessionOf(ctx: Context): HistorySession | undefined;
     binding?(id: string): { sessionId: string; session?: HistorySession } | undefined;
+    subagentAddress?(id: string): { parent?: string } | undefined;
+    refreshSubagents?(parentSessionId: string): Promise<void>;
   };
   uiConversation?: {
     binding(source: string): {
       activate(target: string): void;
       target(target: string): { getSnapshot(): unknown; subscribe(callback: () => void): () => void };
+    };
+  };
+  modelDirectories?: {
+    directoryFor(sessionId: string): {
+      store: {
+        getSnapshot(): {
+          current: { provider: string; model: string } | null;
+          groups: { id: string; name: string; models: { id: string; name: string }[] }[];
+          status: string;
+          error: string | null;
+        };
+        subscribe(callback: () => void): () => void;
+      };
+      load(): Promise<unknown>;
+      select(selection: { provider: string; model: string }): Promise<void>;
     };
   };
   conversation?: {
@@ -87,7 +107,38 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation", "conversation"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation", "conversation", "modelDirectories"];
+
+function openResearchTarget(value: string) {
+  const target = researchTarget(value);
+  if (target?.kind === 'document') {
+    const parsed = parseDocumentRef(target.id);
+    if (!parsed) return;
+    void router.navigate('/my-reports/read/' + encodeURIComponent(parsed.document_id) + '?' + documentReadSearch(parsed));
+    return;
+  }
+  if (target?.kind === 'url') {
+    window.open(target.id, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  if (target?.kind === 'company') {
+    const code = /^\d{6}/.exec(target.id)?.[0];
+    const slug = code ? companySlug(code) : null;
+    if (slug) void router.navigate('/research?company=' + encodeURIComponent(slug));
+    return;
+  }
+  if (target?.kind === 'market') {
+    void router.navigate('/');
+    return;
+  }
+  if (target?.kind === 'profile') {
+    const code = /^profile:sw2:([^:]+):/.exec(target.id)?.[1];
+    if (code) void router.navigate(`/sectors/profiles/${encodeURIComponent(code)}`);
+    return;
+  }
+  if (target?.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
+  else if (target?.kind === 'wiki') void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
+}
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
@@ -104,15 +155,12 @@ export function apply(ctx: Context) {
         return { ...mention, open: () => { window.open(web, '_blank', 'noopener,noreferrer'); } };
       }
       if (!target) return undefined;
-      if (target.kind === 'document') return { label: '打开资料', title: '', open() {
-        const parsed = parseDocumentRef(target.id);
-        if (!parsed) return;
-        void router.navigate('/my-reports/read/' + encodeURIComponent(parsed.document_id) + '?' + documentReadSearch(parsed));
-      } };
-      return { label: '打开研究材料', title: '', open() {
-        if (target.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
-        else void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
-      } };
+      if (target.kind === 'document') {
+        const label = mentionLabel(target.id, '打开资料');
+        return { label, title: label, open() { openResearchTarget(target.id); } };
+      }
+      const label = mentionLabel(target.id, target.kind === 'topic' ? '议题' : '研究材料');
+      return { label, title: label, open() { openResearchTarget(target.id); } };
     } };
   } });
   const client = ctx as unknown as Client;
@@ -146,10 +194,16 @@ export function apply(ctx: Context) {
   };
   client.on("theme/change", presentTheme);
   const fromProduct = (event: Event) => client.theme.setTheme((event as CustomEvent<boolean>).detail ? "dark" : "light");
+  const openMention = (event: Event) => {
+    const ref = (event as CustomEvent<string>).detail;
+    if (ref) openResearchTarget(ref);
+  };
   window.addEventListener("vibe-theme-change", fromProduct);
+  window.addEventListener("finance-open-research-mention", openMention);
   ctx.effect(() => () => {
     disposed = true;
     window.removeEventListener("vibe-theme-change", fromProduct);
+    window.removeEventListener("finance-open-research-mention", openMention);
     document.body.classList.remove("vibe-dsh-host");
   });
   presentTheme();
@@ -162,8 +216,10 @@ export function apply(ctx: Context) {
   let workspaceId = '';
   const companyStarts = new Map<string, Promise<StartSessionResult>>();
   const reportStarts = new Map<string, Promise<StartSessionResult>>();
+  const assistantStarts = new Map<string, Promise<StartSessionResult>>();
   let openedSessionId = "";
   let openedTopicId = "";
+  let assistantHold: { sessionId: string; topicId: string } | null = null;
   const insertLibraryCitations = (items: LibraryCite[], sessionId: string) => {
     const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
     const input = scope && client.conversation?.input.for(scope);
@@ -171,9 +227,11 @@ export function apply(ctx: Context) {
     for (const item of items) {
       const snap = input.state.getSnapshot();
       const end = snap.draft.length;
+      const ref = documentRef(item.document_id, item.parse_revision_id, item.parsed_content_sha256);
+      rememberMentionLabel(ref, item.title);
       const ok = input.insertReference({
         source: '研究对象',
-        ref: documentRef(item.document_id, item.parse_revision_id, item.parsed_content_sha256),
+        ref,
         label: item.has_parsed ? item.title : `${item.title}（正文未就绪）`,
         appearance: 'file',
         clipboardText: item.title,
@@ -188,7 +246,62 @@ export function apply(ctx: Context) {
       : '资料已经保存；正文未就绪的资料发送前不能按正文阅读。');
     return true;
   };
+  const insertAssistantRefs = (objects: { source: string; ref: string; label: string; clipboardText: string }[] | undefined, sessionId: string) => {
+    if (!objects?.length) return;
+    const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
+    const input = scope && client.conversation?.input.for(scope);
+    if (!input) return;
+    for (const item of objects) {
+      const snap = input.state.getSnapshot();
+      const end = snap.draft.length;
+      input.insertReference({
+        source: item.source || '研究对象',
+        ref: item.ref,
+        label: item.label,
+        appearance: 'file',
+        clipboardText: item.clipboardText || item.label,
+      }, { start: end, end, draftRev: snap.draftRev });
+    }
+  };
   const currentSessionId = () => client.sessions.list.getSnapshot().current || openedSessionId;
+  const ensureAssistantSession = async (input: {
+    pageKey: string;
+    title: string;
+    mode: 'ask' | 'agent';
+    plugin?: AssistantPlugin;
+    target?: string;
+    fresh?: boolean;
+  }) => {
+    const derived = assistantBindingForPage(input.pageKey);
+    const plugin = input.plugin || derived.plugin;
+    const target = input.target ?? derived.target;
+    const bindKey = derived.bindKey;
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const bound = input.fresh ? null : await loadAssistantSessions().catch(() => ({
+      sessions: {} as Record<string, { mode: 'ask' | 'agent' }>,
+      pages: {} as Record<string, { session_id: string }>,
+    }));
+    const pageBind = bound?.pages?.[bindKey] || bound?.pages?.[input.pageKey];
+    const reusable = pageBind?.session_id
+      && list.byId[pageBind.session_id]?.cwd === workspace
+      && !archived.has(pageBind.session_id)
+      ? pageBind.session_id : undefined;
+    if (reusable) {
+      const reusedMode = input.fresh ? input.mode : (bound?.sessions?.[reusable]?.mode || input.mode);
+      await bindAssistantSession({ session_id: reusable, plugin, mode: reusedMode, target, page_key: bindKey });
+      return { id: reusable, mode: reusedMode as 'ask' | 'agent' };
+    }
+    const id = await client.sessions.create({ workspaceId });
+    const scope = client.sessions.scope(id);
+    const face = scope && client.sessions.sessionOf(scope);
+    if (!face) throw new Error('问助手会话创建失败');
+    const title = `问助手 · ${input.title}`.slice(0, 80);
+    if (!(await face.rename(title)).ok) throw new Error('问助手绑定失败，请重试');
+    await bindAssistantSession({ session_id: id, plugin, mode: input.mode, target, page_key: bindKey });
+    return { id, mode: input.mode };
+  };
   const deliverLibraryCitations = (items: LibraryCite[], preferredSessionId?: string) => {
     return deliverLibraryCiteBatch(queueLibraryCites(items, preferredSessionId), currentSessionId(),
       (item, id) => insertLibraryCitations([item], id));
@@ -214,7 +327,7 @@ export function apply(ctx: Context) {
     const changed = openedSessionId !== id || openedTopicId !== topicId;
     openedSessionId = id;
     openedTopicId = topicId;
-    storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
+    if (!assistantHold) storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
     client.sessions.open(id);
     if (changed) sessionListeners.forEach(listener => listener());
     flushPendingCites();
@@ -235,6 +348,10 @@ export function apply(ctx: Context) {
       const store = await loadReportTasks();
       const ids = new Set(Object.keys(store.sessions || {}));
       if (store.host_session_id) ids.add(store.host_session_id);
+      try {
+        const assistant = await loadAssistantSessions();
+        for (const id of Object.keys(assistant.sessions || {})) ids.add(id);
+      } catch { /* assistant sessions stay visible if the bind file is unread */ }
       hiddenChats = { status: 'ready', ids };
     } catch {
       hiddenChats = { status: 'error' };
@@ -254,6 +371,8 @@ export function apply(ctx: Context) {
   };
   const lastTrajectory = new Map<string, TaskTrajectorySnapshot>();
   const trajectoryStores = new Map<string, { subscribe(listener: () => void): () => void; getSnapshot(): TaskTrajectorySnapshot; loadOlder(): Promise<void> }>();
+  const modelStores = new Map<string, NonNullable<ReturnType<NonNullable<ResearchSessions['assistantModel']>>>>();
+  const emptyModelSnap = { current: null, groups: [] as { id: string; name: string; models: { id: string; name: string }[] }[], status: 'idle', error: null as string | null };
   const projectTrajectory = (sessionId: string, raw: unknown): TaskTrajectorySnapshot => {
     const list = client.sessions.list.getSnapshot();
     const item = list.byId[sessionId];
@@ -270,11 +389,20 @@ export function apply(ctx: Context) {
     });
     const prev = lastTrajectory.get(sessionId);
     if (prev && sameTaskTrajectory(prev, next)) return prev;
+    if (prev?.steps.length && !next.steps.length && (next.openState === 'cold' || next.openState === 'loading')) {
+      return { ...prev, openState: next.openState, running: next.running || prev.running, streaming: next.streaming || prev.streaming };
+    }
     lastTrajectory.set(sessionId, next);
     return next;
   };
   const ensureTaskHistory = async (sessionId: string) => {
-    const face = historyFace(sessionId);
+    await client.sessions.refresh?.().catch?.(() => {});
+    let face = historyFace(sessionId);
+    if (!face) {
+      const parent = client.sessions.subagentAddress?.(sessionId)?.parent;
+      if (parent) await client.sessions.refreshSubagents?.(parent).catch?.(() => {});
+      face = historyFace(sessionId);
+    }
     if (typeof face?.open === 'function') await face.open();
   };
   async function openSession() {
@@ -378,10 +506,9 @@ export function apply(ctx: Context) {
     if (!workspaceId) return null;
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
-    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
     const store = await loadReportTasks().catch(() => ({ sessions: {} as Record<string, { slug: string; input_hash: string; bound_at?: string }>, host_session_id: '' }));
     const bindings = store.sessions || {};
-    const ids = Object.keys(bindings).filter(id => bindings[id]?.slug === slug && !archived.has(id) && id !== store.host_session_id);
+    const ids = Object.keys(bindings).filter(id => bindings[id]?.slug === slug && id !== store.host_session_id);
     ids.sort((a, b) => {
       const run = Number(Boolean(list.byId[b]?.running)) - Number(Boolean(list.byId[a]?.running));
       if (run) return run;
@@ -392,7 +519,9 @@ export function apply(ctx: Context) {
     const id = ids[0];
     const bound = id ? bindings[id] : undefined;
     if (!id || !bound) return null;
-    return { sessionId: id, slug, inputHash: bound.input_hash, running: Boolean(list.byId[id]?.running), updatedAt: list.byId[id]?.updatedAt };
+    const scope = client.sessions.scope(id);
+    const snap = scope && client.sessions.sessionOf(scope)?.getSnapshot?.();
+    return { sessionId: id, slug, inputHash: bound.input_hash, running: Boolean(list.byId[id]?.running || snap?.running), updatedAt: list.byId[id]?.updatedAt };
   }, sessionState(sessionId: string): SessionState | null {
     const scope = client.sessions.scope(sessionId);
     const face = scope && client.sessions.sessionOf(scope);
@@ -442,6 +571,106 @@ export function apply(ctx: Context) {
     if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
       throw new Error('议题研究未被接收，请检查模型设置后重试');
     }
+  }, async startAssistant(input: Parameters<ResearchSessions['startAssistant']>[0]) {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
+    if (assistantStarts.has(key)) return assistantStarts.get(key)!;
+    const run = (async (): Promise<StartSessionResult> => {
+      const { id, mode } = await ensureAssistantSession(input);
+      if (input.prompt?.trim()) {
+        const scope = client.sessions.scope(id);
+        const face = scope && client.sessions.sessionOf(scope);
+        if (!face) throw new Error('问助手会话不可用');
+        const bound = await bindAssistantPrompt({
+          prompt: input.prompt,
+          title: input.title,
+          mode,
+          objects: (input.objects || []).map(item => ({
+            kind: item.kind || 'object',
+            id: item.id,
+            label: item.label,
+            version: item.version,
+            url: item.url,
+            hint: item.hint,
+            source: item.source,
+            time: item.time,
+          })),
+        });
+        if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
+          throw new Error('问助手问题未被接收，请检查模型设置后重试');
+        }
+      }
+      return { sessionId: id, status: 'started', mode };
+    })();
+    assistantStarts.set(key, run);
+    try { return await run; } finally { assistantStarts.delete(key); }
+  }, async ensureAssistant(input: Parameters<ResearchSessions['ensureAssistant']>[0]) {
+    await session;
+    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
+    if (assistantStarts.has(key)) return assistantStarts.get(key)!;
+    const run = (async (): Promise<StartSessionResult> => {
+      const { id, mode } = await ensureAssistantSession(input);
+      return { sessionId: id, status: 'started', mode };
+    })();
+    assistantStarts.set(key, run);
+    try { return await run; } finally { assistantStarts.delete(key); }
+  }, insertAssistantObjects(sessionId: string, objects: Parameters<ResearchSessions['insertAssistantObjects']>[1]) {
+    insertAssistantRefs(objects, sessionId);
+  }, async switchAssistantMode(sessionId: string, mode: 'ask' | 'agent', pageKey?: string) {
+    await session;
+    const store = await loadAssistantSessions().catch(() => ({ sessions: {} as Record<string, { plugin?: AssistantPlugin; target?: string; page_key?: string }> }));
+    const bound = store.sessions[sessionId];
+    const derived = pageKey ? assistantBindingForPage(pageKey) : null;
+    await bindAssistantSession({
+      session_id: sessionId,
+      mode,
+      plugin: bound?.plugin,
+      target: bound?.target,
+      page_key: derived?.bindKey || bound?.page_key || pageKey,
+    });
+  }, assistantModel(sessionId: string) {
+    const existing = modelStores.get(sessionId);
+    if (existing) return existing;
+    let directory: ReturnType<NonNullable<Client['modelDirectories']>['directoryFor']> | undefined;
+    try { directory = client.modelDirectories?.directoryFor(sessionId); }
+    catch { return null; }
+    const store = directory?.store && typeof directory.store.getSnapshot === 'function' && typeof directory.store.subscribe === 'function'
+      ? directory.store
+      : null;
+    if (!store) return null;
+    let last = emptyModelSnap;
+    const wrapped = {
+      subscribe: (listener: () => void) => {
+        try { return store.subscribe(listener); }
+        catch { return () => {}; }
+      },
+      getSnapshot: () => {
+        try {
+          const next = store.getSnapshot();
+          if (last && JSON.stringify(last) === JSON.stringify(next)) return last;
+          last = next;
+          return next;
+        } catch {
+          return last;
+        }
+      },
+      load: async () => { try { void directory.load(); } catch { /* 模型目录失败时隐藏选择，不打断发送 */ } },
+      select: (selection: { provider: string; model: string }) => directory.select(selection),
+    };
+    modelStores.set(sessionId, wrapped);
+    return wrapped;
+  }, focusAssistantSession(sessionId: string) {
+    if (!assistantHold) assistantHold = { sessionId: currentSessionId(), topicId: openedTopicId };
+    client.sessions.open(sessionId);
+    openedSessionId = sessionId;
+    sessionListeners.forEach(listener => listener());
+    return () => {
+      const hold = assistantHold;
+      assistantHold = null;
+      if (hold?.sessionId) remember(hold.sessionId, hold.topicId);
+    };
   }, async openSession(sessionId: string) {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
@@ -603,6 +832,8 @@ export function apply(ctx: Context) {
   client.slots.inject('conversation.input.dock', () => client.slots.register<{ session: { blank: boolean } }>({
     name: 'conversation.input.dock', id: 'finance-recent', order: 40,
   }, function Recent({ session }) {
+    const seated = React.useSyncExternalStore(subscribeAssistantSeat, () => assistantSeatSnapshot().seated, () => false);
+    if (seated) return null;
     return session.blank ? <History compact openView={() => {}} /> : null;
   }));
   function History({ openView, compact = false }: { openView(view: string): void; compact?: boolean }) {

@@ -3,6 +3,18 @@
 #dsh-conversation button[aria-label="选择工作区"],
 #dsh-conversation button[aria-label="Choose workspace"] { display: none; }
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
+#dsh-conversation[data-assistant-seat] {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  /* Sidebar width, not the home conversation column clamp. */
+  --dsh-chat-user-width: 100%;
+  --dsh-composer-side-clearance: 12px;
+  --dsh-composer-dock-inset: 0px;
+}
 #dsh-settings { font-size: 13px; }
 
 /* Settings surfaces and interaction states have separate roles. Keep these
@@ -203,6 +215,38 @@ html body.vibe-dsh-host {
 .finance-session-action:focus-visible { outline: 2px solid hsl(var(--primary) / .4); outline-offset: 2px; }
 #dsh-conversation [class*="_tools"]:has(.finance-library-attach) > [data-slot="conversation.input.left"] { order: 1; }
 #dsh-conversation [class*="_tools"]:has(.finance-library-attach) > [class*="_modes"] { order: 2; }
+#dsh-conversation[data-assistant-seat] [class*="_modes"] { display: none; }
+/* Reuse native composer/@/Ask, not the blank-session home hero. */
+#dsh-conversation[data-assistant-seat] header,
+#dsh-conversation[data-assistant-seat] .pXSMma_root,
+#dsh-conversation[data-assistant-seat] [class*="heroWorkspaceRow"],
+#dsh-conversation[data-assistant-seat] .finance-recent,
+#dsh-conversation[data-assistant-seat] [data-slot="conversation.input.dock"],
+#dsh-conversation[data-assistant-seat] [class*="widthHandle"] { display: none !important; }
+#dsh-conversation[data-assistant-seat] [data-phase="hero"] [data-conversation-scroll] {
+  justify-content: flex-end;
+  overflow: hidden;
+}
+#dsh-conversation[data-assistant-seat] [data-composer-seat] {
+  position: sticky;
+  bottom: 0;
+  z-index: 7;
+  background: hsl(var(--card));
+}
+#dsh-conversation[data-assistant-seat] [class*="composerHero"] {
+  width: 100%;
+  max-width: none;
+  align-self: stretch;
+  box-sizing: border-box;
+  gap: 0;
+  padding: 8px 12px 12px;
+}
+#dsh-conversation[data-assistant-seat] [class*="composerHero"] [class*="_card"] {
+  width: 100%;
+  max-width: none;
+}
+.finance-assistant-mode { display: flex; align-items: center; flex: none; color: var(--dsw-alias-label-primary); }
+.finance-assistant-mode select { color: inherit; font: inherit; }
 .finance-library-attach { display: flex; align-items: center; flex: none; }
 .finance-library-attach-btn {
   display: grid;

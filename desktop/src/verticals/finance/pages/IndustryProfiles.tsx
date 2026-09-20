@@ -5,17 +5,30 @@ import { GlassCard } from '../components/ui/GlassCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { ResearchLoading } from '../components/ui/ResearchLoading';
 import { DashboardCard } from '../components/IndustryDashboardCard';
+import { WorkspaceSearch } from '../components/ui/WorkspaceSearch';
 import { researchRead } from '../lib/research';
-import { useAiPage } from '../../../core/ai/pageContext';
+import { workspaceSelectMatches } from '../lib/workspaceSelect';
+import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
+import { profileAssistantObject } from '../lib/pageAssistantObjects';
 import { ArrowUpRight, Layers3, ChevronLeft } from 'lucide-react';
 
-interface Profile { industry_code: string; industry_name: string; status: string; card_count: number; companies?: string[]; core_questions?: { q: string; rationale: string; evidence_docs: string[] }[] }
+interface Profile {
+  industry_code: string;
+  industry_name: string;
+  status: string;
+  card_count: number;
+  companies?: string[];
+  core_questions?: { q: string; rationale: string; evidence_docs: string[] }[];
+  profile_sha256?: string;
+  profile_ref?: string;
+}
 export function IndustryProfiles() {
   const { key } = useParams();
   const [items, setItems] = useState<Profile[] | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [error, setError] = useState('');
   const [titles, setTitles] = useState<Record<string, string>>({});
+  const [query, setQuery] = useState('');
   useEffect(() => {
     const controller = new AbortController(); setTitles({});
     const ids = [...new Set(profile?.core_questions?.flatMap(question => question.evidence_docs) ?? [])];
@@ -34,13 +47,32 @@ export function IndustryProfiles() {
     void request.catch(e => { if (!controller.signal.aborted) setError(String(e)); });
     return () => controller.abort();
   }, [key]);
-  useAiPage({ key: `industry-profile:${key ?? 'list'}`, title: profile?.industry_name || '产业研究', context: profile ? JSON.stringify(profile) : '申万产业研究资料，尚未选定行业。', suggestions: ['这个行业最值得核实的问题是什么？'] });
+  const visible = items?.filter(item => workspaceSelectMatches(
+    { label: item.industry_name, detail: [item.industry_code, ...(item.companies ?? [])].join(' ') },
+    query,
+  ));
+  const pageKey = `industry-profile:${key ?? 'list'}`;
+  useAiPage({
+    key: pageKey,
+    title: profile?.industry_name || '产业研究',
+    context: profile ? `申万产业研究：${profile.industry_name}（${profile.industry_code}）` : '申万产业研究资料，尚未选定行业。',
+    suggestions: ['这个行业最值得核实的问题是什么？'],
+  });
+  const profileObjects = profile
+    ? [profileAssistantObject({ code: profile.industry_code, name: profile.industry_name, profileRef: profile.profile_ref, sha256: profile.profile_sha256 })].flatMap(item => item ? [item] : [])
+    : (visible ?? []).flatMap(item => {
+      const object = profileAssistantObject({ code: item.industry_code, name: item.industry_name, profileRef: item.profile_ref, sha256: item.profile_sha256 });
+      return object ? [object] : [];
+    });
+  useAiPageObjects(pageKey, profileObjects);
   const sectorsLink = <Link className="workspace-action" to="/sectors"><Layers3 />41 个标准行业</Link>;
   return <div><PageHeader title={profile?.industry_name || '产业研究'} subtitle={key ? undefined : '持续关注产业链核心问题（基于申万行业分类）'}
+      search={key ? undefined : <WorkspaceSearch className="mb-0" placeholder="搜索产业名称" value={query} onChange={setQuery} />}
       actions={key ? undefined : sectorsLink} />
     {key && <div className="workspace-toolbar justify-between"><Link className="workspace-action" to="/sectors/profiles"><ChevronLeft />行业目录</Link>{sectorsLink}</div>}
     {error && <p role="alert">{error}</p>}{!items && !profile && !error && <ResearchLoading title="正在读取产业研究" sections={["产业结构", "需求变化"]} />}
-    {items && <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(item => (
+    {items && (visible?.length
+      ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visible.map(item => (
       <DashboardCard
         key={item.industry_code}
         title={item.industry_name}
@@ -49,7 +81,8 @@ export function IndustryProfiles() {
         ready={item.status === 'ready'}
         footer={item.status === 'ready' ? '查看研究方向' : '资料待补充'}
       />
-    ))}</div>}
+    ))}</div>
+      : <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{items.length ? '没有匹配的产业，请调整搜索。' : '暂无产业研究资料。'}</p></GlassCard>)}
     {profile && <GlassCard><p className="mb-4 text-sm text-muted-foreground">覆盖公司：{profile.companies?.join('、') || '未列出'}</p>
       <div className="space-y-6">{profile.core_questions?.map((question, i) => <section key={i}><h2 className="mb-2 font-semibold">{question.q}</h2><p className="whitespace-pre-wrap text-sm leading-7">{question.rationale}</p>
         <div className="mt-4 flex flex-wrap gap-2">{question.evidence_docs.map((id, j) => <Link className="inline-flex max-w-full items-center gap-2 rounded-lg border border-primary/15 bg-primary/5 px-3 py-2 text-xs text-primary transition-colors hover:bg-primary/10" to={`/my-reports/read/${encodeURIComponent(id)}`} key={id}><span className="min-w-0 break-words leading-5">{titles[id] && titles[id] !== '来源研报' ? titles[id] : `阅读来源研报 ${j + 1}`}</span><ArrowUpRight className="shrink-0" size={14} /></Link>)}</div></section>)}</div>

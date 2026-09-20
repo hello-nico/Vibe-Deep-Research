@@ -4,6 +4,7 @@ import { PdfReader, type PdfSelection } from '../../../core/components/PdfReader
 import { researchRead, ResearchError } from '../lib/research';
 import { readPinnedBlock } from '../lib/evidence';
 import { useAiPage, useAiQuestion } from '../../../core/ai/pageContext';
+import { documentObject } from '../lib/assistantObjects';
 import { asResearchErrorMessage } from '../lib/researchSymbol';
 import { hideLibraryDocument, libraryKindLabel, parsedBodyPath, type LibraryDocument } from '../lib/library';
 import './library-page.css';
@@ -132,7 +133,9 @@ function DocumentReader({ id }: { id: string }) {
       </div>
       <footer className="flex items-center justify-between gap-4 border-t p-3">
         <div className="min-w-0 text-sm"><p className="text-muted-foreground">{selection ? '追问范围：' + range : isPdf ? '选中 PDF 中的文字，再点击“就此追问”。' : '选中正文中的文字，再点击“就此追问”。'}</p>{selection && <p className="mt-1 line-clamp-2 whitespace-pre-wrap">{selection.text}</p>}</div>
-        <button className="workspace-action shrink-0" disabled={!selection || !ask} onClick={() => { if (selection) { setFocusRequest(value => value + 1); ask?.(context, { title: title + ' · ' + range, text: selection.text }); } }}>就此追问</button>
+        <button className="workspace-action shrink-0" disabled={!selection || !ask} onClick={() => { if (selection) { setFocusRequest(value => value + 1);         ask?.(context, documentObject({
+          documentId: id, title, parseRevisionId: revision || document?.extra?.parse_revision_id, parsedContentSha256: hash || document?.extra?.parsed_content_sha256, ready: Boolean((revision || document?.extra?.parse_revision_id) && (hash || document?.extra?.parsed_content_sha256)),
+        })); } }}>就此追问</button>
       </footer>
     </section>
     {confirmHide && <div className="library-modal-backdrop" role="dialog" aria-label="从我的资料移除" onClick={() => !hiding && setConfirmHide(false)}>

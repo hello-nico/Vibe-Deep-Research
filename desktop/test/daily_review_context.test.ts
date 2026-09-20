@@ -45,12 +45,10 @@ test("全球指数失败进入可见状态与 AI 摘要，不静默消失", asyn
   assert.equal(fetchingRef.current, false, "各请求结束后可以重新刷新");
   assert.equal(globalDone, true);
   assert.match(globalErr!, /全球指数未接入/);
-  const summary = vm.runInNewContext(compile("dataSummary"), {
-    pageMeta: null, indices: [], globalIdx: [], globalErr, globalDone, dataReady: true,
-    idxDone: true, emoDone: true, toDone: true, ovDone: true, pageErr: null,
-    sentiment: null, sentCells: [], emotion: null, sectors: [], turnover: null,
-  });
-  assert.match(summary, /【海外指数】.*未接入/);
+  assert.match(text, /\{globalErr \?\?/);
+  assert.match(text, /marketAssistantObject/);
+  assert.match(text, /dailyReviewQuoteObjects/);
+  assert.doesNotMatch(text, /dataSummary/);
   assert.doesNotMatch(text, /\{globalIdx\.length > 0 &&\s*\(/, "面板不再以有数据为显示前提；状态标签仍可以检查数据是否为空");
 });
 

@@ -48,6 +48,15 @@ export function webCitationUrl(value: string): string | null {
   }
 }
 
+/** Web pages open in a new tab; producer prefixes wrapping a URL still count as web. */
+export function outboundWebUrl(value: string): string | null {
+  const text = value.trim();
+  const direct = webCitationUrl(text);
+  if (direct) return direct;
+  const stripped = text.replace(/^(?:lookup|source|evidence|claim|provider):/i, '');
+  return stripped === text ? null : webCitationUrl(stripped);
+}
+
 export function webCitationView(value: string, explicitTitle?: string): { title: string; text: string; href: string } | null {
   const href = webCitationUrl(value);
   if (!href) return null;

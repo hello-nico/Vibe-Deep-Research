@@ -17,6 +17,9 @@ test("资料身份与文件类型只认 PDF/TXT/MD", async () => {
       document_id: id, parse_revision_id: 'r-1', parsed_content_sha256: 'b'.repeat(64),
     });
     assert.equal(lib.DOCUMENT_REF.test("document:xyz"), false);
+    lib.rememberMentionLabel(`document:${id}/r-1/${'b'.repeat(64)}`, '对照笔记');
+    assert.equal(lib.mentionLabel(`document:${id}`, '资料'), '对照笔记');
+    assert.equal(lib.mentionLabel('unknown', '资料'), '资料');
     assert.equal(lib.resolveLibrarySession('', '', ''), '');
     assert.equal(lib.resolveLibrarySession('', 'opened', 'current'), 'opened');
     assert.equal(lib.resolveLibrarySession('dock-session', 'opened', 'current'), 'dock-session');
@@ -132,5 +135,10 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.match(reader, /只从「我的资料」拿掉/);
   assert.match(input, /section: '资料'/);
   assert.match(input, /kind === 'document'/);
+  assert.match(input, /rememberMentionLabel/);
   assert.match(input, /发送时绑定的解析版本已不可用/);
+  assert.match(input, /citedDocument/);
+  assert.doesNotMatch(input, /parse_revision_id=\$\{/);
+  assert.match(client, /mentionLabel/);
+  assert.match(client, /打开资料/);
 });

@@ -29,7 +29,7 @@ export function FinanceAssistantSurface({ children }: { children: ReactNode; clo
   if (!surface) throw new Error('助手承载未连接');
   if (!surface.target) return null;
   return createPortal(
-    <div className="finance-assistant-panel fixed bottom-3 right-3 top-[76px] z-50 flex w-[min(28rem,calc(100vw-1.5rem))]">
+    <div className="finance-assistant-panel fixed bottom-3 right-3 top-[76px] z-50 flex w-[min(36rem,calc(100vw-1.5rem))]">
       <aside aria-label="页面助手" className="ai-surface relative flex w-full flex-col rounded-2xl overflow-hidden border shadow-lg">
         {children}
       </aside>

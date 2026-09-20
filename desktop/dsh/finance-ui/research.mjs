@@ -23,6 +23,7 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && /^\/wiki\/reports\/report(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;
   if (method === 'POST' && [
     '/wiki/refs/resolve', '/wiki/pages/refresh-api', '/wiki/pages/ensure', '/documents/uploads',
+    '/documents/fetch-url',
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
     '/wiki/research-candidates', '/notes',

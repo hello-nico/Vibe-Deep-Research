@@ -4,18 +4,20 @@ import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
 import { DashboardCard } from '../components/IndustryDashboardCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
-import { WikiLoading, WikiReader } from '../components/ResearchKnowledge';
+import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
-import { backgroundTaskForSession, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type WikiItem, type WikiPage } from '../lib/research';
+import { aShareQualified, backgroundTaskForSession, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type WikiItem, type WikiPage } from '../lib/research';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
 import { api } from '../lib/api';
 import { prefGet, prefSet } from '../lib/prefs';
 import { cn } from '@/lib/utils';
 import { useResearchSessions } from '../dsh/research-session';
-import { useAiPage } from '../../../core/ai/pageContext';
-import { ArrowLeft, ArrowRight, Building2, FileText, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
+import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
+import { wikiAssistantObject, companyQuoteObject } from '../lib/pageAssistantObjects';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
+import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
+import { WikiDraftPublish } from '../components/WikiDraftPublish';
 
 const VIEW_KEY = 'vr-company-roster-view';
 const RECENT_LIMIT = 9;
@@ -45,7 +47,9 @@ export function CompanyWiki() {
     setParams(next, { replace: true });
   };
   const [loaded, setLoaded] = useState({ slug: '', markdown: '' });
+  const [wikiPage, setWikiPage] = useState<WikiPage | null>(null);
   const markdown = loaded.slug === slug ? loaded.markdown : '';
+  useEffect(() => { setWikiPage(null); }, [slug]);
   const [error, setError] = useState('');
   const [wikiError, setWikiError] = useState('');
   const [revision, refresh] = useState(0);
@@ -66,6 +70,7 @@ export function CompanyWiki() {
     pageReady?: boolean;
     baselineHash?: string;
     settleAt?: number;
+    draftToken?: string;
   } | null>(null);
   const genRef = useRef(gen);
   genRef.current = gen;
@@ -198,7 +203,7 @@ export function CompanyWiki() {
           refresh(x => x + 1);
           if (display === 'awaiting_authorization' || display === 'partial') {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: display === 'partial' ? 'partial' : 'review', message: display === 'partial'
+              ? { ...prev, phase: display === 'partial' ? 'partial' : 'review', draftToken: record.draft_token, message: display === 'partial'
                 ? '后台整理部分完成，请查看任务记录中的成果与未完成事项；不代表本页已更新。'
                 : '研究草案已生成，待审阅；尚未发布到本页。' } : prev);
           } else if (['ready', 'done', 'completed'].includes(display)) {
@@ -299,7 +304,23 @@ export function CompanyWiki() {
       setRosterRev(x => x + 1);
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
-  useAiPage({ key: `company-wiki:${slug}:${rosterRev}`, title: current ? `个股研究 · ${current.title}` : '个股研究', context: slug ? `当前公司 Wiki：${slug}\n${markdown || '正文尚未加载。'}` : '当前研究名单：' + visible.map(row => row.title).join('、'), suggestions: slug ? ['研究这家公司需要核对哪些证据？'] : ['当前名单里哪些公司最值得先看？'] });
+  const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
+  useAiPage({
+    key: pageKey,
+    title: current ? `个股研究 · ${current.title}` : '个股研究',
+    context: slug ? `当前公司 Wiki：${slug}` : `当前研究名单 ${visible.length} 家。`,
+    suggestions: slug ? ['研究这家公司需要核对哪些证据？'] : ['当前名单里哪些公司最值得先看？'],
+  });
+  const companyObjects = slug && current
+    ? [
+      wikiAssistantObject({ slug: current.slug, title: current.title, inputHash: wikiPage?.input_hash, section: '个股研究' }),
+      current.aShare ? companyQuoteObject({ symbol: aShareQualified(current.symbol) || current.symbol, name: current.title }) : null,
+    ].flatMap(item => item ? [item] : [])
+    : visible.flatMap(row => {
+      const wiki = wikiAssistantObject({ slug: row.slug, title: row.title, inputHash: wikiBySlug.get(row.slug)?.input_hash, section: '个股研究' });
+      return wiki ? [wiki] : [];
+    });
+  useAiPageObjects(pageKey, companyObjects);
   const genHere = gen && gen.slug === slug ? gen : null;
   const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
   const wikiWaitTitle = genHere?.phase === 'ensuring' ? '正在创建公司资料页'
@@ -328,7 +349,7 @@ export function CompanyWiki() {
       />
       {current && <button className="workspace-action" onClick={() => void leave(current.symbol)}><X size={14} />移出研究</button>}
       {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
-      {current?.hasWiki && <button type="button" className={cn('workspace-action', report && 'workspace-action-primary')} onClick={() => setReport(value => !value)}><FileText size={14} />{report ? '研究页' : '图文报告'}</button>}
+      {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} />}
     </div>}
     {slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
       {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
@@ -349,12 +370,13 @@ export function CompanyWiki() {
         {genHere.phase === 'settling' && <p className="text-sm">本轮研究已结束，后台正在整理研究成果…</p>}
         {genHere.phase === 'done' && <p className="text-sm">{genHere.message || '本轮研究已结束，页面显示当前已发布内容。'}</p>}
         {(genHere.phase === 'partial' || genHere.phase === 'review') && <p className="text-sm">{genHere.message}</p>}
+        {genHere.phase === 'review' && genHere.draftToken && <WikiDraftPublish draftToken={genHere.draftToken} onPublished={() => { refresh(x => x + 1); setGen(prev => prev && prev.slug === slug ? { ...prev, phase: 'done', message: 'Wiki 已更新，可回读新版本。' } : prev); }} />}
         {genHere.phase === 'unconfirmed' && <p className="text-sm">{genHere.message || '本轮研究已结束，后台沉淀结果尚未确认。'}</p>}
         {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究未完成，可重试。'}</p>}
         {genActions}
       </div>}
       {apiBusy === slug && <ResearchLoading compact title={`正在更新${current?.title || '该公司'}的财务与估值数据`} sections={['财务', '估值']} />}
-      {current?.hasWiki ? <WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} onReportChange={setReport} onLoadState={setReaderState} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /> : null}
+      {current?.hasWiki ? <WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /> : null}
     </GlassCard>
     : !listLoading ? <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
