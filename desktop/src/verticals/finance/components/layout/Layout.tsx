@@ -216,7 +216,7 @@ export function Layout() {
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
-            {pathname !== "/" && !pathname.startsWith("/my-research/topics/") && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
+            {pathname !== "/" && pathname !== "/watchlist" && !pathname.startsWith("/my-research/topics/") && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
             <ConversationWorkspace active={pathname === "/" || pathname.startsWith("/my-research/topics/")} split={pathname.startsWith("/my-research/topics/")} title={pathname.startsWith("/my-research/topics/") ? "议题研究" : "深度对话"} subtitle={pathname.startsWith("/my-research/topics/") ? "围绕当前议题读取材料、确认关联并形成可发布草案" : "查阅资料、核对证据，深入探讨你的研究问题"}>

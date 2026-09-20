@@ -55,7 +55,7 @@ test("左上角使用本地产品标记，不增加外部请求或原作者品�
 });
 test("非首页顶栏只放问助手入口，不再并排投研助手身份字", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /pathname !== "\/" && !pathname.startsWith\("\/my-research\/topics\/"\) && <FinanceAiDock/);
+  assert.match(layout, /pathname !== "\/" && pathname !== "\/watchlist" && !pathname.startsWith\("\/my-research\/topics\/"\) && <FinanceAiDock/);
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /fixed right-5 top-4/);
@@ -129,4 +129,27 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /DashboardPanel/);
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /useAiPage/);
   assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
+});
+
+test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
+  const tabs = read("verticals/finance/components/ui/WorkspaceTabs.tsx");
+  const mine = read("verticals/finance/pages/MyResearch.tsx");
+  const intel = read("verticals/finance/pages/Intel.tsx");
+  assert.match(tabs, /bg-primary\/15 font-medium text-primary shadow-glow/);
+  assert.match(tabs, /text-muted-foreground hover:bg-muted\/50/);
+  assert.match(mine, /WorkspaceTabs/);
+  assert.match(mine, /aria-label="研究类型"/);
+  assert.match(mine, /label: "议题"/);
+  assert.match(mine, /label: "记录"/);
+  assert.match(mine, /label: "任务"/);
+  assert.match(mine, /label: "记忆"/);
+  assert.match(mine, /aria-label="议题状态"/);
+  assert.match(mine, /<GlassCard glow>/);
+  assert.match(mine, /border-b border-border\/30 py-3 last:border-0/);
+  assert.doesNotMatch(mine, /DashboardPanel/);
+  assert.doesNotMatch(mine, /justify-between gap-3">\s*<WorkspaceTabs/);
+  assert.match(intel, /WorkspaceTabs/);
+  assert.match(intel, /aria-label="资讯栏目"/);
+  assert.match(intel, /<GlassCard glow>/);
+  assert.doesNotMatch(intel, /NAV_GROUPS/);
 });

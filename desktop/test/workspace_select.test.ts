@@ -56,3 +56,29 @@ test("可搜索下拉按名称和附加信息过滤", () => {
   assert.equal(workspaceSelectMatches(option, "600900"), true);
   assert.equal(workspaceSelectMatches(option, "贵州茅台"), false);
 });
+
+test("行业与产业研究列表共用检索条，按名称和附加信息过滤", () => {
+  const center = read("verticals/finance/pages/IndustryCenter.tsx");
+  const profiles = read("verticals/finance/pages/IndustryProfiles.tsx");
+  const header = read("verticals/finance/components/ui/PageHeader.tsx");
+  for (const source of [center, profiles]) {
+    assert.match(source, /WorkspaceSearch/);
+    assert.match(source, /workspaceSelectMatches/);
+    assert.match(source, /search=\{/);
+  }
+  assert.match(center, /placeholder="搜索行业名称"/);
+  assert.match(center, /没有匹配的行业/);
+  assert.match(center, /searchPlaceholder="搜索行业"/);
+  assert.match(profiles, /placeholder="搜索产业名称"/);
+  assert.match(profiles, /没有匹配的产业/);
+  assert.match(header, /search\?: ReactNode/);
+  assert.match(header, /\{search && \(/);
+  assert.match(header, /subtitle && <p className="mt-2 max-w-4xl/);
+  assert.match(header, /!search && actionBar/);
+  assert.doesNotMatch(header, /!search && subtitle/);
+  assert.doesNotMatch(header, /\{subtitle && <p className="shrink-0/);
+  assert.equal(workspaceSelectMatches({ label: "林业", detail: "forestry 行业资料待补充。" }, "林"), true);
+  assert.equal(workspaceSelectMatches({ label: "农产品加工", detail: "801120 牧原股份" }, "801120"), true);
+  assert.equal(workspaceSelectMatches({ label: "农产品加工", detail: "801120 牧原股份" }, "牧原"), true);
+  assert.equal(workspaceSelectMatches({ label: "农产品加工", detail: "801120 牧原股份" }, "半导体"), false);
+});
