@@ -80,10 +80,14 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const [task, setTask] = useState<ReportTaskRef | null>(null);
   const [starting, setStarting] = useState(false);
   const [autoTried, setAutoTried] = useState(false);
+  const [taskReady, setTaskReady] = useState(false);
   const [busyOtherVersion, setBusyOtherVersion] = useState(false);
   const frame = useRef<HTMLIFrameElement>(null);
   const seq = useRef(0);
+  const checkSeq = useRef(0);
   const wasRunning = useRef(false);
+  const primedTask = useRef(false);
+  const watchedLive = useRef(false);
 
   // Pure fetch — callers commit setItems only after their staleness guards pass,
   // so a late response from a previous page version can never write state.
@@ -98,8 +102,10 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     const controller = new AbortController();
     const mine = ++seq.current;
     wasRunning.current = false;
+    primedTask.current = false;
+    watchedLive.current = false;
     setItems(null); setSelected(null); setDetail(null); setError('');
-    setTask(null); setStarting(false); setAutoTried(false); setBusyOtherVersion(false);
+    setTask(null); setTaskReady(false); setStarting(false); setAutoTried(false); setBusyOtherVersion(false);
     void fetchItems(controller.signal)
       .then(list => {
         if (controller.signal.aborted || seq.current !== mine) return;
@@ -133,22 +139,33 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   }, [selected?.report_id]);
 
   // Track the bound report task: execution state comes from DSH, artifact state
-  // from Backend. A session existing ≠ a report existing.
+  // from Backend. A session existing ≠ a report existing. A finished binding is
+  // not a falling edge — only a live run this pane actually watched.
   useEffect(() => {
     if (!sessions || !slug) return;
     let cancelled = false;
+    primedTask.current = false;
+    wasRunning.current = false;
     const check = async () => {
+      const mine = ++checkSeq.current;
       const found = await sessions.findReportTask(slug).catch(() => null);
-      if (cancelled) return;
+      if (cancelled || mine !== checkSeq.current) return;
       setTask(found);
+      setTaskReady(true);
       const running = Boolean(found?.running);
-      if (wasRunning.current && !running) {
-        // Execution just ended: look for the confirmed artifact before declaring anything.
+      if (!primedTask.current) {
+        primedTask.current = true;
+        wasRunning.current = running;
+        if (running) watchedLive.current = true;
+        return;
+      }
+      if (running) watchedLive.current = true;
+      if (watchedLive.current && wasRunning.current && !running) {
         const list = await fetchItems().catch(() => null);
-        if (cancelled) return;
+        if (cancelled || mine !== checkSeq.current) return;
         if (list) setItems(list);
         const current = list?.find(item => item.current);
-        if (current) { setSelected(current); setBusyOtherVersion(false); }
+        if (current) { setSelected(current); setBusyOtherVersion(false); setError(''); }
         else if (found && found.inputHash === inputHash) {
           const state = sessions.sessionState(found.sessionId);
           setError(state?.lastAgentError || state?.promptError
@@ -184,6 +201,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const generate = () => {
     if (!sessions) { setError('研究会话尚未连接，稍后再试。'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
+    watchedLive.current = true;
     setError(''); setStarting(true);
     void sessions.start(reportPrompt(page), undefined, {
       navigate: false,
@@ -196,14 +214,15 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     }).finally(() => setStarting(false));
   };
 
-  // Auto-generate once per page version when the report view is open, no current
-  // artifact and no live task. The React 底稿 is a prompt contract, not a reader view.
+  // First open of a version with no artifact and no prior task starts one
+  // generation. A finished binding is a previous attempt — retry is explicit.
   useEffect(() => {
-    if (!active || autoTried || items === null || starting || task?.running) return;
+    if (!active || autoTried || items === null || !taskReady || starting || task?.running) return;
     if (items.some(item => item.current)) return;
     setAutoTried(true);
+    if (task) return;
     generate();
-  }, [active, autoTried, items, starting, task?.running]);
+  }, [active, autoTried, items, taskReady, starting, task, task?.running]);
 
   const generating = starting || Boolean(task?.running);
   const taskStale = Boolean(task?.running && task.inputHash !== inputHash);

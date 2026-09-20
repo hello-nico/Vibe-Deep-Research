@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { Building2, ChartNoAxesCombined, Landmark, Scale, ScanEye, BookOpen } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import { EvidenceLink } from './EvidenceCard';
-import { researchRead, type WikiPage } from '../lib/research';
+import { researchRead, ResearchError, type WikiPage } from '../lib/research';
 import { FACT_SECTIONS, factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
 import { WikiLoading } from './WikiLoading';
 import { ObjectReport } from './ObjectReport';
@@ -86,7 +86,7 @@ export function WikiReader({ slug, onMarkdown, onLoadState, revision = 0, render
     const controller = new AbortController();
     setRelated([]); setLinkError('');
     void researchRead<{ items: typeof related }>(`/wiki/pages/related?slug=${encodeURIComponent(active)}`, { signal: controller.signal })
-      .then(value => setRelated(value.items)).catch(() => { if (!controller.signal.aborted) setLinkError('相关材料暂时无法读取'); });
+      .then(value => setRelated(value.items)).catch(e => { if (!controller.signal.aborted) setLinkError(e instanceof ResearchError ? e.message : '相关材料暂时无法读取'); });
     return () => controller.abort();
   }, [active]);
   const navigate = (next: string[]) => {
@@ -116,12 +116,12 @@ function WikiBody({ slug, report, onMarkdown, onLoadState, revision, renderLoadi
   const [retry, setRetry] = useState(0);
   useEffect(() => {
     const controller = new AbortController(); setError('');
-    void researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(slug), { signal: controller.signal }).then(setPage).catch(e => { if (!controller.signal.aborted) setError(String(e)); });
+    void researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(slug), { signal: controller.signal }).then(setPage).catch(e => { if (!controller.signal.aborted) setError(e instanceof ResearchError ? e.message : String(e)); });
     return () => controller.abort();
   }, [slug, revision, retry]);
   useEffect(() => { onMarkdown?.(page?.markdown ?? ''); }, [page, onMarkdown]);
   useEffect(() => { onLoadState?.(error ? 'error' : page ? 'ready' : 'loading'); }, [page, error, onLoadState]);
-  const failure = error ? <p role="alert" className="mb-4 text-sm">资料读取失败{page ? '，仍显示已有内容' : ''}。<button className="workspace-action ml-2" onClick={() => setRetry(value => value + 1)}>重试</button></p> : null;
+  const failure = error ? <p role="alert" className="mb-4 text-sm">{page ? `资料读取失败，仍显示已有内容：${error}` : error}<button className="workspace-action ml-2" onClick={() => setRetry(value => value + 1)}>重试</button></p> : null;
   if (!page) return failure || renderLoading(slug);
   const identity = blockDict(page.spec.blocks.find(block => block.kind === 'identity')?.content);
   const dashboard = (() => {

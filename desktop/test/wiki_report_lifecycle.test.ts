@@ -392,3 +392,49 @@ test('生成过程打开只读面板，不调用 openSession，关闭不中止',
     assert.equal(opened, 0);
   } finally { await env.cleanup(); }
 });
+
+test('已结束且无制品的旧任务不显示刚刚生成完，也不自动重跑', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-old', slug: 'companies/a', inputHash: HASH_A, running: false }),
+    });
+    const wrap = (active: boolean) => createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页正文', active }));
+    await env.render(wrap(false));
+    await env.act(async () => {});
+    await env.render(wrap(true));
+    await env.act(async () => {});
+    assert.equal(sessions.startCalls.length, 0, '旧任务不得在打开图文报告时自动重跑');
+    assert.ok(!env.container.textContent.includes('尚未确认'), '不得把未生成过的旧绑定说成刚刚结束');
+    assert.ok(!env.container.textContent.includes('报告生成失败'));
+    assert.ok(env.container.textContent.includes('生成报告'));
+    assert.ok(env.container.textContent.includes('生成过程'));
+    assert.ok(env.container.textContent.includes('研究页正文'));
+  } finally { await env.cleanup(); }
+});
+
+test('本页目击的运行结束后若无制品，才提示尚未确认', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    let running = true;
+    let listListener = () => {};
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-live', slug: 'companies/a', inputHash: HASH_A, running }),
+      sessionState: () => ({ running, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false }),
+      subscribeSessionList: (listener) => { listListener = listener; return () => {}; },
+    });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页正文' })));
+    await env.act(async () => {});
+    assert.ok(env.container.textContent.includes('正在生成'));
+    running = false;
+    await env.act(async () => { listListener(); });
+    await env.act(async () => {});
+    assert.ok(env.container.textContent.includes('尚未确认'));
+    assert.ok(env.container.textContent.includes('研究页正文'));
+    assert.equal(sessions.startCalls.length, 0);
+  } finally { await env.cleanup(); }
+});
