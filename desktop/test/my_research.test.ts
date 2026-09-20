@@ -5,7 +5,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { researchRoute } from "../dsh/finance-ui/research.mjs";
-import { bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
+import { bindAssistantSession, bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadAssistantSessions, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
 
 test("后台状态区分仍在执行的子会话和已结束后等待入库", async t => {
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ status: "ready", document_id: "report" })));
@@ -104,6 +104,45 @@ test("报告任务绑定落在宿主文件，运行态探测失败不能挡住�
   }, { isRunning: () => true }), /session is running/);
 });
 
+test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，运行中不能改模式", () => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), "vibe-assistant-"));
+  process.env.DSH_HOME = home;
+  try {
+    fs.mkdirSync(path.join(home, "sessions", "ws"), { recursive: true });
+    fs.mkdirSync(path.join(home, "sessions", "ws", "sess-ask-1"));
+    fs.writeFileSync(path.join(home, "sessions", "ws", "sess-ask-1", "session.jsonl"), "");
+    assert.throws(() => bindAssistantSession({ mode: "ask", page_key: "intel/filings", pending: true } as never), /invalid session/);
+    const bound = bindAssistantSession({ session_id: "sess-ask-1", plugin: "deep_research", mode: "ask", page_key: "intel/filings" });
+    assert.equal(bound.mode, "ask");
+    assert.equal(bound.plugin, "deep_research");
+    assert.equal(loadAssistantSessions().pages["intel/filings"].session_id, "sess-ask-1");
+    const switched = bindAssistantSession({ session_id: "sess-ask-1", plugin: "deep_research", mode: "agent", page_key: "intel/filings" });
+    assert.equal(switched.mode, "agent");
+    assert.throws(() => bindAssistantSession({ session_id: "sess-ask-1", mode: "ask", page_key: "intel/filings" }, { isRunning: () => true }), /running/);
+    assert.throws(() => bindAssistantSession({ mode: "chat" }), /invalid assistant mode/);
+    fs.mkdirSync(path.join(home, "sessions", "ws", "sess-co-1"));
+    fs.writeFileSync(path.join(home, "sessions", "ws", "sess-co-1", "session.jsonl"), "");
+    const company = bindAssistantSession({ session_id: "sess-co-1", plugin: "company_wiki", mode: "agent", target: "companies/600900-sh", page_key: "company-wiki:companies/600900-sh" });
+    assert.equal(company.plugin, "company_wiki");
+    assert.equal(company.target, "companies/600900-sh");
+    assert.equal(loadAssistantSessions().pages["company_wiki:companies/600900-sh"].session_id, "sess-co-1");
+    fs.mkdirSync(path.join(home, "sessions", "ws", "sess-intel-1"));
+    fs.writeFileSync(path.join(home, "sessions", "ws", "sess-intel-1", "session.jsonl"), "");
+    const intel = bindAssistantSession({ session_id: "sess-intel-1", plugin: "intel", mode: "ask", page_key: "intel:radar" });
+    assert.equal(intel.plugin, "intel");
+    assert.equal(loadAssistantSessions().pages["intel:radar"].session_id, "sess-intel-1");
+    fs.mkdirSync(path.join(home, "sessions", "ws", "sess-market-1"));
+    fs.writeFileSync(path.join(home, "sessions", "ws", "sess-market-1", "session.jsonl"), "");
+    const market = bindAssistantSession({ session_id: "sess-market-1", plugin: "market", mode: "ask", page_key: "market:daily-review" });
+    assert.equal(market.plugin, "market");
+  } finally {
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("过程历史加载完成不抢回用户新选中的聊天", async () => {
   const source = fs.readFileSync(new URL('../src/verticals/finance/dsh/client.tsx', import.meta.url), 'utf8');
   const body = source.match(/const ensureTaskHistory = async \(sessionId: string\) => \{([\s\S]*?)\n  \};/)![1];
@@ -111,7 +150,7 @@ test("过程历史加载完成不抢回用户新选中的聊天", async () => {
   const history = new Promise<void>(resolve => { finish = resolve; });
   let current = 'chat-A';
   const switches: string[] = [];
-  const client = { sessions: { list: { getSnapshot: () => ({ current }) }, open(id: string) { current = id; switches.push(id); } } };
+  const client = { sessions: { list: { getSnapshot: () => ({ current }) }, open(id: string) { current = id; switches.push(id); }, refresh: async () => {} } };
   const load = new Function('client', 'historyFace', `return async function(sessionId) {${body}}`)(client, () => ({ open: () => history }));
   const pending = load('report-task');
   current = 'chat-B';
@@ -301,8 +340,16 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.doesNotMatch(company, /setSlug\(row\.hasWiki \? row\.slug : row\.slug\)/);
   assert.doesNotMatch(company, /打开六阶段研究|research\/legacy/);
   assert.match(company, /在深度对话中研究/);
-  assert.match(company, /图文报告/);
+  assert.match(company, /WikiViewTabs/);
+  assert.doesNotMatch(company, /report \? '研究页' : '图文报告'/);
+  const reader = readFileSync(new URL("../src/verticals/finance/components/ResearchKnowledge.tsx", import.meta.url), "utf8");
+  assert.match(reader, /图文报告/);
+  assert.match(reader, /WikiViewTabs/);
   assert.match(company, /hideToggle/);
+  const industry = readFileSync(new URL("../src/verticals/finance/pages/IndustryCenter.tsx", import.meta.url), "utf8");
+  assert.match(industry, /WikiViewTabs/);
+  assert.match(industry, /hideToggle/);
+  assert.match(industry, /selected\.published && <WikiViewTabs/);
   assert.match(company, /WikiLoading/);
   assert.match(company, /ResearchRefreshStatus/);
   assert.doesNotMatch(company, /ResearchRefreshSurface/);
@@ -316,6 +363,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(mine, /status === "archived"/);
   assert.match(mine, /已归档/);
   assert.match(mine, /研究中/);
+  assert.match(mine, /WorkspaceTabs/);
   assert.match(mine, /WorkspaceFilter/);
   assert.match(mine, /WorkspaceSearch/);
   assert.doesNotMatch(mine, /创建议题/);
@@ -338,6 +386,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(mine, /openTaskProcess/);
   assert.match(mine, /查看过程/);
   assert.match(client, /startReportRun/);
+  assert.doesNotMatch(client, /!archived.has\(id\) && id !== store.host_session_id/);
   assert.match(client, /isBackgroundChat/);
   assert.match(client, /openTaskProcess/);
   assert.match(client, /origin === 'subagent'/);
@@ -350,11 +399,13 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(client, /ensureTaskHistory/);
   assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
   const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");
-  assert.match(processPanel, /emptySnapshot/);
-  assert.match(processPanel, /调用参数/);
-  assert.match(processPanel, /task-process-step/);
+  const transcript = readFileSync(new URL("../src/verticals/finance/components/TaskTranscript.tsx", import.meta.url), "utf8");
+  assert.match(processPanel, /TaskTranscript/);
+  assert.match(transcript, /调用参数/);
+  assert.match(transcript, /finance-assistant-transcript/);
   assert.doesNotMatch(processPanel, /react-router-dom/);
   assert.doesNotMatch(processPanel, /openSession/);
+  assert.match(client, /prev\?\.steps\.length && !next.steps.length/);
   const host = readFileSync(new URL("../dsh/finance-ui/host-state.mjs", import.meta.url), "utf8");
   assert.match(host, /unwrapCreatedAgent/);
   assert.match(host, /watchReportRun/);

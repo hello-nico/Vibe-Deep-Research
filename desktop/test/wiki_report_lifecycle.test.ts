@@ -12,31 +12,27 @@ import { Window } from 'happy-dom';
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
 
-test('切换报告版本时先撤下旧正文，失败后回到研究页', async () => {
+test('图文报告只打开当前版本，不提供历史下拉', async () => {
   const env = await boot();
   try {
     const a = 'report:' + 'a'.repeat(32), b = 'report:' + 'b'.repeat(32);
-    const pending = deferred();
     globalThis.fetch = async url => {
       const u = String(url);
       if (u.includes('/wiki/reports?')) return Response.json({ items: [
         { report_id: a, title: 'A', created_at: '2026-09-10', input_hash: HASH_A, current: true },
         { report_id: b, title: 'B', created_at: '2026-09-11', input_hash: HASH_B, current: false },
       ] });
-      if (u.includes(encodeURIComponent(b))) return pending.promise;
-      return Response.json({ report_id: a, html: '<p>OLD_BODY_A</p>', refs: [] });
+      if (u.includes(encodeURIComponent(b))) throw new Error('不得请求旧版本报告');
+      return Response.json({ report_id: a, html: '<p>CURRENT_BODY</p>', refs: [] });
     };
     await env.render(createElement(env.Provider, { value: sessionMock() },
       createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页' })));
-    assert.ok(env.container.querySelector('iframe'));
-    const select = env.container.querySelector('select');
-    await env.act(async () => { select.value = b; select.dispatchEvent(new env.win.Event('change', { bubbles: true })); });
-    assert.equal(env.container.querySelector('iframe'), null);
-    await env.act(async () => { pending.reject(new Error('offline')); });
-    assert.equal(env.container.querySelector('iframe'), null);
-    assert.ok(env.container.textContent.includes('该版本报告读取失败'));
-    assert.ok(env.container.textContent.includes('研究页'));
-    assert.ok(!env.container.textContent.includes('查看底稿'));
+    const frame = env.container.querySelector('iframe');
+    assert.ok(frame, '应打开当前版本');
+    assert.match(frame.getAttribute('srcdoc') || '', /CURRENT_BODY/);
+    assert.equal(env.container.querySelector('select'), null);
+    assert.ok(!env.container.textContent.includes('旧版本'));
+    assert.ok(env.container.textContent.includes('重新生成'));
   } finally { await env.cleanup(); }
 });
 
@@ -411,7 +407,35 @@ test('已结束且无制品的旧任务不显示刚刚生成完，也不自动�
     assert.ok(!env.container.textContent.includes('报告生成失败'));
     assert.ok(env.container.textContent.includes('生成报告'));
     assert.ok(env.container.textContent.includes('生成过程'));
-    assert.ok(env.container.textContent.includes('研究页正文'));
+    assert.ok(env.container.textContent.includes('还没有图文报告'));
+    assert.ok(!env.container.textContent.includes('研究页正文'));
+  } finally { await env.cleanup(); }
+});
+
+test('空报告区点击即发起生成，启动成功后即使索引尚未回读也保持正在生成', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    let resolveStart: (value: { sessionId: string; status: string }) => void = () => {};
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-old', slug: 'companies/a', inputHash: HASH_A, running: false }),
+      start(...args: unknown[]) {
+        this.startCalls.push(args);
+        return new Promise(resolve => { resolveStart = resolve; });
+      },
+    });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页正文' })));
+    await env.act(async () => {});
+    const hit = env.container.querySelector('.wiki-report-empty-hit');
+    assert.ok(hit, '空报告文案应可点击');
+    await env.act(async () => { hit.click(); });
+    assert.equal(sessions.startCalls.length, 1);
+    assert.ok(env.container.textContent.includes('正在生成图文报告'));
+    await env.act(async () => { resolveStart({ sessionId: 's-new', status: 'started' }); });
+    assert.ok(env.container.textContent.includes('正在生成图文报告'), 'start 返回后不得弹回空态');
+    assert.ok(env.container.textContent.includes('生成过程'));
+    assert.ok(!env.container.textContent.includes('还没有图文报告'));
   } finally { await env.cleanup(); }
 });
 
@@ -434,7 +458,8 @@ test('本页目击的运行结束后若无制品，才提示尚未确认', async
     await env.act(async () => { listListener(); });
     await env.act(async () => {});
     assert.ok(env.container.textContent.includes('尚未确认'));
-    assert.ok(env.container.textContent.includes('研究页正文'));
+    assert.ok(env.container.textContent.includes('研究页原文可随时切回去看') || env.container.textContent.includes('原文还在「研究页」里'));
+    assert.ok(!env.container.textContent.includes('研究页正文'));
     assert.equal(sessions.startCalls.length, 0);
   } finally { await env.cleanup(); }
 });

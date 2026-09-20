@@ -110,10 +110,39 @@
   outline-offset: 2px;
 }
 .wiki-report-tab:disabled { opacity: 0.45; cursor: not-allowed; }
-select.wiki-report-tab { max-width: 16rem; }
 .wiki-report-chrome [role="status"],
 .wiki-report-chrome [role="alert"] { font-size: 12px; }
 .wiki-report-shell iframe { display: block; width: 100%; border: 0; }
+.wiki-report-empty {
+  display: flex; min-height: 22rem; flex-direction: column; align-items: center; justify-content: center;
+  padding: 2rem 1.25rem; text-align: center;
+}
+button.wiki-report-empty-hit {
+  appearance: none;
+  display: flex;
+  flex: 1;
+  width: 100%;
+  min-height: 16rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: center;
+  cursor: pointer;
+}
+button.wiki-report-empty-hit:hover:not(:disabled) .workspace-action-primary {
+  background: hsl(var(--primary) / .16);
+}
+button.wiki-report-empty-hit:focus-visible {
+  outline: 2px solid hsl(var(--primary) / .4);
+  outline-offset: 4px;
+  border-radius: 12px;
+}
 
 @media (prefers-reduced-motion: reduce) {
   .wr * { transition: none !important; animation: none !important; }

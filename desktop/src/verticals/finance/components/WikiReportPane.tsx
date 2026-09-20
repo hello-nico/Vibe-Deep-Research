@@ -79,15 +79,21 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const [error, setError] = useState('');
   const [task, setTask] = useState<ReportTaskRef | null>(null);
   const [starting, setStarting] = useState(false);
+  const [pendingRun, setPendingRun] = useState(false);
   const [autoTried, setAutoTried] = useState(false);
   const [taskReady, setTaskReady] = useState(false);
   const [busyOtherVersion, setBusyOtherVersion] = useState(false);
+  useEffect(() => {
+    if (!sessions || !task?.sessionId) return;
+    return sessions.trajectory(task.sessionId).subscribe(() => {});
+  }, [sessions, task?.sessionId]);
   const frame = useRef<HTMLIFrameElement>(null);
   const seq = useRef(0);
   const checkSeq = useRef(0);
   const wasRunning = useRef(false);
   const primedTask = useRef(false);
   const watchedLive = useRef(false);
+  const startedSession = useRef('');
 
   // Pure fetch — callers commit setItems only after their staleness guards pass,
   // so a late response from a previous page version can never write state.
@@ -105,12 +111,13 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     primedTask.current = false;
     watchedLive.current = false;
     setItems(null); setSelected(null); setDetail(null); setError('');
-    setTask(null); setTaskReady(false); setStarting(false); setAutoTried(false); setBusyOtherVersion(false);
+    setTask(null); setTaskReady(false); setStarting(false); setPendingRun(false); setAutoTried(false); setBusyOtherVersion(false);
+    startedSession.current = '';
     void fetchItems(controller.signal)
       .then(list => {
         if (controller.signal.aborted || seq.current !== mine) return;
         setItems(list);
-        const current = list.find(item => item.current) ?? list[0];
+        const current = list.find(item => item.current);
         if (current) setSelected(current);
       })
       .catch(() => { if (!controller.signal.aborted && seq.current === mine) setError('生成报告列表暂时无法读取，研究页仍可阅读。'); });
@@ -150,9 +157,16 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
       const mine = ++checkSeq.current;
       const found = await sessions.findReportTask(slug).catch(() => null);
       if (cancelled || mine !== checkSeq.current) return;
-      setTask(found);
+      const state = found ? sessions.sessionState(found.sessionId) : null;
+      const live = Boolean(found?.sessionId && found.sessionId === startedSession.current);
+      let running = Boolean(found?.running || state?.running);
+      if (live) running = state ? Boolean(state.running || found?.running) : true;
+      if (!found && startedSession.current) {
+        setTaskReady(true);
+        return;
+      }
+      setTask(found ? { ...found, running } : null);
       setTaskReady(true);
-      const running = Boolean(found?.running);
       if (!primedTask.current) {
         primedTask.current = true;
         wasRunning.current = running;
@@ -161,14 +175,16 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
       }
       if (running) watchedLive.current = true;
       if (watchedLive.current && wasRunning.current && !running) {
+        setPendingRun(false);
+        if (live) startedSession.current = '';
         const list = await fetchItems().catch(() => null);
         if (cancelled || mine !== checkSeq.current) return;
         if (list) setItems(list);
         const current = list?.find(item => item.current);
         if (current) { setSelected(current); setBusyOtherVersion(false); setError(''); }
         else if (found && found.inputHash === inputHash) {
-          const state = sessions.sessionState(found.sessionId);
-          setError(state?.lastAgentError || state?.promptError
+          const ended = sessions.sessionState(found.sessionId);
+          setError(ended?.lastAgentError || ended?.promptError
             ? '报告生成失败，研究页仍可阅读；可在生成过程中查看后重试。'
             : '报告生成已结束，但产出尚未确认；可在生成过程中查看。');
         }
@@ -202,14 +218,25 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     if (!sessions) { setError('研究会话尚未连接，稍后再试。'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
     watchedLive.current = true;
-    setError(''); setStarting(true);
+    setError(''); setStarting(true); setPendingRun(true);
     void sessions.start(reportPrompt(page), undefined, {
       navigate: false,
       task: { kind: 'report', slug, inputHash, title: `报告生成 · ${slug}` },
     }).then(result => {
       setBusyOtherVersion(result.status === 'busy_other_version');
-      if (result.status === 'busy_other_version') setError('');
+      if (result.status === 'busy_other_version') {
+        setError('');
+        setPendingRun(false);
+        startedSession.current = '';
+        return;
+      }
+      if (result.sessionId) {
+        startedSession.current = result.sessionId;
+        setTask({ sessionId: result.sessionId, slug, inputHash, running: true });
+      }
     }).catch(() => {
+      setPendingRun(false);
+      startedSession.current = '';
       setError('报告生成未能启动，研究页仍可阅读；可重试。');
     }).finally(() => setStarting(false));
   };
@@ -224,29 +251,44 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     generate();
   }, [active, autoTried, items, taskReady, starting, task, task?.running]);
 
-  const generating = starting || Boolean(task?.running);
+  const generating = starting || pendingRun || Boolean(task?.running);
   const taskStale = Boolean(task?.running && task.inputHash !== inputHash);
-  const stale = Boolean(selected && !selected.current);
   const showGenerated = active && Boolean(detail && selected && detail.reportId === selected.report_id);
-  const showChrome = active && (showGenerated || generating || Boolean(error) || busyOtherVersion || items !== null);
+  const loadingList = active && items === null && !error;
+  const loadingDetail = active && Boolean(selected) && !detail && !error;
+  const waiting = active && !showGenerated && !loadingList && !loadingDetail;
+  const canGenerate = items !== null && !generating;
+  const openProcess = () => sessions?.openTaskProcess({ sessionId: task?.sessionId || '', title: `报告生成 · ${slug}`, kind: 'report' });
+  const processButton = task?.sessionId ? <button type="button" className={showGenerated ? 'wiki-report-tab' : 'workspace-action'} onClick={openProcess}>生成过程</button> : null;
   return <>
-    {showChrome && <div className={showGenerated ? 'wiki-report-shell' : undefined}>
+    {showGenerated && detail && <div className="wiki-report-shell">
       <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
-        {items && items.length > 0 && <select aria-label="报告版本" className="wiki-report-tab" value={selected?.report_id ?? ''} onChange={event => {
-          const next = items.find(item => item.report_id === event.target.value);
-          if (next) setSelected(next);
-        }}>{items.map(item => <option key={item.report_id} value={item.report_id}>{new Date(item.created_at).toLocaleString('zh-CN')}{item.current ? '（当前）' : '（旧版本）'}</option>)}</select>}
-        {showGenerated && selected?.current && <span className="sr-only">对应当前 Wiki</span>}
-        {showGenerated && stale && <span className="wiki-report-tab">基于旧版 Wiki</span>}
-        {items !== null && !generating && <button type="button" className="wiki-report-tab" onClick={generate}>{items.some(item => item.current) ? '重新生成' : '生成报告'}</button>}
-        {generating && !taskStale && <span className="wiki-report-tab" role="status">正在生成…</span>}
-        {taskStale && <span className="wiki-report-tab" role="status">另一版本仍在生成</span>}
-        {task?.sessionId && <button type="button" className="wiki-report-tab" onClick={() => sessions?.openTaskProcess({ sessionId: task.sessionId, title: `报告生成 · ${slug}`, kind: 'report' })}>生成过程</button>}
-        {busyOtherVersion && !generating && <span className="wiki-report-tab">可生成当前版本</span>}
+        {selected?.current && <span className="sr-only">对应当前 Wiki</span>}
+        {canGenerate && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
+        {processButton}
         {error && <span role="alert" className="text-destructive">{error}</span>}
       </div>
-      {showGenerated && detail && <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={detail.html} style={{ minHeight: 480 }} />}
+      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={detail.html} style={{ minHeight: 480 }} />
     </div>}
-    {!showGenerated && fallback}
+    {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '正在打开报告…' : '正在查看是否已有报告…'}</p>}
+    {waiting && <div className="wiki-report-empty">
+      {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
+      {busyOtherVersion && !generating && <p className="mb-3 text-sm text-muted-foreground">可生成当前版本。</p>}
+      {generating ? <>
+        <p className="font-medium">{taskStale ? '另一版本仍在生成' : '正在生成图文报告'}</p>
+        <p className="mt-2 text-sm text-muted-foreground">进度在生成过程里。研究页原文可随时切回去看。</p>
+      </> : canGenerate ? (
+        <button type="button" className="wiki-report-empty-hit" aria-label={items?.some(item => item.current) ? '重新生成图文报告' : '生成图文报告'} onClick={generate}>
+          <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
+          <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
+          <span className="workspace-action workspace-action-primary mt-4">{items?.some(item => item.current) ? '重新生成' : '生成报告'}</span>
+        </button>
+      ) : <>
+        <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
+        <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
+      </>}
+      {processButton && <div className="mt-4 flex flex-wrap justify-center gap-2">{processButton}</div>}
+    </div>}
+    {!active && fallback}
   </>;
 }
