@@ -2,6 +2,7 @@ import { useEffect, useRef, type HTMLAttributes } from 'react';
 import { EvidenceLink } from './EvidenceCard';
 import { decodeEvidenceLink, loadEvidence } from '../lib/evidence';
 import { citationReference, citationTitle, webCitationUrl } from '../lib/citationMarks';
+import { markResearchMentions } from '../lib/researchMentions';
 import './conversation-citations.css';
 
 const GENERIC_CITATION_TITLES = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文', 'tencent', 'hithink', 'sina']);
@@ -152,13 +153,21 @@ export function ConversationCitations({ className = '', ...props }: HTMLAttribut
     const resolved = new Map<string, string>();
     const stamp = () => {
       markWebCitations(node);
+      markResearchMentions(node);
       hydrateCitationTitles(node, attempted, resolved, controller.signal);
     };
     stamp();
     const observer = new MutationObserver(stamp);
     observer.observe(node, { subtree: true, childList: true });
     const onClick = (event: MouseEvent) => {
-      const anchor = event.target instanceof Element ? event.target.closest('a[data-internal-citation]') : null;
+      const target = event.target instanceof Element ? event.target : null;
+      const mention = target?.closest('[data-research-mention]');
+      if (mention instanceof HTMLElement && node.contains(mention) && mention.dataset.ref) {
+        event.preventDefault();
+        window.dispatchEvent(new CustomEvent('finance-open-research-mention', { detail: mention.dataset.ref }));
+        return;
+      }
+      const anchor = target?.closest('a[data-internal-citation]');
       if (!(anchor instanceof HTMLAnchorElement) || !node.contains(anchor)) return;
       event.preventDefault();
       window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: anchor.dataset.evidenceRef }));

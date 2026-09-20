@@ -93,7 +93,7 @@
 
 - DSH 原生 `+` 仍只接指令菜单；未改 `node_modules`。对话文件入口落在 `conversation.input.left`（`finance-library-upload`，输入框工具行回形针），与「我的资料」上传弹层都 POST `/documents/uploads`。不再占用 `conversation.input.dock`。
 - 引用插入走会话作用域 `conversation.input.insertReference`（`slash/input-insert-reference`），不自动 `submit`。插入失败时提示改用 `@`。
-- `@` 在现有「研究对象」源增加「资料」分组；稳定身份 `document:{32hex}`。发送时 `serialize` 附带当时可读的 `parse_revision_id` 与 `parsed_content_sha256`；未解析则明确不能按正文引用。
+- `@` 在现有「研究对象」源增加「资料」分组；稳定身份仍是 mention `ref` 上的 `document:{32hex}`（可读时钉住解析版本/哈希）。`codec.serialize` 把反引号身份交给模型（已解析用三段式 `document:{id}/{rev}/{hash}`）；界面 mention 只显示标题，不把 id/revision/hash 写成可见正文。未解析则明确不能按正文引用。
 - Backend：`Document.symbol` 可空（alembic `0011_optional_document_symbol`）；公司+PDF 仍为 `research_report`，其余为 `user_material`，不进公司时间线。TXT/MD 走 UTF-8 解析，不经 LiteParse。
 - 列表 `GET /documents/uploads` 返回 `items/total/offset/limit`，支持标题搜索、类型与状态筛选。`PATCH /documents/{id}` 只改显示标题。
 - 体积 32 MB；批量最多 10 个文件、最多 4 路并发。去重仍按内容哈希；同内容绑不同公司返回 409。
