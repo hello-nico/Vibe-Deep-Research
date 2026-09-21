@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { PdfReader, type PdfSelection } from '../../../core/components/PdfReader';
 import { researchRead, ResearchError } from '../lib/research';
-import { readPinnedBlock } from '../lib/evidence';
+import { readPinnedBlock, resolveEvidence } from '../lib/evidence';
+import { activeRefTuple, refTupleFromRecord, reduceRefResolution, type RefResolution } from '../lib/refResolution';
 import { useAiPage, useAiQuestion } from '../../../core/ai/pageContext';
 import { documentObject } from '../lib/assistantObjects';
 import { asResearchErrorMessage } from '../lib/researchSymbol';
@@ -17,9 +18,28 @@ export function ReportReader() {
 function DocumentReader({ id }: { id: string }) {
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
-  const revision = params.get('revision') || '';
-  const hash = params.get('hash') || '';
-  const requestedBlock = params.get('block') || '';
+  // 不透明引用：evidence: 等公开身份由 Backend 只读解析回固定版本元组；解析前不读任何正文。
+  // 状态按"当前解析请求"的 pending/resolved/failed 管理：切换引用立即进入 pending（旧元组失效），
+  // 失败后不缓存旧结果，迟到/过期响应由 reducer 按引用名拒绝 —— 返回旧引用失败时不会复活旧元组。
+  const refParam = params.get('ref') || '';
+  const [refState, dispatchRefResolution] = useReducer(reduceRefResolution, null as RefResolution | null);
+  const refTuple = activeRefTuple(refState, refParam);
+  const refError = refState?.status === 'failed' && refState.ref === refParam ? '原引用暂时无法核对，可以打开原件或稍后重试。' : '';
+  useEffect(() => {
+    if (!refParam) { dispatchRefResolution({ type: 'start', ref: '' }); return; }
+    const controller = new AbortController();
+    dispatchRefResolution({ type: 'start', ref: refParam });
+    void resolveEvidence(refParam, controller.signal)
+      .then(result => {
+        if (controller.signal.aborted) return;
+        dispatchRefResolution({ type: 'resolved', ref: refParam, tuple: refTupleFromRecord(result.data as Record<string, unknown>) });
+      })
+      .catch(() => { if (!controller.signal.aborted) dispatchRefResolution({ type: 'failed', ref: refParam }); });
+    return () => controller.abort();
+  }, [refParam]);
+  const revision = refTuple?.parse_revision_id || params.get('revision') || '';
+  const hash = refTuple?.parsed_content_sha256 || params.get('hash') || '';
+  const requestedBlock = refTuple?.block_id || params.get('block') || '';
   const source = params.get('from') || '';
   const from = source === '/' || /^\/(research(?:\?|$)|my-research(?:\/topics\/[0-9a-f]{12}|\/material)?(?:\?|$)|my-reports(?:\?|$)|sectors(?:\/|\?|$))/.test(source) ? source : '/my-reports';
   const initialPage = useRef(Math.max(1, Number(params.get('page')) || 1)).current;
@@ -39,7 +59,7 @@ function DocumentReader({ id }: { id: string }) {
     : document?.extra?.content_type === 'markdown' || document?.extra?.mime_type === 'text/markdown' ? 'markdown'
     : document?.extra?.content_type === 'text' || document?.extra?.mime_type === 'text/plain' ? 'text'
     : 'pdf';
-  const pinned = Boolean(revision || hash || requestedBlock);
+  const pinned = Boolean(refParam || revision || hash || requestedBlock);
   useEffect(() => {
     const controller = new AbortController();
     void researchRead<Document>('/documents/' + encodeURIComponent(id), { signal: controller.signal })
@@ -53,7 +73,9 @@ function DocumentReader({ id }: { id: string }) {
     return () => controller.abort();
   }, [id]);
   useEffect(() => {
-    if (!document || format === 'pdf') return;
+    if (!document) return;
+    if (refParam && !refTuple) { setText(''); setSelection(null); setError(''); selectionChanged.current = false; return; }
+    if (format === 'pdf') return;
     if (pinned && (!revision || !hash)) {
       setText('');
       setError('历史引用缺少解析版本，无法定位原文，不会改读最新正文。');
@@ -121,7 +143,7 @@ function DocumentReader({ id }: { id: string }) {
         {document && !document.extra?.library_hidden && <button type="button" className="workspace-action" disabled={hiding} onClick={() => setConfirmHide(true)}>{hiding ? '正在移除…' : '从我的资料移除'}</button>}
       </div>
     </header>
-    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {(error || refError) && <p role="alert" className="text-sm text-destructive">{error || refError}</p>}
     <section className="overflow-hidden rounded-xl border bg-card">
       <div className="h-[max(420px,calc(100dvh-290px))]">
         {isPdf

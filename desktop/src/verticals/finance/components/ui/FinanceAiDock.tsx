@@ -428,7 +428,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
             <div className="flex flex-wrap gap-1.5 border-t border-border/50 px-4 py-2">
               {chips.map(item => (
                 <span key={item.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-                  <span className="truncate" title={item.hint || item.id}>{item.label}</span>
+                  <span className="truncate" title={item.hint || item.label}>{item.label}</span>
                   <button type="button" aria-label={`移除 ${item.label}`} onClick={() => {
                     rememberChips(binding?.bindKey || "", chips.filter(chip => chip.id !== item.id));
                     uncitate?.(item.id);

@@ -118,28 +118,40 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
   const [retry, setRetry] = useState(0);
   const [selected, select] = useState(reference);
   const [related, setRelated] = useState<string[]>([]);
+  // 实际展示 block 对应的不透明引用：claim: 汇总经 related[0] 展示具体 evidence 时，用它生成链接。
+  const [displayedRef, setDisplayedRef] = useState(reference);
   const { ask } = useAiQuestion();
   const location = useLocation();
   const target = useFinanceOverlayTarget();
   const closer = useRef<HTMLButtonElement>(null);
   useEffect(() => { closer.current?.focus(); }, []);
   useEffect(() => {
-    if (snapshot) { setView({ title: '数据来源', text: snapshot, related: [] }); setError(''); setRelated([]); return; }
+    if (snapshot) { setView({ title: '数据来源', text: snapshot, related: [] }); setError(''); setRelated([]); setDisplayedRef(''); return; }
     const web = webCitationView(selected);
-    if (web) { setView({ title: web.title, text: web.text, related: [], href: web.href }); setError(''); setRelated([]); return; }
+    if (web) { setView({ title: web.title, text: web.text, related: [], href: web.href }); setError(''); setRelated([]); setDisplayedRef(''); return; }
     const controller = new AbortController(); setView(null); setError('');
     void loadEvidence(selected, controller.signal).then(async result => {
       if (controller.signal.aborted) return;
       if (result.related.length) {
         setRelated(result.related);
-        result = await loadEvidence(result.related[0]!, controller.signal);
-      }
+        // 展示的是第一条具体 evidence 的 block：链接身份必须跟着它走，而不是留在 claim:/source: 原始引用上。
+        const shown = result.related[0]!;
+        setDisplayedRef(shown);
+        result = await loadEvidence(shown, controller.signal);
+      } else setDisplayedRef(selected);
       if (!controller.signal.aborted) setView(result);
     }).catch(() => { if (!controller.signal.aborted) setError('这条依据暂时无法读取，请稍后重试。'); });
     return () => controller.abort();
   }, [selected, snapshot, retry]);
   const block = view?.block;
-  const readPath = block ? `/my-reports/read/${encodeURIComponent(block.document_id)}?` + new URLSearchParams({ revision: block.parse_revision_id, hash: block.parsed_content_sha256, block: block.block_id, page: String(block.page), from: location.pathname + location.search }) : '';
+  // 技术身份不出现在地址栏：实际展示 block 对应的 evidence: 引用是 Backend 能只读解析回固定版本
+  // 元组的公开身份，由阅读页经 /wiki/refs/resolve 解析后仍走 readPinnedBlock 校验；
+  // 其余无 evidence 身份的引用种类（如直接引用的 source: 块）暂无此路径（见治理对齐 Task A 项缺口记录）。
+  const opaqueRef = /^evidence:/.test(displayedRef) ? displayedRef : null;
+  const readQuery: Record<string, string> = opaqueRef
+    ? { ref: opaqueRef, page: String(block?.page ?? 1), from: location.pathname + location.search }
+    : block ? { revision: block.parse_revision_id, hash: block.parsed_content_sha256, block: block.block_id, page: String(block.page), from: location.pathname + location.search } : {};
+  const readPath = block && readQuery ? `/my-reports/read/${encodeURIComponent(block.document_id)}?` + new URLSearchParams(readQuery) : '';
   const content = <aside role="dialog" aria-label="查看依据" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }} className="finance-evidence-panel fixed bottom-3 right-3 top-[76px] z-[60] flex w-[min(28rem,calc(100vw-1.5rem))] flex-col rounded-2xl border border-border bg-card shadow-xl">
     <header className="flex items-center justify-between border-b p-5"><h2 className="font-semibold">查看依据</h2><button ref={closer} aria-label="关闭依据" onClick={close}><X size={18} /></button></header>
     <div className="min-h-0 flex-1 overflow-auto p-5">

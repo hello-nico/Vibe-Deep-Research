@@ -13,9 +13,9 @@ export function financialNumber(value: unknown, decimals?: number): string {
   return (negative && rounded !== 0n ? '-' : '') + integer.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + (places ? '.' + output.slice(-places) : '');
 }
 
+/** Display names map from provider id only; raw source titles pass through untouched. */
 export function sourceName(value: string): string {
-  if (/^hithink$/i.test(value)) return '同花顺';
-  return value.replaceAll('同花顺扶摇', '同花顺').replace(/^扶摇$/, '同花顺');
+  return /^hithink$/i.test(value) ? '同花顺' : value;
 }
 
 export function downloadFile(name: string, content: Blob) {

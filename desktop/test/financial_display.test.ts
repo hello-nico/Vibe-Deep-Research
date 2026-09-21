@@ -19,6 +19,8 @@ test('financial display rounds decimals without losing large integer digits or i
 test('CSV retains source values, units and quoted labels', () => {
   const csv = dataCsv([{ key: 'amount', label: '金额', unit: '元' }], [{ amount: '9007199254740993.0012' }, { amount: null }]);
   assert.equal(csv, '\uFEFF"金额（元）"\r\n"9007199254740993.0012"\r\n""');
-  assert.equal(sourceName('同花顺扶摇'), '同花顺');
+  assert.equal(sourceName('hithink'), '同花顺');
+  assert.equal(sourceName('同花顺扶摇'), '同花顺扶摇', '不做字符串替换：来源名由 Backend 在源头归一');
+  assert.equal(sourceName('扶摇'), '扶摇', '不做字符串替换：来源名由 Backend 在源头归一');
   assert.equal(sourceName('https://fuyao.aicubes.cn'), 'https://fuyao.aicubes.cn');
 });

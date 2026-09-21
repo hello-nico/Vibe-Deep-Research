@@ -59,10 +59,9 @@ function BoundSourceList({ body }: { body?: string }) {
   return (
     <ul className="mt-2 space-y-1 text-[11px] text-muted-foreground">
       {sources.map(item => (
-        <li key={item.url || item.version || item.label}>
+        <li key={item.url || item.version || item.label} data-version={item.version}>
           本轮依据 · {item.label}
           {item.fetchedAt ? ` · ${item.fetchedAt}` : ''}
-          {item.version ? ` · ${item.version.slice(0, 12)}` : ''}
         </li>
       ))}
     </ul>
