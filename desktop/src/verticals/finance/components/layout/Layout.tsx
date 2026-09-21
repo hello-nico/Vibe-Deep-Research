@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
   Activity, ChevronDown, ChevronsLeft, ChevronsRight, FileText, MessagesSquare, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp,
@@ -126,6 +126,44 @@ export function Layout() {
     return () => document.removeEventListener("keydown", keyboard);
   }, [mobile, mobileOpen]);
   const compact = collapsed && !mobile;
+  const [navIndicator, setNavIndicator] = useState({ top: 0, left: 0, width: 0, height: 40, shown: false, animate: false });
+  useLayoutEffect(() => {
+    const nav = navRef.current;
+    const place = () => {
+      const active = nav?.querySelector<HTMLElement>("a.workspace-nav-link[aria-current='page']");
+      if (!nav || !active) {
+        setNavIndicator(prev => prev.shown ? { ...prev, shown: false } : prev);
+        return;
+      }
+      const navBox = nav.getBoundingClientRect();
+      const item = active.getBoundingClientRect();
+      const next = {
+        top: item.top - navBox.top + nav.scrollTop,
+        left: item.left - navBox.left,
+        width: item.width,
+        height: item.height,
+        shown: true as const,
+      };
+      setNavIndicator(prev => {
+        if (prev.shown && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5) return prev;
+        return { ...next, animate: prev.shown };
+      });
+    };
+    place();
+    const box = sidebarRef.current;
+    if (!box) return;
+    const observer = new ResizeObserver(place);
+    observer.observe(box);
+    window.addEventListener("resize", place);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", place);
+    };
+  }, [pathname, compact, openGroups, mobileOpen]);
+  useEffect(() => {
+    if (!navIndicator.shown || navIndicator.animate) return;
+    setNavIndicator(prev => prev.shown && !prev.animate ? { ...prev, animate: true } : prev);
+  }, [navIndicator.shown, navIndicator.animate]);
   const currentTitle = NAV.find(n => n.to === pathname)?.label
     ?? (pathname === '/research' || pathname.startsWith('/research/') ? '个股研究' : undefined)
     ?? Object.values(NAV_GROUPS).flatMap(g => g.links).find(n => n.to === pathname)?.label
@@ -161,7 +199,9 @@ export function Layout() {
             </div>}
           </div>
           <div id="dsh-status" data-testid="ai-runtime-badge" className="px-3 text-[10px] text-muted-foreground empty:hidden" />
-          <nav ref={navRef} aria-label="原产品板块导航" className={cn("min-h-0 flex-1 space-y-0.5 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
+          <nav ref={navRef} aria-label="原产品板块导航" className={cn("relative min-h-0 flex-1 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
+            <div className="workspace-nav-indicator" aria-hidden="true" data-shown={navIndicator.shown || undefined} data-animate={navIndicator.animate || undefined} style={{ top: navIndicator.top, left: navIndicator.left, width: navIndicator.width, height: navIndicator.height }} />
+            <div className="space-y-0.5">
             {NAV.map(({ to, icon: Icon, label }) => {
               const active = pathname === to
                 || (to === "/sectors" && (pathname === "/sectors" || (/^\/sectors\//.test(pathname) && !pathname.startsWith("/sectors/profiles"))))
@@ -173,7 +213,7 @@ export function Layout() {
                 <div className="flex items-center">
                   <Link to={to} aria-label={label} aria-current={active ? "page" : undefined} title={compact ? label : undefined}
                     onClick={() => { if (mobile) { setMobileOpen(false); requestAnimationFrame(() => mainRef.current?.focus()); } }}
-                    className={cn("workspace-nav-link flex min-w-0 flex-1 items-center text-[13px] transition-colors",
+                    className={cn("workspace-nav-link relative z-[1] flex min-w-0 flex-1 items-center text-[13px] transition-colors",
                       compact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                       active ? "font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>
                     <Icon className="h-4 w-4 shrink-0" />{!compact && <span>{label}</span>}
@@ -188,7 +228,7 @@ export function Layout() {
                   {group.links.map(({ to: st, icon: SIcon, label: slabel }) => <Link key={st} to={st}
                     aria-label={slabel} title={compact ? slabel : undefined} aria-current={pathname === st ? "page" : undefined}
                     onClick={() => { if (mobile) { setMobileOpen(false); requestAnimationFrame(() => mainRef.current?.focus()); } }}
-                    className={cn("workspace-nav-link flex items-center text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground",
+                    className={cn("workspace-nav-link relative z-[1] flex items-center text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground",
                       compact ? "justify-center p-2" : "gap-2 px-2 py-1.5")}>
                     <SIcon className="h-3.5 w-3.5 shrink-0" />{!compact && slabel}
                   </Link>)}
@@ -200,6 +240,7 @@ export function Layout() {
               compact && "justify-center",
             )}>
               <div id="dsh-settings" aria-label="设置" className="min-w-0 w-full" />
+            </div>
             </div>
           </nav>
           <div className={cn("border-t border-border", compact ? "p-1.5" : "p-3")}>
@@ -220,8 +261,10 @@ export function Layout() {
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
             <ConversationWorkspace active={pathname === "/" || pathname.startsWith("/my-research/topics/")} split={pathname.startsWith("/my-research/topics/")} title={pathname.startsWith("/my-research/topics/") ? "议题研究" : "深度对话"} subtitle={pathname.startsWith("/my-research/topics/") ? "围绕当前议题读取材料、确认关联并形成可发布草案" : "查阅资料、核对证据，深入探讨你的研究问题"}>
-              {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
-              <Outlet />
+              <div key={pathname} className="workspace-page-enter">
+                {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
+                <Outlet />
+              </div>
             </ConversationWorkspace>
           </main>
         </div>

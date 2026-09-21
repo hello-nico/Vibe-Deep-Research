@@ -401,8 +401,8 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
         问助手
       </button>
 
-      {open && page && renderPanel(
-        <>
+      {page && renderPanel(
+        open ? <>
           <div className="ai-surface-header flex items-center justify-between gap-2 border-b border-border/60 p-4">
             <span className="flex min-w-0 items-center gap-2 font-semibold text-glow">
               <Sparkles className="h-4 w-4 shrink-0 text-primary" />
@@ -415,7 +415,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               </button>
             </div>
           </div>
-          {sessionId ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} /> : (
+          {sessionId && binding ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
               <p>{seat.busy ? "正在绑定问助手会话，完成前不能发送。" : error || "正在打开问助手会话…"}</p>
             </div>
@@ -503,7 +503,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               </button>
             </div>
           </div>
-        </>,
+        </> : null,
         close,
       )}
     </>

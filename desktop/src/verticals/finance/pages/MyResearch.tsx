@@ -310,19 +310,16 @@ export function MyResearch() {
         {topics && topics.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{status === "archived" ? "还没有已归档的议题。" : "还没有研究中的议题。写下一个需要持续验证或跟踪的问题，发起后会在这里出现。"}</p>}
         {topics && topics.length > 0 && topics.map(item => {
           const archived = (item.pool_state || status) === "archived";
-          return <div key={item.topic_id} className="border-b border-border/30 py-3 last:border-0">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-xs text-muted-foreground">{archived ? "已归档" : "研究中"}</p>
-              <button type="button" className="workspace-action workspace-action-compact" disabled={poolBusy === item.topic_id} onClick={() => void changePool(item, archived ? "restore" : "archive")}>
-                {archived ? <RotateCcw size={14} /> : <Archive size={14} />}
-                {poolBusy === item.topic_id ? (archived ? "恢复中…" : "归档中…") : (archived ? "恢复研究" : "归档")}
-              </button>
-            </div>
-            <Link to={`/my-research/topics/${topicHex(item.topic_id)}`} className="mt-2 block">
-              <h2 className="text-base font-semibold hover:text-primary">{item.title}</h2>
-              <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{item.user_claim || item.judgment?.text || "继续研究，逐步形成判断"}</p>
-              <p className="mt-3 text-xs text-muted-foreground">{item.last_touched_at ? new Date(item.last_touched_at).toLocaleString("zh-CN") : "待继续"}</p>
+          return <div key={item.topic_id} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0">
+            <Link to={`/my-research/topics/${topicHex(item.topic_id)}`} className="min-w-0 flex-1">
+              <p className="text-xs text-muted-foreground">{archived ? "已归档" : "研究中"}{item.last_touched_at ? ` · ${new Date(item.last_touched_at).toLocaleString("zh-CN")}` : " · 待继续"}</p>
+              <h2 className="mt-1 text-base font-semibold hover:text-primary">{item.title}</h2>
+              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.user_claim || item.judgment?.text || "继续研究，逐步形成判断"}</p>
             </Link>
+            <button type="button" className="workspace-action workspace-action-compact shrink-0" disabled={poolBusy === item.topic_id} onClick={() => void changePool(item, archived ? "restore" : "archive")}>
+              {archived ? <RotateCcw size={14} /> : <Archive size={14} />}
+              {poolBusy === item.topic_id ? (archived ? "恢复中…" : "归档中…") : (archived ? "恢复研究" : "归档")}
+            </button>
           </div>;
         })}
         {(offset > 0 || nextOffset !== null) && <div className="mt-3 flex gap-2"><button className="workspace-action" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>上一页</button><button className="workspace-action" disabled={nextOffset === null} onClick={() => nextOffset !== null && setOffset(nextOffset)}>下一页</button></div>}
@@ -345,15 +342,26 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
     const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
     const processId = task.child_session_id || task.id;
     const kind = task.kind === 'report' ? 'report' as const : 'knowledge' as const;
-    return <div key={task.id} className="border-b border-border/30 py-3 last:border-0">
-      <p className="text-xs text-muted-foreground">{TASK_STATUS[task.display_status || ""] || task.display_status || "未知"}</p>
-      <h2 className="mt-2 text-base font-semibold">{task.title || (kind === 'report' ? '图文报告' : '知识整理')}</h2>
-      <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{task.summary || task.question || "无摘要"}</p>
-      <p className="mt-3 text-xs text-muted-foreground">{task.targets?.join("、") || "未绑定公司页"}{task.started_at ? ` · ${new Date(task.started_at).toLocaleString("zh-CN")}` : ""}{duration != null ? ` · ${duration} 秒` : ""}</p>
-      <div className="mt-3 flex flex-wrap gap-2">
+    const title = task.title || (kind === 'report' ? '图文报告' : '知识整理');
+    const summary = task.summary || task.question || '';
+    const target = task.targets?.join('、') || '';
+    const showSummary = Boolean(summary && summary !== title && summary !== target);
+    const when = [
+      TASK_STATUS[task.display_status || ''] || task.display_status || '未知',
+      task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '',
+      duration != null ? `${duration} 秒` : '',
+    ].filter(Boolean).join(' · ');
+    return <div key={task.id} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0">
+      <div className="min-w-0 flex-1">
+        <p className="text-xs text-muted-foreground">{when}</p>
+        <h2 className="mt-1 text-base font-semibold">{title}</h2>
+        {showSummary && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{summary}</p>}
+        {target && !title.includes(target) && <p className="mt-1 text-xs text-muted-foreground">{target}</p>}
+      </div>
+      <div className="flex shrink-0 flex-wrap gap-2">
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0])}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
-        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ""))}`}>打开目标 Wiki</Link>}
+        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ''))}`}>打开目标 Wiki</Link>}
       </div>
     </div>;
   })}</>;

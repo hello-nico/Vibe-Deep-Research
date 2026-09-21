@@ -47,23 +47,25 @@ export function ConversationWorkspace({ active, split = false, title = "深度�
     onDoubleClick() { setInset(34); setHeadingHeight(undefined); },
   });
   return <div ref={root} className={active ? "conversation-workspace" : "workspace-content"} data-expanded={active && expanded} data-split={active && split} style={active ? { "--conversation-inset": `${inset}px` } as CSSProperties : undefined}>
-    <div hidden={!active} className="conversation-heading" ref={heading} style={{ height: expanded ? 0 : headingHeight }}>
-      <PageHeader title={title} subtitle={subtitle} />
+    <div hidden={!active} className="conversation-heading-slot" aria-hidden={expanded || undefined} {...{ inert: expanded ? "" : undefined }}>
+      <div className="conversation-heading" ref={heading} style={{ height: headingHeight }}>
+        <PageHeader title={title} subtitle={subtitle} />
+      </div>
     </div>
     <div hidden={!active} className="conversation-window-actions">
-      <button type="button" className="finance-session-action" aria-pressed={expanded} onClick={() => setExpanded(value => !value)}>
+      <button type="button" className="finance-session-action" aria-pressed={expanded} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
         {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "还原窗口" : "展开窗口"}
       </button>
     </div>
     <div className="conversation-window" data-blocked={blocked || undefined} style={{ display: active ? "flex" : "none" }}>
       <ConversationCitations id="dsh-conversation" aria-label="深度对话" {...{ inert: blocked ? "" : undefined }} />
       {blocked && <div className="conversation-session-gate" role="status">{gate.message || "正在接上该议题的对话，匹配完成前不能输入。"}</div>}
-      {!expanded && <>
-        <div className="conversation-resize conversation-resize-top" title="拖动调整高度，双击恢复默认" {...resize("top")} />
-        <div className="conversation-resize conversation-resize-left" title="拖动调整宽度，双击恢复默认" {...resize("left")} />
-        <div className="conversation-resize conversation-resize-right" title="拖动调整宽度，双击恢复默认" {...resize("right")} />
-      </>}
+      <div className="conversation-resize conversation-resize-top" hidden={expanded} title="拖动调整高度，双击恢复默认" {...resize("top")} />
+      <div className="conversation-resize conversation-resize-left" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("left")} />
+      <div className="conversation-resize conversation-resize-right" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("right")} />
     </div>
-    <div className={active ? "conversation-footer" : undefined} style={active ? undefined : { display: "contents" }} hidden={active && expanded}>{children}</div>
+    <div className={active ? "conversation-footer-slot" : undefined} style={active ? undefined : { display: "contents" }} aria-hidden={active && expanded || undefined} {...(active ? { inert: expanded ? "" : undefined } : {})}>
+      <div className={active ? "conversation-footer" : undefined} style={active ? undefined : { display: "contents" }}>{children}</div>
+    </div>
   </div>;
 }

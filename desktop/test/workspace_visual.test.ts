@@ -16,6 +16,13 @@ test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   assert.ok(layout.includes("收起侧栏"));
   assert.match(layout, /<FinanceAiDock/);
   assert.match(layout, /workspace-sidebar/);
+  assert.match(layout, /workspace-nav-indicator/);
+  assert.match(layout, /a\.workspace-nav-link\[aria-current='page'\]/);
+  assert.match(layout, /animate: prev\.shown/);
+  assert.match(layout, /prev\.shown && !prev\.animate \? \{ \.\.\.prev, animate: true \}/);
+  assert.match(layout, /key=\{pathname\}/);
+  assert.match(layout, /className="workspace-page-enter"/);
+  assert.doesNotMatch(layout, /ViewTransition|startViewTransition|framer-motion/);
   assert.match(layout, /aria-expanded=\{groupOpen\}/);
   assert.match(layout, /aria-label=\{label\}/);
   assert.match(layout, /const closeMobileNav = \(\) => \{\s*setMobileOpen\(false\);[\s\S]*?requestAnimationFrame\(\(\) => menuRef\.current\?\.focus\(\)\)/);
@@ -42,6 +49,15 @@ test("公开暖橙玻璃风保留可访问性与非绿色品牌", () => {
   assert.match(css, /focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /@media \(forced-colors: active\)/);
+  assert.match(css, /\.workspace-nav-indicator/);
+  assert.match(css, /transition: top 380ms cubic-bezier\(\.22, 1, \.36, 1\)/);
+  assert.doesNotMatch(css, /\.workspace-nav-link\[aria-current="page"\]::before/);
+  assert.match(css, /\.workspace-nav-indicator::before/);
+  assert.match(css, /@keyframes workspace-page-enter/);
+  assert.match(css, /animation: workspace-page-enter 300ms cubic-bezier\(\.22, 1, \.36, 1\) both/);
+  assert.match(css, /from \{ opacity: 0; transform: translateY\(8px\); \}/);
+  assert.match(css, /\.conversation-heading-slot:not\(\[hidden\]\)/);
+  assert.doesNotMatch(css, /::view-transition/);
 });
 test("左上角使用本地产品标记，不增加外部请求或原作者品牌跳转", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
@@ -62,6 +78,14 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("core/ai/AiDock.tsx"), /renderPanel\(/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /createPortal/);
   assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /createPortal/);
+  assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /data-open=\{open\}/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /\.finance-assistant-panel\[data-open="true"\]/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-width: 36rem/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 4rem/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /margin-right: calc\(var\(--finance-assistant-width\) \+ var\(--finance-assistant-inline\)\)/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--conversation-expand-ease|cubic-bezier\(\.22, 1, \.36, 1\)/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /page && renderPanel/);
+  assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /open && page && renderPanel/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /问助手/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /Ask/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /ensureAssistant/);
@@ -146,6 +170,7 @@ test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
   assert.match(mine, /aria-label="议题状态"/);
   assert.match(mine, /<GlassCard glow>/);
   assert.match(mine, /border-b border-border\/30 py-3 last:border-0/);
+  assert.match(mine, /flex flex-wrap items-start justify-between gap-x-6/);
   assert.doesNotMatch(mine, /DashboardPanel/);
   assert.doesNotMatch(mine, /justify-between gap-3">\s*<WorkspaceTabs/);
   assert.match(intel, /WorkspaceTabs/);

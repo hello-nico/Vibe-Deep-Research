@@ -455,7 +455,16 @@ test("议题工作区先恢复会话、审阅草案正文，并用 source_id 读
   assert.doesNotMatch(source, /<PageHeader/);
   assert.doesNotMatch(source, /xl:grid-cols-\[minmax/);
   const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
-  assert.match(css, /\[data-expanded="true"\]\[data-split="true"\] \{ display: flex/);
+  assert.match(workspace, /conversation-heading-slot/);
+  assert.match(workspace, /conversation-footer-slot/);
+  assert.match(workspace, /aria-expanded=\{expanded\}/);
+  assert.doesNotMatch(workspace, /height: expanded \? 0/);
+  assert.doesNotMatch(workspace, /hidden=\{active && expanded\}/);
+  assert.match(css, /--conversation-expand-ease/);
+  assert.match(css, /\.conversation-heading-slot:not\(\[hidden\]\), \.conversation-footer-slot/);
+  assert.match(css, /\[data-expanded="true"\]\[data-split="true"\] \{ grid-template-columns: minmax\(0, 0fr\)/);
+  assert.doesNotMatch(css, /\[data-expanded="true"\] \.conversation-heading \{ display: none/);
+  assert.doesNotMatch(css, /\[data-expanded="true"\]\[data-split="true"\] \{ display: flex/);
 });
 
 test("开发代理把宿主绑定和发布入口转到 DSH", () => {
