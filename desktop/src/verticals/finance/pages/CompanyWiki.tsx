@@ -184,7 +184,7 @@ export function CompanyWiki() {
         const running = state ? state.running
           : (await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null))?.running ?? true;
         if (!alive) return;
-        if (state?.lastAgentError || state?.promptError) {
+        if (state?.failed || state?.lastAgentError || state?.promptError) {
           // Raw agent errors stay in the execution conversation; the page shows a generic failure.
           setGen(prev => prev && prev.sessionId === tracked.sessionId
             ? { ...prev, phase: 'failed', message: '本轮研究未成功完成，可在执行对话中查看过程后重试。' } : prev);

@@ -120,6 +120,28 @@ export function loadReportTasks() {
   };
 }
 
+async function parentSessionOf(ctx, sessionId) {
+  try {
+    const live = ctx.sessions?.get?.(sessionId)?.header?.parentSession;
+    if (live) return live;
+  } catch { /* live lookup is best-effort */ }
+  if (typeof ctx.sessionPersistence?.inspect !== 'function') return;
+  try {
+    const inspection = await ctx.sessionPersistence.inspect(sessionId);
+    return inspection?.meta?.parentSession || inspection?.header?.parentSession;
+  } catch { /* cold session may already be gone */ }
+}
+
+export async function reportTasksWithLineage(ctx) {
+  const store = loadReportTasks();
+  const sessions = {};
+  for (const [id, binding] of Object.entries(store.sessions)) {
+    const parent = await parentSessionOf(ctx, id);
+    sessions[id] = { ...binding, ...(parent ? { parent_id: parent } : {}) };
+  }
+  return { ...store, sessions };
+}
+
 export function loadAssistantSessions() {
   const data = readJson(assistantSessionsPath(), { sessions: {}, pages: {} });
   return {
@@ -405,6 +427,12 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   const other = matches.find(([id, bind]) => running(id) && bind.input_hash !== input_hash);
   if (other) return { session_id: other[0], status: 'busy_other_version', host_session_id: store.host_session_id || '' };
   if (!ctx?.subagents?.start) throw Object.assign(new Error('报告子 Agent 能力不可用'), { status: 503 });
+  // The blank task host has never made a request, so it has no model to inherit.
+  // Resolve the current DSH default for every attempt, including reused hosts.
+  const selection = ctx.agentDefaultModel.currentSelection();
+  if (!selection?.provider || !selection?.model) {
+    throw Object.assign(new Error('请先在设置中配置默认模型。'), { status: 409 });
+  }
 
   const host = await ensureTaskHost(ctx, signal);
   assertActive(signal);
@@ -430,6 +458,11 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   try {
     const run = await ctx.subagents.start('spawn', {
       parent: host,
+      agentOptions: {
+        provider: selection.provider,
+        model: selection.model,
+        ...(selection.reasoningEffort ? { reasoningEffort: selection.reasoningEffort } : {}),
+      },
       prompt: [{ type: 'text', text: prompt }],
       signal: abort.signal,
       label: next.pending.title,
@@ -513,7 +546,7 @@ export function installHostState(ctx, track = disposer => disposer) {
     } })),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-report-tasks', async handler(req, res) {
       try {
-        if (req.method === 'GET') { send(res, 200, loadReportTasks()); return; }
+        if (req.method === 'GET') { send(res, 200, await reportTasksWithLineage(ctx)); return; }
         if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
         const body = await readBody(req);
         send(res, 200, bindReportTask(body, {

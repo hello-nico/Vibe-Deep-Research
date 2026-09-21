@@ -3,7 +3,7 @@ import { installPageModel } from './model.mjs';
 import { installResearchApi, installWikiPublish } from './research.mjs';
 import { installHostState } from './host-state.mjs';
 
-export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "agents", "subagents"];
+export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents"];
 
 function trackDisposer(owned, disposer) {
   if (typeof disposer === "function") owned.push(disposer);

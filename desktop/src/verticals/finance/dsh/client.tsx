@@ -16,6 +16,7 @@ import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } 
 import { applyAssistant } from "../assistant/apply.ts";
 import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
 import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
+import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
 import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
 import { hydrateWatch } from "../lib/watchlist";
 import { hydrateRoster } from "../lib/researchRoster";
@@ -46,14 +47,15 @@ interface Client {
   };
   sessions: {
     refresh(): Promise<void>;
-    list: { getSnapshot(): { ids: string[]; current?: string; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: string; parentId?: string; origin?: string }> }; subscribe(callback: () => void): () => void };
+    list: { getSnapshot(): { ids: string[]; current?: string; subagentsByParent?: Record<string, { entries: { id: string; kind: string; mode?: 'one-shot' | 'continuable'; activity?: string }[]; state?: string }>; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: string; parentId?: string; origin?: string }> }; subscribe(callback: () => void): () => void };
     create(input: { workspaceId: string }): Promise<string>;
     open(id: string): void;
     scope(id: string): Context | undefined;
     sessionOf(ctx: Context): HistorySession | undefined;
     binding?(id: string): { sessionId: string; session?: HistorySession } | undefined;
-    subagentAddress?(id: string): { parent?: string } | undefined;
+    subagentAddress?(id: string): { parentSessionId: string } | undefined;
     refreshSubagents?(parentSessionId: string): Promise<void>;
+    retainSubagent?(address: { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' }): { binding: { sessionId: string; session: HistorySession }; dispose(): void };
   };
   uiConversation?: {
     binding(source: string): {
@@ -303,19 +305,15 @@ export function apply(ctx: Context) {
     notifyHidden();
     return hiddenChats;
   };
-  const historyFace = (sessionId: string) => {
-    const bound = client.sessions.binding?.(sessionId)?.session;
-    if (bound) return bound;
-    const scope = client.sessions.scope(sessionId);
-    return scope ? client.sessions.sessionOf(scope) : undefined;
-  };
+  const historyFace = (sessionId: string) => historyFaceOf(client, sessionId);
   const openErrorText = (snap?: ReturnType<NonNullable<HistorySession['getSnapshot']>>) => {
     if (!snap?.openError) return undefined;
     return '执行记录读取失败';
   };
   const lastTrajectory = new Map<string, TaskTrajectorySnapshot>();
+  const taskParents = new Map<string, string>();
   const trajectoryStores = new Map<string, { subscribe(listener: () => void): () => void; getSnapshot(): TaskTrajectorySnapshot; loadOlder(): Promise<void> }>();
-  const projectTrajectory = (sessionId: string, raw: unknown): TaskTrajectorySnapshot => {
+  const projectTrajectory = (sessionId: string, raw: unknown, terminal?: unknown): TaskTrajectorySnapshot => {
     const list = client.sessions.list.getSnapshot();
     const item = list.byId[sessionId];
     const face = historyFace(sessionId);
@@ -328,6 +326,7 @@ export function apply(ctx: Context) {
       hasMore: Boolean(snap?.hasMore),
       loadingOlder: Boolean(snap?.loadingOlder),
       raw,
+      terminal,
     });
     const prev = lastTrajectory.get(sessionId);
     if (prev && sameTaskTrajectory(prev, next)) return prev;
@@ -337,16 +336,9 @@ export function apply(ctx: Context) {
     lastTrajectory.set(sessionId, next);
     return next;
   };
-  const ensureTaskHistory = async (sessionId: string) => {
-    await client.sessions.refresh?.().catch?.(() => {});
-    let face = historyFace(sessionId);
-    if (!face) {
-      const parent = client.sessions.subagentAddress?.(sessionId)?.parent;
-      if (parent) await client.sessions.refreshSubagents?.(parent).catch?.(() => {});
-      face = historyFace(sessionId);
-    }
-    if (typeof face?.open === 'function') await face.open();
-  };
+  const loadTaskHistory = (sessionId: string, signal?: AbortSignal) => ensureTaskHistory({
+    client, sessionId, signal, parents: taskParents, loadReportTasks,
+  });
   async function openSession() {
     const response = await fetch("/finance-host");
     if (!response.ok) throw new Error(`工作区配置读取失败 (${response.status})`);
@@ -448,7 +440,7 @@ export function apply(ctx: Context) {
     if (!workspaceId) return null;
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
-    const store = await loadReportTasks().catch(() => ({ sessions: {} as Record<string, { slug: string; input_hash: string; bound_at?: string }>, host_session_id: '' }));
+    const store = await loadReportTasks();
     const bindings = store.sessions || {};
     const ids = Object.keys(bindings).filter(id => bindings[id]?.slug === slug && id !== store.host_session_id);
     ids.sort((a, b) => {
@@ -461,6 +453,14 @@ export function apply(ctx: Context) {
     const id = ids[0];
     const bound = id ? bindings[id] : undefined;
     if (!id || !bound) return null;
+    if (bound.parent_id) {
+      taskParents.set(id, bound.parent_id);
+      await client.sessions.refreshSubagents?.(bound.parent_id);
+      const catalog = client.sessions.list.getSnapshot().subagentsByParent?.[bound.parent_id];
+      if (catalog?.state === 'error') throw new Error('报告任务状态读取失败');
+      const child = catalog?.entries.find(item => item.id === id && item.kind === 'child');
+      return { sessionId: id, slug, inputHash: bound.input_hash, running: child?.activity === 'running' };
+    }
     const scope = client.sessions.scope(id);
     const snap = scope && client.sessions.sessionOf(scope)?.getSnapshot?.();
     return { sessionId: id, slug, inputHash: bound.input_hash, running: Boolean(list.byId[id]?.running || snap?.running), updatedAt: list.byId[id]?.updatedAt };
@@ -468,13 +468,16 @@ export function apply(ctx: Context) {
     const scope = client.sessions.scope(sessionId);
     const face = scope && client.sessions.sessionOf(scope);
     const snap = face?.getSnapshot?.();
-    if (!snap) return null;
+    const trajectory = lastTrajectory.get(sessionId);
+    if (!snap && !trajectory) return null;
+    if (snap?.openState === 'cold' || snap?.openState === 'loading') return null;
     return {
-      running: Boolean(snap.running),
-      lastAgentError: snap.lastAgentError ?? null,
-      promptError: snap.promptError ? 'prompt failed' : null,
-      removed: Boolean(snap.removed),
-      awaitingFirstTurn: Boolean(snap.awaitingFirstTurn),
+      running: Boolean(snap?.running),
+      lastAgentError: snap?.lastAgentError || null,
+      promptError: snap?.promptError ? 'prompt failed' : null,
+      failed: Boolean(snap?.lastAgentError || snap?.promptError || trajectory?.failed),
+      removed: Boolean(snap?.removed),
+      awaitingFirstTurn: Boolean(snap?.awaitingFirstTurn),
     };
   }, async restoreTopic(topicId: string, title = "", signal?: AbortSignal) {
     await session;
@@ -529,9 +532,9 @@ export function apply(ctx: Context) {
     remember(sessionId);
     await router.navigate('/');
   }, openTaskProcess(task: TaskProcessRef) {
+    if (task.parentSessionId) taskParents.set(task.sessionId, task.parentSessionId);
     taskProcess = task;
     taskProcessListeners.forEach(listener => listener());
-    void ensureTaskHistory(task.sessionId).catch(() => {});
   }, closeTaskProcess() {
     taskProcess = null;
     taskProcessListeners.forEach(listener => listener());
@@ -543,36 +546,13 @@ export function apply(ctx: Context) {
   }, trajectory(sessionId: string) {
     const existing = trajectoryStores.get(sessionId);
     if (existing) return existing;
-    const store = {
-      subscribe(listener: () => void) {
-        void ensureTaskHistory(sessionId).catch(() => {});
-        try {
-          const binding = client.uiConversation?.binding(sessionId);
-          binding?.activate('trajectory');
-          const source = binding?.target('trajectory');
-          const face = historyFace(sessionId);
-          const offList = client.sessions.list.subscribe(listener);
-          const offTarget = source?.subscribe(listener);
-          const offFace = face?.subscribe?.(listener);
-          return () => { offTarget?.(); offList(); offFace?.(); };
-        } catch {
-          return client.sessions.list.subscribe(listener);
-        }
-      },
-      getSnapshot() {
-        try {
-          const binding = client.uiConversation?.binding(sessionId);
-          binding?.activate('trajectory');
-          return projectTrajectory(sessionId, binding?.target('trajectory')?.getSnapshot());
-        } catch {
-          return projectTrajectory(sessionId, undefined);
-        }
-      },
-      async loadOlder() {
-        const face = historyFace(sessionId);
-        if (typeof face?.loadOlder === 'function') await face.loadOlder();
-      },
-    };
+    const store = createTaskTrajectoryStore({
+      sessionId,
+      client,
+      ensureHistory: loadTaskHistory,
+      project: projectTrajectory,
+      lastTrajectory,
+    });
     trajectoryStores.set(sessionId, store);
     return store;
   }, async cancelTask(sessionId: string) {

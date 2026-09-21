@@ -150,6 +150,7 @@ export function TaskTranscript({ sessionId, intro, compactUser = false }: { sess
   const status = hasEvents
     ? (running ? '执行中' : failed ? '未完成' : snap.openState === 'error' ? '执行记录读取失败' : '已结束')
     : snap.openState === 'error' ? '执行记录读取失败'
+      : snap.openState === 'cold' || snap.openState === 'loading' ? '正在读取执行记录…'
       : running ? '执行中'
         : '';
   return (
@@ -173,7 +174,7 @@ export function TaskTranscript({ sessionId, intro, compactUser = false }: { sess
           </li>
         ))}</ul>
       )}
-      {!hasEvents && intro && !running && snap.openState !== 'error' && (
+      {!hasEvents && intro && !running && snap.openState === 'open' && (
         <p className="finance-assistant-turn is-assistant">{intro}</p>
       )}
       <ol className="finance-assistant-transcript">{snap.steps.map(step => <StepRow key={step.id} step={step} compactUser={compactUser} />)}</ol>

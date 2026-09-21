@@ -120,13 +120,17 @@ async function boot() {
     localStorage: globalThis.localStorage, sessionStorage: globalThis.sessionStorage,
     MessageEvent: globalThis.MessageEvent, CustomEvent: globalThis.CustomEvent,
     HTMLElement: globalThis.HTMLElement, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT,
-    fetch: globalThis.fetch,
+    fetch: globalThis.fetch, setInterval: globalThis.setInterval, clearInterval: globalThis.clearInterval,
   };
+  const intervals = new Map();
+  let nextInterval = 1;
   Object.assign(globalThis, {
     window: win, document: win.document,
     localStorage: win.localStorage, sessionStorage: win.sessionStorage,
     MessageEvent: win.MessageEvent, CustomEvent: win.CustomEvent,
     HTMLElement: win.HTMLElement, IS_REACT_ACT_ENVIRONMENT: true,
+    setInterval: (callback) => { const id = nextInterval++; intervals.set(id, callback); return id; },
+    clearInterval: (id) => { intervals.delete(id); },
   });
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)),
     resolve: { alias: [{ find: '@', replacement: fileURLToPath(new URL('../src/verticals/finance', import.meta.url)) }] },
@@ -141,13 +145,17 @@ async function boot() {
   win.document.body.appendChild(container);
   const root = reactDomClient.createRoot(container);
   const render = async element => { await act(async () => { root.render(element); }); };
+  const tickIntervals = async () => {
+    await act(async () => { for (const callback of [...intervals.values()]) callback(); });
+    await act(async () => {});
+  };
   const cleanup = async () => {
     await act(async () => { root.unmount(); });
     await server.close();
     Object.assign(globalThis, previous);
     win.close();
   };
-  return { win, container, render, cleanup, act, pane, serverLoad: (p) => server.ssrLoadModule(p), MemoryRouter: routerDom.MemoryRouter, Provider: (await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx')).ResearchSessionContext.Provider };
+  return { win, container, render, cleanup, act, tickIntervals, pane, serverLoad: (p) => server.ssrLoadModule(p), MemoryRouter: routerDom.MemoryRouter, Provider: (await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx')).ResearchSessionContext.Provider };
 }
 
 test('晚到的列表响应不会覆盖已切换的页面版本', async () => {
@@ -176,6 +184,34 @@ test('晚到的列表响应不会覆盖已切换的页面版本', async () => {
   } finally { await env.cleanup(); }
 });
 
+for (const outcome of ['started', 'failed', 'busy_other_version']) {
+  test(`启动中切页不会接收旧页的 ${outcome} 结果`, async () => {
+    const env = await boot();
+    try {
+      globalThis.fetch = async () => Response.json({ items: [] });
+      const pending = deferred();
+      const sessions = sessionMock({
+        start: () => pending.promise,
+        findReportTask: async slug => slug === 'companies/b'
+          ? { sessionId: 'b-prior', slug, inputHash: HASH_B, running: false } : null,
+      });
+      const renderPage = slug => env.render(createElement(env.Provider, { value: sessions },
+        createElement(env.pane.WikiReportPane, { page: page(slug) })));
+      await renderPage('companies/a');
+      assert.ok(env.container.textContent.includes('正在生成'));
+      await renderPage('companies/b');
+      const before = env.container.textContent;
+      await env.act(async () => {
+        if (outcome === 'failed') pending.reject(new Error('late failure'));
+        else pending.resolve({ status: outcome, sessionId: 'a-late' });
+      });
+      assert.equal(env.container.textContent, before);
+      await env.act(async () => { [...env.container.querySelectorAll('button')].find(b => b.textContent === '生成过程').click(); });
+      assert.equal(sessions.processCalls[0].sessionId, 'b-prior');
+    } finally { await env.cleanup(); }
+  });
+}
+
 test('已有运行中任务时不重复发起生成', async () => {
   const env = await boot();
   try {
@@ -202,21 +238,79 @@ test('任务结束后：发现当前版本制品则选中，执行失败只显�
       if (u.includes('/wiki/reports/report')) return Response.json({ report_id: detailId, html: '<p data-ref="claim:ok">正文</p>', refs: ['claim:ok'], allowed_refs: ['claim:ok'], input_hash: HASH_A, title: '新报告', created_at: '2026-09-12', current: true });
       return Response.json({ items: [] });
     };
-    let listListener = () => {};
     const sessions = sessionMock({
       findReportTask: async () => ({ sessionId: 's-9', slug: 'companies/a', inputHash: HASH_A, running }),
       sessionState: () => ({ running, lastAgentError: running ? null : 'internal stack trace', promptError: null, removed: false, awaitingFirstTurn: false }),
-      subscribeSessionList: (listener) => { listListener = listener; return () => {}; },
     });
     await env.render(createElement(env.Provider, { value: sessions },
       createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页' })));
     await env.act(async () => {}); // first check registers running=true
     running = false;
-    await env.act(async () => { listListener(); }); // task ended → artifact refresh
-    await env.act(async () => {});
+    await env.tickIntervals(); // task ended → artifact refresh
     assert.ok(env.container.querySelector('iframe'), '应展示生成版 iframe');
     // sessionState 暴露的原始错误不得出现在界面上
     assert.ok(!env.container.textContent.includes('internal stack trace'));
+  } finally { await env.cleanup(); }
+});
+
+test('运行结束后制品晚到时自动打开当前报告', async () => {
+  const env = await boot();
+  try {
+    const detailId = 'report:' + '5'.repeat(32);
+    let running = true;
+    let published = false;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) return Response.json({ items: published ? [{ report_id: detailId, title: '晚到报告', created_at: '2026-09-20', input_hash: HASH_A, current: true }] : [] });
+      if (u.includes('/wiki/reports/report')) return Response.json({ report_id: detailId, html: '<p>LATE_BODY</p>', refs: [], input_hash: HASH_A, title: '晚到报告', created_at: '2026-09-20', current: true });
+      return Response.json({ items: [] });
+    };
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-late', slug: 'companies/a', inputHash: HASH_A, running }),
+      sessionState: () => ({ running, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false }),
+    });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页' })));
+    await env.act(async () => {});
+    assert.ok(env.container.textContent.includes('正在生成'));
+    running = false;
+    await env.tickIntervals();
+    assert.ok(!env.container.querySelector('iframe'), '制品未到时不得假装已打开');
+    published = true;
+    await env.tickIntervals();
+    const frame = env.container.querySelector('iframe');
+    assert.ok(frame, '制品稍后出现时应自动打开');
+    assert.match(frame.getAttribute('srcdoc') || '', /LATE_BODY/);
+    assert.ok(!env.container.textContent.includes('正在生成图文报告'));
+  } finally { await env.cleanup(); }
+});
+
+test('任务仍显示运行中但当前制品已在时立即打开报告', async () => {
+  const env = await boot();
+  try {
+    const detailId = 'report:' + '6'.repeat(32);
+    let listed = 0;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) {
+        listed += 1;
+        return Response.json({ items: listed < 3 ? [] : [{ report_id: detailId, title: '已发布', created_at: '2026-09-20', input_hash: HASH_A, current: true }] });
+      }
+      if (u.includes('/wiki/reports/report')) return Response.json({ report_id: detailId, html: '<p>READY_BODY</p>', refs: [], input_hash: HASH_A, title: '已发布', created_at: '2026-09-20', current: true });
+      return Response.json({ items: [] });
+    };
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-still', slug: 'companies/a', inputHash: HASH_A, running: true }),
+      sessionState: () => ({ running: true, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false }),
+    });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页' })));
+    await env.act(async () => {});
+    assert.ok(env.container.textContent.includes('正在生成'));
+    await env.tickIntervals();
+    const frame = env.container.querySelector('iframe');
+    assert.ok(frame, '当前制品已在时不得继续卡在正在生成');
+    assert.match(frame.getAttribute('srcdoc') || '', /READY_BODY/);
   } finally { await env.cleanup(); }
 });
 
@@ -444,22 +538,173 @@ test('本页目击的运行结束后若无制品，才提示尚未确认', async
   try {
     globalThis.fetch = async () => Response.json({ items: [] });
     let running = true;
-    let listListener = () => {};
     const sessions = sessionMock({
       findReportTask: async () => ({ sessionId: 's-live', slug: 'companies/a', inputHash: HASH_A, running }),
       sessionState: () => ({ running, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false }),
-      subscribeSessionList: (listener) => { listListener = listener; return () => {}; },
     });
     await env.render(createElement(env.Provider, { value: sessions },
       createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页正文' })));
     await env.act(async () => {});
     assert.ok(env.container.textContent.includes('正在生成'));
     running = false;
-    await env.act(async () => { listListener(); });
-    await env.act(async () => {});
+    await env.tickIntervals();
     assert.ok(env.container.textContent.includes('尚未确认'));
     assert.ok(env.container.textContent.includes('研究页原文可随时切回去看') || env.container.textContent.includes('原文还在「研究页」里'));
     assert.ok(!env.container.textContent.includes('研究页正文'));
     assert.equal(sessions.startCalls.length, 0);
+  } finally { await env.cleanup(); }
+});
+
+test('首轮轮询前已经失败的任务结束等待并允许重试', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    let started = false;
+    const sessions = sessionMock({
+      findReportTask: async () => started
+        ? { sessionId: 'fast-failure', slug: 'companies/a', inputHash: HASH_A, running: false }
+        : { sessionId: 'old', slug: 'companies/a', inputHash: HASH_A, running: false },
+      start: async () => { started = true; return { sessionId: 'fast-failure', status: 'started' }; },
+      sessionState: () => started ? { running: false, lastAgentError: 'private provider failure' } : null,
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    await env.tickIntervals();
+    assert.ok(!env.container.textContent.includes('正在生成图文报告'));
+    assert.ok(env.container.textContent.includes('报告生成失败'));
+    assert.ok(env.container.querySelector('.wiki-report-empty-hit'));
+    assert.ok(!env.container.textContent.includes('private provider failure'));
+  } finally { await env.cleanup(); }
+});
+
+test('派生失败不把伪造文案写进原生 lastAgentError，面板仍显示失败', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    let started = false;
+    const sessions = sessionMock({
+      findReportTask: async () => started
+        ? { sessionId: 'derived-failure', slug: 'companies/a', inputHash: HASH_A, running: false }
+        : { sessionId: 'old', slug: 'companies/a', inputHash: HASH_A, running: false },
+      start: async () => { started = true; return { sessionId: 'derived-failure', status: 'started' }; },
+      sessionState: () => started ? { running: false, lastAgentError: null, promptError: null, failed: true } : null,
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    await env.tickIntervals();
+    assert.ok(env.container.textContent.includes('报告生成失败'));
+    assert.ok(!env.container.textContent.includes('任务未完成'));
+  } finally { await env.cleanup(); }
+});
+
+test('任务状态一直缺失时明确待确认，不永久显示运行中', async () => {
+  const env = await boot();
+  const now = Date.now;
+  let offset = 0;
+  try {
+    Date.now = () => now() + offset;
+    globalThis.fetch = async () => Response.json({ items: [] });
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 'old', slug: 'companies/a', inputHash: HASH_A, running: false }),
+      start: async () => ({ sessionId: 'missing', status: 'started' }),
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    offset = 16_000;
+    await env.tickIntervals();
+    assert.ok(!env.container.textContent.includes('正在生成图文报告'));
+    assert.ok(env.container.textContent.includes('暂时无法确认报告任务状态'));
+  } finally { Date.now = now; await env.cleanup(); }
+});
+
+test('报告状态检查只由首次读取和受控轮询驱动，不订阅 session list 自激', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    let finds = 0;
+    let subscriptions = 0;
+    const sessions = sessionMock({
+      findReportTask: async () => { finds += 1; return { sessionId: 'stable', slug: 'companies/a', inputHash: HASH_A, running: true }; },
+      subscribeSessionList: (listener) => {
+        subscriptions += 1;
+        queueMicrotask(listener);
+        return () => {};
+      },
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => {});
+    assert.equal(subscriptions, 0, '报告面板不应用会话列表通知反过来触发刷新');
+    assert.equal(finds, 1);
+    await env.act(async () => { await Promise.resolve(); await Promise.resolve(); });
+    assert.equal(finds, 1, '没有定时 tick 时不得自激检查');
+    await env.tickIntervals();
+    assert.equal(finds, 2, '每次受控轮询只增加一次检查');
+  } finally { await env.cleanup(); }
+});
+
+test('已有报告生成中重新进入：旧报告不能当成新产出，成功后打开新报告', async () => {
+  const env = await boot();
+  try {
+    const reportA = 'report:' + 'a'.repeat(32);
+    const reportB = 'report:' + 'b'.repeat(32);
+    let currentId = reportA;
+    let running = true;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) {
+        return Response.json({ items: [{ report_id: currentId, title: currentId === reportA ? '旧报告' : '新报告', created_at: '2026-09-21', input_hash: HASH_A, current: true }] });
+      }
+      if (u.includes(encodeURIComponent(reportB))) return Response.json({ report_id: reportB, html: '<p>NEW_BODY</p>', refs: [], input_hash: HASH_A, title: '新报告', created_at: '2026-09-21', current: true });
+      if (u.includes(encodeURIComponent(reportA))) return Response.json({ report_id: reportA, html: '<p>OLD_BODY</p>', refs: [], input_hash: HASH_A, title: '旧报告', created_at: '2026-09-21', current: true });
+      return Response.json({ items: [] });
+    };
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-regen', slug: 'companies/a', inputHash: HASH_A, running }),
+      sessionState: () => ({ running, lastAgentError: null, promptError: null, failed: false, removed: false, awaitingFirstTurn: false }),
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => {});
+    const first = env.container.querySelector('iframe');
+    assert.ok(first, '重进时应仍展示已有报告');
+    assert.match(first.getAttribute('srcdoc') || '', /OLD_BODY/);
+    assert.ok(!env.container.textContent.includes('报告生成失败'));
+    currentId = reportB;
+    running = false;
+    await env.tickIntervals();
+    const next = env.container.querySelector('iframe');
+    assert.ok(next, '新报告完成后应打开新产出');
+    assert.match(next.getAttribute('srcdoc') || '', /NEW_BODY/);
+    assert.ok(!env.container.textContent.includes('报告生成失败'));
+    assert.ok(!env.container.textContent.includes('尚未确认'));
+  } finally { await env.cleanup(); }
+});
+
+test('已有报告生成中重新进入：失败时保留旧报告并提示，不把旧报告当成本次产出', async () => {
+  const env = await boot();
+  try {
+    const reportA = 'report:' + 'c'.repeat(32);
+    let running = true;
+    let failed = false;
+    globalThis.fetch = async (url) => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) {
+        return Response.json({ items: [{ report_id: reportA, title: '旧报告', created_at: '2026-09-21', input_hash: HASH_A, current: true }] });
+      }
+      if (u.includes(encodeURIComponent(reportA))) return Response.json({ report_id: reportA, html: '<p>OLD_BODY</p>', refs: [], input_hash: HASH_A, title: '旧报告', created_at: '2026-09-21', current: true });
+      return Response.json({ items: [] });
+    };
+    const sessions = sessionMock({
+      findReportTask: async () => ({ sessionId: 's-regen-fail', slug: 'companies/a', inputHash: HASH_A, running }),
+      sessionState: () => ({ running, lastAgentError: null, promptError: null, failed, removed: false, awaitingFirstTurn: false }),
+    });
+    await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    await env.act(async () => {});
+    assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '', /OLD_BODY/);
+    running = false;
+    failed = true;
+    await env.tickIntervals();
+    assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '', /OLD_BODY/);
+    assert.ok(env.container.textContent.includes('报告生成失败'));
+    assert.ok(!env.container.textContent.includes('尚未确认'));
   } finally { await env.cleanup(); }
 });

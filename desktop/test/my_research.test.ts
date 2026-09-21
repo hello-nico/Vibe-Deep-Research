@@ -5,7 +5,7 @@ import path from "node:path";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { researchRoute } from "../dsh/finance-ui/research.mjs";
-import { bindAssistantSession, bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadAssistantSessions, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
+import { bindAssistantSession, bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadAssistantSessions, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, reportTasksWithLineage, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
 
 test("后台状态区分仍在执行的子会话和已结束后等待入库", async t => {
   t.mock.method(globalThis, "fetch", async () => new Response(JSON.stringify({ status: "ready", document_id: "report" })));
@@ -147,23 +147,6 @@ test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，�
   }
 });
 
-test("过程历史加载完成不抢回用户新选中的聊天", async () => {
-  const source = fs.readFileSync(new URL('../src/verticals/finance/dsh/client.tsx', import.meta.url), 'utf8');
-  const body = source.match(/const ensureTaskHistory = async \(sessionId: string\) => \{([\s\S]*?)\n  \};/)![1];
-  let finish!: () => void;
-  const history = new Promise<void>(resolve => { finish = resolve; });
-  let current = 'chat-A';
-  const switches: string[] = [];
-  const client = { sessions: { list: { getSnapshot: () => ({ current }) }, open(id: string) { current = id; switches.push(id); }, refresh: async () => {} } };
-  const load = new Function('client', 'historyFace', `return async function(sessionId) {${body}}`)(client, () => ({ open: () => history }));
-  const pending = load('report-task');
-  current = 'chat-B';
-  finish();
-  await pending;
-  assert.equal(current, 'chat-B');
-  assert.deepEqual(switches, []);
-});
-
 for (const window of ['create', 'spawn']) {
   test(`卸载覆盖 ${window} 等待窗口、排队请求和晚到的句柄`, async t => {
     const previous = process.env.DSH_HOME;
@@ -181,6 +164,7 @@ for (const window of ['create', 'spawn']) {
     let creates = 0, spawns = 0, hostDisposes = 0, runDisposes = 0;
     let spawnSignal: AbortSignal | undefined;
     const ctx = {
+      agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model' }) },
       agents: {
         get() { return null; },
         async create({ sessionId }) {
@@ -232,6 +216,7 @@ test("create 返回裸 Agent 时首次启动失败，不会 spawn", async t => {
   });
   const starts = [];
   const ctx = {
+    agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model' }) },
     agents: {
       get() { return null; },
       async create({ sessionId }) { return { session: { id: sessionId } }; },
@@ -258,6 +243,7 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   const hostDisposes = [];
   const runDisposes = [];
   const ctx = {
+    agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model', reasoningEffort: 'high', temperature: 0.2, uiFlag: true }) },
     agents: {
       get(id) { return id === hostAgent.session.id ? hostAgent : null; },
       async create({ sessionId }) {
@@ -284,6 +270,9 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   const first = await startReportRun(ctx, { slug: "companies/600011-sh", input_hash: hash, prompt: "生成报告", title: "报告生成" });
   assert.equal(first.status, "started");
   assert.equal(starts[0].provider, "spawn");
+  assert.deepEqual(starts[0].request.agentOptions, { provider: 'test', model: 'test-model', reasoningEffort: 'high' });
+  assert.equal(starts[0].request.agentOptions.uiFlag, undefined);
+  assert.equal(starts[0].request.agentOptions.temperature, undefined);
   assert.deepEqual(starts[0].request.toolFilter, { allow: [] });
   assert.equal(starts[0].pending.parent_id, starts[0].request.parent.session.id);
   assert.equal(starts[0].pending.slug, "companies/600011-sh");
@@ -299,6 +288,34 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   assert.equal(loadReportTasks().sessions[first.session_id].slug, "companies/600011-sh");
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.deepEqual(runDisposes, [first.session_id]);
+
+  ctx.agentDefaultModel.currentSelection = () => ({ provider: 'changed', model: 'new-model' });
+  const changed = await startReportRun(ctx, { slug: 'companies/600011-sh', input_hash: hash, prompt: '再试' });
+  assert.deepEqual(starts[1].request.agentOptions, { provider: 'changed', model: 'new-model' });
+  cancelReportRun(changed.session_id);
+  await new Promise(resolve => setTimeout(resolve, 20));
+  ctx.agentDefaultModel.currentSelection = () => ({ provider: '', model: '' });
+  await assert.rejects(startReportRun(ctx, { slug: 'companies/600011-sh', input_hash: hash, prompt: '再试' }), /配置默认模型/);
+  assert.equal(starts.length, 2);
+  assert.equal(loadReportTasks().pending, null);
+  const inspected = [];
+  const lineage = await reportTasksWithLineage({
+    sessionPersistence: {
+      list: async () => { throw new Error('must not list all sessions'); },
+      inspect: async (id) => { inspected.push(id); return { meta: { id, parentSession: 'old-host' } }; },
+    },
+    sessions: { get: () => undefined },
+  });
+  assert.deepEqual([...inspected].sort(), Object.keys(loadReportTasks().sessions).sort());
+  assert.ok(inspected.includes(first.session_id));
+  assert.equal(lineage.sessions[first.session_id].parent_id, 'old-host');
+  assert.equal(loadReportTasks().sessions[first.session_id].parent_id, undefined, '只投影原生身份，不另写副本');
+  const liveLineage = await reportTasksWithLineage({
+    sessionPersistence: { inspect: async () => { throw new Error('live session should not inspect'); } },
+    sessions: { get: (id) => id === first.session_id ? { header: { parentSession: 'live-host' } } : undefined },
+  });
+  assert.equal(liveLineage.sessions[first.session_id].parent_id, 'live-host');
+  ctx.agentDefaultModel.currentSelection = () => ({ provider: 'test', model: 'test-model' });
 
   ctx.subagents.start = async () => { throw Object.assign(new Error("spawn failed"), { status: 503 }); };
   await assert.rejects(() => startReportRun(ctx, { slug: "companies/600900-sh", input_hash: hash, prompt: "再试" }), /spawn failed/);
@@ -399,8 +416,10 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(client, /lastTrajectory/);
   assert.match(client, /status !== 'ready'/);
   assert.match(client, /research\.openSession/);
-  assert.match(client, /face\?\.open/);
   assert.match(client, /ensureTaskHistory/);
+  const history = readFileSync(new URL("../src/verticals/finance/lib/taskHistory.ts", import.meta.url), "utf8");
+  assert.match(history, /face\?\.open/);
+  assert.doesNotMatch(history, /sessions\.open\(/);
   assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
   const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");
   const transcript = readFileSync(new URL("../src/verticals/finance/components/TaskTranscript.tsx", import.meta.url), "utf8");

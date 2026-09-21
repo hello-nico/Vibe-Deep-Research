@@ -18,7 +18,7 @@
 | --- | --- |
 | cordis-plugin-loader 1.0.3 | 安装回落的 Node 包解析 |
 | dsh-client-modules | 安装回落的客户端包元数据解析 |
-| dsh-api-session-controller | 新会话事件保持 JSON 安全 |
+| dsh-api-session-controller | 新会话事件保持 JSON 安全；报告只读过程依赖 `retainSubagent` 引用计数挂载子会话；历史读取对普通会话保留 cwd 门禁，对已校验的子 Agent 允许无 cwd |
 | dsh-client-ui-settings-models | 已有 Provider 配置与模型管理改进 |
 | dsh-client-ui-model-selection | 模型筛选与选择行为 |
 | dsh-client-ui-deliverables | 已有文件引用呈现 |

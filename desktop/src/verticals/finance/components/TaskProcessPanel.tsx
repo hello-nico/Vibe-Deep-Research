@@ -1,13 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
 import { X } from 'lucide-react';
 import { useResearchSessions, type TaskProcessRef } from '../dsh/research-session';
-import { TaskTranscript } from './TaskTranscript';
+import { TaskTranscript, useTaskTrajectory } from './TaskTranscript';
+import { emptyTaskTrajectory } from '../lib/taskTrajectory';
 import './task-process.css';
+
+const noopSubscribe = () => () => {};
+const emptySnapshot = () => emptyTaskTrajectory;
 
 export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onClose: () => void }) {
   const sessions = useResearchSessions();
+  const store = useTaskTrajectory(task.sessionId);
+  const snapshot = useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.getSnapshot ?? emptySnapshot);
   const live = sessions.sessionState(task.sessionId);
-  const running = Boolean(live?.running);
+  const running = Boolean(snapshot.running || live?.running);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);

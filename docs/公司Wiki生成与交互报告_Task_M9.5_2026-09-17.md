@@ -141,6 +141,17 @@
 
 ## 实施记录
 
+**2026-09-20 生成无响应修复（用户授权直接修复）**
+
+- 真实神火任务 `5fc05f66-3218-433d-a0eb-b215825e2ac2` 在 53ms 内因无 provider/model 结束；只读面板未取得子任务 scope，页面将未知状态当运行中。
+- 每次 spawn 从 DSH 默认模型读取选择并传给 child；未配置时启动前报错。模型和凭据 Owner 不变。
+- 安装版仅允许 listed/current 的会话 scope。沿已有 session-controller patch 增补引用计数的只读 retain 接缝，使用原生 direct-parent catalog 校验、Session 与轨迹；不切当前聊天、不续聊、不新增执行/存储 Owner。父身份从原生持久元数据读取，不能拿当前宿主猜历史父身份。
+- 过程订阅等待 binding 就绪后挂载，关闭/切换释放；瞬时结束也回读成果，状态无法确认时退出假加载并提示；状态拉取只保留首次和 4 秒轮询，避免列表通知自激刷新。
+- 真实读取另命中原生 history 的无 cwd 门禁：目录允许无 cwd child，历史却提前拒绝。按已有父地址读取契约，仅 ordinary session 保留 cwd 门禁；child 必须继续通过 origin、真实 parent、非继承 descriptor、mode 校验。目录/搜索、执行、续聊与持久头不变，不给宿主补 cwd、不迁移旧记录。
+- 首模型请求前的失败不在原生 trajectory 中，由同一 binding 的原生 Chat `turn-error` 补充，按 seq 去重并排序；不建立另一份轨迹存储。修复跨页面启动回调污染，并补齐订阅释放。
+- 实测新任务 `61f03fbf-8da1-431e-8b0c-df0def7857c3` 完成真实模型调用、Wiki 读取与发布；Backend 返回 current 报告 `report:c7fae0a54d6c581042998a058239b987`，浏览器显示报告与完整生成过程。旧失败任务显示“未完成”和未配置模型原因；关闭重开可读取。
+- 验证：`node --test desktop/test/{my_research,task_trajectory,wiki_report_lifecycle,subagent_retention,subagent_history,background_review_runtime}.test.ts` 52/52；desktop typecheck、build 及最后 watch 构建通过。测试含受控 fixture；真实报告另行验证，不等于财务内容或最终视觉验收。审查发现的地址释放、页面竞态、反馈循环及错误错序已修复；原生版本 patch 升级时需重验。服务已重启，未提交。
+
 A–D 已在树中：缺页入口、四类底稿、`report-tasks.json` 身份索引、报告四工具、引用白名单与生命周期测试。顶层 `sessions.create → bind → prompt` 由 E 替代，不得恢复。
 
 **E 节原生核对（`dsh-*@0.1.2-rc.1`）**
@@ -173,3 +184,15 @@ A–D 已在树中：缺页入口、四类底稿、`report-tasks.json` 身份索
 - `WikiReportPane.tsx` / Stock `report-tools.mjs` 明确单个 data-ref 必须逐字复制快照 ref/refs 中一个完整 ID，多来源分别做引用元素；禁止拼接、改前缀和 URL 编码。Backend `wiki_reports.py` 保持精确成员校验，返回完整错误 ID 与修复原因，一次最多列 8 项并计数剩余项，不自动改写引用或放宽准入。
 - 新增引用诊断及多来源合法 HTML 回归，更新生成提示词测试。Backend `test_wiki_reports.py` 26/26、desktop `wiki_report_lifecycle.test.ts` 12/12、DSH `report-task.test.mjs` 5/5，两仓 diff 检查通过。
 - 对上述真实轨迹的 6 组历史参数做本地校验回放：前 5 组仍拒绝且完整呈现拼接尾部，第 6 组 16 个引用通过。未重新调用模型、未发布新报告、未重启服务、未提交；新提示词的模型行为仍待部署后验证。
+
+**2026-09-21 报告流程剩余关注点**
+
+- `lastAgentError` 只透传原生字段；`SessionState.failed` 才合并轨迹失败。面板用 `failed` 显示失败，不再把「任务未完成」写进原生错误。
+- `ensureTaskHistory` / `createTaskTrajectoryStore` 抽到 `taskHistory.ts`，测试打真实模块；`subagent_history` 从 `@deepseek-ai/dsh-api-session-controller` 的 `lib/index.js` 取运行时 `SessionHistoryController`，不再打 `lib/types/history.js` 影子副本。
+- 报告轮询对已知任务 id 做 `inspect`，禁止 `sessionPersistence.list()`。spawn 只传 `provider`/`model`/`reasoningEffort`。
+- patch 台账只补 `retainSubagent` 与无 cwd 子 Agent 历史门禁事实；「类型／移除条件」两列仍留给治理对齐。
+- 工程回归：desktop 相关测试 52/52，`tsc --noEmit` 通过；Stock DSH `pnpm test` 119/119；Backend `test_url_fetch.py`/`test_source_access.py`/`test_api.py` 48 passed。真实 DSH/浏览器仍待用户验收。已本地提交，未 push。
+
+**2026-09-21 生成中重进基线**
+
+- 页面重开先记下已有 `current` 报告再开始等待新产出。生成中离开再返回时，旧报告不再被当成这次的新制品；成功后打开新报告，失败时保留旧报告并提示。覆盖成功/失败两条结束路径。已本地提交，未 push。

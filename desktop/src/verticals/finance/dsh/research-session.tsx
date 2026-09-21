@@ -72,11 +72,12 @@ export interface TaskTrajectorySnapshot {
   streaming: boolean;
 }
 
-// 会话执行快照：错误字段仅用于判定成败，原始错误不向用户展示。
+// 会话执行快照：lastAgentError / promptError 只透传原生字段；成败判定用 failed，原始错误不向用户展示。
 export interface SessionState {
   running: boolean;
   lastAgentError: string | null;
   promptError: string | null;
+  failed?: boolean;
   removed: boolean;
   awaitingFirstTurn: boolean;
 }

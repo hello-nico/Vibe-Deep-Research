@@ -5,6 +5,7 @@ export interface ReportTaskBinding {
   slug: string;
   input_hash: string;
   bound_at?: string;
+  parent_id?: string;
 }
 
 export interface ReportTaskStore {

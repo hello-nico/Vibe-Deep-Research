@@ -85,7 +85,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const [busyOtherVersion, setBusyOtherVersion] = useState(false);
   useEffect(() => {
     if (!sessions || !task?.sessionId) return;
-    return sessions.trajectory(task.sessionId).subscribe(() => {});
+    return sessions.trajectory(task.sessionId)?.subscribe(() => {});
   }, [sessions, task?.sessionId]);
   const frame = useRef<HTMLIFrameElement>(null);
   const seq = useRef(0);
@@ -94,6 +94,12 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const primedTask = useRef(false);
   const watchedLive = useRef(false);
   const startedSession = useRef('');
+  const requestedAt = useRef(0);
+  const pageEpoch = useRef(0);
+  const baselineReport = useRef<string | null>(null);
+  const existingCurrent = useRef<string | null>(null);
+  const [listSeed, setListSeed] = useState(0);
+  const awaitingArtifact = useRef(false);
 
   // Pure fetch — callers commit setItems only after their staleness guards pass,
   // so a late response from a previous page version can never write state.
@@ -106,22 +112,34 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   // sequence so late responses cannot overwrite the new page.
   useEffect(() => {
     const controller = new AbortController();
+    ++pageEpoch.current;
     const mine = ++seq.current;
     wasRunning.current = false;
     primedTask.current = false;
     watchedLive.current = false;
+    baselineReport.current = null;
+    existingCurrent.current = null;
+    awaitingArtifact.current = false;
+    setListSeed(0);
     setItems(null); setSelected(null); setDetail(null); setError('');
     setTask(null); setTaskReady(false); setStarting(false); setPendingRun(false); setAutoTried(false); setBusyOtherVersion(false);
     startedSession.current = '';
     void fetchItems(controller.signal)
       .then(list => {
         if (controller.signal.aborted || seq.current !== mine) return;
-        setItems(list);
         const current = list.find(item => item.current);
+        existingCurrent.current = current?.report_id ?? null;
+        setItems(list);
         if (current) setSelected(current);
+        setListSeed(value => value + 1);
       })
-      .catch(() => { if (!controller.signal.aborted && seq.current === mine) setError('生成报告列表暂时无法读取，研究页仍可阅读。'); });
-    return () => controller.abort();
+      .catch(() => {
+        if (controller.signal.aborted || seq.current !== mine) return;
+        existingCurrent.current = null;
+        setError('生成报告列表暂时无法读取，研究页仍可阅读。');
+        setListSeed(value => value + 1);
+      });
+    return () => { ++pageEpoch.current; controller.abort(); };
   }, [slug, inputHash]);
 
   // Load the selected artifact; its identity + ref whitelist ride together so a
@@ -149,7 +167,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   // from Backend. A session existing ≠ a report existing. A finished binding is
   // not a falling edge — only a live run this pane actually watched.
   useEffect(() => {
-    if (!sessions || !slug) return;
+    if (!sessions || !slug || listSeed === 0) return;
     let cancelled = false;
     primedTask.current = false;
     wasRunning.current = false;
@@ -158,33 +176,54 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
       const found = await sessions.findReportTask(slug).catch(() => null);
       if (cancelled || mine !== checkSeq.current) return;
       const state = found ? sessions.sessionState(found.sessionId) : null;
-      const live = Boolean(found?.sessionId && found.sessionId === startedSession.current);
-      let running = Boolean(found?.running || state?.running);
-      if (live) running = state ? Boolean(state.running || found?.running) : true;
-      if (!found && startedSession.current) {
-        setTaskReady(true);
-        return;
+      const startedId = startedSession.current;
+      const live = Boolean(found?.sessionId && found.sessionId === startedId);
+      const startedState = startedId ? sessions.sessionState(startedId) : null;
+      const running = startedState ? Boolean(startedState.running) : Boolean(found?.running || state?.running);
+      if (running) {
+        watchedLive.current = true;
+        awaitingArtifact.current = true;
+        if (baselineReport.current === null) baselineReport.current = existingCurrent.current;
       }
-      setTask(found ? { ...found, running } : null);
+      if (awaitingArtifact.current) {
+        const list = await fetchItems().catch(() => null);
+        if (cancelled || mine !== checkSeq.current) return;
+        if (list) {
+          setItems(list);
+          const current = list.find(item => item.current);
+          if (current && (!baselineReport.current || current.report_id !== baselineReport.current)) {
+            setSelected(current);
+            setBusyOtherVersion(false);
+            setError('');
+            setPendingRun(false);
+            awaitingArtifact.current = false;
+            startedSession.current = '';
+          }
+        }
+      }
+      if (startedId && (!found || !live)) {
+        if (Date.now() - requestedAt.current > 15_000 && awaitingArtifact.current) {
+          setPendingRun(false);
+          setTask(previous => previous ? { ...previous, running: false } : previous);
+          setError('暂时无法确认报告任务状态，请查看生成过程后再试。');
+          startedSession.current = '';
+        }
+        setTaskReady(true);
+        if (!found) return;
+      }
+      setTask(found ? { ...found, running } : previous => previous ? { ...previous, running } : previous);
       setTaskReady(true);
       if (!primedTask.current) {
         primedTask.current = true;
         wasRunning.current = running;
-        if (running) watchedLive.current = true;
-        return;
+        if (!live || running) return;
       }
-      if (running) watchedLive.current = true;
-      if (watchedLive.current && wasRunning.current && !running) {
+      if (watchedLive.current && (wasRunning.current || live) && !running) {
         setPendingRun(false);
         if (live) startedSession.current = '';
-        const list = await fetchItems().catch(() => null);
-        if (cancelled || mine !== checkSeq.current) return;
-        if (list) setItems(list);
-        const current = list?.find(item => item.current);
-        if (current) { setSelected(current); setBusyOtherVersion(false); setError(''); }
-        else if (found && found.inputHash === inputHash) {
+        if (awaitingArtifact.current && found && found.inputHash === inputHash) {
           const ended = sessions.sessionState(found.sessionId);
-          setError(ended?.lastAgentError || ended?.promptError
+          setError(ended?.failed || ended?.lastAgentError || ended?.promptError
             ? '报告生成失败，研究页仍可阅读；可在生成过程中查看后重试。'
             : '报告生成已结束，但产出尚未确认；可在生成过程中查看。');
         }
@@ -192,10 +231,9 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
       wasRunning.current = running;
     };
     void check();
-    const off = sessions.subscribeSessionList(() => { void check(); });
     const timer = setInterval(() => { void check(); }, TASK_POLL_MS);
-    return () => { cancelled = true; off(); clearInterval(timer); };
-  }, [sessions, slug, inputHash]);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [sessions, slug, inputHash, listSeed]);
 
   // Citation bridge: verify the message really came from our iframe and the ref
   // belongs to the currently loaded artifact's allowed set.
@@ -217,12 +255,17 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const generate = () => {
     if (!sessions) { setError('研究会话尚未连接，稍后再试。'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
+    const epoch = pageEpoch.current;
     watchedLive.current = true;
+    awaitingArtifact.current = true;
+    baselineReport.current = selected?.report_id ?? null;
+    requestedAt.current = Date.now();
     setError(''); setStarting(true); setPendingRun(true);
     void sessions.start(reportPrompt(page), undefined, {
       navigate: false,
       task: { kind: 'report', slug, inputHash, title: `报告生成 · ${slug}` },
     }).then(result => {
+      if (epoch !== pageEpoch.current) return;
       setBusyOtherVersion(result.status === 'busy_other_version');
       if (result.status === 'busy_other_version') {
         setError('');
@@ -235,10 +278,11 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
         setTask({ sessionId: result.sessionId, slug, inputHash, running: true });
       }
     }).catch(() => {
+      if (epoch !== pageEpoch.current) return;
       setPendingRun(false);
       startedSession.current = '';
       setError('报告生成未能启动，研究页仍可阅读；可重试。');
-    }).finally(() => setStarting(false));
+    }).finally(() => { if (epoch === pageEpoch.current) setStarting(false); });
   };
 
   // First open of a version with no artifact and no prior task starts one
