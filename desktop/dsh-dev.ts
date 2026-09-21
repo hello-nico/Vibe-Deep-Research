@@ -4,6 +4,7 @@ import { spawn } from "node:child_process";
 import type { ClientRequest, IncomingMessage, ServerResponse } from "node:http";
 import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 import { resolveDshPaths, prepareDshPaths, researchRuntimeEnv } from "../orchestrator/src/dsh_paths.ts";
+import { pickEnv, DSH_RUNTIME_ENV_KEYS, BASE_ENV_KEYS } from "../orchestrator/src/config.ts";
 
 const DSH_PROXY_PREFIXES = ["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-assistant-sessions", "/finance-report-tasks", "/finance-report-runs", "/finance-background-tasks", "/finance-wiki-publish", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"] as const;
 
@@ -57,6 +58,8 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     // Starting a second build beside DSH could delete the bundle during plugin discovery.
     const watch = development ? spawn(process.execPath, ["dsh/build-ui.mjs", "--watch"], {
       cwd: path.join(repoRoot, "desktop"), stdio: ["ignore", "pipe", "inherit"],
+      // 构建工具只需基础 OS 环境；不继承全量 process.env
+      env: pickEnv(BASE_ENV_KEYS, {}),
     }) : undefined;
     if (watch) {
       server.httpServer?.once("close", () => watch.kill("SIGTERM"));
@@ -83,9 +86,18 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       default: "vibe", includeShippedRoot: false, includeUserRoot: false,
       roots: [{ path: path.join(repoRoot, "desktop/dsh/presets"), trust: "system" }],
     } }], null, 2));
+    // 环境白名单：只传基础 OS / 代理证书 / DSH 路径 + 研究插件运行时变量，不继承无关变量，
+    // 也不透传任何凭据（模型接入与密钥由 DSH 自身配置拥有）。DSH 启动后还会自行加载
+    // 工作区与 DSH_HOME 的 .env 分层，那部分由上游 launch-environment 管理，不归产品传入。
+    const dshEnv = pickEnv(DSH_RUNTIME_ENV_KEYS, {
+      ...researchRuntimeEnv(paths),
+      DSH_HOME: paths.home,
+      VRA_FINANCE_DATA_ROOT: paths.dataRoot,
+    });
+    console.error(`[dsh] 传递 DSH 的环境键（${Object.keys(dshEnv).length}）:${Object.keys(dshEnv).sort().join(", ")}`);
     const child = spawn(process.execPath, [path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/lib/bin.js"),
       "--profile", "web", "--patch", overlay, "--no-open", "--port", new URL(target).port, "--trusted-host", new URL(origin).host,
-    ], { cwd: paths.workspace, env: { ...process.env, ...researchRuntimeEnv(paths), DSH_HOME: paths.home, VRA_FINANCE_DATA_ROOT: paths.dataRoot }, stdio: ["ignore", "pipe", "pipe"] });
+    ], { cwd: paths.workspace, env: dshEnv, stdio: ["ignore", "pipe", "pipe"] });
     child.on("error", () => { failure = "DSH 进程无法启动，请检查运行环境"; console.error(`[dsh] ${failure}`); });
     child.on("exit", (code, signal) => { cookie = ""; failure = `DSH 服务已停止（退出码 ${code}，信号 ${signal ?? "无"}）`; console.error(`[dsh] ${failure}`); });
     child.stderr.on("data", () => { /* Runtime diagnostics may contain credentials. */ });

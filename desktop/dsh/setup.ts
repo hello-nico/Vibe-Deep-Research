@@ -3,13 +3,16 @@ import fs from "node:fs";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import { resolveDshPaths, prepareDshPaths } from "../../orchestrator/src/dsh_paths.ts";
+import { pickEnv, FETCH_ENV_KEYS, DSH_RUNTIME_ENV_KEYS } from "../../orchestrator/src/config.ts";
 
 const repo = fileURLToPath(new URL("../../", import.meta.url));
 const paths = resolveDshPaths(repo);
 prepareDshPaths(paths);
 const research = path.join(paths.researchRepo, "dsh");
 if (!fs.existsSync(path.join(research, "package.json"))) throw new Error("未找到 Stock-Research/dsh，请配置 VRA_RESEARCH_REPO");
-function run(command: string, args: string[], cwd: string, env = process.env) {
+// 安装 / 构建子进程白名单：基础 OS + 代理/证书（pnpm 与 npm 可能需要出站代理），不继承无关变量。
+const installEnv = () => pickEnv(FETCH_ENV_KEYS, {});
+function run(command: string, args: string[], cwd: string, env: NodeJS.ProcessEnv = installEnv()) {
   const result = spawnSync(command, args, { cwd, env, stdio: "inherit" });
   if (result.error) throw result.error;
   if (result.status !== 0) throw new Error(`安装或构建失败（${result.status}），请查看上方输出`);
@@ -20,7 +23,11 @@ const store = fs.existsSync(modulesFile)
   ? fs.readFileSync(modulesFile, "utf8").match(/["']?storeDir["']?:\s*["']?([^"'\r\n,]+)/)?.[1]?.trim() : undefined;
 run("pnpm", ["install", "--frozen-lockfile", ...(store ? ["--store-dir", store] : [])], research);
 run("npm", ["run", "build"], research);
+// DSH 插件注册子进程：同一条 DSH 运行时白名单 + 显式注入 DSH_HOME 与 runtime bin 的 PATH。
 for (const plugin of [research, path.join(repo, "desktop/dsh/finance-ui")]) run(process.execPath, [
   path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/lib/bin.js"),
   "plugin", "--profile", "web", "add", `link:${plugin}`,
-], repo, { ...process.env, DSH_HOME: paths.home, PATH: `${path.join(paths.runtime, "node_modules/.bin")}${path.delimiter}${process.env.PATH ?? ""}` });
+], repo, pickEnv(DSH_RUNTIME_ENV_KEYS, {
+  DSH_HOME: paths.home,
+  PATH: `${path.join(paths.runtime, "node_modules/.bin")}${path.delimiter}${process.env.PATH ?? ""}`,
+}));
