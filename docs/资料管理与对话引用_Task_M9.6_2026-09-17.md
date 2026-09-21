@@ -165,3 +165,10 @@ Review / Smoke：测试夹具通过不等于验收完成；用户拥有最终视
 - 我的资料去掉刷新按钮和右侧正文预览；类型/状态筛选复用 `WorkspaceSelect`。卡片用行业/产业同一套 `DashboardCard`，列表用自选总览同一套 `DashboardPanel` 表线。卡片模式不再放勾选和菜单。个股列表和自选股不改成这张总览表。
 - 2026-09-20：列表菜单与阅读页可「从我的资料移除」。`PATCH /documents/{id}` 写 `library_hidden`，工作台现有代理即可转发；`POST .../hide-from-library` 同样可用。列表和 `@` 不再出现；原件与 GET 仍在。同哈希再上传会取消隐藏。不是永久删除。
 - 列表行使用对象摘要，不直接倾倒 Markdown 预览。视图偏好 `vr-library-view`。
+
+### 2026-09-21 资料流程剩余关注点
+
+- 缺失正文按 Backend 404 `detail.code=block_not_found` 识别，不再用错误文本正则。通用 `FileNotFoundError` 仍是字符串 404。
+- 后台整理遇到越界入库请求时记录 `skipped/out_of_bound` 并继续草案/抽取；不因单条越界把整次整理打成失败。无公司绑定的通用资料仍合法。
+- 网页入库 `symbol` 若出现必须是 `\d{6}.(SH|SZ|BJ)`；省略则保持无归属 `user_material`。不按标题猜「公告/新闻」，不把当前绑定公司自动填进去。文件上传仍可用 `normalize_upload_symbol` 省略后缀。
+- 工程回归：Stock DSH `pnpm test` 119/119（含越界跳过、结构化缺失正文、无归属入库）；Backend `test_url_fetch.py`/`test_source_access.py`/`test_api.py` 48 passed。真模型与浏览器仍待用户验收。已本地提交，未 push。
