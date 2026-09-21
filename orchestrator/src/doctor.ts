@@ -27,7 +27,7 @@ const NET_PROBE_ENDPOINT = "tx_quote";
  *    ⚠️ 跳过它们不降低覆盖:`payload/app` 是按清单从仓库源文件拷过去的副本,原件本来就在扫描范围内;
  *    另外两块(Python 依赖、引擎二进制)是第三方产物,不是我们的产品文件。
  */
-const SCAN_SKIP_DIRS = new Set([".local", "node_modules", ".venv", ".git", "assets", "__pycache__", ".pytest_cache", "test", "tests", "dist", "htmlcov", "payload", "release"]);
+const SCAN_SKIP_DIRS = new Set([".local", "node_modules", ".venv", ".git", "assets", "__pycache__", ".pytest_cache", "test", "tests", "dist", "htmlcov", "payload", "release", ".pnpm-store"]);
 const SCAN_SKIP_EXT = new Set([".png", ".jpg", ".jpeg", ".gif", ".pdf", ".ico", ".woff", ".woff2", ".zip", ".gz", ".lock"]);
 const SCAN_MAX_BYTES = 2 * 1024 * 1024;
 const SCAN_MAX_FILES = 5000;
@@ -48,7 +48,7 @@ const SECRET_PATTERNS: { name: string; re: RegExp }[] = [
 ];
 const TEST_DIRS = new Set(["test", "tests"]);
 
-/** 子进程最小环境:基础 + 代理 + 证书(不透传任何密钥类变量);需要的变量(CODEX_HOME)由调用处显式加 */
+/** 子进程最小环境:基础 + 代理 + 证书(不透传任何密钥类变量);需要的其他变量由调用处显式加 */
 export function minimalEnv(base: NodeJS.ProcessEnv = process.env): Record<string, string> {
   const out: Record<string, string> = {};
   for (const k of ["PATH", "HOME", "LANG", "LC_ALL", "TMPDIR", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy", "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE"]) if (base[k]) out[k] = base[k] as string;

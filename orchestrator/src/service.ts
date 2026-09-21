@@ -16,18 +16,18 @@ import { DEFAULT_CONSISTENCY,readSnapshot,snapshotKey,snapshotUsable,writeSnapsh
 export { redact } from "./service_redact.ts";
 
 
-export interface ServiceContext { repoRoot: string; dataRoot: string; python: string; node: string; providerEnvKey: string | null; }
+export interface ServiceContext { repoRoot: string; dataRoot: string; python: string; node: string; }
 
 export function repoRootFromHere(): string {
   return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 }
 
-/** 从产品配置链解析服务上下文(与 run.ts 同源:vibe-research.config.json ← .local/config.json ← VRA_*);VRA_REPO_ROOT 可指定仓库(测试 / 多副本) */
+/** 从产品配置链解析服务上下文(vibe-research.config.json ← .local/config.json ← VRA_*);VRA_REPO_ROOT 可指定仓库(测试 / 多副本) */
 export function serviceContext(opts: { repoRoot?: string; python?: string; env?: NodeJS.ProcessEnv } = {}): ServiceContext {
   const env = opts.env ?? process.env;
   const repoRoot = path.resolve(opts.repoRoot ?? env.VRA_REPO_ROOT ?? repoRootFromHere());
   const pc = loadProductConfig(repoRoot, { env });
-  return { repoRoot, dataRoot: pc.resolved.dataRoot, python: opts.python ?? pc.python ?? "python3", node: process.execPath, providerEnvKey: pc.provider?.env_key ?? null };
+  return { repoRoot, dataRoot: pc.resolved.dataRoot, python: opts.python ?? pc.python ?? "python3", node: process.execPath };
 }
 
 export class ServiceError extends Error {

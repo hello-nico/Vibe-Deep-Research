@@ -11,7 +11,6 @@ export function desktopRuntimePaths(dataRoot: string) {
     return directory;
   }
   return {
-    codexHome: privateDirectory("codex-home"),
     dshHome: privateDirectory("dsh"),
     temporaryDirectory: privateDirectory("tmp"),
   };

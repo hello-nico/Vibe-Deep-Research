@@ -28,7 +28,7 @@ async function waitUntil(check: () => boolean): Promise<void> {
 test("台账全量读取也要过 safePath —— 防线只在次要入口生效等于没有防线", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-ledgersvc-"));
   const outside = fs.mkdtempSync(path.join(os.tmpdir(), "vra-outside-"));
-  const ctx = { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null } as ServiceContext;
+  const ctx = { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath } as ServiceContext;
 
   // 先正常写一条,确保目录与文件存在
   ledgerUpsert(ctx, { kind: "position", record: { symbol: "300308", shares: 1, cost: 1 } });
@@ -49,12 +49,11 @@ const realRepoCtx = (): ServiceContext => ({
   dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "vra-svc-real-")),
   python: process.env.VRA_PYTHON ?? "python3",
   node: process.execPath,
-  providerEnvKey: null,
 } as ServiceContext);
 
 const svcCtx = (): ServiceContext => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-svc-"));
-  return { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null } as ServiceContext;
+  return { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath } as ServiceContext;
 };
 
 test("🔴 /ledger 的 records 与 issues 必须来自同一次读盘(分两次读会自相矛盾)", () => {
@@ -166,5 +165,5 @@ env={"script":ep,"symbol":sym,"market":"SZ","status":"ok","fetched_at":"2026-01-
 json.dump(env, open(os.path.join(out,'fetch',ep+'.json'),'w')); print(json.dumps(env)); sys.stderr.write('token=abc123 https://x/y?key=SECRET\\n'); sys.exit(0)
 `);
   const dataRoot = path.join(repo, ".local");
-  return { repoRoot: repo, dataRoot, python: PY, node: process.execPath, providerEnvKey: "OPENAI_API_KEY" };
+  return { repoRoot: repo, dataRoot, python: PY, node: process.execPath };
 }

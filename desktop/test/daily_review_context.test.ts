@@ -30,7 +30,7 @@ test("全球指数失败进入可见状态与 AI 摘要，不静默消失", asyn
     fetchingRef, reviewLoading: false,
     api: { indices: async () => [], globalIndices: async () => { throw new Error("全球指数未接入"); },
       emotion: async () => null, turnoverTop: async () => null, marketOverview: async () => null },
-    backend: { page: () => { requests++; return pagePromise; } },
+    localService: { page: () => { requests++; return pagePromise; } },
     setIndices: noop, setIdxErr: noop, setIdxDone: noop, setGlobalIdx: noop,
     setGlobalDone: (v: boolean) => { globalDone = v; }, setGlobalErr: (v: string | null) => { globalErr = v; },
     setEmotion: noop, setEmoDone: noop, setTurnover: noop, setToDone: noop,

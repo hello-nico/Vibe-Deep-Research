@@ -14,7 +14,7 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..")
 
 test("retired HTTP operations cannot run; Client choices survive server reopen", async () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-retirement-"));
-  const ctx: ServiceContext = { repoRoot: repo, dataRoot: root, node: process.execPath, python: "python3", providerEnvKey: null };
+  const ctx: ServiceContext = { repoRoot: repo, dataRoot: root, node: process.execPath, python: "python3" };
   const token = "retirement-test-token";
   let server = createApiServer(ctx, { token });
   const open = async () => {

@@ -37,7 +37,7 @@ def test_坑真实存在_不重配编码时GBK管道会崩():
     assert b"UnicodeEncodeError" in r.stderr, r.stderr[-300:]
 
 
-@pytest.mark.parametrize("pkg", ["calc", "backtest"])
+@pytest.mark.parametrize("pkg", ["calc"])
 def test_重配之后GBK管道也能写出合法UTF8(pkg: str):
     code = (
         f"import sys;sys.path.insert(0,{str(REPO)!r});"
@@ -65,12 +65,11 @@ def _body(path: pathlib.Path) -> str:
     return "\n".join(lines)
 
 
-def test_三份实现的函数体必须逐字相同():
-    """三个包互相 import 不到（skill 刻意自包含），只能各放一份 —— 那就钉死它们不许漂移。"""
+def test_两份实现的函数体必须逐字相同():
+    """两个包互相 import 不到（skill 刻意自包含），只能各放一份 —— 那就钉死它们不许漂移。"""
     paths = [
         REPO / ".agents/skills/data-access/scripts/core/stdio_utf8.py",
         REPO / "calc/stdio_utf8.py",
-        REPO / "backtest/stdio_utf8.py",
     ]
     for p in paths:
         assert p.exists(), f"{p} 不在了，这条断言会变成空查"

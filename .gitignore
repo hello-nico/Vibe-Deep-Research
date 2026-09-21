@@ -27,3 +27,6 @@ desktop/dsh/finance-ui/lib/
 
 # 本地助手偏好，不入库
 .commandcode/
+
+# 退役目录的本地遗留（M9 原型与探针已迁出，本地不再重建）
+/artifacts/

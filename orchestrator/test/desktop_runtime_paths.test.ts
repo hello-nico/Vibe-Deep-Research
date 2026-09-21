@@ -9,14 +9,14 @@ test("desktop identities never share their runtime stores", (t) => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "vdr-identity-"));
   t.after(() => fs.rmSync(root, { recursive: true, force: true }));
   const original = desktopRuntimePaths(path.join(root, "original"));
-  fs.writeFileSync(path.join(original.codexHome, "sentinel"), "original");
+  fs.writeFileSync(path.join(original.dshHome, "sentinel"), "original");
   const isolated = desktopRuntimePaths(path.join(root, "test"));
   for (const directory of Object.values(isolated)) {
     assert.equal(fs.statSync(directory).mode & 0o777, 0o700);
     assert.deepEqual(fs.readdirSync(directory), []);
     assert.ok(directory.startsWith(path.join(root, "test") + path.sep));
   }
-  assert.equal(fs.readFileSync(path.join(original.codexHome, "sentinel"), "utf8"), "original");
+  assert.equal(fs.readFileSync(path.join(original.dshHome, "sentinel"), "utf8"), "original");
 });
 
 test("a symlink cannot redirect the test DSH store into another identity", (t) => {

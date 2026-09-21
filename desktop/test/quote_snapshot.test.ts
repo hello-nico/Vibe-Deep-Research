@@ -2,14 +2,14 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { api } from "../src/verticals/finance/lib/api.ts";
-import { backend, type FetchResult } from "../src/verticals/finance/lib/backend.ts";
+import { localService, type FetchResult } from "../src/verticals/finance/lib/localService.ts";
 import { quoteSnapshotTime } from "../src/verticals/finance/lib/quoteSnapshot.ts";
 
 test("自动取数要求 fresh，时间跟随价格证据，不把缓存收到时间冒充源时间", async () => {
-  const original = backend.fetch;
+  const original = localService.fetch;
   const seen: unknown[] = [];
   const stamp = "2026-09-04T01:30:00Z";
-  backend.fetch = async (endpoint, opts) => {
+  localService.fetch = async (endpoint, opts) => {
     seen.push({ endpoint, opts });
     return { cached: true, fetched_at: "2026-09-05T01:30:00Z", envelope: {
       fetched_at: "2026-09-05T01:30:00Z", evidence: [
@@ -26,7 +26,7 @@ test("自动取数要求 fresh，时间跟随价格证据，不把缓存收到�
     const hook = readFileSync(new URL("../src/verticals/finance/hooks/useLiveQuotes.ts", import.meta.url), "utf8");
     assert.match(hook, /api\.quote\(requested, true\)/);
     assert.doesNotMatch(hook, /setUpdatedAt\(Date\.now\(\)\)/);
-  } finally { backend.fetch = original; }
+  } finally { localService.fetch = original; }
 });
 
 test("混合市场显示最早快照；空值与缺时间不伪造新时间", () => {

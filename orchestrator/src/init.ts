@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * 幂等初始化(开发方案 v2.1 §5 / scripts/init):只生成产品自己的用户私有层 `.local/`,**永不读写用户全局 ~/.codex**。
- * 做的事:建目录(codex-home / runs / knowledge / providers / mcp)→ 没有 `.local/config.json` 就写一份骨架(python 自动探测 .venv;provider 默认 openai;不写 auth,让模板自动选)
- *        → 确保 `.gitignore` 含 `.local/` → 打印下一步(登录到产品 CODEX_HOME、跑 doctor)。
+ * 幂等初始化(scripts/init):只生成产品自己的用户私有层 `.local/`,不读写任何用户全局 CLI 配置。
+ * 做的事:建目录(client / mcp)→ 没有 `.local/config.json` 就写一份骨架(python 自动探测 .venv;模型接入由 DSH 配置入口拥有,骨架不含 provider / 引擎字段)
+ *        → 确保 `.gitignore` 含 `.local/` → 打印下一步(打开工作台、在工作台设置里配置模型、跑 doctor)。
  * 已存在的用户配置一律不改(幂等);`--force` 才改,且先备份为 config.json.bak-<时间>。
- * 用法:node orchestrator/src/init.ts [--python P] [--provider <id>] [--force] [--json]
+ * 用法:node orchestrator/src/init.ts [--python P] [--force] [--json]
  */
 import fs from "node:fs";
 import path from "node:path";
 
 import { nowIso,readJsonIfExists,writeJson } from "./fsutil.ts";
 import { DEFAULT_PRODUCT_CONFIG,PRODUCT_CONFIG_FILE,USER_CONFIG_FILE } from "./productConfig.ts";
-import { PROVIDER_ID_RE } from "./providers.ts";
 import { repoRootFromHere } from "./service.ts";
 
 export const LOCAL_SUBDIRS = ["client", "mcp"] as const;
@@ -31,7 +30,7 @@ export function parseArgs(argv: string[]): Record<string, string | boolean> {
 export interface InitStep { id: string; action: "created" | "exists" | "written" | "kept" | "backed_up" | "appended" | "skipped"; detail: string }
 export interface InitResult { repoRoot: string; dataRoot: string; steps: InitStep[]; next: string[] }
 
-/** 数据根:产品配置 paths.data_root(默认 .local),相对产品根解析;不走 loadProductConfig(它会因 provider 缺密钥抛错,init 阶段不该被卡) */
+/** 数据根:产品配置 paths.data_root(默认 .local),相对产品根解析;不走 loadProductConfig(它做 schema 校验,init 阶段不该被卡) */
 export function resolveDataRoot(repoRoot: string): string {
   const pc = readJsonIfExists<{ paths?: { data_root?: string } }>(path.join(repoRoot, PRODUCT_CONFIG_FILE));
   return path.resolve(repoRoot, pc?.paths?.data_root ?? DEFAULT_PRODUCT_CONFIG.paths.data_root);
@@ -73,11 +72,10 @@ export function detectPython(repoRoot: string, explicit?: string): string | null
   return null;
 }
 
-export function runInit(opts: { repoRoot?: string; python?: string; provider?: string; force?: boolean } = {}): InitResult {
+export function runInit(opts: { repoRoot?: string; python?: string; force?: boolean } = {}): InitResult {
   const repoRoot = path.resolve(opts.repoRoot ?? repoRootFromHere());
   const dataRoot = resolveDataRoot(repoRoot);
   assertDataRootInside(repoRoot, dataRoot);
-  if (opts.provider !== undefined && !PROVIDER_ID_RE.test(opts.provider)) throw new Error(`非法 provider id ${JSON.stringify(opts.provider)}`);
   const steps: InitStep[] = [];
   // 1) 目录
   for (const sub of LOCAL_SUBDIRS) {
@@ -88,11 +86,9 @@ export function runInit(opts: { repoRoot?: string; python?: string; provider?: s
   }
   // 2) 用户配置骨架(只在不存在或 --force 时写)
   const cfgFile = path.join(dataRoot, USER_CONFIG_FILE);
-  // 骨架**不写 auth**:写了就算"用户显式指定",之后 --provider 切第三方会因 chatgpt_login 不被支持而报错;不写则按模板自动选(openai=chatgpt_login,第三方=api_key)
+  // 模型接入由 DSH 配置入口拥有:骨架只记 Python 路径,不含任何 provider / 引擎字段
   const skeleton = {
     python: detectPython(repoRoot, opts.python),
-    provider: { profile: opts.provider ?? "openai" },
-    defaults: { model: null, reasoning: null },
   };
   if (fs.existsSync(cfgFile) && !opts.force) {
     steps.push({ id: "config", action: "kept", detail: `${cfgFile} 已存在,未改动(要重写请加 --force,会先备份)` });
@@ -105,7 +101,7 @@ export function runInit(opts: { repoRoot?: string; python?: string; provider?: s
       steps.push({ id: "config:backup", action: "backed_up", detail: bak });
     }
     writeJson(cfgFile, skeleton);
-    steps.push({ id: "config", action: "written", detail: `${cfgFile}(python=${skeleton.python ?? "null,请填"};provider=${skeleton.provider.profile},auth 按模板自动选)` });
+    steps.push({ id: "config", action: "written", detail: `${cfgFile}(python=${skeleton.python ?? "null,请填"};模型接入在工作台设置中配置)` });
   }
   // 3) .gitignore 必含 .local/(产品 / 用户数据分离的最后一道)
   const gi = path.join(repoRoot, ".gitignore");
@@ -117,7 +113,7 @@ export function runInit(opts: { repoRoot?: string; python?: string; provider?: s
   else { fs.appendFileSync(gi, `${giText.endsWith("\n") || !giText ? "" : "\n"}# 用户私有层(init 追加)\n${relLocal}\n`); steps.push({ id: "gitignore", action: "appended", detail: `已追加 ${relLocal} 到 .gitignore` }); }
   const next = [
     "运行 scripts/start（Windows: scripts\\start.cmd）打开产品",
-    "在‘接入 AI’里选择订阅或模型 API，测试成功后即可使用",
+    "在工作台设置里选择模型并测试连通，即可使用",
     "排查环境:运行 scripts/doctor（Windows: scripts\\doctor.ps1）",
   ];
   return { repoRoot, dataRoot, steps, next };
@@ -127,7 +123,7 @@ if (process.argv[1] && (process.argv[1].endsWith("/init.ts") || process.argv[1].
   const a = parseArgs(process.argv.slice(2));
   const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : undefined);
   try {
-    const r = runInit({ python: str(a.python), provider: str(a.provider), force: a.force === true });
+    const r = runInit({ python: str(a.python), force: a.force === true });
     if (a.json === true) console.log(JSON.stringify(r, null, 2));
     else {
       console.log(`[init] 产品根 ${r.repoRoot}\n[init] 数据根 ${r.dataRoot}`);

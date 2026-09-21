@@ -1,7 +1,7 @@
 /**
  * 自选股 —— 产品本地 SQLite，按单个代码增删。
  */
-import { backend } from "./backend";
+import { localService } from "./localService";
 import { normalizeMarketSymbol, parseMarketSymbols } from "./marketSymbol";
 
 let cache: string[] = [];
@@ -10,7 +10,7 @@ let saveQueue: Promise<void> = Promise.resolve();
 
 export async function hydrateWatch(): Promise<void> {
   const mine = ++seq;
-  const { symbols } = await backend.clientWatch();
+  const { symbols } = await localService.clientWatch();
   if (mine !== seq) return;
   cache = symbols;
 }
@@ -30,7 +30,7 @@ export function addWatch(symbol: string): Promise<void> {
   if (!code) return Promise.reject(new Error("无法识别的代码"));
   return enqueue(async () => {
     try {
-      const result = await backend.clientWatchAdd(code);
+      const result = await localService.clientWatchAdd(code);
       seq++;
       cache = result.symbols;
     } finally {
@@ -44,7 +44,7 @@ export function removeWatch(symbol: string): Promise<void> {
   if (!code) return Promise.reject(new Error("无法识别的代码"));
   return enqueue(async () => {
     try {
-      const result = await backend.clientWatchRemove(code);
+      const result = await localService.clientWatchRemove(code);
       seq++;
       cache = result.symbols;
     } finally {

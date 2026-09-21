@@ -381,7 +381,7 @@ test("研究记录能完整保存多阶段回测或辩论报告", () => {
   const body = "完整报告。".repeat(5_000); // 明显超过旧的 2 万字限制
   const saved = upsertRecord(root, "note", { category: "debate", title: "长报告", body });
   assert.equal(saved.body, body);
-  const ctx: ServiceContext = { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath, providerEnvKey: null };
+  const ctx: ServiceContext = { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath };
   assert.throws(() => ledgerUpsert(ctx, { kind: "note", record: { title: "旧入口", category: "ask" } }), /Backend/);
   assert.throws(() => ledgerUpsert(ctx, { kind: "watch", record: { symbol: "600519" } }), /SQLite/);
   assert.throws(() => ledgerRemove(ctx, { kind: "note", id: saved.id }), /Backend/);

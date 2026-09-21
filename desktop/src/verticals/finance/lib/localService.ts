@@ -1,4 +1,4 @@
-/** 本机数据服务客户端：页面取数、快照、台账及 Client 选择与偏好。 */
+/** 本机数据服务（orchestrator，8765）客户端：页面取数、快照、台账及 Client 选择与偏好。与 Stock Backend 客户端 `research.ts` 区分。 */
 
 export class ApiError extends Error {
   readonly status: number;
@@ -91,7 +91,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body as T;
 }
 
-export const backend = {
+export const localService = {
   health: () => call<{ ok: boolean; version: string }>("/health"),
 
   /**

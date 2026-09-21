@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
-import { backend, type PageResult } from "@/lib/backend";
+import { localService, type PageResult } from "@/lib/localService";
 import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
@@ -87,7 +87,7 @@ export function DailyReview() {
      *    而且 **BFF 注入了业务日、页面这边没有**,同一屏的状态与数字可能是不同两天的。
      */
     setPageErr(null);
-    const overviewTask = marketRequest(backend
+    const overviewTask = marketRequest(localService
       .page("review", { refresh })
       .then(async (meta) => {
         const env = (id: string) => meta.blocks.find((b) => b.id === id)?.envelope as never;

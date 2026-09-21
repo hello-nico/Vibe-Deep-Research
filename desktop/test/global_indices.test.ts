@@ -1,12 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { api } from "../src/verticals/finance/lib/api.ts";
-import { backend, type FetchResult } from "../src/verticals/finance/lib/backend.ts";
+import { localService, type FetchResult } from "../src/verticals/finance/lib/localService.ts";
 
 test("全球指数复用行情端点，缺卡不静默消失，时间来自证据", async () => {
-  const original = backend.fetch;
+  const original = localService.fetch;
   const calls: unknown[] = [];
-  backend.fetch = async (endpoint, opts) => {
+  localService.fetch = async (endpoint, opts) => {
     calls.push({ endpoint, opts });
     return { envelope: { status: "partial", fetched_at: "2026-09-06T12:00:00Z", primary_source: "tencent", extra: { degraded: "部分报价未覆盖" }, evidence: [
       { record_key: "usDJI", field: "price", value: 100, id: "ev-price", fetched_at: "2026-09-04T20:00:00Z" },
@@ -33,17 +33,17 @@ test("全球指数复用行情端点，缺卡不静默消失，时间来自证�
     assert.equal(domestic.length, 1);
     assert.equal(domestic[0]!.price, 999);
     assert.equal(domestic[0]!.source, "tencent");
-  } finally { backend.fetch = original; }
+  } finally { localService.fetch = original; }
 });
 
 test("全球指数全空或全为无效点位时明确失败，不生成零值行情", async () => {
-  const original = backend.fetch;
+  const original = localService.fetch;
   try {
     for (const value of [null, 0, -1, Number.NaN]) {
-      backend.fetch = async () => ({ envelope: { evidence: [
+      localService.fetch = async () => ({ envelope: { evidence: [
         { record_key: "usDJI", field: "price", value },
       ] } }) as FetchResult;
       await assert.rejects(api.globalIndices(), /未取得可用数据/);
     }
-  } finally { backend.fetch = original; }
+  } finally { localService.fetch = original; }
 });

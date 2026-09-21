@@ -1,8 +1,8 @@
 /** 当前行情与资讯页面的数据适配器。缺失数字保持 null，鉴权由本机代理注入。 */
 import {
-  ApiError, backend, noteKV, num, round2, rows, scalar, str,
+  ApiError, localService, noteKV, num, round2, rows, scalar, str,
   type Envelope,
-} from "./backend.ts";
+} from "./localService.ts";
 import {
   currencyOfSymbol, marketOfSymbol, normalizeMarketSymbol, quoteQueryOfSymbol, symbolFromQuoteKey,
   type CurrencyCode, type MarketCode,
@@ -307,7 +307,7 @@ export interface HkCashflow {
 /* ==================== 映射:上游语义接口 → 我们的取数端点 ==================== */
 
 const env = async (endpoint: string, opts: { symbol?: string; args?: Record<string, unknown>; refresh?: boolean } = {}): Promise<Envelope> =>
-  (await backend.fetch(endpoint, opts)).envelope;
+  (await localService.fetch(endpoint, opts)).envelope;
 
 /** 换算单位。**null 进 null 出** —— 直接写 `x * k` 会把"没有"变成 0，页面就显示成「0.00 亿」 */
 const mul = (v: number | null, k: number): number | null => (v === null ? null : v * k);
@@ -615,7 +615,7 @@ const RADAR_ACCENTS = ["#f97316", "#38bdf8", "#a78bfa", "#34d399", "#f472b6", "#
  * ⚠️ 默认读快照(打开页面不重跑上游);点刷新才真去抓。
  */
 async function radarOf(refresh = false): Promise<RadarData> {
-  const first = (await backend.fetch("rss_news", { args: { industry: "ai", per_source: 6 }, refresh })).envelope;
+  const first = (await localService.fetch("rss_news", { args: { industry: "ai", per_source: 6 }, refresh })).envelope;
   const list = ((first.extra?.industries as { key: string; name: string }[] | undefined) ?? [
     { key: "ai", name: "AI / 大模型" },
   ]);
@@ -637,7 +637,7 @@ async function radarOf(refresh = false): Promise<RadarData> {
 
   const rest = await Promise.all(
     list.slice(1).map((ind) =>
-      backend
+      localService
         .fetch("rss_news", { args: { industry: ind.key, per_source: 6 }, refresh })
         .then((r) => r.envelope)
         // 🔴 单个行业挂掉不废整页,但**它的条数会是 0** —— 页面上要看得出是"这个源没抓到"
@@ -668,7 +668,7 @@ async function radarOf(refresh = false): Promise<RadarData> {
 }
 
 async function gpuRentOf(refresh = false): Promise<GpuRentData> {
-  const e = (await backend.fetch("gpu_rent_thermometer", { refresh })).envelope;
+  const e = (await localService.fetch("gpu_rent_thermometer", { refresh })).envelope;
   /**
    * 现货卡 = 曲线的最后一个点（取数层派生，见 industry._spot_from_history）⇒
    * 卡片上的数字与曲线末端**严格一致**。
@@ -785,7 +785,7 @@ async function macroProbabilityOf(refresh = false): Promise<MacroProbability> {
 /* ---------- 美股 / 港股 ---------- */
 
 export const api = {
-  health: () => backend.health().then((h) => ({ ok: h.ok })),
+  health: () => localService.health().then((h) => ({ ok: h.ok })),
 
   quote: (codes: string, refresh = false) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean), refresh),
   announcements: announcementsOf,

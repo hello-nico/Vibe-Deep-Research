@@ -33,7 +33,7 @@
 | 页面问助手（五角色 × Ask/Agent） | `desktop/src/verticals/finance/assistant/` 与 `FinanceAiDock`；Stock-Research `dsh/src/consumers.mjs` 登记角色，`native-research-tools.mjs` 安装工具与执行权限守卫；[M9.8 Task](docs/问助手双模式与Agent面板_Task_M9.8_2026-09-20.md) 对象登记与会话绑定；[M9.9 Task](docs/问助手即答与深查边界_Task_M9.9_2026-09-21.md) 固定上下文与 Ask 即答 / Agent 深查，真实验收交用户 |
 | 图表、计算与报告 | `ResearchResult`、`MarketChart` 及 Backend 成果；[M8.6 Task](docs/研究可视化与图数联动_Task_M8.6_2026-09-14.md) |
 | 本轮删除与验收 | [旧系统退役 Task](docs/旧系统退役_Task_2026-09-15.md)、[Human Checklist](human-checklist.md) |
-| 后续总体收敛 | [M9 边界图](artifacts/m9-research-workbench.html)、[待办](todo.md)、[文档索引](docs/README.md) |
+| 后续总体收敛 | [待办](todo.md)、[文档索引](docs/README.md) |
 
 `datasources/`、`.agents/skills/data-access/` 和 `calc/` 保留被现用取数与校验消费的能力。`orchestrator` 不再注册研究启动工具，其 MCP 仅提供端点目录和受控取数。
 

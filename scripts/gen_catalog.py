@@ -7,7 +7,8 @@ import os
 from collections import OrderedDict
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-reg = json.load(open(os.path.join(HERE, "registry.json"), encoding="utf-8"))
+REPO = os.path.dirname(HERE)
+reg = json.load(open(os.path.join(REPO, "datasources", "registry.json"), encoding="utf-8"))
 by_layer: "OrderedDict[str, list]" = OrderedDict()
 for e in reg["endpoints"]:
     by_layer.setdefault(e.get("layer", "其他"), []).append(e)
@@ -22,5 +23,5 @@ for layer, eps in by_layer.items():
         note = "; ".join(x for x in [f"env {e['auth_env']}" if e.get("auth_env") else "", "禁用" if not e.get("enabled", True) else "", "关键" if e.get("critical") else "", str(e.get("notes") or "")] if x)
         lines.append(f"| `{e['id']}` | {e.get('title', '')} | {'/'.join(e.get('market', []))} | {e.get('source', '')} | {e.get('compliance', '')} | {e.get('symbol_kind', '')} | {st} | {note.replace('|', '/')} |")
     lines.append("")
-open(os.path.join(HERE, "CATALOG.md"), "w", encoding="utf-8").write("\n".join(lines))
+open(os.path.join(REPO, "datasources", "CATALOG.md"), "w", encoding="utf-8").write("\n".join(lines))
 print("CATALOG.md:", len(reg["endpoints"]), "endpoints,", len(by_layer), "layers")

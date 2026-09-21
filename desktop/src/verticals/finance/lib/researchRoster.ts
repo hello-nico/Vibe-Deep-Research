@@ -1,7 +1,7 @@
 /**
  * 加入研究名单 —— 独立于自选与 Wiki 是否存在。空名单不能降级为全部公司。
  */
-import { backend } from "./backend";
+import { localService } from "./localService";
 import { normalizeMarketSymbol } from "./marketSymbol";
 
 let cache: string[] = [];
@@ -10,7 +10,7 @@ let saveQueue: Promise<void> = Promise.resolve();
 
 export async function hydrateRoster(): Promise<void> {
   const mine = ++seq;
-  const { symbols } = await backend.clientResearch();
+  const { symbols } = await localService.clientResearch();
   if (mine !== seq) return;
   cache = symbols;
 }
@@ -30,7 +30,7 @@ export function addToRoster(symbol: string): Promise<void> {
   if (!code) return Promise.reject(new Error("无法识别的代码"));
   return enqueue(async () => {
     try {
-      const result = await backend.clientResearchAdd(code);
+      const result = await localService.clientResearchAdd(code);
       seq++;
       cache = result.symbols;
     } finally {
@@ -44,7 +44,7 @@ export function touchRoster(symbol: string): Promise<void> {
   if (!code) return Promise.reject(new Error("无法识别的代码"));
   return enqueue(async () => {
     try {
-      const result = await backend.clientResearchTouch(code);
+      const result = await localService.clientResearchTouch(code);
       seq++;
       cache = result.symbols;
     } finally {
@@ -58,7 +58,7 @@ export function removeFromRoster(symbol: string): Promise<void> {
   if (!code) return Promise.reject(new Error("无法识别的代码"));
   return enqueue(async () => {
     try {
-      const result = await backend.clientResearchRemove(code);
+      const result = await localService.clientResearchRemove(code);
       seq++;
       cache = result.symbols;
     } finally {

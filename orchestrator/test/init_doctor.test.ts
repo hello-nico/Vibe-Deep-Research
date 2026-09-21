@@ -21,16 +21,16 @@ function tmpRepo(): string {
   return repo;
 }
 
-test("init:幂等建 .local 目录 + 配置骨架 + .gitignore;已有配置不改;--force 先备份;provider 非 openai 默认 api_key;不碰产品根之外", async () => {
+test("init:幂等建 .local 目录 + 配置骨架 + .gitignore;已有配置不改;--force 先备份;不碰产品根之外", async () => {
   const repo = tmpRepo();
   const r1 = runInit({ repoRoot: repo });
   assert.equal(r1.dataRoot, path.join(repo, ".local"));
   for (const sub of ["client", "mcp"]) assert.ok(fs.existsSync(path.join(repo, ".local", sub)), sub);
   assert.ok(r1.steps.filter((s) => s.id.startsWith("dir:")).every((s) => s.action === "created"));
   const cfg = JSON.parse(fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8"));
-  assert.equal(cfg.python, null); assert.deepEqual(cfg.provider, { profile: "openai" }, "骨架不写 auth(写了会被当成用户显式指定)");
+  assert.equal(cfg.python, null); assert.deepEqual(Object.keys(cfg), ["python"], "骨架不含 provider / 引擎字段(模型接入由 DSH 配置入口拥有)");
   assert.ok(fs.readFileSync(path.join(repo, ".gitignore"), "utf8").split("\n").includes(".local/"));
-  assert.ok(r1.next.some((n) => n.includes("scripts/start")) && r1.next.some((n) => n.includes("接入 AI")));
+  assert.ok(r1.next.some((n) => n.includes("scripts/start")) && r1.next.some((n) => n.includes("工作台设置")));
   assert.ok(r1.next.every((n) => !n.includes("codex login") && !n.includes("~/.codex")));
   // 第二次:全部 exists / kept,文件不变
   const before = fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8");
@@ -39,13 +39,12 @@ test("init:幂等建 .local 目录 + 配置骨架 + .gitignore;已有配置不�
   assert.equal(r2.steps.find((s) => s.id === "config")?.action, "kept");
   assert.equal(r2.steps.find((s) => s.id === "gitignore")?.action, "exists");
   assert.equal(fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8"), before);
-  // --force:备份后重写;provider=deepseek → api_key;python 显式
-  const r3 = runInit({ repoRoot: repo, force: true, provider: "deepseek", python: "/x/python" });
+  // --force:备份后重写;python 显式
+  const r3 = runInit({ repoRoot: repo, force: true, python: "/x/python" });
   assert.equal(r3.steps.find((s) => s.id === "config:backup")?.action, "backed_up");
   assert.ok(fs.readdirSync(path.join(repo, ".local")).some((f) => f.startsWith("config.json.bak-")));
   const cfg3 = JSON.parse(fs.readFileSync(path.join(repo, ".local", "config.json"), "utf8"));
-  assert.equal(cfg3.python, "/x/python"); assert.deepEqual(cfg3.provider, { profile: "deepseek" });
-  assert.throws(() => runInit({ repoRoot: repo, provider: "../evil" }), /非法 provider id/);
+  assert.equal(cfg3.python, "/x/python");
   // python 自动探测 .venv
   const pyRel = process.platform === "win32" ? path.join(".venv", "Scripts", "python.exe") : path.join(".venv", "bin", "python");
   fs.mkdirSync(path.dirname(path.join(repo, pyRel)), { recursive: true }); fs.writeFileSync(path.join(repo, pyRel), "");

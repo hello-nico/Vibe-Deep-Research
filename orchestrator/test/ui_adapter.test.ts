@@ -13,7 +13,7 @@ import { fileURLToPath } from "node:url";
  */
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const LIB = path.join(REPO, "desktop", "src", "verticals", "finance", "lib");
-const backendSrc = fs.readFileSync(path.join(LIB, "backend.ts"), "utf8");
+const backendSrc = fs.readFileSync(path.join(LIB, "localService.ts"), "utf8");
 const watchSrc = fs.readFileSync(path.join(LIB, "watchlist.ts"), "utf8");
 const notesSrc = fs.readFileSync(path.join(LIB, "notes.ts"), "utf8");
 

@@ -21,7 +21,7 @@ const REPO = path.join(HERE, "..", "..");
 
 /** 扫这些目录下的文本源码。构建产物与依赖不扫。 */
 const ROOTS = ["orchestrator/src", "orchestrator/test", "desktop/src",
-               "backtest", "calc", "datasources", "scripts", ".agents/skills"];
+               "calc", "datasources", "scripts", ".agents/skills"];
 const SKIP = new Set(["node_modules", "__pycache__", ".pytest_cache", "dist", "build",
                       ".venv", "payload", "release", ".local", "fixtures"]);
 const TEXT = new Set([".ts", ".tsx", ".js", ".mjs", ".cjs", ".py", ".json", ".md",

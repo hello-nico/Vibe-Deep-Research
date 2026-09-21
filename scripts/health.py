@@ -15,7 +15,7 @@ from datetime import datetime
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-REG = os.path.join(HERE, "registry.json")
+REG = os.path.join(REPO, "datasources", "registry.json")
 FETCH = os.path.join(REPO, ".agents", "skills", "data-access", "scripts", "fetch_endpoint.py")
 SAMPLE = {"cn6": "300308", "us": "AAPL", "hk": "00700", "global": "AAPL"}
 

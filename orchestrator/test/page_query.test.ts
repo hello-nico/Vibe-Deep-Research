@@ -33,7 +33,7 @@ const INJECTED_KEYS: string[] = (() => {
 })();
 
 const ctx = (): ServiceContext =>
-  ({ repoRoot: REPO, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "vra-page-")), python: process.env.VRA_PYTHON ?? "python3", node: process.execPath, providerEnvKey: null }) as ServiceContext;
+  ({ repoRoot: REPO, dataRoot: fs.mkdtempSync(path.join(os.tmpdir(), "vra-page-")), python: process.env.VRA_PYTHON ?? "python3", node: process.execPath }) as ServiceContext;
 
 test("🔴 页面按名字要数据,端点 id 只活在垂类声明里(界面上不该印出端点名)", () => {
   const qs = currentPlugin().pageQueries ?? {};

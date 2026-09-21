@@ -360,7 +360,7 @@ my_research 额外六项：源码已核对，尚无本轮真实加载/调用验�
 
 ### 复现与验证
 
-- [可执行故障探针](../artifacts/tool-failure-probes-2026-09-18.mjs)、[安全结果](../artifacts/tool-failure-probes-2026-09-18.json)。先在 Stock/dsh 运行 `pnpm run build`，再在 Vibe 运行 `node artifacts/tool-failure-probes-2026-09-18.mjs`。真实安装版 ToolRuntime，HTTP全部替换为内存合成响应，不访问生产服务。
+- [可执行故障探针](../probes/tool-failure-probes-2026-09-18.mjs)、[安全结果](../probes/tool-failure-probes-2026-09-18.json)。先在 Stock/dsh 运行 `pnpm run build`，再在 Vibe 运行 `node docs/probes/tool-failure-probes-2026-09-18.mjs`。真实安装版 ToolRuntime，HTTP全部替换为内存合成响应，不访问生产服务。
 - 构建通过；`node --test test/*.test.mjs` 为 **95/95**。新增探针同时复现 F02/F03/F04/F05，并验证 F07 的调用身份变化。这证明现有全绿测试遗漏这些失败分支，不能证明产品稳定。
 - F01 直接实例化真实 CompositeMarketProvider，合成 Provider 抛 timeout，确认原code/message均被丢弃；不进行真实行情取数。F06为源码顺序证据，未实际制造Backend写入失败。
 - 本轮未跑真实模型、浏览器、生产写入和网络故障；未宣称全35项端到端通过。实际历史指数误传为本轮入口证据，不能据泛化错误断言真实底层故障类型。

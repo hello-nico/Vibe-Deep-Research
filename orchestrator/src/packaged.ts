@@ -19,15 +19,14 @@ if (!Number.isInteger(port) || port < 1024 || port > 65535) throw new Error("无
 fs.mkdirSync(dataRoot, { recursive: true, mode: 0o700 });
 if (fs.lstatSync(dataRoot).isSymbolicLink()) throw new Error("用户数据目录不能是符号链接");
 fs.chmodSync(dataRoot, 0o700);
-const { codexHome, dshHome, temporaryDirectory } = desktopRuntimePaths(dataRoot);
+const { dshHome, temporaryDirectory } = desktopRuntimePaths(dataRoot);
 process.env.VRA_DATA_ROOT = dataRoot;
-process.env.VRA_CODEX_HOME = codexHome;
 process.env.DSH_HOME = dshHome;
 process.env.TMPDIR = temporaryDirectory;
 process.env.VRA_PYTHON = python;
 process.env.PYTHONDONTWRITEBYTECODE = "1";
 const config = path.join(dataRoot, "config.json");
-if (!fs.existsSync(config)) fs.writeFileSync(config, JSON.stringify({ provider: { profile: "openai" } }), { flag: "wx", mode: 0o600 });
+if (!fs.existsSync(config)) fs.writeFileSync(config, JSON.stringify({}), { flag: "wx", mode: 0o600 });
 const ctx = serviceContext({ repoRoot, python });
 // Bind the local API and static gateway. Native DSH packaging remains an M9 integration task.
 const token = crypto.randomBytes(32).toString("hex");

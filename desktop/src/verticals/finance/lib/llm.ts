@@ -1,6 +1,6 @@
 /** 页面助手通过 DSH 执行；模型配置与会话生命周期由 DSH 管理。 */
 import { sendPageModel } from "../dsh/page-model.ts";
-import { ApiError } from "./backend.ts";
+import { ApiError } from "./localService.ts";
 import { parseHeadlineTranslations,type HeadlineTranslationInput } from "./headlineTranslation.ts";
 
 export interface ChatMsg {
