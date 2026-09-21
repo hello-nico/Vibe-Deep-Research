@@ -14,6 +14,13 @@ node_modules/
 dist/
 desktop/dsh/finance-ui/lib/
 
+# pnpm 产物（项目包管理器是 npm，见 desktop/package.json packageManager）
+.pnpm-store/
+pnpm-lock.yaml
+
+# 退役目录的本地遗留（M9 原型与探针已迁出，本地不再重建）
+/artifacts/
+
 # 环境与密钥
 .env
 .env.*
@@ -27,6 +34,3 @@ desktop/dsh/finance-ui/lib/
 
 # 本地助手偏好，不入库
 .commandcode/
-
-# 退役目录的本地遗留（M9 原型与探针已迁出，本地不再重建）
-/artifacts/
