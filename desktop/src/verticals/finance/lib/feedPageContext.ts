@@ -1,4 +1,5 @@
 import type { PageAssistantObject } from '../../../core/ai/pageContext';
+import { buildFeedListSnapshot, buildInvestmentNewsSnapshot } from '../assistant/snapshot.ts';
 
 export interface FeedRow {
   code: string; name: string; when: string; title: string; meta?: string; url?: string;
@@ -45,16 +46,16 @@ export function feedPageContext(input: {
   return {
     key: `intel:${input.kind}`,
     title: `资讯雷达 · ${label}`,
-    context: [
-      `当前栏目：${label}；关注 ${input.watchCount} 只，当前展示 ${rows.length} 条。`,
-      '资料范围：本页列表仅提供标题、公司、时间、分类及链接身份，未读取链接正文。',
-      !input.watchCount ? '当前没有关注股票。' : '',
-      input.loading ? '正在加载，资料尚未取齐。' : '',
-      input.refreshing ? '正在刷新，以下仍为当前已展示的快照，不代表刷新后的最新结果。' : '',
-      input.err ? `读取失败：${input.err}` : '',
-      input.staleNote ?? '', input.depNote ?? '',
-      !rows.length ? '当前没有可供提炼的列表条目，不代表没有相关新闻或公告。' : '',
-    ].filter(Boolean).join('\n'),
+    context: buildFeedListSnapshot({
+      kind: input.kind,
+      watchCount: input.watchCount,
+      rows: input.rows,
+      loading: input.loading,
+      refreshing: input.refreshing,
+      err: input.err,
+      staleNote: input.staleNote,
+      depNote: input.depNote,
+    }),
     suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
     objects: feedObjects(input.kind, rows),
   };
@@ -90,17 +91,18 @@ export function investmentNewsPageContext(input: {
   return {
     key: `intel:investment-news:${input.industryKey ?? 'none'}`,
     title: `资讯雷达 · Investment News · ${track}`,
-    context: [
-      `当前栏目：Investment News；当前赛道：${track}；本页展示 ${items.length} 条。`,
-      input.tracks.length ? `赛道：${input.tracks.map((t) => `${t.name} ${t.count}`).join('、')}。` : '',
-      input.generatedAt ? `公开源 ${input.sourceCount ?? 0} 个·近 ${input.recentDays ?? 0} 天·更新于 ${input.generatedAt}` : '尚未抓取资讯。',
-      '资料范围：本页当前赛道列表仅提供标题、来源、时间及链接身份，未读取链接正文。',
-      input.loading ? '正在加载，资料尚未取齐。' : '',
-      input.refreshing ? '正在刷新，以下仍为当前已展示的快照，不代表刷新后的最新结果。' : '',
-      input.err ? `读取失败：${input.err}` : '',
-      input.staleNote ?? '',
-      !items.length ? '当前没有可供提炼的列表条目，不代表没有相关资讯。' : '',
-    ].filter(Boolean).join('\n'),
+    context: buildInvestmentNewsSnapshot({
+      industryName: input.industryName,
+      tracks: input.tracks,
+      items: input.items,
+      generatedAt: input.generatedAt,
+      recentDays: input.recentDays,
+      sourceCount: input.sourceCount,
+      loading: input.loading,
+      refreshing: input.refreshing,
+      err: input.err,
+      staleNote: input.staleNote,
+    }),
     suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
     objects: investmentNewsObjects(items),
   };

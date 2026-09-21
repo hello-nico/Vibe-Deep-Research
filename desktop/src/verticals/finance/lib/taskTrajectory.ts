@@ -10,6 +10,8 @@ const TOOL_LABELS: Record<string, string> = {
   observe_market: '观察行情',
   observe_radar: '观察资讯',
   read_industry_profile: '读取产业研究',
+  calculate_metrics: '确定性计算',
+  calculate_market_result: '区间计算',
   generate_market_result: '生成行情成果',
   generate_financial_result: '生成财务成果',
   source_ingest_periodic_report: '入库定期报告',
@@ -19,9 +21,43 @@ const TOOL_LABELS: Record<string, string> = {
   search_external: '检索外部资料',
 };
 
+function toolStepTitle(name: string, argsRaw?: string): string {
+  const base = toolLabel(name);
+  if (!argsRaw) return base;
+  try {
+    const args = JSON.parse(argsRaw) as Record<string, unknown>;
+    if (name === 'calculate_metrics' && typeof args.operation === 'string') {
+      const bits = [`算子 ${args.operation}`];
+      const quantities = Array.isArray(args.quantities) ? args.quantities : [];
+      const slots = quantities.map(item => item && typeof item === 'object' && 'slot' in item ? String((item as { slot?: string }).slot) : '').filter(Boolean);
+      if (slots.length) bits.push(`槽位 ${slots.join('/')}`);
+      if (args.window_start && args.window_end) bits.push(`${String(args.window_start)}→${String(args.window_end)}`);
+      return `${base} · ${bits.join(' · ')}`;
+    }
+    if (name === 'calculate_market_result' && Array.isArray(args.windows)) {
+      const windows = args.windows
+        .map(item => item && typeof item === 'object'
+          ? `${(item as { window_start?: string }).window_start || '?'}→${(item as { window_end?: string }).window_end || '?'}`
+          : '')
+        .filter(Boolean);
+      if (windows.length) return `${base} · ${windows.join('；')}`;
+    }
+    if (name === 'generate_market_result') {
+      const bits = [args.symbol, args.as_of, args.window_start].filter(Boolean).map(String);
+      if (bits.length) return `${base} · ${bits.join(' · ')}`;
+    }
+    if (name === 'wiki_read' && typeof args.slug === 'string') return `${base} · ${args.slug}`;
+    if (name === 'observe_market') {
+      const bits = [args.marketBenchmarkId, args.symbol, args.as_of || args.asOf].filter(Boolean).map(String);
+      if (bits.length) return `${base} · ${bits.join(' · ')}`;
+    }
+  } catch { /* keep base label */ }
+  return base;
+}
+
 export function visibleUserPrompt(body: string): string {
   const match = /\n用户问题：\n([\s\S]+)$/.exec(body || '');
-  return (match ? match[1] : body || '').trim();
+  return (match?.[1] ?? body ?? '').trim();
 }
 
 export function visibleProcessPrompt(body: string): string {
@@ -116,6 +152,7 @@ export function projectTaskTrajectory(input: {
   loadingOlder?: boolean;
   streaming?: boolean;
   raw?: unknown;
+  terminal?: unknown;
 }): TaskTrajectorySnapshot {
   const data = input.raw && typeof input.raw === 'object' ? input.raw as {
     runningCalls?: { callId?: string; id?: string; name?: string; argsRaw?: string; time?: number }[];
@@ -124,11 +161,20 @@ export function projectTaskTrajectory(input: {
   } : {};
   const runningCalls = (data.runningCalls || []).map((call, index) => ({
     id: String(call.callId || call.id || index),
-    name: toolLabel(call.name || ''),
+    name: toolStepTitle(call.name || '', call.argsRaw),
     args: prettyArgs(call.argsRaw),
     startedAt: typeof call.time === 'number' ? call.time : undefined,
   }));
-  const steps: TaskTrajectoryStep[] = (data.eventNodes || []).map((node, index) => stepFromNode(node, index));
+  const nodes = [...(data.eventNodes || [])];
+  // Native trajectory drops failures before a model request; Chat owns the
+  // durable turn-error node even when provider selection failed immediately.
+  const terminal = input.terminal as { nodes?: { values?(): { kind: string; data: Record<string, unknown> }[] } } | undefined;
+  for (const node of terminal?.nodes?.values?.() || []) {
+    if (node.kind !== 'turn-error' || nodes.some(event => event.seq === node.data.seq)) continue;
+    nodes.push(node.data);
+  }
+  nodes.sort((left, right) => Number(left.seq) - Number(right.seq));
+  const steps: TaskTrajectoryStep[] = nodes.map((node, index) => stepFromNode(node, index));
   if (data.partial?.blocks) {
     const partial = assistantText(data.partial.blocks);
     if (partial.text || partial.reasoning) {
@@ -139,7 +185,7 @@ export function projectTaskTrajectory(input: {
   }
   return {
     running: Boolean(input.running),
-    failed: Boolean(input.failed),
+    failed: Boolean(input.failed || steps.some(step => step.kind === 'turn-error')),
     openState: input.openState || 'cold',
     openError: input.openError,
     hasMore: Boolean(input.hasMore),
@@ -175,7 +221,7 @@ function stepFromNode(node: Record<string, unknown>, index: number): TaskTraject
     const call = node.call && typeof node.call === 'object' ? node.call as { name?: string; argsRaw?: string } : null;
     const durationMs = typeof node.callTime === 'number' && typeof node.time === 'number' ? node.time - node.callTime : undefined;
     return {
-      id, kind: 'tool', title: toolLabel(call?.name || ''),
+      id, kind: 'tool', title: toolStepTitle(call?.name || '', call?.argsRaw),
       body: contentText(node.content),
       args: prettyArgs(call?.argsRaw),
       time, durationMs, failed: Boolean(node.isError),

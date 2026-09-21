@@ -72,7 +72,8 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   assert.equal(fs.existsSync(new URL("../dsh/finance-ui/stage-model.mjs", import.meta.url)), false);
   const server = readFileSync(new URL("../dsh/finance-ui/server.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(server, /installStageModel|stage-model/);
-  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "agents", "subagents"\]/);
+  // sessionPersistence 服务 reportTasksWithLineage（报告任务血缘，M9.5），不属 M9.9。
+  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents"\]/);
   const patch = readFileSync(new URL("../dsh/finance-ui/cordis.patch.yml", import.meta.url), "utf8");
   assert.match(patch, /surfaceContext:\s*false/);
   assert.match(patch, /includeRuntimeContext:\s*false/);

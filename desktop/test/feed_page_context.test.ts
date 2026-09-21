@@ -1,19 +1,22 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { feedPageContext, investmentNewsPageContext } from '../src/verticals/finance/lib/feedPageContext.ts';
-import { assistantBindingForPage, assistantIntro, assistantModeHint, assistantPlaceholder } from '../src/verticals/finance/lib/assistantSessions.ts';
+import { assistantIntro, assistantModeHint } from '../src/verticals/finance/assistant/sessions.ts';
+import { assistantBindingForPage } from '../src/verticals/finance/assistant/binding.ts';
 import { companyQuoteObject, dailyReviewQuoteObjects, wikiAssistantObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
 
 const snapshot = { kind: 'news' as const, watchCount: 1, loading: false, refreshing: false,
   err: null, staleNote: null, depNote: null,
   rows: [{ code: '000001', name: '测试公司', when: '2026-09-10', title: '标题样例', url: 'https://example.com/news' }],
 };
-test('助手对象登记当前列表身份，不把标题写进整页 context', () => {
+test('助手对象登记当前列表身份，页面快照含列表标题但不冒充已读正文', () => {
   const before = feedPageContext(snapshot);
   assert.equal(before.objects[0]?.label, '标题样例');
   assert.equal(before.objects[0]?.id, 'url:https://example.com/news');
-  assert.match(before.context, /未读取链接正文/);
-  assert.doesNotMatch(before.context, /标题样例/);
+  assert.match(before.context, /当前栏目/);
+  assert.doesNotMatch(before.context, /【页面快照】/);
+  assert.match(before.context, /标题样例/);
+  assert.match(before.context, /@ 后由宿主读取/);
   const after = feedPageContext({ ...snapshot, rows: [{ ...snapshot.rows[0]!, title: '更新标题' }] });
   assert.equal(after.objects[0]?.label, '更新标题');
   assert.notEqual(before.objects[0]?.label, after.objects[0]?.label);
@@ -45,8 +48,10 @@ test('Investment News 对象绑定当前赛道真实 URL，不含栏目壳', () 
   assert.equal(page.objects[0]?.label, '华为云全面面向智能体，推出盘古 5.0');
   assert.equal(page.objects[0]?.id, 'url:https://example.com/huawei-cloud');
   assert.equal(page.objects[0]?.source, '量子位');
-  assert.match(page.context, /未读取链接正文/);
-  assert.doesNotMatch(page.context, /华为云/);
+  assert.match(page.context, /当前栏目：Investment News/);
+  assert.doesNotMatch(page.context, /【页面快照】/);
+  assert.match(page.context, /华为云/);
+  assert.match(page.context, /@ 后由宿主读取/);
   assert.doesNotMatch(page.context, /可选栏目/);
 });
 test('Investment News 空态与刷新中不冒充已有最新条目', () => {
@@ -60,13 +65,18 @@ test('Investment News 空态与刷新中不冒充已有最新条目', () => {
 });
 test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不换会话键', () => {
   assert.deepEqual(assistantBindingForPage('daily-review'), { plugin: 'market', target: '', bindKey: 'market:daily-review' });
-  assert.equal(assistantBindingForPage('intel:investment-news:ai').plugin, 'intel');
-  assert.equal(assistantBindingForPage('intel:investment-news:ai').bindKey, 'intel:radar');
-  assert.equal(assistantBindingForPage('intel:investment-news:semi').bindKey, 'intel:radar');
-  assert.equal(assistantBindingForPage('intel:news').bindKey, 'intel:radar');
-  assert.equal(assistantBindingForPage('industry-profile:801080.SI').plugin, 'industry_profile');
-  assert.equal(assistantBindingForPage('company-wiki:companies/600900-sh').plugin, 'company_wiki');
-  assert.equal(assistantBindingForPage('industry-wiki:industries/nbs-power').plugin, 'industry_wiki');
+  assert.equal(assistantBindingForPage('intel:investment-news:ai')?.plugin, 'intel');
+  assert.equal(assistantBindingForPage('intel:investment-news:ai')?.bindKey, 'intel:radar');
+  assert.equal(assistantBindingForPage('intel:investment-news:semi')?.bindKey, 'intel:radar');
+  assert.equal(assistantBindingForPage('intel:news')?.bindKey, 'intel:radar');
+  assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.plugin, 'industry_profile');
+  assert.equal(assistantBindingForPage('company-wiki:companies/600900-sh')?.plugin, 'company_wiki');
+  assert.equal(assistantBindingForPage('industry-wiki:industries/nbs-power')?.plugin, 'industry_wiki');
+  assert.equal(assistantBindingForPage('home'), null);
+  assert.equal(assistantBindingForPage('my-research'), null);
+  assert.equal(assistantBindingForPage('my-research:topics:abc'), null);
+  assert.equal(assistantBindingForPage('document:abc'), null);
+  assert.equal(assistantBindingForPage('signals'), null);
 });
 test('问助手开场介绍按页面区分，对象提示不出现已发布版本或当前页', () => {
   assert.match(assistantIntro('market', 'daily-review'), /当日盘面/);
@@ -81,9 +91,8 @@ test('问助手开场介绍按页面区分，对象提示不出现已发布版�
   assert.doesNotMatch(JSON.stringify(wiki), /已发布版本|当前页/);
 });
 test('问助手输入框按 Ask/Agent 各给一句权限说明', () => {
-  assert.equal(assistantPlaceholder('ask'), assistantModeHint('ask'));
-  assert.match(assistantModeHint('ask'), /只帮你看和解释.*不会改任何内容/);
-  assert.match(assistantModeHint('agent'), /可以帮你改和补资料.*维护判断和分析/);
+  assert.match(assistantModeHint('ask'), /Ask 即答.*不取数、不写/);
+  assert.match(assistantModeHint('agent'), /Agent 深查.*只补问题所需缺口/);
   assert.notEqual(assistantModeHint('ask'), assistantModeHint('agent'));
 });
 test('大盘可见个股登记为公司行情身份，不把连板数字当版本，也不造涨停榜集合', () => {

@@ -7,15 +7,15 @@ import type { AiDockProps } from "../../../../core/ai/AiDock";
 import { useAiWired, useCurrentAiPage, useAiQuestion, usePageAssistantObjects, type PageAssistantObject } from "../../../../core/ai/pageContext";
 import { useResearchSessions } from "../../dsh/research-session";
 import { TaskTranscript } from "../TaskTranscript";
+import { assistantBindingForPage } from "../../assistant/binding.ts";
 import {
-  assistantBindingForPage,
-  assistantPlaceholder,
+  assistantModeHint,
   assistantIntro,
   assistantSeatSnapshot,
   setAssistantSeat,
   subscribeAssistantSeat,
   type AssistantMode,
-} from "../../lib/assistantSessions";
+} from "../../assistant/sessions.ts";
 
 const noopSubscribe = () => () => {};
 const emptyModelSnapshot = () => null;
@@ -354,6 +354,9 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
         plugin: binding.plugin,
         target: binding.target,
         prompt: text,
+        pageSnapshot: page.context,
+        marketIndices: page.marketIndices,
+        companyQuotes: page.companyQuotes,
         objects: chips.map(item => ({
           kind: item.kind,
           id: item.id,
@@ -378,6 +381,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
   };
 
   const ready = Boolean(sessionId) && !seat.busy;
+  if (!binding) return null;
 
   return (
     <>
@@ -462,7 +466,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               ref={textareaRef}
               value={draft}
               disabled={!ready || sending}
-              placeholder={assistantPlaceholder(seat.mode)}
+              placeholder={assistantModeHint(seat.mode)}
               aria-label="问助手输入"
               rows={3}
               className="w-full resize-none rounded-lg border border-border/70 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"

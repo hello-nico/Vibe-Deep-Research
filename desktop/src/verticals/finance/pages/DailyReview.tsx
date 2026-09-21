@@ -3,7 +3,8 @@ import { backend, type PageResult } from "@/lib/backend";
 import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
-import { dailyReviewQuoteObjects, marketAssistantObject, marketIndicesObject } from "../lib/pageAssistantObjects";
+import { companyQuoteObject, dailyReviewQuoteObjects, marketAssistantObject, marketIndicesObject, MARKET_INDEX_IDS } from "../lib/pageAssistantObjects";
+import { buildDailyReviewSnapshot } from "../assistant/snapshot.ts";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type TurnoverTop, type GlobalIndex } from "@/lib/api";
@@ -152,15 +153,84 @@ export function DailyReview() {
     turnover: turnover?.stocks,
   });
   const marketObjects = [...(collection ? [...indexObjects, collection] : indexObjects), ...quoteObjects];
+  const pageSnapshot = buildDailyReviewSnapshot({
+    reviewDate,
+    fetchedAt: pageMeta?.oldest_fetched_at ?? null,
+    dataReady,
+    pageErr,
+    indices: indices.map(i => ({
+      name: i.name, price: i.price, change_pct: i.change_pct,
+      source: i.source, fetched_at: i.fetched_at,
+    })),
+    globalIndices: globalIdx.map(g => ({
+      name: g.name, region: g.region, price: g.price, change_pct: g.change_pct,
+      source: g.source, fetched_at: g.fetched_at, note: g.note,
+    })),
+    globalDone,
+    globalErr,
+    sentiment,
+    emotion,
+    emoDone,
+    ovDone,
+    sectors,
+    sectorsSource: overview?.sectors_source,
+    sectorsFetchedAt: overview?.sectors_fetched_at,
+    turnover,
+    toDone,
+    idxDone,
+    idxErr,
+  });
+  const asOf = reviewDate || emotion?.date || undefined;
+  const marketIndexRows = indices.flatMap(item => {
+    const code = MARKET_INDEX_IDS[item.name];
+    if (!code || item.price === null) return [];
+    return [{
+      id: code,
+      name: item.name,
+      price: item.price,
+      change_pct: item.change_pct,
+      asOf,
+      source: item.source || undefined,
+      fetched_at: item.fetched_at || undefined,
+    }];
+  });
+  const seenQuotes = new Set<string>();
+  const companyQuoteRows = [
+    ...(emotion?.lianban_stocks || []).map(item => ({
+      object: companyQuoteObject({ symbol: item.code, name: item.name, asOf, section: "连板股" }),
+      price: item.price, change_pct: item.pct, amount: item.amount, float_cap: item.float_cap, boards: item.boards,
+      industry: item.industry, section: "连板股", source: emotion?.source || undefined, fetched_at: emotion?.fetched_at || undefined,
+    })),
+    ...(turnover?.stocks || []).map(item => ({
+      object: companyQuoteObject({ symbol: item.code, name: item.name, asOf, section: "成交额" }),
+      price: item.price, change_pct: item.pct, amount: item.amount, float_cap: item.float_cap, boards: undefined as number | undefined,
+      industry: item.industry, section: "成交额", source: turnover?.source || undefined, fetched_at: turnover?.updated || undefined,
+    })),
+  ].flatMap(row => {
+    if (!row.object || seenQuotes.has(row.object.id)) return [];
+    seenQuotes.add(row.object.id);
+    return [{
+      id: row.object.id,
+      name: row.object.label,
+      symbol: row.object.locator || row.object.id.slice("company:".length),
+      section: row.section,
+      price: row.price,
+      change_pct: row.change_pct,
+      amount: row.amount,
+      float_cap: row.float_cap,
+      boards: row.boards,
+      industry: row.industry,
+      asOf,
+      source: row.source,
+      fetched_at: row.fetched_at,
+    }];
+  });
   useAiPage({
     key: "daily-review",
     title: "大盘行情",
-    context: [
-      reviewDate ? `业务日 ${reviewDate}` : "大盘行情页",
-      dataReady
-        ? "当前已加载宽基指数，以及本页连板股与成交额榜中可见个股的行情身份。连板、现价、涨跌幅是页面展示，不是对象版本；发送后按公司身份读取当时行情，不把页面数字当已绑定快照。情绪、资金流与涨停榜集合没有稳定读取身份，不进入引用。"
-        : "指数仍在加载。",
-    ].join("。"),
+    context: pageSnapshot,
+    marketIndices: marketIndexRows,
+    companyQuotes: companyQuoteRows,
     suggestions: ["今天大盘怎么走", "哪些指数领涨领跌", "盘面有什么值得注意"],
   });
   useAiPageObjects("daily-review", marketObjects);

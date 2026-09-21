@@ -14,6 +14,7 @@ import { loadBackgroundTasks, researchRead, type NbsIndustry, type WikiPage } fr
 import { workspaceSelectMatches } from "../lib/workspaceSelect";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { wikiAssistantObject } from "../lib/pageAssistantObjects";
+import { buildDirectorySnapshot, buildWikiPageSnapshot } from "../assistant/snapshot.ts";
 import { WikiDraftPublish } from "../components/WikiDraftPublish";
 
 export function IndustryCenter() {
@@ -23,11 +24,12 @@ export function IndustryCenter() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [wikiPage, setWikiPage] = useState<WikiPage | null>(null);
+  const [markdown, setMarkdown] = useState("");
   const [profileCount, setProfileCount] = useState<number>();
   const [query, setQuery] = useState("");
   const [report, setReport] = useState(false);
   const [draftToken, setDraftToken] = useState("");
-  useEffect(() => { setWikiPage(null); setDraftToken(""); }, [key]);
+  useEffect(() => { setWikiPage(null); setDraftToken(""); setMarkdown(""); }, [key]);
   useEffect(() => {
     const controller = new AbortController(); setError("");
     void researchRead<{ items: NbsIndustry[]; wiki_status?: string }>("/wiki/industries/nbs", { signal: controller.signal })
@@ -63,7 +65,21 @@ export function IndustryCenter() {
   useAiPage({
     key: pageKey,
     title: selected?.official_name || "行业研究",
-    context: selected ? `${selected.official_name} · ${selected.coverage_note}` : `行业资料列表 ${items?.length ?? 0} 个。`,
+    context: selected
+      ? buildWikiPageSnapshot({
+        kind: 'industry',
+        title: selected.official_name,
+        slug: selected.slug,
+        coverageNote: selected.coverage_note,
+        loadState: !selected.published ? 'unpublished' : (wikiPage || markdown ? 'ready' : 'loading'),
+        page: wikiPage,
+        markdown,
+      })
+      : buildDirectorySnapshot({
+        heading: `行业目录 ${items?.length ?? 0} 个。`,
+        items: (visible ?? []).map(item => ({ title: item.official_name, id: item.slug })),
+        loading: !items,
+      }),
     suggestions: ["这个行业的利润如何形成？", "研究这个行业需要关注哪些变化？"],
   });
   const industryObjects = selected
@@ -103,7 +119,7 @@ export function IndustryCenter() {
         <WikiDraftPublish draftToken={draftToken} onPublished={() => { setDraftToken(""); setWikiPage(null); }} />
       </div>}
       {selected.published
-        ? <WikiReader key={selected.slug} slug={selected.slug} hideToggle report={report} onReportChange={setReport} onPage={setWikiPage} />
+        ? <WikiReader key={selected.slug} slug={selected.slug} hideToggle report={report} onReportChange={setReport} onPage={setWikiPage} onMarkdown={setMarkdown} />
         : <p className="text-sm text-muted-foreground">{selected.official_name} 的资料尚待补充。</p>}
     </GlassCard>}
     <Disclaimer />

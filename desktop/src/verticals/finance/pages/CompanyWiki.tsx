@@ -13,8 +13,9 @@ import { api } from '../lib/api';
 import { prefGet, prefSet } from '../lib/prefs';
 import { cn } from '@/lib/utils';
 import { useResearchSessions } from '../dsh/research-session';
-import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
+import { buildDirectorySnapshot, buildWikiPageSnapshot } from '../assistant/snapshot.ts';
 import { wikiAssistantObject, companyQuoteObject } from '../lib/pageAssistantObjects';
+import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
@@ -305,10 +306,35 @@ export function CompanyWiki() {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
+  const genHere = gen && gen.slug === slug ? gen : null;
+  const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
+  const wikiLoadState = wikiWait
+    ? 'loading'
+    : !current?.hasWiki
+      ? 'missing'
+      : (readerState === 'error' || wikiError)
+        ? 'error'
+        : (readerState === 'loading' || (!wikiPage && !markdown))
+          ? 'loading'
+          : 'ready';
   useAiPage({
     key: pageKey,
     title: current ? `个股研究 · ${current.title}` : '个股研究',
-    context: slug ? `当前公司 Wiki：${slug}` : `当前研究名单 ${visible.length} 家。`,
+    context: slug && current
+      ? buildWikiPageSnapshot({
+        kind: 'company',
+        title: current.title,
+        slug,
+        symbol: current.symbol,
+        loadState: wikiLoadState,
+        page: wikiPage,
+        markdown,
+      })
+      : buildDirectorySnapshot({
+        heading: `研究名单 ${visible.length} 家。`,
+        items: visible.map(row => ({ title: row.title, id: row.slug })),
+        loading: listLoading && !pages,
+      }),
     suggestions: slug ? ['研究这家公司需要核对哪些证据？'] : ['当前名单里哪些公司最值得先看？'],
   });
   const companyObjects = slug && current
@@ -321,8 +347,6 @@ export function CompanyWiki() {
       return wiki ? [wiki] : [];
     });
   useAiPageObjects(pageKey, companyObjects);
-  const genHere = gen && gen.slug === slug ? gen : null;
-  const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
   const wikiWaitTitle = genHere?.phase === 'ensuring' ? '正在创建公司资料页'
     : genHere?.phase === 'settling' ? '本轮研究已结束，后台正在整理研究成果…'
     : `${genHere?.pageReady ? '资料页已生成，' : ''}研究进行中，结果会逐步沉淀到本页。`;

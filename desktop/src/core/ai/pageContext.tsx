@@ -28,10 +28,30 @@ export interface AiPage {
   key: string;
   /** 面板上显示的"在聊哪一页" */
   title: string;
-  /** 随提问一起发给模型的本页数据 */
+  /** 发送时固定的页面快照正文（结构化列表，含来源与取数时点） */
   context: string;
+  /** 大盘页 @ 指数时从快照取显示值的结构化索引行 */
+  marketIndices?: { id: string; name: string; price: number | null; change_pct: number | null; asOf?: string; source?: string; fetched_at?: string }[];
+  /** 大盘页 @ 连板/成交额个股时从快照取显示值 */
+  companyQuotes?: CompanySnapshotQuote[];
   /** 空对话时给几个可点的问题 */
   suggestions?: string[];
+}
+
+export interface CompanySnapshotQuote {
+  id: string;
+  name: string;
+  symbol: string;
+  section?: string;
+  price?: number | null;
+  change_pct?: number | null;
+  amount?: number | null;
+  float_cap?: number | null;
+  boards?: number | null;
+  industry?: string;
+  asOf?: string;
+  source?: string;
+  fetched_at?: string;
 }
 
 export interface AssistantObjectRef {
@@ -174,20 +194,29 @@ export function useAiPage(page: AiPage | null): void {
   const key = page?.key ?? "";
   const title = page?.title ?? "";
   const context = page?.context ?? "";
+  const marketIndices = page?.marketIndices;
+  const companyQuotes = page?.companyQuotes;
+  const marketSig = marketIndices ? JSON.stringify(marketIndices) : "";
+  const quoteSig = companyQuotes ? JSON.stringify(companyQuotes) : "";
   // 只为比较用：把建议压成一个字符串，免得数组每次都是新对象
   const sig = page?.suggestions?.join("\u0000") ?? "";
 
   useEffect(() => {
     if (!set) return;
     const next: AiPage | null = has
-      ? { key, title, context, suggestions: sig ? sig.split("\u0000") : [] }
+      ? {
+        key, title, context,
+        marketIndices: marketIndices?.length ? marketIndices : undefined,
+        companyQuotes: companyQuotes?.length ? companyQuotes : undefined,
+        suggestions: sig ? sig.split("\u0000") : [],
+      }
       : null;
     mine.current = next;
     set(next);
     return () => {
       set((prev) => (prev === mine.current ? null : prev));
     };
-  }, [set, has, key, title, context, sig]);
+  }, [set, has, key, title, context, marketSig, quoteSig, sig]);
 }
 
 /** 当前页已加载对象进入问助手 `@` 范围；卸载或换批次时注销，不抓正文。 */

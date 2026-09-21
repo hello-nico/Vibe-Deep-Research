@@ -1,5 +1,6 @@
+import type { AssistantPlugin } from './binding.ts';
+
 export type AssistantMode = 'ask' | 'agent';
-export type AssistantPlugin = 'company_wiki' | 'industry_wiki' | 'deep_research' | 'market' | 'intel' | 'industry_profile';
 
 export interface AssistantSeatView {
   seated: boolean;
@@ -47,7 +48,6 @@ export async function bindAssistantSession(input: {
     plugin: AssistantPlugin;
     mode: AssistantMode;
     target?: string;
-    session_id?: string;
     page_key?: string;
   }>;
 }
@@ -61,28 +61,10 @@ export async function loadAssistantSessions() {
   }>;
 }
 
-export function assistantBindingForPage(pageKey: string): { plugin: AssistantPlugin; target: string; bindKey: string } {
-  const company = /^company-wiki:(companies\/[a-z0-9-]+)$/.exec(pageKey);
-  if (company?.[1]) return { plugin: 'company_wiki', target: company[1], bindKey: `company_wiki:${company[1]}` };
-  if (pageKey === 'company-wiki:list') return { plugin: 'company_wiki', target: '', bindKey: 'company_wiki:list' };
-  const industry = /^industry-wiki:(industries\/[^\s]+)$/.exec(pageKey);
-  if (industry?.[1]) return { plugin: 'industry_wiki', target: industry[1], bindKey: `industry_wiki:${industry[1]}` };
-  if (pageKey.startsWith('nbs:')) return { plugin: 'industry_wiki', target: '', bindKey: 'industry_wiki:list' };
-  if (pageKey === 'daily-review') return { plugin: 'market', target: '', bindKey: 'market:daily-review' };
-  if (pageKey.startsWith('intel:')) return { plugin: 'intel', target: '', bindKey: 'intel:radar' };
-  const profile = /^industry-profile:(.+)$/.exec(pageKey);
-  if (profile?.[1]) return { plugin: 'industry_profile', target: '', bindKey: `industry_profile:${profile[1]}` };
-  return { plugin: 'deep_research', target: '', bindKey: `deep_research:${pageKey}` };
-}
-
 export function assistantModeHint(mode: AssistantMode): string {
   return mode === 'agent'
-    ? 'Agent：可以帮你改和补资料，维护判断和分析。'
-    : 'Ask：只帮你看和解释，不会改任何内容。';
-}
-
-export function assistantPlaceholder(mode: AssistantMode = 'ask'): string {
-  return assistantModeHint(mode);
+    ? 'Agent 深查：先用页面快照，只补问题所需缺口，可维护资料。'
+    : 'Ask 即答：只用发送时的页面快照与 @ 读取结果，不取数、不写。';
 }
 
 export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
@@ -113,7 +95,5 @@ export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
     }
     return '这里是个股研究名单。引用一家公司后，可以问它做什么、财务或估值怎么看。输入 @ 搜索本页公司。';
   }
-  if (pageKey.startsWith('my-research')) return '这里是已沉淀的研究和记录。引用一条后提问，我帮你接着看问题、材料和未决事项。';
-  if (pageKey.startsWith('document:')) return '这里是打开的资料原文。先圈出要问的段落，再提问；没有圈选时，我不会假装已经读完全文。';
   return '引用本页对象后提问。输入 @ 可以搜索已加载的条目。';
 }

@@ -111,7 +111,7 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /finance-assistant-user-bubble/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /user \? "你"/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantIntro/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantPlaceholder\(seat\.mode\)/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantModeHint\(seat\.mode\)/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /createPortal/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /truncate=\{false\}/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /finance-assistant-composer/);
@@ -120,10 +120,12 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /finance-assistant-transcript/);
   assert.match(read("core/ai/pageContext.tsx"), /\[pageKey, sig\]/);
   assert.doesNotMatch(read("core/ai/pageContext.tsx"), /}, \[ctx, pageKey, sig\]/);
-  assert.match(read("verticals/finance/lib/assistantPrompt.ts"), /必须消费这份结果作判断/);
-  assert.doesNotMatch(read("verticals/finance/lib/assistantPrompt.ts"), /persist=false|统一 Fetcher/);
-  assert.match(read("verticals/finance/dsh/client.tsx"), /async ensureAssistant[\s\S]*assistantStarts\.has\(key\)/);
-  assert.match(read("verticals/finance/dsh/client.tsx"), /bindAssistantPrompt/);
+  assert.match(read("verticals/finance/assistant/prompt.ts"), /必须消费这份结果作判断/);
+  assert.doesNotMatch(read("verticals/finance/assistant/prompt.ts"), /persist=false|统一 Fetcher/);
+  assert.match(read("verticals/finance/assistant/apply.ts"), /async ensureAssistant[\s\S]*assistantStarts\.has\(key\)/);
+  assert.match(read("verticals/finance/assistant/apply.ts"), /bindAssistantPrompt/);
+  assert.doesNotMatch(read("verticals/finance/dsh/client.tsx"), /startAssistant|bindAssistantPrompt|assistantBindingForPage/);
+  assert.match(read("verticals/finance/dsh/client.tsx"), /applyAssistant\(/);
   assert.match(read("verticals/finance/dsh/client.tsx"), /if \(seated\) return null/);
   const assistantCss = read("verticals/finance/components/layout/research-surfaces.css");
   assert.match(assistantCss, /finance-assistant-composer/);
@@ -152,6 +154,9 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   assert.match(read("verticals/finance/pages/UploadedReports.tsx"), /DashboardPanel/);
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /DashboardPanel/);
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /useAiPage/);
+  assert.match(read("verticals/finance/assistant/snapshot.ts"), /已渲染 Wiki/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /buildWikiPageSnapshot/);
+  assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);
   assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
 });
 

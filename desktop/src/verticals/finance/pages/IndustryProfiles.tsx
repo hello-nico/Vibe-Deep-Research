@@ -10,6 +10,7 @@ import { researchRead } from '../lib/research';
 import { workspaceSelectMatches } from '../lib/workspaceSelect';
 import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { profileAssistantObject } from '../lib/pageAssistantObjects';
+import { buildDirectorySnapshot, buildIndustryProfileSnapshot } from '../assistant/snapshot.ts';
 import { ArrowUpRight, Layers3, ChevronLeft } from 'lucide-react';
 
 interface Profile {
@@ -55,7 +56,13 @@ export function IndustryProfiles() {
   useAiPage({
     key: pageKey,
     title: profile?.industry_name || '产业研究',
-    context: profile ? `申万产业研究：${profile.industry_name}（${profile.industry_code}）` : '申万产业研究资料，尚未选定行业。',
+    context: profile
+      ? buildIndustryProfileSnapshot(profile)
+      : buildDirectorySnapshot({
+        heading: `产业目录 ${items?.length ?? 0} 项。`,
+        items: (visible ?? []).map(item => ({ title: item.industry_name, id: item.industry_code })),
+        loading: !items && !profile,
+      }),
     suggestions: ['这个行业最值得核实的问题是什么？'],
   });
   const profileObjects = profile

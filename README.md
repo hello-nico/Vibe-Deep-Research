@@ -30,6 +30,7 @@
 | 研究记忆与按需维护 | [M9.3 Task](docs/研究记忆与按需维护_Task_M9.3_2026-09-16.md)：画像、研究连续性、四类 Wiki 后台维护与 Topic 候选；已实施，真实模型与浏览器待验收 |
 | 多口径映射与研究画布 | [M9.4 Task](docs/多口径映射与研究画布_Task_M9.4_2026-09-16.md)：跨分类关联、Topic 画布与选中对象继续研究；复杂交互已暂停，未实施 |
 | 公司 Wiki 生成与分类型报告 | [M9.5 Task](docs/公司Wiki生成与交互报告_Task_M9.5_2026-09-17.md)：缺页研究闭环、四类底稿与交互报告；E 节已接入真实 spawn 子 Agent 与只读过程，真实验收待用户 |
+| 页面问助手（五角色 × Ask/Agent） | `desktop/src/verticals/finance/assistant/` 与 `FinanceAiDock`；Stock-Research `dsh/src/consumers.mjs` 登记角色，`native-research-tools.mjs` 安装工具与执行权限守卫；[M9.8 Task](docs/问助手双模式与Agent面板_Task_M9.8_2026-09-20.md) 对象登记与会话绑定；[M9.9 Task](docs/问助手即答与深查边界_Task_M9.9_2026-09-21.md) 固定上下文与 Ask 即答 / Agent 深查，真实验收交用户 |
 | 图表、计算与报告 | `ResearchResult`、`MarketChart` 及 Backend 成果；[M8.6 Task](docs/研究可视化与图数联动_Task_M8.6_2026-09-14.md) |
 | 本轮删除与验收 | [旧系统退役 Task](docs/旧系统退役_Task_2026-09-15.md)、[Human Checklist](human-checklist.md) |
 | 后续总体收敛 | [M9 边界图](artifacts/m9-research-workbench.html)、[待办](todo.md)、[文档索引](docs/README.md) |

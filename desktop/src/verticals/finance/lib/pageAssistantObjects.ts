@@ -8,7 +8,7 @@ function qualifyAShare(symbol: string): string | null {
 }
 
 const HTTP_URL = /^https?:\/\//i;
-const MARKET_INDEX_IDS: Record<string, string> = {
+export const MARKET_INDEX_IDS: Record<string, string> = {
   上证指数: '000001.SH',
   沪深300: '000300.SH',
   深证成指: '399001.SZ',

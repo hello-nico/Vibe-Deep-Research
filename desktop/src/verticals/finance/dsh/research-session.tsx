@@ -1,4 +1,5 @@
 import { createContext, useContext } from 'react';
+import type { CompanySnapshotQuote } from '../../../core/ai/pageContext';
 
 export interface TopicSessionMatch {
   topicId: string;
@@ -95,9 +96,12 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'company_wiki' | 'industry_wiki' | 'deep_research' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
     target?: string;
     prompt?: string;
+    pageSnapshot?: string;
+    marketIndices?: { id: string; name: string; price: number | null; change_pct: number | null; asOf?: string; source?: string; fetched_at?: string }[];
+    companyQuotes?: CompanySnapshotQuote[];
     objects?: { kind?: string; id: string; label: string; version?: string; url?: string; hint?: string; source?: string; time?: string }[];
     fresh?: boolean;
   }): Promise<StartSessionResult>;
@@ -105,7 +109,7 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'company_wiki' | 'industry_wiki' | 'deep_research' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
     target?: string;
     fresh?: boolean;
   }): Promise<StartSessionResult>;

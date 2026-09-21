@@ -5,8 +5,14 @@ export class ResearchError extends Error {
 }
 export async function researchRead<T>(route: string, init?: RequestInit): Promise<T> {
   const response = await fetch('/finance-research' + route, init);
-  const value = await response.json().catch(() => null);
-  if (!response.ok) throw new ResearchError(response.status, researchErrorMessage(response.status, value));
+  const contentType = response.headers.get('content-type') || '';
+  const raw = await response.text();
+  const looksJson = contentType.includes('json') || raw.trim().startsWith('{') || raw.trim().startsWith('[');
+  let value: unknown = raw;
+  if (looksJson) {
+    try { value = JSON.parse(raw); } catch { value = raw; }
+  }
+  if (!response.ok) throw new ResearchError(response.status, researchErrorMessage(response.status, value && typeof value === 'object' ? value : null));
   return value as T;
 }
 export interface WikiItem { slug: string; title: string; input_hash?: string }

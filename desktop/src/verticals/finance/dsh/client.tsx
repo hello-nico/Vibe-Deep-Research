@@ -12,8 +12,8 @@ import { installResultNode } from './result-node';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
-import { bindAssistantSession, loadAssistantSessions, assistantBindingForPage, subscribeAssistantSeat, assistantSeatSnapshot, type AssistantPlugin } from "../lib/assistantSessions";
-import { bindAssistantPrompt } from "../lib/assistantPrompt";
+import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } from "../assistant/sessions.ts";
+import { applyAssistant } from "../assistant/apply.ts";
 import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
 import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
 import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
@@ -216,7 +216,6 @@ export function apply(ctx: Context) {
   let workspaceId = '';
   const companyStarts = new Map<string, Promise<StartSessionResult>>();
   const reportStarts = new Map<string, Promise<StartSessionResult>>();
-  const assistantStarts = new Map<string, Promise<StartSessionResult>>();
   let openedSessionId = "";
   let openedTopicId = "";
   let assistantHold: { sessionId: string; topicId: string } | null = null;
@@ -246,62 +245,7 @@ export function apply(ctx: Context) {
       : '资料已经保存；正文未就绪的资料发送前不能按正文阅读。');
     return true;
   };
-  const insertAssistantRefs = (objects: { source: string; ref: string; label: string; clipboardText: string }[] | undefined, sessionId: string) => {
-    if (!objects?.length) return;
-    const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
-    const input = scope && client.conversation?.input.for(scope);
-    if (!input) return;
-    for (const item of objects) {
-      const snap = input.state.getSnapshot();
-      const end = snap.draft.length;
-      input.insertReference({
-        source: item.source || '研究对象',
-        ref: item.ref,
-        label: item.label,
-        appearance: 'file',
-        clipboardText: item.clipboardText || item.label,
-      }, { start: end, end, draftRev: snap.draftRev });
-    }
-  };
   const currentSessionId = () => client.sessions.list.getSnapshot().current || openedSessionId;
-  const ensureAssistantSession = async (input: {
-    pageKey: string;
-    title: string;
-    mode: 'ask' | 'agent';
-    plugin?: AssistantPlugin;
-    target?: string;
-    fresh?: boolean;
-  }) => {
-    const derived = assistantBindingForPage(input.pageKey);
-    const plugin = input.plugin || derived.plugin;
-    const target = input.target ?? derived.target;
-    const bindKey = derived.bindKey;
-    await client.sessions.refresh();
-    const list = client.sessions.list.getSnapshot();
-    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
-    const bound = input.fresh ? null : await loadAssistantSessions().catch(() => ({
-      sessions: {} as Record<string, { mode: 'ask' | 'agent' }>,
-      pages: {} as Record<string, { session_id: string }>,
-    }));
-    const pageBind = bound?.pages?.[bindKey] || bound?.pages?.[input.pageKey];
-    const reusable = pageBind?.session_id
-      && list.byId[pageBind.session_id]?.cwd === workspace
-      && !archived.has(pageBind.session_id)
-      ? pageBind.session_id : undefined;
-    if (reusable) {
-      const reusedMode = input.fresh ? input.mode : (bound?.sessions?.[reusable]?.mode || input.mode);
-      await bindAssistantSession({ session_id: reusable, plugin, mode: reusedMode, target, page_key: bindKey });
-      return { id: reusable, mode: reusedMode as 'ask' | 'agent' };
-    }
-    const id = await client.sessions.create({ workspaceId });
-    const scope = client.sessions.scope(id);
-    const face = scope && client.sessions.sessionOf(scope);
-    if (!face) throw new Error('问助手会话创建失败');
-    const title = `问助手 · ${input.title}`.slice(0, 80);
-    if (!(await face.rename(title)).ok) throw new Error('问助手绑定失败，请重试');
-    await bindAssistantSession({ session_id: id, plugin, mode: input.mode, target, page_key: bindKey });
-    return { id, mode: input.mode };
-  };
   const deliverLibraryCitations = (items: LibraryCite[], preferredSessionId?: string) => {
     return deliverLibraryCiteBatch(queueLibraryCites(items, preferredSessionId), currentSessionId(),
       (item, id) => insertLibraryCitations([item], id));
@@ -371,8 +315,6 @@ export function apply(ctx: Context) {
   };
   const lastTrajectory = new Map<string, TaskTrajectorySnapshot>();
   const trajectoryStores = new Map<string, { subscribe(listener: () => void): () => void; getSnapshot(): TaskTrajectorySnapshot; loadOlder(): Promise<void> }>();
-  const modelStores = new Map<string, NonNullable<ReturnType<NonNullable<ResearchSessions['assistantModel']>>>>();
-  const emptyModelSnap = { current: null, groups: [] as { id: string; name: string; models: { id: string; name: string }[] }[], status: 'idle', error: null as string | null };
   const projectTrajectory = (sessionId: string, raw: unknown): TaskTrajectorySnapshot => {
     const list = client.sessions.list.getSnapshot();
     const item = list.byId[sessionId];
@@ -571,106 +513,6 @@ export function apply(ctx: Context) {
     if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
       throw new Error('议题研究未被接收，请检查模型设置后重试');
     }
-  }, async startAssistant(input: Parameters<ResearchSessions['startAssistant']>[0]) {
-    await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
-    const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
-    if (assistantStarts.has(key)) return assistantStarts.get(key)!;
-    const run = (async (): Promise<StartSessionResult> => {
-      const { id, mode } = await ensureAssistantSession(input);
-      if (input.prompt?.trim()) {
-        const scope = client.sessions.scope(id);
-        const face = scope && client.sessions.sessionOf(scope);
-        if (!face) throw new Error('问助手会话不可用');
-        const bound = await bindAssistantPrompt({
-          prompt: input.prompt,
-          title: input.title,
-          mode,
-          objects: (input.objects || []).map(item => ({
-            kind: item.kind || 'object',
-            id: item.id,
-            label: item.label,
-            version: item.version,
-            url: item.url,
-            hint: item.hint,
-            source: item.source,
-            time: item.time,
-          })),
-        });
-        if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
-          throw new Error('问助手问题未被接收，请检查模型设置后重试');
-        }
-      }
-      return { sessionId: id, status: 'started', mode };
-    })();
-    assistantStarts.set(key, run);
-    try { return await run; } finally { assistantStarts.delete(key); }
-  }, async ensureAssistant(input: Parameters<ResearchSessions['ensureAssistant']>[0]) {
-    await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
-    const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
-    if (assistantStarts.has(key)) return assistantStarts.get(key)!;
-    const run = (async (): Promise<StartSessionResult> => {
-      const { id, mode } = await ensureAssistantSession(input);
-      return { sessionId: id, status: 'started', mode };
-    })();
-    assistantStarts.set(key, run);
-    try { return await run; } finally { assistantStarts.delete(key); }
-  }, insertAssistantObjects(sessionId: string, objects: Parameters<ResearchSessions['insertAssistantObjects']>[1]) {
-    insertAssistantRefs(objects, sessionId);
-  }, async switchAssistantMode(sessionId: string, mode: 'ask' | 'agent', pageKey?: string) {
-    await session;
-    const store = await loadAssistantSessions().catch(() => ({ sessions: {} as Record<string, { plugin?: AssistantPlugin; target?: string; page_key?: string }> }));
-    const bound = store.sessions[sessionId];
-    const derived = pageKey ? assistantBindingForPage(pageKey) : null;
-    await bindAssistantSession({
-      session_id: sessionId,
-      mode,
-      plugin: bound?.plugin,
-      target: bound?.target,
-      page_key: derived?.bindKey || bound?.page_key || pageKey,
-    });
-  }, assistantModel(sessionId: string) {
-    const existing = modelStores.get(sessionId);
-    if (existing) return existing;
-    let directory: ReturnType<NonNullable<Client['modelDirectories']>['directoryFor']> | undefined;
-    try { directory = client.modelDirectories?.directoryFor(sessionId); }
-    catch { return null; }
-    const store = directory?.store && typeof directory.store.getSnapshot === 'function' && typeof directory.store.subscribe === 'function'
-      ? directory.store
-      : null;
-    if (!store) return null;
-    let last = emptyModelSnap;
-    const wrapped = {
-      subscribe: (listener: () => void) => {
-        try { return store.subscribe(listener); }
-        catch { return () => {}; }
-      },
-      getSnapshot: () => {
-        try {
-          const next = store.getSnapshot();
-          if (last && JSON.stringify(last) === JSON.stringify(next)) return last;
-          last = next;
-          return next;
-        } catch {
-          return last;
-        }
-      },
-      load: async () => { try { void directory.load(); } catch { /* 模型目录失败时隐藏选择，不打断发送 */ } },
-      select: (selection: { provider: string; model: string }) => directory.select(selection),
-    };
-    modelStores.set(sessionId, wrapped);
-    return wrapped;
-  }, focusAssistantSession(sessionId: string) {
-    if (!assistantHold) assistantHold = { sessionId: currentSessionId(), topicId: openedTopicId };
-    client.sessions.open(sessionId);
-    openedSessionId = sessionId;
-    sessionListeners.forEach(listener => listener());
-    return () => {
-      const hold = assistantHold;
-      assistantHold = null;
-      if (hold?.sessionId) remember(hold.sessionId, hold.topicId);
-    };
   }, async openSession(sessionId: string) {
     await session;
     if (!workspaceId) throw new Error('研究工作区尚未连接');
@@ -745,6 +587,19 @@ export function apply(ctx: Context) {
     const offArchives = client.workspaces.list.subscribe(listener);
     return () => { offSessions(); offArchives(); };
   } };
+  const researchHost = applyAssistant(ctx, research as ResearchSessions, {
+    client,
+    waitSession: () => session ?? Promise.resolve(),
+    getWorkspaceId: () => workspaceId,
+    getWorkspace: () => workspace,
+    remember,
+    currentSessionId,
+    getOpened: () => ({ sessionId: openedSessionId, topicId: openedTopicId }),
+    setOpenedSession: (id) => { openedSessionId = id; },
+    notifySession: () => sessionListeners.forEach(listener => listener()),
+    getHold: () => assistantHold,
+    setHold: (next) => { assistantHold = next; },
+  });
   client.slots.inject('conversation.view', () => client.slots.register<{ openView(view: string, focus?: string): void }>({
     name: 'conversation.view', id: 'finance-history', order: 30, label: () => '历史对话',
   }, History));
@@ -899,7 +754,7 @@ export function apply(ctx: Context) {
       return () => { active = false; };
     }, []);
     if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，未加载选择：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
-    return <FinanceRoot slots={props} research={research} sessionError={sessionError} showDetails={showDetails}>
+    return <FinanceRoot slots={props} research={researchHost} sessionError={sessionError} showDetails={showDetails}>
       <RouterProvider router={router} />
     </FinanceRoot>;
   });

@@ -7,7 +7,8 @@ const TOPIC_ID = /^topic:[0-9a-f]{12}$/;
 const SESSION_ID = /^[A-Za-z0-9._:-]{8,128}$/;
 const REPORT_SLUG = /^(companies|industries|themes|comparisons)\/[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
 const INPUT_HASH = /^[a-f0-9]{64}$/;
-const PAGE_KEY = /^[A-Za-z0-9._:/-]{1,180}$/;
+// Page keys and Wiki targets share the same ASCII/CJK identity alphabet.
+const PAGE_KEY = /^[A-Za-z0-9._一-鿿:/-]{1,180}$/;
 const ASSISTANT_MODE = /^(ask|agent)$/;
 
 function researchDir() {
@@ -331,8 +332,8 @@ function writeAssistantStore(store) {
   });
 }
 
-const ASSISTANT_PLUGIN = /^(company_wiki|industry_wiki|deep_research|market|intel|industry_profile)$/;
-const ASSISTANT_TARGET = /^(companies|industries)\/[^\s]{1,180}$/;
+const ASSISTANT_PLUGIN = /^(company_wiki|industry_wiki|market|intel|industry_profile)$/;
+const ASSISTANT_TARGET = /^(companies|industries)\/(?=.{1,180}$)[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
 
 function assistantBindKey(plugin, target, page_key) {
   return target ? `${plugin}:${target}` : `${plugin}:${page_key || ''}`;
@@ -354,7 +355,7 @@ export function bindAssistantSession({ session_id, plugin, mode, target, page_ke
   }
   const store = loadAssistantSessions();
   const bound = store.sessions[session_id];
-  const nextPlugin = plugin || bound?.plugin || 'deep_research';
+  const nextPlugin = plugin || bound?.plugin || '';
   if (!ASSISTANT_PLUGIN.test(nextPlugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
   const nextTarget = target || bound?.target || '';
   let running = false;

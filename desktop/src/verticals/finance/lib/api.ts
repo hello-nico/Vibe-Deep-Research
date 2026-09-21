@@ -95,6 +95,8 @@ export interface NewsItem {
 
 export interface IndexQuote {
   name: string; price: number | null; change_pct: number | null; change_amt: number | null;
+  source?: string | null;
+  fetched_at?: string | null;
 }
 
 export interface MarketSentiment {
@@ -107,6 +109,8 @@ export interface MarketSentiment {
   up: number | null; down: number | null; flat: number | null;
   zt: number | null; zt_real: number | null; dt: number | null; dt_real: number | null;
   active: string; breadth: string; speculation: string; date: string;
+  source?: string | null;
+  fetched_at?: string | null;
 }
 export interface SectorFlow {
   /**
@@ -119,6 +123,9 @@ export interface SectorFlow {
 }
 export interface MarketOverview {
   sentiment: MarketSentiment; sectors: SectorFlow[]; updated: string;
+  source?: string | null;
+  sectors_source?: string | null;
+  sectors_fetched_at?: string | null;
 }
 
 // 短线情绪：连板梯队 / 最高连板 / 炸板率 / 封板率 / 晋级率 / 涨跌停家数 + 连板股清单（客观公开榜单）
@@ -129,6 +136,8 @@ export interface LianbanStock {
 }
 export interface ShortTermEmotion {
   date: string;
+  source?: string | null;
+  fetched_at?: string | null;
   zt_count: number; dt_count: number; zb_count: number;
   max_boards: number; lianban_count: number;
   ladder: EmotionTier[];
@@ -143,7 +152,7 @@ export interface TurnoverStock {
   price: number | null; pct: number | null;
   amount: number | null; mcap: number | null; float_cap: number | null; industry: string;
 }
-export interface TurnoverTop { stocks: TurnoverStock[]; updated: string }
+export interface TurnoverTop { stocks: TurnoverStock[]; updated: string; source?: string | null }
 
 export interface RadarItem {
   title: string; url: string; time: string; source: string; summary?: string; zh?: string;
@@ -265,6 +274,7 @@ export interface IndustryData { top: IndustryRow[]; bottom: IndustryRow[]; total
 export interface GlobalIndex {
   key: string; name: string; region: string;
   price: number | null; change_pct: number | null;
+  source?: string | null;
   fetched_at?: string | null; evidence_id?: string | null; note?: string;
 }
 export interface GlobalQuote {
@@ -459,9 +469,14 @@ async function marketOverviewOf(pre?: { sentiment?: Envelope; board_flow?: Envel
       breadth: breadthLabel(up, down),
       speculation: speculationLabel(ztCount, maxBoards),
       date: sent.evidence[0]?.period ?? sent.fetched_at.slice(0, 10),
+      source: sent.primary_source,
+      fetched_at: sent.fetched_at,
     },
     sectors,
     updated: sent.fetched_at,
+    source: sent.primary_source,
+    sectors_source: flow?.primary_source ?? null,
+    sectors_fetched_at: flow?.fetched_at ?? null,
   };
 }
 
@@ -529,6 +544,8 @@ async function emotionOf(): Promise<ShortTermEmotion> {
   const denom = zbCount === null ? null : ztCount + zbCount;
   return {
     date: zt.evidence[0]?.period ?? zt.fetched_at.slice(0, 10),
+    source: zt.primary_source,
+    fetched_at: zt.fetched_at,
     zt_count: ztCount,
     dt_count: 0,
     zb_count: zbCount ?? 0,
@@ -583,7 +600,7 @@ async function turnoverTopOf(): Promise<TurnoverTop> {
     })
     .sort((a, b) => a.rank - b.rank)
     .map(({ rank: _rank, ...x }) => x);
-  return { stocks, updated: e.fetched_at };
+  return { stocks, updated: e.fetched_at, source: e.primary_source };
 }
 
 /* ---------- 资讯雷达 / 产业信号 ---------- */
@@ -782,6 +799,8 @@ export const api = {
       price: num(r.fields.price),
       change_pct: num(r.fields.change_pct),
       change_amt: subtract(num(r.fields.price), num(r.fields.last_close)),
+      source: e.primary_source,
+      fetched_at: r.fields.price?.fetched_at ?? e.fetched_at,
     }));
   },
 
@@ -804,7 +823,8 @@ export const api = {
       return {
         key, name, region, price,
         change_pct: price === null ? null : num(row?.fields.change_pct),
-        fetched_at: price === null ? null : row?.fields.price?.fetched_at ?? null,
+        source: e.primary_source,
+        fetched_at: price === null ? null : row?.fields.price?.fetched_at ?? e.fetched_at,
         evidence_id: price === null ? null : row?.fields.price?.id ?? null,
         note: price === null ? "本次未取得该指数报价" :
           [typeof e.extra?.degraded === "string" ? e.extra.degraded : "", row?.note.includes("僵尸报价") ? "非交易时段或报价陈旧" : ""].filter(Boolean).join("；"),
