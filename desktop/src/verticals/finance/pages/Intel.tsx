@@ -16,6 +16,7 @@ import { loadWatch } from "@/lib/watchlist";
 import { chatStream, translateHeadlineBatch } from "@/lib/llm";
 import { cn } from "@/lib/utils";
 import { feedPageContext, investmentNewsPageContext, type FeedRow } from '@/lib/feedPageContext';
+import { buildEventsProbabilitySnapshot } from '../assistant/snapshot.ts';
 
 // 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
 const TABS = [
@@ -460,7 +461,7 @@ export function Intel() {
 
   return (
     <div>
-      {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
+      {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && tab !== 'events' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
       <PageHeader title="资讯雷达" subtitle="多来源资讯中心：AI 帮你跨源捞资讯、提炼要点" />
 
       <div className="mb-4">
@@ -519,6 +520,21 @@ export function Intel() {
 function EventsPanel() {
   const { data, err, loading, refreshing, staleNote, refresh } =
     useArchiveThenRefresh<MacroProbability>((r) => api.macroProbability(r), [], { refreshOnEnter: false });
+
+  const eventsPage = {
+    key: 'intel:events',
+    title: '资讯雷达 · 事件概率',
+    context: buildEventsProbabilitySnapshot({
+      items: data?.items ?? [],
+      howToRead: data?.how_to_read ?? [],
+      updated: data?.updated ?? null,
+      partial: data?.partial ?? false,
+      loading, refreshing, err, staleNote,
+    }),
+    suggestions: ['这些事件概率说明了什么', '哪个合约值得关注', '怎么理解这组读法护栏'],
+  };
+  useAiPage(eventsPage);
+  useAiPageObjects(eventsPage.key, []);
 
   if (loading) return <p className="mt-4 text-sm text-muted-foreground">正在取…（这一页还没有存档）</p>;
   if (err) return <p className="mt-4 text-sm text-destructive">{err}</p>;

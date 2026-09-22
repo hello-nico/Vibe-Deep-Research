@@ -57,7 +57,7 @@ export function IndustryProfiles() {
     key: pageKey,
     title: profile?.industry_name || '产业研究',
     context: profile
-      ? buildIndustryProfileSnapshot(profile)
+      ? buildIndustryProfileSnapshot(profile, titles)
       : buildDirectorySnapshot({
         heading: `产业目录 ${items?.length ?? 0} 项。`,
         items: (visible ?? []).map(item => ({ title: item.industry_name, id: item.industry_code })),

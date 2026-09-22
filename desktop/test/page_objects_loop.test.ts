@@ -5,13 +5,18 @@ import { Window } from 'happy-dom';
 import { createServer } from 'vite';
 import { createServer as httpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
+import { mkdtemp, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 test('页面对象登记不因 Context 更新反复登记', async () => {
   const win = new Window();
   const previous = { window: globalThis.window, document: globalThis.document, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
   Object.assign(globalThis, { window: win, document: win.document, IS_REACT_ACT_ENVIRONMENT: true });
+  const cacheDir = await mkdtemp(join(tmpdir(), 'vibe-page-objects-'));
   const server = await createServer({
     configFile: false,
+    cacheDir,
     root: fileURLToPath(new URL('../', import.meta.url)),
     resolve: { alias: [{ find: '@', replacement: fileURLToPath(new URL('../src/verticals/finance', import.meta.url)) }] },
     server: { middlewareMode: true, hmr: { server: httpServer() }, watch: null },
@@ -45,6 +50,7 @@ test('页面对象登记不因 Context 更新反复登记', async () => {
   } finally {
     await act(async () => root.unmount());
     await server.close();
+    await rm(cacheDir, { recursive: true, force: true });
     win.happyDOM.abort();
     Object.assign(globalThis, previous);
   }

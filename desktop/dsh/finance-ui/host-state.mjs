@@ -356,6 +356,7 @@ function writeAssistantStore(store) {
 
 const ASSISTANT_PLUGIN = /^(company_wiki|industry_wiki|market|intel|industry_profile)$/;
 const ASSISTANT_TARGET = /^(companies|industries)\/(?=.{1,180}$)[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
+const PROFILE_TARGET = /^profile:sw2:[0-9A-Z.]+$/;
 
 function assistantBindKey(plugin, target, page_key) {
   return target ? `${plugin}:${target}` : `${plugin}:${page_key || ''}`;
@@ -365,7 +366,7 @@ export function bindAssistantSession({ session_id, plugin, mode, target, page_ke
   if (!ASSISTANT_MODE.test(mode || '')) throw Object.assign(new Error('invalid assistant mode'), { status: 422 });
   if (plugin && !ASSISTANT_PLUGIN.test(plugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
   if (page_key && !PAGE_KEY.test(page_key)) throw Object.assign(new Error('invalid page key'), { status: 422 });
-  if (target && !ASSISTANT_TARGET.test(target)) throw Object.assign(new Error('invalid assistant target'), { status: 422 });
+  if (target && !ASSISTANT_TARGET.test(target) && !PROFILE_TARGET.test(target)) throw Object.assign(new Error('invalid assistant target'), { status: 422 });
   if (!SESSION_ID.test(session_id || '')) throw Object.assign(new Error('invalid session'), { status: 422 });
   const exists = sessionExists || persistedSessionExists;
   if (!exists(session_id)) throw Object.assign(new Error('session not found'), { status: 404 });
@@ -380,6 +381,8 @@ export function bindAssistantSession({ session_id, plugin, mode, target, page_ke
   const nextPlugin = plugin || bound?.plugin || '';
   if (!ASSISTANT_PLUGIN.test(nextPlugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
   const nextTarget = target || bound?.target || '';
+  if (PROFILE_TARGET.test(nextTarget) && nextPlugin !== 'industry_profile')
+    throw Object.assign(new Error('Profile target requires industry_profile assistant'), { status: 422 });
   let running = false;
   try { running = isRunning ? Boolean(isRunning(session_id)) : false; }
   catch { running = false; }

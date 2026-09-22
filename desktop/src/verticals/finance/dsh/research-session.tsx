@@ -103,7 +103,7 @@ export interface ResearchSessions {
     pageSnapshot?: string;
     marketIndices?: { id: string; name: string; price: number | null; change_pct: number | null; asOf?: string; source?: string; fetched_at?: string }[];
     companyQuotes?: CompanySnapshotQuote[];
-    objects?: { kind?: string; id: string; label: string; version?: string; url?: string; hint?: string; source?: string; time?: string }[];
+    objects?: { kind?: string; id: string; label: string; version?: string; url?: string; hint?: string; source?: string; time?: string; locator?: string; section?: string; detail?: string }[];
     fresh?: boolean;
   }): Promise<StartSessionResult>;
   ensureAssistant(input: {

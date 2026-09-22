@@ -70,6 +70,9 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
   assert.equal(assistantBindingForPage('intel:investment-news:semi')?.bindKey, 'intel:radar');
   assert.equal(assistantBindingForPage('intel:news')?.bindKey, 'intel:radar');
   assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.plugin, 'industry_profile');
+  // §9.2 缺口修复：产业研究详情页绑定 Profile 身份供只读叙述，列表页仍不绑定具体对象。
+  assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.target, 'profile:sw2:801080.SI');
+  assert.equal(assistantBindingForPage('industry-profile:list')?.target, '');
   assert.equal(assistantBindingForPage('company-wiki:companies/600900-sh')?.plugin, 'company_wiki');
   assert.equal(assistantBindingForPage('industry-wiki:industries/nbs-power')?.plugin, 'industry_wiki');
   assert.equal(assistantBindingForPage('home'), null);

@@ -19,6 +19,7 @@
 | cordis-plugin-loader 1.0.3 | bug fix | 安装回落的 Node 包解析：裸名 `import` 失败时经 `createRequire` 按安装位置重解析 | 上游提供等价回落；升级后实测 `link:` 插件的裸名 import 成功 |
 | dsh-client-modules | bug fix | 客户端包元数据解析回落：按 `expectedPackageName` 经 `createRequire` 重解析 | 上游等价回落落地，产品插件元数据可解析 |
 | dsh-api-session-controller | 产品功能（分条） | ① 报告只读子会话：`retainSubagent` 引用计数挂载（M9.5 归属）；② `sessions.retain` 客户端契约扩展（`source`/`signal`）；③ 历史读取 cwd 门禁：普通会话要求 cwd，已校验子 Agent 豁免；④ 新会话事件 JSON 安全（bug fix） | ① 归 M9.5 后续包评估替代；② 上游已用 `sessions.retain(address, { source, signal })`（见 `sidebar-chat/index.tsx`，0.1.6-alpha.2），升级后验证只读面板、关闭/释放与后台执行互不干扰后改用上游 session patch；③④ 上游提供等价门禁与事件序列化后逐项退出 |
+| dsh-session | bug fix | `Session.append` 接受并持久保留显式 `ignorable: true` envelope marker，使插件的纯信息事件可被旧 vocabulary 的冷读路径安全跳过；缺省仍为 required，surface 事件仍要求 `SurfaceIntent` | 上游 `Session.append` 等价支持、校验并保留该 marker，且未知 required 事件仍被 persistence reader 拒绝 |
 | dsh-client-ui-settings-models | 产品功能 | 已有 Provider 配置与模型管理改进（自定义 Provider / 模型增删 / 连通性测试等 UI 依赖） | 逐项对照上游设置页能力清单，等价覆盖后退出；退出前不能删除（模型接入入口依赖它） |
 | dsh-client-ui-model-selection | 产品功能 | 模型筛选与选择行为（会话模型切换、筛选控件） | 上游筛选/选择能力等价后退出 |
 | dsh-client-ui-conversation | 产品配置 + 文案 | 输入占位与 hero 文案产品化（“继续你的研究问题…”、“今天，想研究什么？”） | 上游提供占位 / hero 文案配置点后改配置 |

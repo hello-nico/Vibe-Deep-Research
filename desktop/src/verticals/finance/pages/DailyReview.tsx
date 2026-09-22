@@ -3,7 +3,7 @@ import { localService, type PageResult } from "@/lib/localService";
 import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
-import { companyQuoteObject, dailyReviewQuoteObjects, marketAssistantObject, marketIndicesObject, MARKET_INDEX_IDS } from "../lib/pageAssistantObjects";
+import { companyQuoteObject, dailyReviewQuoteObjects, globalIndexObject, marketAssistantObject, marketIndicesObject, MARKET_INDEX_IDS } from "../lib/pageAssistantObjects";
 import { buildDailyReviewSnapshot } from "../assistant/snapshot.ts";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
@@ -147,12 +147,17 @@ export function DailyReview() {
     return object ? [object] : [];
   });
   const collection = marketIndicesObject(indexObjects);
+  const globalIndexObjects = globalIdx.flatMap(item => {
+    if (item.price === null) return [];
+    const object = globalIndexObject({ key: item.key, name: item.name, region: item.region, asOf: reviewDate });
+    return object ? [object] : [];
+  });
   const quoteObjects = dailyReviewQuoteObjects({
     asOf: reviewDate || emotion?.date,
     lianban: emotion?.lianban_stocks,
     turnover: turnover?.stocks,
   });
-  const marketObjects = [...(collection ? [...indexObjects, collection] : indexObjects), ...quoteObjects];
+  const marketObjects = [...(collection ? [...indexObjects, collection] : indexObjects), ...globalIndexObjects, ...quoteObjects];
   const pageSnapshot = buildDailyReviewSnapshot({
     reviewDate,
     fetchedAt: pageMeta?.oldest_fetched_at ?? null,
@@ -181,19 +186,33 @@ export function DailyReview() {
     idxErr,
   });
   const asOf = reviewDate || emotion?.date || undefined;
-  const marketIndexRows = indices.flatMap(item => {
-    const code = MARKET_INDEX_IDS[item.name];
-    if (!code || item.price === null) return [];
-    return [{
-      id: code,
-      name: item.name,
-      price: item.price,
-      change_pct: item.change_pct,
-      asOf,
-      source: item.source || undefined,
-      fetched_at: item.fetched_at || undefined,
-    }];
-  });
+  const marketIndexRows = [
+    ...indices.flatMap(item => {
+      const code = MARKET_INDEX_IDS[item.name];
+      if (!code || item.price === null) return [];
+      return [{
+        id: code,
+        name: item.name,
+        price: item.price,
+        change_pct: item.change_pct,
+        asOf,
+        source: item.source || undefined,
+        fetched_at: item.fetched_at || undefined,
+      }];
+    }),
+    ...globalIdx.flatMap(item => {
+      if (item.price === null) return [];
+      return [{
+        id: `global:${item.key}`,
+        name: item.name,
+        price: item.price,
+        change_pct: item.change_pct,
+        asOf,
+        source: item.source || undefined,
+        fetched_at: item.fetched_at || undefined,
+      }];
+    }),
+  ];
   const seenQuotes = new Set<string>();
   const companyQuoteRows = [
     ...(emotion?.lianban_stocks || []).map(item => ({

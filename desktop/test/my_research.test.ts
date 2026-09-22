@@ -4,6 +4,7 @@ import os from "node:os";
 import path from "node:path";
 import { readFileSync } from "node:fs";
 import test from "node:test";
+import { assistantBindingForPage } from '../src/verticals/finance/assistant/binding.ts';
 import { researchRoute } from "../dsh/finance-ui/research.mjs";
 import { bindAssistantSession, bindReportTask, bindTopicSession, cancelReportRun, displayBackgroundStatus, disposeReportRuntime, loadAssistantSessions, loadBackgroundTasks, loadReportTasks, loadTopicSessions, overlayIngestStatus, reportTasksWithLineage, startReportRun, unwrapCreatedAgent } from "../dsh/finance-ui/host-state.mjs";
 
@@ -140,6 +141,33 @@ test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，�
     fs.writeFileSync(path.join(home, "sessions", "ws", "sess-market-1", "session.jsonl"), "");
     const market = bindAssistantSession({ session_id: "sess-market-1", plugin: "market", mode: "ask", page_key: "market:daily-review" });
     assert.equal(market.plugin, "market");
+  } finally {
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test('产业页面生成的 Profile 身份可经宿主绑定、读回和切换模式', () => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-profile-binding-'));
+  process.env.DSH_HOME = home;
+  try {
+    const binding = assistantBindingForPage('industry-profile:801080.SI')!;
+    const input = { session_id: 'profile-review-session', plugin: binding.plugin, target: binding.target, page_key: binding.bindKey };
+    const deps = { sessionExists: () => true, isRunning: () => false };
+    for (const mode of ['ask', 'agent']) {
+      const bound = bindAssistantSession({ ...input, mode }, deps);
+      assert.equal(bound.target, 'profile:sw2:801080.SI');
+      assert.equal(bound.mode, mode);
+      const saved = loadAssistantSessions();
+      assert.equal(saved.sessions[input.session_id].target, binding.target);
+      assert.equal(saved.pages[binding.bindKey].session_id, input.session_id);
+    }
+    assert.throws(() => bindAssistantSession({ ...input, mode: 'ask' }, { ...deps, isRunning: () => true }), /running/);
+    assert.throws(() => bindAssistantSession({ ...input, plugin: 'company_wiki', mode: 'agent' }, deps), /Profile target requires/);
+    for (const target of ['profile:sw2:', 'profile:sw2:801080.SI/..', 'profile:sw2:801080.SI?x=1'])
+      assert.throws(() => bindAssistantSession({ ...input, target, mode: 'agent' }, deps), /invalid assistant target/);
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = previous;

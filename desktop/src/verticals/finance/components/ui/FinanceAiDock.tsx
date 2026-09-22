@@ -130,7 +130,7 @@ export function AssistantModeSelect() {
   return (
     <AssistantMenu
       label="问助手模式"
-      title={seat.mode === "ask" ? "只回答问题，不会改资料。要更新内容请切到 Agent。" : "可以帮你改和补资料，维护判断和分析。"}
+      title={seat.mode === "ask" ? "只回答问题，不会改资料。要更新内容请切到 Agent。" : "可提出资料、对象与关系维护，确认后执行；研究判断请在我的研究议题中更新。"}
       value={seat.mode}
       disabled={seat.busy}
       options={[{ id: "ask", name: "Ask" }, { id: "agent", name: "Agent" }]}
@@ -366,6 +366,9 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
           hint: item.hint,
           source: item.source,
           time: item.time,
+          locator: item.locator,
+          section: item.section,
+          detail: item.detail,
         })),
       });
       if (attachGen.current !== gen) return;

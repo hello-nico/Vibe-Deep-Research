@@ -296,8 +296,8 @@ export function buildIndustryProfileSnapshot(profile: {
   card_count?: number;
   companies?: string[];
   profile_sha256?: string;
-  core_questions?: { q: string; rationale?: string }[];
-}): string {
+  core_questions?: { q: string; rationale?: string; evidence_docs?: string[] }[];
+}, evidenceTitles: Record<string, string> = {}): string {
   const questions = profile.core_questions || [];
   const lines = [
     `产业 ${profile.industry_name}（${profile.industry_code}）`,
@@ -306,7 +306,11 @@ export function buildIndustryProfileSnapshot(profile: {
     profile.profile_sha256 ? `内容版本 ${profile.profile_sha256}` : '内容版本未标注',
     profile.companies?.length ? `覆盖公司：${profile.companies.join('、')}` : '覆盖公司未列出',
     questions.length ? `核心问题 ${questions.length} 条：` : '核心问题未加载',
-    ...questions.map(q => `- ${q.q}${q.rationale ? `\n  ${q.rationale}` : ''}`),
+    ...questions.map(q => {
+      const docs = q.evidence_docs || [];
+      const docLines = docs.map(id => `    - ${evidenceTitles[id] || '来源研报'} \`document:${id}\``);
+      return [`- ${q.q}`, q.rationale ? `  ${q.rationale}` : '', ...docLines].filter(Boolean).join('\n');
+    }),
   ];
   return clipPageSnapshot(lines.filter(Boolean).join('\n')).body;
 }
@@ -314,7 +318,7 @@ export function buildIndustryProfileSnapshot(profile: {
 export function buildFeedListSnapshot(input: {
   kind: 'news' | 'filings';
   watchCount: number;
-  rows: readonly { when: string; name: string; title: string; url?: string }[];
+  rows: readonly { when: string; name: string; code?: string; title: string; url?: string }[];
   loading?: boolean;
   refreshing?: boolean;
   err?: string | null;
@@ -325,7 +329,8 @@ export function buildFeedListSnapshot(input: {
   const rows = input.watchCount ? input.rows : [];
   return clipPageSnapshot([
     `当前栏目：${label}；关注 ${input.watchCount} 只，当前展示 ${rows.length} 条。`,
-    ...rows.map(row => `- ${row.when} ${row.name}：${row.title}${row.url ? `（${row.url}）` : ''}`),
+    // 每条自带公司代码：不带代码时模型只能靠公司名反查身份（wiki_search 兜底），列表本身已有确定归属。
+    ...rows.map(row => `- ${row.when} ${row.name}${row.code ? `（${row.code}）` : ''}：${row.title}${row.url ? `（${row.url}）` : ''}`),
     '说明：以上为发送时列表快照；链接正文在 @ 后由宿主读取，不在此重复。',
     !input.watchCount ? '当前没有关注股票。' : '',
     input.loading ? '正在加载，资料尚未取齐。' : '',
@@ -363,4 +368,35 @@ export function buildInvestmentNewsSnapshot(input: {
     input.staleNote ?? '',
     !items.length ? '当前没有可供提炼的列表条目，不代表没有相关资讯。' : '',
   ].filter(Boolean).join('\n')).body;
+}
+
+/** 资讯雷达「事件概率」：合约条目没有单独 URL，不能造 @ 引用，只能靠这份快照文本让模型看见。 */
+export function buildEventsProbabilitySnapshot(input: {
+  items: readonly { topic: string; source: string; title: string; leg: string; prob: number | null; settle: string; volume: number | null }[];
+  howToRead: readonly string[];
+  updated: string | null;
+  partial: boolean;
+  loading?: boolean;
+  refreshing?: boolean;
+  err?: string | null;
+  staleNote?: string | null;
+}): string {
+  const byTopic = new Map<string, typeof input.items[number][]>();
+  for (const item of input.items) byTopic.set(item.topic, [...(byTopic.get(item.topic) ?? []), item]);
+  const lines = [
+    `当前栏目：事件概率（Polymarket / Kalshi 公开定价）；共 ${input.items.length} 份合约。`,
+    input.partial ? '部分源没取到，这不是完整清单。' : '',
+    input.updated ? `更新于 ${input.updated}` : '',
+    ...[...byTopic.entries()].flatMap(([topic, items]) => [
+      `【${topic}】`,
+      ...items.map(it => `- ${it.title}${it.leg ? `（${it.leg}）` : ''}：概率 ${it.prob == null ? '—' : `${(it.prob * 100).toFixed(1)}%`}，结算日 ${it.settle || '—'}，24h 成交量 ${it.volume == null ? '—' : it.volume.toLocaleString('en-US')}，来源 ${it.source}`),
+    ]),
+    input.howToRead.length ? `怎么读这组数：${input.howToRead.join('；')}` : '',
+    input.loading ? '正在加载，资料尚未取齐。' : '',
+    input.refreshing ? '正在刷新，以下仍为当前已展示的快照，不代表刷新后的最新结果。' : '',
+    input.err ? `读取失败：${input.err}` : '',
+    input.staleNote ?? '',
+    !input.items.length ? '这一轮没取到合约报价（上游可能暂时不可用），不代表没有相关事件。' : '',
+  ];
+  return clipPageSnapshot(lines.filter(Boolean).join('\n')).body;
 }

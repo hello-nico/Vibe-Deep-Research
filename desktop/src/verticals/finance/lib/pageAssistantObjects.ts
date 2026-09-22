@@ -74,6 +74,27 @@ export function marketAssistantObject(input: {
   };
 }
 
+/** 全球指数（美股/港股等）没有 6 位 A 股代码，不能复用 marketAssistantObject 的 id 空间；
+ * 用取数层给的 `key`（稳定标识）另开 market:global: 命名，与宽基指数区分但共享 market kind。 */
+export function globalIndexObject(input: {
+  key: string;
+  name: string;
+  region?: string;
+  asOf?: string;
+}): PageAssistantObject | null {
+  const key = (input.key || '').trim();
+  if (!key || !/^[A-Za-z0-9._-]+$/.test(key)) return null;
+  return {
+    kind: 'market',
+    id: `market:global:${key}`,
+    label: input.name || key,
+    locator: key,
+    hint: [input.region, input.asOf ? `观察范围 ${input.asOf}` : ''].filter(Boolean).join(' · ') || '全球指数',
+    section: '全球指数',
+    readable: true,
+  };
+}
+
 export function marketIndicesObject(members: PageAssistantObject[]): PageAssistantObject | null {
   if (!members.length) return null;
   return {

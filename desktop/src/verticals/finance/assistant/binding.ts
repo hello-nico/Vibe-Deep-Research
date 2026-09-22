@@ -10,6 +10,12 @@ export function assistantBindingForPage(pageKey: string): { plugin: AssistantPlu
   if (pageKey === 'daily-review') return { plugin: 'market', target: '', bindKey: 'market:daily-review' };
   if (pageKey.startsWith('intel:')) return { plugin: 'intel', target: '', bindKey: 'intel:radar' };
   const profile = /^industry-profile:(.+)$/.exec(pageKey);
-  if (profile?.[1]) return { plugin: 'industry_profile', target: '', bindKey: `industry_profile:${profile[1]}` };
+  if (profile?.[1]) {
+    const code = profile[1];
+    // 产业研究绑定 Profile 身份供只读叙述；不授予改 Profile 正文权限（industry_profile 角色本就不在
+    // Stock 侧 wikiMaintenanceRole 名单内）。目标不带 hash：binding 只有 pageKey，版本核验仍走 @ 引用。
+    const target = code !== 'list' && /^[0-9A-Za-z.]+$/.test(code) ? `profile:sw2:${code.toUpperCase()}` : '';
+    return { plugin: 'industry_profile', target, bindKey: `industry_profile:${code}` };
+  }
   return null;
 }

@@ -2,6 +2,7 @@ import { ResearchError, researchRead, type ResearchTopic, type WikiPage } from '
 import { citedWikiVersionFailure, clipPageSnapshot, formatSnapshotSection, formatCompanyFromSnapshot } from './snapshot.ts';
 import { parseDocumentRef, documentRef, type LibraryDocument } from '../lib/library.ts';
 import type { AssistantObjectRef, CompanySnapshotQuote } from '../../../core/ai/pageContext.tsx';
+import { MARKET_INDEX_IDS } from '../lib/pageAssistantObjects.ts';
 
 const READ_TEXT_LIMIT = 24_000;
 const BIND_TIMEOUT_MS = 15_000;
@@ -46,15 +47,15 @@ function clip(text: string): { body: string; clipped: boolean } {
 }
 
 function failLine(item: AssistantObjectRef, detail: string): string {
-  return `- ${item.label} \`${item.id}\`\n  读取失败：${detail}`;
+  return `${identityLine(item)}\n  读取失败：${detail}`;
 }
 
 function readError(item: AssistantObjectRef, error: unknown, extra = ''): string {
   if (error instanceof DOMException && error.name === 'TimeoutError') {
-    return failLine(item, '读取超时，不能按正文分析。');
+    return failLine(item, '读取超时，不能按正文分析。') + extra;
   }
   const detail = error instanceof ResearchError ? error.message : (error instanceof Error ? error.message : '读取失败');
-  return `- ${item.label} \`${item.id}\`${extra}\n  读取失败：${detail}${error instanceof ResearchError && error.status === 409 ? '\n  该资料当前不可读（冲突或已失效），不能按正文分析。' : ''}`;
+  return `${identityLine(item)}${extra}\n  读取失败：${detail}${error instanceof ResearchError && error.status === 409 ? '\n  该资料当前不可读（冲突或已失效），不能按正文分析。' : ''}`;
 }
 
 function formatFetch(item: AssistantObjectRef, fetched: FetchedUrlBind): string {
@@ -62,6 +63,9 @@ function formatFetch(item: AssistantObjectRef, fetched: FetchedUrlBind): string 
   const status = fetched.parse_status || (body ? 'readable' : 'empty');
   const lines = [
     `- ${item.label} \`${item.id}\``,
+    // 正文与页面登记的所属区块、补充说明一起传给助手。
+    item.section ? `  所属：${item.section}` : '',
+    item.detail ? `  ${item.detail}` : '',
     `  URL：${fetched.url}`,
     fetched.fetched_at ? `  读取时点：${fetched.fetched_at}` : '',
     fetched.content_sha256 ? `  内容版本：${fetched.content_sha256}` : '  内容版本：不可用',
@@ -110,7 +114,8 @@ async function fetchCitedWiki(item: AssistantObjectRef): Promise<string> {
       `  读取时点：${new Date().toISOString()}`,
       page.published ? '  发布状态：已接受页' : '  发布状态：草案或未发布',
       clipped ? '  正文被截断；截断片不能当作完整 Wiki。' : '',
-      body ? `  正文摘要：\n${body}` : '  没有可读正文。',
+      // 未截断时这是完整正文，"摘要"字样会让模型误以为已经过压缩。
+      body ? `  ${clipped ? '正文（已截断）' : '正文'}：\n${body}` : '  没有可读正文。',
     ];
     return lines.filter(Boolean).join('\n');
   } catch (error) {
@@ -217,7 +222,8 @@ async function fetchCitedProfile(item: AssistantObjectRef): Promise<string> {
       `  内容版本：${hash}`,
       `  读取时点：${new Date().toISOString()}`,
       clipped ? '  内容被截断。' : '',
-      `  Profile 摘要：\n${body}`,
+      // 未截断时这是完整核心问题列表，不是被压缩过的摘要。
+      `  ${clipped ? 'Profile 内容（已截断）' : 'Profile 内容'}：\n${body}`,
     ].filter(Boolean).join('\n');
   } catch (error) {
     return readError(item, error);
@@ -226,7 +232,8 @@ async function fetchCitedProfile(item: AssistantObjectRef): Promise<string> {
 
 function formatMarketFromSnapshot(item: AssistantObjectRef, indices: MarketSnapshotIndex[]): string {
   if (item.id === 'market:indices') {
-    const members = indices.filter(i => i.id !== 'indices');
+    const memberIds = new Set(Object.values(MARKET_INDEX_IDS));
+    const members = indices.filter(i => memberIds.has(i.id.replace(/^market:/, '')));
     const body = members.length
       ? members.map(i => `  - ${i.name}（${i.id.replace(/^market:/, '')}）：点位 ${i.price ?? '—'}，涨跌幅 ${i.change_pct == null ? '—' : `${i.change_pct > 0 ? '+' : ''}${i.change_pct}%`}`).join('\n')
       : '  集合成员未在页面快照中';
@@ -248,8 +255,13 @@ function formatMarketFromSnapshot(item: AssistantObjectRef, indices: MarketSnaps
 }
 
 function identityLine(item: AssistantObjectRef): string {
-  const bits = [item.version ? `版本 ${item.version}` : '', item.hint || ''].filter(Boolean);
-  return `- ${item.label} \`${item.id}\`${bits.length ? `（${bits.join(' · ')}）` : ''}`;
+  const bits = [
+    item.version ? `版本 ${item.version}` : '',
+    item.section ? `所属：${item.section}` : '',
+    item.hint || '',
+  ].filter(Boolean);
+  const line = `- ${item.label} \`${item.id}\`${bits.length ? `（${bits.join(' · ')}）` : ''}`;
+  return item.detail ? `${line}\n  ${item.detail}` : line;
 }
 
 async function bindCitedObject(

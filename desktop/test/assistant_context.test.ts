@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { buildDailyReviewSnapshot, buildDirectorySnapshot, buildIndustryProfileSnapshot, buildWikiPageSnapshot, citedWikiVersionFailure, clipPageSnapshot, formatCompanyFromSnapshot } from '../src/verticals/finance/assistant/snapshot.ts';
-import { MARKET_INDEX_IDS } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
+import { buildDailyReviewSnapshot, buildDirectorySnapshot, buildEventsProbabilitySnapshot, buildFeedListSnapshot, buildIndustryProfileSnapshot, buildWikiPageSnapshot, citedWikiVersionFailure, clipPageSnapshot, formatCompanyFromSnapshot } from '../src/verticals/finance/assistant/snapshot.ts';
+import { MARKET_INDEX_IDS, globalIndexObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
 
 test('大盘 company: 从快照绑定连板股显示值，无该股写缺口', () => {
   const quotes = [{
@@ -147,6 +147,18 @@ test('产业研究快照保留全部问题与 rationale，截断处写明', () =
   assert.match(huge, /页面快照已截断/);
 });
 
+test('产业研究快照携带 evidence_docs 的已加载标题与可读引用，不编造未加载标题', () => {
+  const withTitle = buildIndustryProfileSnapshot({
+    industry_name: '电子',
+    industry_code: '801080.SI',
+    core_questions: [{ q: '需求拐点在哪', rationale: '页面判断依据', evidence_docs: ['a'.repeat(32), 'b'.repeat(32)] }],
+  }, { [`${'a'.repeat(32)}`]: '2026 年半导体行业年报' });
+  assert.match(withTitle, /2026 年半导体行业年报/);
+  assert.match(withTitle, new RegExp(`document:${'a'.repeat(32)}`));
+  // 标题尚未取到时如实标"来源研报"，不假装已读到标题。
+  assert.match(withTitle, /- 来源研报 `document:b{32}`/);
+});
+
 test('Wiki 快照看加载中与缺页，目录不静默丢条目', () => {
   const loading = buildWikiPageSnapshot({
     kind: 'company', title: '长江电力', slug: 'companies/600900-sh', symbol: '600900.SH',
@@ -196,4 +208,64 @@ test('研究纪律文件保留 shared-research-principles 标记', () => {
   const text = readFileSync(new URL('../../../Stock-Research/dsh/resources/research-discipline.md', import.meta.url), 'utf8');
   assert.match(text, /shared-research-principles:start/);
   assert.match(text, /shared-research-principles:end/);
+});
+
+test('A股公告/公开新闻快照每行带公司代码，不必靠公司名反查身份', () => {
+  const withCode = buildFeedListSnapshot({
+    kind: 'filings', watchCount: 1,
+    rows: [{ when: '2026-09-20', name: '长江电力', code: '600900.SH', title: '回购实施公告', url: 'https://example.com/a' }],
+  });
+  assert.match(withCode, /长江电力（600900\.SH）：回购实施公告/);
+  const withoutCode = buildFeedListSnapshot({
+    kind: 'news', watchCount: 1,
+    rows: [{ when: '2026-09-20', name: '长江电力', title: '媒体报道', url: 'https://example.com/b' }],
+  });
+  assert.doesNotMatch(withoutCode, /（undefined）/);
+});
+
+test('事件概率快照携带合约条目与读法护栏，没有 URL 时不编造 @ 引用', () => {
+  const snapshot = buildEventsProbabilitySnapshot({
+    items: [{ topic: '货币政策', source: 'polymarket', title: '美联储 12 月是否降息', leg: 'Yes', prob: 0.62, settle: '2026-12-18', volume: 120000 }],
+    howToRead: ['概率是市场定价，不是预测结论'],
+    updated: '2026-09-22T10:00:00+08:00',
+    partial: false,
+  });
+  assert.match(snapshot, /美联储 12 月是否降息/);
+  assert.match(snapshot, /概率 62\.0%/);
+  assert.match(snapshot, /结算日 2026-12-18/);
+  assert.match(snapshot, /怎么读这组数：概率是市场定价，不是预测结论/);
+  const empty = buildEventsProbabilitySnapshot({ items: [], howToRead: [], updated: null, partial: false });
+  assert.match(empty, /这一轮没取到合约报价/);
+});
+
+test('全球指数用取数层 key 开辟独立 market: 身份，与 6 位 A 股代码空间不冲突', () => {
+  assert.equal(globalIndexObject({ key: 'sp500', name: '标普500', region: '美国' })?.id, 'market:global:sp500');
+  assert.equal(globalIndexObject({ key: '', name: '无 key' }), null);
+  assert.equal(globalIndexObject({ key: '带 空格', name: '非法 key' }), null);
+});
+
+test('大盘页把全球指数一并注册为可 @ 对象，且行数据表与对象共用同一 id 空间', () => {
+  const text = readFileSync(new URL('../src/verticals/finance/pages/DailyReview.tsx', import.meta.url), 'utf8');
+  assert.match(text, /globalIndexObject/);
+  assert.match(text, /id: `global:\$\{item\.key\}`/);
+});
+
+test('资讯雷达「事件概率」有自己的助手上下文，不再落到通用占位文案', () => {
+  const text = readFileSync(new URL('../src/verticals/finance/pages/Intel.tsx', import.meta.url), 'utf8');
+  assert.match(text, /buildEventsProbabilitySnapshot/);
+  assert.match(text, /tab !== 'events'/);
+});
+
+test('URL 引用格式化带上页面登记的所属区块与补充说明，Dock→apply 链路不再丢字段', () => {
+  // prompt.ts 依赖的 research.ts 用了 TS 参数属性语法，node --test 的原生 TS 剥离跑不动，
+  // 不能像其它 snapshot builder 一样直接 import 执行；沿用本文件已有对 prompt.ts 内部函数的源码断言方式。
+  const prompt = readFileSync(new URL('../src/verticals/finance/assistant/prompt.ts', import.meta.url), 'utf8');
+  assert.match(prompt, /item\.section \? `  所属：\$\{item\.section\}` : ''/);
+  assert.match(prompt, /item\.detail \? `  \$\{item\.detail\}` : ''/);
+  for (const file of ['dock/FinanceAiDock.tsx'.replace('dock/', 'components/ui/'), 'assistant/apply.ts', 'dsh/research-session.tsx']) {
+    const text = readFileSync(new URL(`../src/verticals/finance/${file}`, import.meta.url), 'utf8');
+    assert.match(text, /locator/, file);
+    assert.match(text, /section/, file);
+    assert.match(text, /detail/, file);
+  }
 });

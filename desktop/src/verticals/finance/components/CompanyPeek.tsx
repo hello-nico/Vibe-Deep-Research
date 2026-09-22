@@ -4,7 +4,7 @@ import { X } from "lucide-react";
 import { addWatch, hydrateWatch, loadWatch } from "../lib/watchlist";
 import { addToRoster, hydrateRoster, loadRoster } from "../lib/researchRoster";
 import { aShareQualified } from "../lib/research";
-import { peekRows, peekSource, type CompanyPeekSnapshot } from "../lib/companyPeek";
+import { peekIdentityLine, peekRows, peekTimeLine, type CompanyPeekSnapshot } from "../lib/companyPeek";
 
 async function loadProviderSnapshot(code: string, signal: AbortSignal): Promise<CompanyPeekSnapshot> {
   const qualified = aShareQualified(code);
@@ -61,7 +61,7 @@ export function CompanyNamePeek({ code, name }: { code: string; name: string }) 
   };
 
   const rows = snapshot ? peekRows(snapshot) : [];
-  const period = rows.find(row => row.period)?.period;
+  const timeLine = peekTimeLine(snapshot);
   const rect = open ? trigger.current?.getBoundingClientRect() : null;
   const width = Math.min(300, window.innerWidth - 24);
   const top = rect ? (rect.bottom + 320 < window.innerHeight ? rect.bottom + 8 : Math.max(12, rect.top - 310)) : 0;
@@ -77,7 +77,8 @@ export function CompanyNamePeek({ code, name }: { code: string; name: string }) 
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate font-medium">{name}</p>
-            <p className="mt-0.5 text-[11px] text-muted-foreground">{[code, period, snapshot ? peekSource(snapshot) : ""].filter(Boolean).join(" · ")}</p>
+            <p className="mt-0.5 text-[11px] leading-4 text-muted-foreground">{peekIdentityLine(code, snapshot)}</p>
+            {timeLine && <p className="text-[11px] leading-4 text-muted-foreground">{timeLine}</p>}
           </div>
           <button type="button" className="-mr-1 -mt-0.5 shrink-0 rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="关闭" onClick={() => setOpen(false)}>
             <X size={16} />

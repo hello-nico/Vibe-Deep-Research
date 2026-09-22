@@ -170,6 +170,9 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
               hint: item.hint,
               source: item.source,
               time: item.time,
+              locator: item.locator,
+              section: item.section,
+              detail: item.detail,
             })),
           });
           if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {

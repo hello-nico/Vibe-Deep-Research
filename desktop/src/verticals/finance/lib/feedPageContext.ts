@@ -27,11 +27,12 @@ function feedObjects(kind: 'news' | 'filings', rows: readonly FeedRow[]): PageAs
     const object = urlObject({
       title: row.title,
       url: row.url,
-      source: row.name,
+      // 公司代码随来源一并带上：不带代码时模型只能靠公司名反查身份。
+      source: row.code ? `${row.name}（${row.code}）` : row.name,
       time: row.when,
       section,
     });
-    return object ? [object] : [];
+    return object ? [{ ...object, detail: row.code ? `所属公司代码：${row.code}` : undefined }] : [];
   });
 }
 

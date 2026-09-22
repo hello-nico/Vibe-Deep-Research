@@ -34,6 +34,28 @@ export function periodHint(period: unknown): string {
   return /^\d{4}-\d{2}-\d{2}/.test(text) ? text.slice(0, 10) : text;
 }
 
+export function peekAsOf(snapshot: CompanyPeekSnapshot): string {
+  return periodHint(snapshot.as_of);
+}
+
+export function peekReportPeriod(snapshot: CompanyPeekSnapshot): string {
+  return peekRows(snapshot).find(row => row.period)?.period || "";
+}
+
+export function peekIdentityLine(code: string, snapshot: CompanyPeekSnapshot | null): string {
+  return [code, snapshot ? peekSource(snapshot) : ""].filter(Boolean).join(" · ");
+}
+
+export function peekTimeLine(snapshot: CompanyPeekSnapshot | null): string {
+  if (!snapshot) return "";
+  const asOf = peekAsOf(snapshot);
+  const reportPeriod = peekReportPeriod(snapshot);
+  return [
+    asOf ? `截至 ${asOf}` : "",
+    reportPeriod && reportPeriod !== asOf ? `报告期 ${reportPeriod}` : "",
+  ].filter(Boolean).join(" · ");
+}
+
 export function peekRows(snapshot: CompanyPeekSnapshot): CompanyPeekRow[] {
   const valuation = snapshot.sections.valuation?.data;
   const values = valuation?.values && typeof valuation.values === "object" ? valuation.values as Record<string, unknown> : {};
