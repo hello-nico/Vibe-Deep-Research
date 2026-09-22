@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { installPageModel } from './model.mjs';
 import { installResearchApi, installWikiPublish } from './research.mjs';
+import { installCompanyRefresh } from './maintenance.mjs';
 import { installHostState } from './host-state.mjs';
 
 export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents"];
@@ -32,6 +33,7 @@ export function apply(ctx) {
     track(installPageModel(ctx));
     track(installResearchApi(ctx));
     track(installWikiPublish(ctx));
+    track(installCompanyRefresh(ctx));
     installHostState(ctx, track);
     track(ctx.webServer.register({ kind: "exact", path: "/finance-pdfium.wasm", handler(_req, res) {
       res.setHeader("Content-Type", "application/wasm");

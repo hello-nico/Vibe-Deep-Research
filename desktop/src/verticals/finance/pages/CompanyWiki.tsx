@@ -19,6 +19,7 @@ import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
+import { CompanyRefreshConfirm } from '../components/CompanyRefreshConfirm';
 
 const VIEW_KEY = 'vr-company-roster-view';
 const RECENT_LIMIT = 9;
@@ -56,7 +57,6 @@ export function CompanyWiki() {
   const [revision, refresh] = useState(0);
   const [listLoading, setListLoading] = useState(true);
   const [readerState, setReaderState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [apiBusy, setApiBusy] = useState('');
   const [notice, setNotice] = useState({ slug: '', text: '' });
   // Generation tracking for a missing/young Company Wiki. Phases separate the
   // model turn (researching), Backend settlement (settling) and confirmed
@@ -86,20 +86,8 @@ export function CompanyWiki() {
   const roster = loadRoster();
   const watched = new Set(loadWatch());
   const refreshData = async () => {
-    if (refreshing || apiBusy) return;
-    if (!slug) { setListLoading(true); refresh(x => x + 1); setNotice({ slug: '', text: '已重新读取公司列表' }); return; }
-    const target = slug;
-    setApiBusy(target); setNotice({ slug: target, text: '' });
-    try {
-      const result = await researchRead<{ status: 'updated' | 'partial' | 'unavailable'; updated_fields: number }>('/wiki/pages/refresh-api', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: target }),
-      });
-      if (activeSlug.current !== target) return;
-      setNotice({ slug: target, text: result.status === 'unavailable' ? '本次未获取新数据，已有数据和原日期保留' : `${result.status === 'partial' ? '部分更新' : '已更新'} ${result.updated_fields} 项接口数据${result.status === 'partial' ? '，其余数据保留或待补充' : ''}` });
-      if (result.status !== 'unavailable') refresh(x => x + 1);
-    } catch {
-      if (activeSlug.current === target) setNotice({ slug: target, text: '本次更新失败，已有资料保留。请检查研究服务后重试。' });
-    } finally { setApiBusy(''); }
+    if (refreshing || slug) return;
+    setListLoading(true); refresh(x => x + 1); setNotice({ slug: '', text: '已重新读取公司列表' });
   };
   useEffect(() => {
     if (slug || !pages) return;
@@ -148,7 +136,7 @@ export function CompanyWiki() {
   const switchOptions = rows.map(row => ({ value: row.slug, label: row.title, detail: row.symbol }));
   if (current && !switchOptions.some(option => option.value === current.slug)) switchOptions.unshift({ value: current.slug, label: current.title, detail: current.symbol });
   const pagesReady = pages !== null;
-  const refreshing = listLoading || (!!slug && apiBusy === slug) || (!!slug && Boolean(current?.hasWiki) && readerState === 'loading');
+  const refreshing = listLoading || (!!slug && Boolean(current?.hasWiki) && readerState === 'loading');
   const leave = async (symbol: string) => {
     try {
       await removeFromRoster(symbol);
@@ -356,7 +344,7 @@ export function CompanyWiki() {
     {genHere.phase === 'failed' && current?.aShare && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void startCompanyResearch()}>重试</button>}
     {['done', 'partial', 'review', 'failed', 'unconfirmed'].includes(genHere.phase) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => setGen(null)}>收起</button>}
   </div> : null;
-  return <div><PageHeader title="个股研究" subtitle="只显示已加入研究的公司。自选与研究名单分开。" actions={<div className="flex flex-col items-end gap-2">{refreshing ? <ResearchRefreshStatus /> : <button className="workspace-action" onClick={() => void refreshData()}><RefreshCw size={14} />{slug ? '刷新资料' : '刷新列表'}</button>}{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div>} />
+  return <div><PageHeader title="个股研究" subtitle="只显示已加入研究的公司。自选与研究名单分开。" actions={<div className="flex flex-col items-end gap-2">{slug ? <CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current?.title || '公司资料'} onUpdated={() => refresh(x => x + 1)} /> : refreshing ? <ResearchRefreshStatus /> : <button className="workspace-action" onClick={() => void refreshData()}><RefreshCw size={14} />刷新列表</button>}{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div>} />
     {error && <p role="alert" className="mb-4">{error}</p>}
     {wikiError && <p role="alert" className="mb-4">公司资料暂时读不到：{wikiError}<button className="workspace-action ml-2" onClick={() => refresh(x => x + 1)}>重试</button></p>}
     {!slug && listLoading && <ResearchLoading title="正在读取公司资料" sections={['研究名单', '公司资料']} />}
@@ -399,7 +387,6 @@ export function CompanyWiki() {
         {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究未完成，可重试。'}</p>}
         {genActions}
       </div>}
-      {apiBusy === slug && <ResearchLoading compact title={`正在更新${current?.title || '该公司'}的财务与估值数据`} sections={['财务', '估值']} />}
       {current?.hasWiki ? <WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /> : null}
     </GlassCard>
     : !listLoading ? <>

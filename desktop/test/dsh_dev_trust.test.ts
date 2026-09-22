@@ -19,6 +19,7 @@ test("开发和预览入口代理报告绑定接口", () => {
 test("DSH 代理路径不含本机 API，未就绪时给出可重试 JSON", () => {
   assert.equal(isDshProxiedPath('/api/session/list'), true);
   assert.equal(isDshProxiedPath('/finance-report-tasks'), true);
+  assert.equal(isDshProxiedPath('/finance-maintenance-refresh'), true);
   assert.equal(isDshProxiedPath('/finance-api/health'), false);
   assert.match(dshUnavailableBody('DSH 正在启动'), /dsh_unavailable/);
   const source = readFileSync(fileURLToPath(new URL('../dsh-dev.ts', import.meta.url)), 'utf8');
