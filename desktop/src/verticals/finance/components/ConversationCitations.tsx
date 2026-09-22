@@ -1,7 +1,7 @@
 import { useEffect, useRef, type HTMLAttributes } from 'react';
 import { EvidenceLink } from './EvidenceCard';
 import { decodeEvidenceLink, loadEvidence } from '../lib/evidence';
-import { citationReference, citationTitle, webCitationUrl } from '../lib/citationMarks';
+import { citationReference, citationTitle, evidenceDeepLinkRef, webCitationUrl } from '../lib/citationMarks';
 import { markResearchMentions } from '../lib/researchMentions';
 import './conversation-citations.css';
 
@@ -9,6 +9,8 @@ const GENERIC_CITATION_TITLES = new Set(['来源', '来源资料', '数据来源
 
 function meaningfulCitationTitle(value: string | undefined): string | null {
   const title = value?.replace(/\s+/g, ' ').trim() || '';
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(title)
+    || (typeof window !== 'undefined' && title === window.location.hostname)) return null;
   return title && !GENERIC_CITATION_TITLES.has(title) && !/^(?:source|claim|evidence|provider|lookup):/.test(title) ? title : null;
 }
 
@@ -72,22 +74,30 @@ function hydrateCitationTitles(root: HTMLElement, attempted: Set<string>, resolv
 
 /**
  * Stamp native DSH links/buttons with a readable source label without moving them.
- * External links retain browser navigation; stock-ref links use the shared
- * evidence panel when the delegated click handler below sees them.
+ * External links retain browser navigation; stock-ref links and same-origin
+ * /evidence?ref= deep links use the shared evidence panel via the delegated
+ * click handler below; direct visits to the deep link open the same panel.
  */
 export function markWebCitations(root: ParentNode): void {
   for (const node of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
     if (typeof HTMLAnchorElement !== 'undefined' && !(node instanceof HTMLAnchorElement)) continue;
     const rawHref = node.getAttribute('href') || '';
-    const internal = decodeEvidenceLink(rawHref);
+    const deepRef = evidenceDeepLinkRef(rawHref);
+    const internal = deepRef ?? decodeEvidenceLink(rawHref);
     if (internal) {
-      const label = citationTitle(internal, node.textContent?.trim());
+      // 流式链接在 ref 尚未完整时可能先按外链展示；恢复原始标题或由依据层补标题。
+      const originalTitle = meaningfulCitationTitle(node.dataset.citationTitle)
+        ?? meaningfulCitationTitle(node.textContent?.trim());
+      const label = citationTitle(internal, originalTitle ?? undefined);
       node.dataset.internalCitation = 'true';
       delete node.dataset.webCitation;
       node.dataset.evidenceRef = internal;
       node.dataset.citationLabel = label;
+      if (!node.children.length && node.textContent !== label) node.textContent = label;
       node.removeAttribute('title');
       node.setAttribute('aria-label', `查看依据：${label}`);
+      // 保留 href：委托点击处理器会拦截同源深链并在面板打开；未水合/新窗口则整页
+      // 导航到 /evidence?ref= 也能读回同一依据，不依赖 DOM 点击拦截。
       continue;
     }
     const href = webCitationUrl(rawHref);

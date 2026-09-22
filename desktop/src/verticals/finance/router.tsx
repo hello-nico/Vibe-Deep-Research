@@ -24,6 +24,7 @@ export const router = createBrowserRouter([
       { path: "/research", lazy: async () => ({ Component: (await import("@/pages/CompanyWiki")).CompanyWiki }) },
       { path: "/my-reports", lazy: async () => ({ Component: (await import("@/pages/UploadedReports")).UploadedReports }) },
       { path: "/my-reports/read/:id", lazy: async () => ({ Component: (await import("@/pages/ReportReader")).ReportReader }) },
+      { path: "/evidence", lazy: async () => ({ Component: (await import("@/pages/EvidenceDeepLink")).EvidenceDeepLink }) },
       { path: "/my-research", lazy: async () => ({ Component: (await import("@/pages/MyResearch")).MyResearch }) },
       { path: "/my-research/material", lazy: async () => ({ Component: (await import("@/pages/ResearchMaterial")).ResearchMaterial }) },
       { path: "/my-research/topics/:topicHex", lazy: async () => ({ Component: (await import("@/pages/TopicWorkspace")).TopicWorkspace }) },

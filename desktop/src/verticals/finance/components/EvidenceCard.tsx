@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
@@ -12,20 +12,28 @@ import { useFinanceOverlayTarget } from './layout/FinanceAssistantSurface';
 
 type OpenEvidence = (reference: string, trigger: HTMLButtonElement | null, snapshot?: string) => void;
 const EvidenceContext = createContext<OpenEvidence | null>(null);
+export function useOpenEvidence(): OpenEvidence {
+  const open = useContext(EvidenceContext);
+  if (!open) throw new Error('依据入口需要 EvidenceProvider');
+  return open;
+}
 export function EvidenceProvider({ children }: { children: ReactNode }) {
   const [selection, select] = useState<{ reference: string; trigger: HTMLButtonElement | null; locationKey: string; snapshot?: string } | null>(null);
   const location = useLocation();
+  const openEvidence = useCallback<OpenEvidence>((reference, trigger, snapshot) => {
+    select({ reference, trigger, locationKey: location.key, snapshot });
+  }, [location.key]);
   useEffect(() => {
     const open = (event: Event) => {
       const reference = (event as CustomEvent<string>).detail;
-      if (typeof reference === 'string') select({ reference, trigger: null, locationKey: location.key });
+      if (typeof reference === 'string') openEvidence(reference, null);
     };
     window.addEventListener('finance-open-evidence', open);
     return () => window.removeEventListener('finance-open-evidence', open);
-  }, [location.key]);
+  }, [openEvidence]);
   useEffect(() => { select(previous => previous?.locationKey === location.key ? previous : null); }, [location.key]);
   const close = () => { select(null); selection?.trigger?.focus(); };
-  return <EvidenceContext.Provider value={(reference, trigger, snapshot) => select({ reference, trigger, locationKey: location.key, snapshot })}>{children}
+  return <EvidenceContext.Provider value={openEvidence}>{children}
     <EvidencePreview locationKey={location.key} />
     {selection && selection.locationKey === location.key && <EvidenceCard key={selection.reference} reference={selection.reference} snapshot={selection.snapshot} close={close} />}
   </EvidenceContext.Provider>;

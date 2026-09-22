@@ -57,6 +57,19 @@ export function outboundWebUrl(value: string): string | null {
   return stripped === text ? null : webCitationUrl(stripped);
 }
 
+/**
+ * 产品证据深链：同源 /evidence?ref=…（由 Stock dsh citationUri 单一 Owner 生成）。
+ * 返回其中的不透明引用；非同源、路径不符或引用语法非法返回 null（当普通外链处理）。
+ */
+export function evidenceDeepLinkRef(value: string): string | null {
+  if (typeof window === 'undefined') return null;
+  let url: URL;
+  try { url = new URL(value.trim()); } catch { return null; }
+  if (url.origin !== window.location.origin || url.pathname !== '/evidence') return null;
+  const ref = url.searchParams.get('ref') || '';
+  return citationReference(ref) ? ref : null;
+}
+
 export function webCitationView(value: string, explicitTitle?: string): { title: string; text: string; href: string } | null {
   const href = webCitationUrl(value);
   if (!href) return null;
