@@ -2,6 +2,8 @@
 
 状态：后续设计与实施交接稿，暂不实施。优先完成 M9.6「我的资料」，随后再启动本文范围；不占用已存在的 M9.7 编号。
 
+2026-09-21 定位校准（Checklist「研究内核推进顺序」）：本 Task 排在 M9.9 与 M9.7 前两类之后。实现基础是 M9.9 的拆分——Stock 侧消费者登记表中 `my_research` 一条独立写全工具集与 prompt；Vibe 侧复用 `finance/assistant/` 模块的宿主绑定机制，绑定 Topic 快照（`user_claim` / `judgment` / `gaps` / `next_questions` / `tracking_items` / `revision` + 本次选中项）与自上次依据版本以来的对象 diff。§3、§4 中"核对 role / persona 注入 / 工具安装链"的起点以 M9.9 闭合后的结构为准，不再以本文写作时的 `native-research-tools.mjs` 常量为基线。diff 能力依赖对象版本设计决策；未定稿前 Topic 快照只含当前版本。
+
 ## 1. 已确认的产品决策
 
 - 深度对话面向开放问题；我的研究面向明确 Topic 的持续研究，目标、上下文、系统提示词、实际工具集合与 Chat UI 应分别设计。
