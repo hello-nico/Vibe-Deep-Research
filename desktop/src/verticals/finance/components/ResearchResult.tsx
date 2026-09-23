@@ -24,6 +24,25 @@ export function ResearchResult({ resultId, presentation = 'conversation' }: { re
   const [result, setResult] = useState<Result>();
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setResult(undefined); setError('');
+    void fetch('/finance-research/research-results/' + encodeURIComponent(resultId), { signal: controller.signal })
+      .then(async response => {
+        if (!response.ok) throw new Error(response.status === 404 ? '这份研究成果不存在' : '研究成果暂时无法读取');
+        const value = await response.json() as Result;
+        if (value.result_id !== resultId || !Array.isArray(value.payload?.rows)) throw new Error('研究成果格式不完整');
+        if (!controller.signal.aborted) setResult(value);
+      }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '读取失败'); });
+    return () => controller.abort();
+  }, [resultId, retry]);
+  if (error) return <div className="rounded-xl border p-5">{error}<button className="ml-3 underline" onClick={() => setRetry(n => n + 1)}>重新读取</button></div>;
+  if (!result) return <ResearchLoading title="正在读取研究成果" sections={loadingSections} />;
+  return <ResultCard key={resultId} payload={result.payload} sourceKey={resultId} presentation={presentation} />;
+}
+
+/** One result's chart / table card; shared by saved results and read-only previews (watchlist). */
+export function ResultCard({ payload, sourceKey, presentation = 'conversation' }: { payload: Result['payload']; sourceKey: string; presentation?: 'conversation' | 'report' }) {
   const [table, setTable] = useState(false);
   const [downloadError, setDownloadError] = useState('');
   const [chart, setChart] = useState<ECharts | null>(null);
@@ -35,19 +54,6 @@ export function ResearchResult({ resultId, presentation = 'conversation' }: { re
     eChartDownload.current = download ?? null;
   }, []);
   const [range, setRange] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setResult(undefined); setError(''); setRange(0);
-    void fetch('/finance-research/research-results/' + encodeURIComponent(resultId), { signal: controller.signal })
-      .then(async response => {
-        if (!response.ok) throw new Error(response.status === 404 ? '这份研究成果不存在' : '研究成果暂时无法读取');
-        const value = await response.json() as Result;
-        if (value.result_id !== resultId || !Array.isArray(value.payload?.rows)) throw new Error('研究成果格式不完整');
-        if (!controller.signal.aborted) setResult(value);
-      }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : '读取失败'); });
-    return () => controller.abort();
-  }, [resultId, retry]);
-  const payload = result?.payload;
   const rows = useMemo(() => range ? payload?.rows.slice(-range) ?? [] : payload?.rows ?? [], [payload, range]);
   const option = useMemo(() => {
     const number = (value: string | null | undefined) => value == null ? null : Number(value);
@@ -74,8 +80,6 @@ export function ResearchResult({ resultId, presentation = 'conversation' }: { re
       ],
     };
   }, [rows, payload]);
-  if (error) return <div className="rounded-xl border p-5">{error}<button className="ml-3 underline" onClick={() => setRetry(n => n + 1)}>重新读取</button></div>;
-  if (!payload) return <ResearchLoading title="正在读取研究成果" sections={loadingSections} />;
   return <section className="my-4 w-full min-w-0 rounded-2xl border bg-background p-5" aria-label={payload.title}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="font-semibold">{payload.title}</h3><p className="text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}</p></div>
@@ -106,6 +110,6 @@ export function ResearchResult({ resultId, presentation = 'conversation' }: { re
       <p className="my-2">均线为含当日在内最近 {payload.calculations.windows.join('／')} 个交易日收盘价的算术平均；不足对应天数时不计算。{payload.calculations.rounding}。</p>
       <div className="max-h-64 overflow-auto"><table className="w-full text-right tabular-nums"><thead><tr><th>日期</th><th>收盘价（元）</th></tr></thead><tbody>{payload.calculations.inputs.map(row => <tr key={row.trading_day}><td>{row.trading_day}</td><td>{financialNumber(row.close, 2)}</td></tr>)}</tbody></table></div>
     </details>}
-    <div className="conversation-citations mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">来源：{payload.sources.map((source, index) => <EvidenceLink key={index} reference={`provider:${resultId}:${index}`} snapshot={resultSourceText(source, payload.fetched_at)}>{sourceName(source.title)}{source.endpoint?.includes('income-statements') ? ' · 利润表' : source.endpoint?.includes('cash-flow-statements') ? ' · 现金流量表' : ''}</EvidenceLink>)}<span>获取时间 {new Date(payload.fetched_at).toLocaleString()}</span></div>
+    <div className="conversation-citations mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">来源：{payload.sources.map((source, index) => <EvidenceLink key={index} reference={`provider:${sourceKey}:${index}`} snapshot={resultSourceText(source, payload.fetched_at)}>{sourceName(source.title)}{source.endpoint?.includes('income-statements') ? ' · 利润表' : source.endpoint?.includes('cash-flow-statements') ? ' · 现金流量表' : ''}</EvidenceLink>)}<span>获取时间 {new Date(payload.fetched_at).toLocaleString()}</span></div>
   </section>;
 }

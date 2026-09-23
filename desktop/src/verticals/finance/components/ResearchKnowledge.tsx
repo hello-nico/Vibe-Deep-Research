@@ -15,10 +15,10 @@ export { WikiLoading, wikiLoadingSections } from './WikiLoading';
 export { KnowledgeText } from './WikiReport';
 
 export function WikiViewTabs({ report, onChange }: { report: boolean; onChange: (report: boolean) => void }) {
-  return <div role="tablist" aria-label="资料视图" className="flex w-fit shrink-0 rounded-full border border-border p-0.5">
+  return <div role="tablist" aria-label="资料视图" className="flex h-10 w-fit shrink-0 items-stretch gap-0.5 rounded-xl border border-border p-[3px]">
     {([[false, '研究页'], [true, '图文报告']] as const).map(([id, label]) => (
       <button key={label} type="button" role="tab" aria-label={label} aria-selected={report === id}
-        className={cn('rounded-full px-3 py-1.5 text-sm', report === id ? 'bg-muted text-foreground' : 'text-muted-foreground')}
+        className={cn('rounded-[9px] px-3.5 text-[13px] transition-colors', report === id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}
         onClick={() => onChange(id)}>
         {label}
       </button>
@@ -75,7 +75,7 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;
 }
-export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false }: {
+export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false, reportActionSlot = null }: {
   slug: string;
   onMarkdown?: (markdown: string) => void;
   onPage?: (page: WikiPage | null) => void;
@@ -85,6 +85,8 @@ export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0
   report?: boolean;
   onReportChange?: (report: boolean) => void;
   hideToggle?: boolean;
+  /** Page toolbar action group that receives the report's regenerate action. */
+  reportActionSlot?: HTMLElement | null;
 }) {
   const [internalReport, setInternalReport] = useState(false);
   const report = reportProp ?? internalReport;
@@ -118,13 +120,13 @@ export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0
   return <div>
     {!hideToggle && <div className="mb-4"><WikiViewTabs report={report} onChange={setReport} /></div>}
     {trail.length > 1 && <button type="button" className="workspace-action mb-4" onClick={() => navigate(trail.slice(0, -1))}>返回上一份材料</button>}
-    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onPage={active === slug ? onPage : undefined} onLoadState={onLoadState} />
+    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onPage={active === slug ? onPage : undefined} onLoadState={onLoadState} reportActionSlot={active === slug ? reportActionSlot : null} />
     {!report && !!related.length && <GlassCard className="mt-4"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="flex flex-wrap gap-2">{related.map(item => <button key={item.slug} className="workspace-action" onClick={() => open(item.slug)}>{item.title}</button>)}</div></GlassCard>}
     {linkError && <p role="status" className="mt-3 text-sm text-muted-foreground">{linkError}</p>}
   </div>;
 }
 
-function WikiBody({ slug, report, onMarkdown, onPage, onLoadState, revision, renderLoading }: { slug: string; report: boolean; onMarkdown?: (markdown: string) => void; onPage?: (page: WikiPage | null) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision: number; renderLoading: (slug: string) => ReactNode }) {
+function WikiBody({ slug, report, onMarkdown, onPage, onLoadState, revision, renderLoading, reportActionSlot }: { slug: string; report: boolean; onMarkdown?: (markdown: string) => void; onPage?: (page: WikiPage | null) => void; onLoadState?: (state: 'loading' | 'ready' | 'error') => void; revision: number; renderLoading: (slug: string) => ReactNode; reportActionSlot: HTMLElement | null }) {
   const [page, setPage] = useState<WikiPage | null>(null);
   const [error, setError] = useState('');
   const [retry, setRetry] = useState(0);
@@ -161,7 +163,7 @@ function WikiBody({ slug, report, onMarkdown, onPage, onLoadState, revision, ren
       <KnowledgeText markdown={page.markdown} /><ReferenceButtons key={slug} refs={[...page.spec.blocks, ...(page.spec.research_blocks ?? [])].flatMap(block => block.refs)} /></article>;
   })();
   if (['company', 'industry', 'theme', 'comparison'].includes(page.spec.type ?? '')) {
-    return <WikiReportPane page={page} active={report} fallback={dashboard} />;
+    return <WikiReportPane page={page} active={report} fallback={dashboard} actionSlot={reportActionSlot} />;
   }
   if (report) {
     const body = page.markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').replace(/^\s*# [^\n]+\r?\n/, '').replace(`主体标识：\`${page.spec.subject_id}\`。`, '');

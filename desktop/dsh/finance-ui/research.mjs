@@ -27,6 +27,7 @@ export function researchRoute(method, pathname) {
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
     '/wiki/research-candidates', '/notes',
+    '/research-results/market/preview',
   ].includes(pathname)) return true;
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;

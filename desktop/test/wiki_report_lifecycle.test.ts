@@ -197,8 +197,8 @@ for (const outcome of ['started', 'failed', 'busy_other_version']) {
         else pending.resolve({ status: outcome, sessionId: 'a-late' });
       });
       assert.equal(env.container.textContent, before);
-      await env.act(async () => { [...env.container.querySelectorAll('button')].find(b => b.textContent === '生成过程').click(); });
-      assert.equal(sessions.processCalls[0].sessionId, 'b-prior');
+      assert.equal(sessions.processCalls.length, 0);
+      assert.ok(!env.container.textContent.includes('生成过程'));
     } finally { await env.cleanup(); }
   });
 }
@@ -449,7 +449,7 @@ test('查不到后台任务且页面未变：超时后明确"尚未确认"而非
   } finally { await env.cleanup(); }
 });
 
-test('生成过程打开只读面板，不调用 openSession，关闭不中止', async () => {
+test('生成中显示完整加载效果，不提供生成过程入口', async () => {
   const env = await boot();
   try {
     globalThis.fetch = async () => Response.json({ items: [] });
@@ -461,16 +461,13 @@ test('生成过程打开只读面板，不调用 openSession，关闭不中止',
     await env.render(createElement(env.Provider, { value: sessions },
       createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页' })));
     await env.act(async () => {});
-    const button = [...env.container.querySelectorAll('button')].find(b => b.textContent.includes('生成过程'));
-    assert.ok(button, '运行中应提供生成过程入口');
-    await env.act(async () => { button.click(); });
+    assert.ok(env.container.querySelector('.research-loading'));
+    assert.ok(env.container.textContent.includes('读取报告方法'));
+    assert.ok(env.container.textContent.includes('保存报告'));
+    assert.ok(!env.container.textContent.includes('生成过程'));
     assert.equal(opened, 0);
-    assert.equal(sessions.processCalls[0]?.sessionId, 's-report');
-    assert.equal(sessions.processCalls[0]?.kind, 'report');
+    assert.equal(sessions.processCalls.length, 0);
     assert.deepEqual(sessions.cancelCalls, []);
-    sessions.closeTaskProcess();
-    assert.deepEqual(sessions.cancelCalls, []);
-    assert.equal(opened, 0);
   } finally { await env.cleanup(); }
 });
 
@@ -491,7 +488,7 @@ test('已结束且无制品的旧任务不显示刚刚生成完，也不自动�
     assert.ok(!env.container.textContent.includes('尚未确认'), '不得把未生成过的旧绑定说成刚刚结束');
     assert.ok(!env.container.textContent.includes('报告生成失败'));
     assert.ok(env.container.textContent.includes('生成报告'));
-    assert.ok(env.container.textContent.includes('生成过程'));
+    assert.ok(!env.container.textContent.includes('生成过程'));
     assert.ok(env.container.textContent.includes('还没有图文报告'));
     assert.ok(!env.container.textContent.includes('研究页正文'));
   } finally { await env.cleanup(); }
@@ -512,14 +509,14 @@ test('空报告区点击即发起生成，启动成功后即使索引尚未回�
     await env.render(createElement(env.Provider, { value: sessions },
       createElement(env.pane.WikiReportPane, { page: page('companies/a'), fallback: '研究页正文' })));
     await env.act(async () => {});
-    const hit = env.container.querySelector('.wiki-report-empty-hit');
-    assert.ok(hit, '空报告文案应可点击');
+    const hit = [...env.container.querySelectorAll('button')].find(button => button.textContent === '生成报告');
+    assert.ok(hit, '空报告区应有一个主按钮');
     await env.act(async () => { hit.click(); });
     assert.equal(sessions.startCalls.length, 1);
     assert.ok(env.container.textContent.includes('正在生成图文报告'));
     await env.act(async () => { resolveStart({ sessionId: 's-new', status: 'started' }); });
     assert.ok(env.container.textContent.includes('正在生成图文报告'), 'start 返回后不得弹回空态');
-    assert.ok(env.container.textContent.includes('生成过程'));
+    assert.ok(!env.container.textContent.includes('生成过程'));
     assert.ok(!env.container.textContent.includes('还没有图文报告'));
   } finally { await env.cleanup(); }
 });
@@ -559,11 +556,11 @@ test('首轮轮询前已经失败的任务结束等待并允许重试', async ()
       sessionState: () => started ? { running: false, lastAgentError: 'private provider failure' } : null,
     });
     await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
-    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    await env.act(async () => { [...env.container.querySelectorAll('button')].find(button => button.textContent === '生成报告').click(); });
     await env.tickIntervals();
     assert.ok(!env.container.textContent.includes('正在生成图文报告'));
     assert.ok(env.container.textContent.includes('报告生成失败'));
-    assert.ok(env.container.querySelector('.wiki-report-empty-hit'));
+    assert.ok([...env.container.querySelectorAll('button')].some(button => button.textContent === '生成报告'));
     assert.ok(!env.container.textContent.includes('private provider failure'));
   } finally { await env.cleanup(); }
 });
@@ -581,7 +578,7 @@ test('派生失败不把伪造文案写进原生 lastAgentError，面板仍显�
       sessionState: () => started ? { running: false, lastAgentError: null, promptError: null, failed: true } : null,
     });
     await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
-    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    await env.act(async () => { [...env.container.querySelectorAll('button')].find(button => button.textContent === '生成报告').click(); });
     await env.tickIntervals();
     assert.ok(env.container.textContent.includes('报告生成失败'));
     assert.ok(!env.container.textContent.includes('任务未完成'));
@@ -600,7 +597,7 @@ test('任务状态一直缺失时明确待确认，不永久显示运行中', as
       start: async () => ({ sessionId: 'missing', status: 'started' }),
     });
     await env.render(createElement(env.Provider, { value: sessions }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
-    await env.act(async () => { env.container.querySelector('.wiki-report-empty-hit').click(); });
+    await env.act(async () => { [...env.container.querySelectorAll('button')].find(button => button.textContent === '生成报告').click(); });
     offset = 16_000;
     await env.tickIntervals();
     assert.ok(!env.container.textContent.includes('正在生成图文报告'));

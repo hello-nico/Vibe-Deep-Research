@@ -5,8 +5,9 @@ import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { GlassCard } from "../components/ui/GlassCard";
 import { ResearchResult } from '../components/ResearchResult';
 import { Disclaimer } from "../components/ui/Disclaimer";
-import { KnowledgeText, ReferenceButtons, WikiReader } from "../components/ResearchKnowledge";
+import { KnowledgeText, ReferenceButtons, WikiReader, WikiViewTabs } from "../components/ResearchKnowledge";
 import { ObjectReport } from "../components/ObjectReport";
+import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
 import { getNote, type Note } from "../lib/notes";
 import {
   publishWikiDraft, researchRead, setTopicPool, topicIdFromHex, topicPath, type ResearchLink,
@@ -191,38 +192,36 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const wikiPages = pages.filter(item => /^(themes|comparisons|industries|companies)\//.test(item.target_id));
   const selectedNote = selected.startsWith("note:") ? noteMap[selected.slice(5)] : undefined;
   const pendingDrafts = drafts.filter(item => !item.published);
-  if (topic && report) return <div className="topic-panel">
-    <div className="flex justify-end"><button className="workspace-action" onClick={() => setReport(false)}>返回议题</button></div>
-    <ObjectReport title={topic.title} asOf={topic.last_touched_at}>
+  const reportBody = topic && <ObjectReport title={topic.title} asOf={topic.last_touched_at}>
       {topic.user_claim?.text && <section><h2>研究问题</h2><KnowledgeText markdown={topic.user_claim.text} /></section>}
       <section><h2>当前判断</h2><KnowledgeText markdown={topic.judgment?.text || '尚未形成判断，继续结合材料核实。'} /></section>
       {!!topic.next_questions?.length && <section><h2>继续核实</h2><ul>{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul></section>}
       {!!topic.observation?.gaps?.length && <section><h2>资料缺口</h2><ul>{topic.observation.gaps.map(gap => <li key={gap}>{gap}</li>)}</ul></section>}
       {[...new Set(links.map(item => item.source_id).filter((id): id is string => !!id?.startsWith('result:')))].map(id => <ResearchResult key={id} resultId={id} presentation="report" />)}
       <ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} />
-    </ObjectReport>
-  </div>;
+    </ObjectReport>;
   return <div className="topic-panel">
-    <div className="flex flex-wrap items-start justify-between gap-3">
-      <div className="min-w-0">
-        <Link className="mb-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground" to="/my-research"><ChevronLeft size={14} />全部议题</Link>
-        <h1 className="topic-panel-title">{topic?.title || "议题工作区"}</h1>
-        <p className="mt-1 text-xs text-muted-foreground">{topic?.pool_state === "archived" ? "已归档。恢复后可以继续研究。" : "围绕问题积累材料，形成判断。"}</p>
-      </div>
-      <div className="flex flex-wrap gap-2">
-        {topic && <button type="button" className="workspace-action" onClick={() => setReport(true)}>图文报告</button>}
-        <button type="button" className="finance-session-action" disabled={!!busy || gate.blocking} onClick={() => void start(false)}><span>{busy === "continue" ? "正在接上…" : "继续研究"}</span></button>
-        <button type="button" className="finance-session-action" disabled={!!busy || gate.blocking} onClick={() => void start(true)}><Plus size={16} /><span>{busy === "new" ? "正在新开会话…" : "新会话"}</span></button>
-        <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void refresh()}><RefreshCw className={`h-4 w-4 ${busy === "refresh" ? "animate-spin" : ""}`} />{busy === "refresh" ? "刷新中…" : "刷新材料"}</button>
-        {topic && <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void changePool(topic.pool_state === "archived" ? "restore" : "archive")}>
-          {topic.pool_state === "archived" ? <RotateCcw className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
-          {busy === "archive" || busy === "restore" ? "处理中…" : topic.pool_state === "archived" ? "恢复研究" : "归档议题"}
-        </button>}
+    <header className="topic-head">
+      <Link className="topic-back" to="/my-research"><ChevronLeft size={14} />全部议题</Link>
+      <h1 className="topic-panel-title">{topic?.title || "议题工作区"}</h1>
+      {topic?.pool_state === "archived" && <p className="text-xs text-muted-foreground">已归档。恢复后可以继续研究。</p>}
+    </header>
+    <div className="object-toolbar">
+      <div className="object-toolbar-group">{topic && <WikiViewTabs report={report} onChange={setReport} />}</div>
+      <div className="object-toolbar-group object-toolbar-actions">
+      <button type="button" className="workspace-action workspace-action-primary" disabled={!!busy || gate.blocking} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
+      <WorkspaceMoreMenu actions={[
+        { id: 'new', label: busy === 'new' ? '正在新开会话…' : '新会话', icon: <Plus size={14} />, disabled: !!busy || gate.blocking, onSelect: () => void start(true) },
+        { id: 'refresh', label: busy === 'refresh' ? '正在刷新材料…' : '刷新材料', icon: <RefreshCw size={14} />, disabled: !!busy, onSelect: () => void refresh() },
+        ...(topic ? [{ id: 'pool', label: busy === 'archive' || busy === 'restore' ? '处理中…' : topic.pool_state === 'archived' ? '恢复研究' : '归档议题', icon: topic.pool_state === 'archived' ? <RotateCcw size={14} /> : <Archive size={14} />, disabled: !!busy, onSelect: () => void changePool(topic.pool_state === 'archived' ? 'restore' : 'archive') }] : []),
+      ]} />
       </div>
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {!topic && !error && <ResearchLoading title="正在读取议题" sections={["当前判断", "关联材料"]} />}
-    {topic && <>
+    {topic && report && reportBody}
+    {topic && !report && busy === 'refresh' && <ResearchLoading title="正在刷新材料" sections={["读取已关联材料", "核对研究页", "整理待确认关联"]} />}
+    {topic && <div className="space-y-3" hidden={report || busy === 'refresh'}>
       <section className="topic-section">
         <h2>当前判断</h2>
         {topic.judgment?.text ? <KnowledgeText markdown={topic.judgment.text} /> : <p className="text-sm text-muted-foreground">从研究对话开始，逐步形成判断。</p>}
@@ -283,7 +282,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         <h2>{selectedNote?.title || "记录"}</h2>
         {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已被删除或移动，可以到「记录」里查找。</p>}
       </section>}
-    </>}
+    </div>}
     <Disclaimer compact />
   </div>;
 }

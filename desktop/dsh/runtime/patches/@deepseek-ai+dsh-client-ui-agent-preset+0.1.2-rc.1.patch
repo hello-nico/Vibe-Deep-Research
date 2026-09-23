@@ -1,0 +1,31 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-agent-preset/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-agent-preset/lib/client.js
+index 0000000..0000001 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-agent-preset/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-agent-preset/lib/client.js
+@@ -1431,9 +1431,17 @@ window.__ModuleLoader__.load({
+ 				"sessions",
+ 				"uiWorkspace"
+ 			], (scope) => {
++				// Capture the list store while this inject fiber is active.
++				// Later list notifications must not look up `scope.sessions`
++				// again: the conversation isolate can already be inactive
++				// (product keeps #dsh-conversation mounted off-route) while
++				// the global store still notifies, which throws
++				// "cannot get required service sessions in inactive context".
++				const list = scope.sessions.list;
+ 				const seat = new AgentPresetSeatController(scope, () => {
+-					const state = scope.sessions.list.getSnapshot();
++					const state = list.getSnapshot();
+ 					return state.current === void 0 ? void 0 : state.byId[state.current];
+ 				});
+ 				const seatInjected = () => ({
+ 					hooks: { agentPresetSeat: seat.store },
+@@ -1448,7 +1456,7 @@ window.__ModuleLoader__.load({
+ 					load: () => controller.load()
+ 				});
+ 				scope.effect(() => {
+-					const stop = scope.sessions.list.subscribe(() => {
++					const stop = list.subscribe(() => {
+ 						seat.apply();
+ 					});
+ 					const settingsMoved = scope.remote.$on("settings/document-updated", (ns) => {

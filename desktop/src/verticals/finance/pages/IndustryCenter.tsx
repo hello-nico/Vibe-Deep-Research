@@ -17,6 +17,8 @@ import { wikiAssistantObject } from "../lib/pageAssistantObjects";
 import { buildDirectorySnapshot, buildWikiPageSnapshot } from "../assistant/snapshot.ts";
 import { WikiDraftPublish } from "../components/WikiDraftPublish";
 import { IndustryRefreshConfirm } from "../components/CompanyRefreshConfirm";
+import type { RefreshViewState } from "../components/CompanyRefreshConfirm";
+import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
 
 export function IndustryCenter() {
   const { key } = useParams();
@@ -29,6 +31,8 @@ export function IndustryCenter() {
   const [profileCount, setProfileCount] = useState<number>();
   const [query, setQuery] = useState("");
   const [report, setReport] = useState(false);
+  const [reportSlot, setReportSlot] = useState<HTMLElement | null>(null);
+  const [refreshView, setRefreshView] = useState<RefreshViewState>('idle');
   const [draftToken, setDraftToken] = useState("");
   const [revision, setRevision] = useState(0);
   const [reload, setReload] = useState(0);
@@ -98,7 +102,18 @@ export function IndustryCenter() {
     <PageHeader title={selected?.official_name || "行业研究"} subtitle={selected ? undefined : "了解行业如何运转，沿着问题持续研究。"}
       search={selected ? undefined : <WorkspaceSearch className="mb-0" placeholder="搜索行业名称" value={query} onChange={setQuery} />}
       actions={selected ? undefined : profilesLink} />
-    {selected && <div className="workspace-toolbar justify-between"><div className="flex min-w-0 flex-wrap items-center gap-3"><Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link><WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />{selected.published && <WikiViewTabs report={report} onChange={setReport} />}</div><div className="flex flex-wrap items-start gap-2">{selected.published && <IndustryRefreshConfirm key={selected.slug} slug={selected.slug} version={wikiPage?.input_hash} title={selected.official_name} onUpdated={() => setRevision(value => value + 1)} />}{profilesLink}</div></div>}
+    {selected && <div className="object-toolbar">
+      <div className="object-toolbar-group">
+        <Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link>
+        <WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />
+        {selected.published && <WikiViewTabs report={report} onChange={setReport} />}
+      </div>
+      <div className="object-toolbar-group object-toolbar-actions">
+        {selected.published && <span className={report ? "hidden" : "contents"}><IndustryRefreshConfirm key={selected.slug} slug={selected.slug} version={wikiPage?.input_hash} title={selected.official_name} onUpdated={() => setRevision(value => value + 1)} onStateChange={setRefreshView} /></span>}
+        {selected.published && report && <span ref={setReportSlot} className="contents" />}
+        <WorkspaceMoreMenu actions={[{ id: 'profiles', label: profileCount != null ? `${profileCount} 个产业研究` : '产业研究', icon: <Layers3 size={14} />, onSelect: () => navigate('/sectors/profiles') }]} />
+      </div>
+    </div>}
     {error && <p role="alert">{error}<button type="button" className="workspace-action ml-2" onClick={() => setReload(value => value + 1)}>重试</button></p>}
     {status === "unavailable" && <p role="status" className="mb-4 text-sm text-muted-foreground">行业资料暂时无法读取，请稍后重试。</p>}
     {!items && !error && (key
@@ -121,8 +136,9 @@ export function IndustryCenter() {
         <p className="text-sm">草案已生成，你确认后才会显示在本页。</p>
         <WikiDraftPublish draftToken={draftToken} onPublished={() => { setDraftToken(""); setWikiPage(null); }} />
       </div>}
+      {selected.published && !report && refreshView !== 'idle' && <WikiLoading slug={selected.slug} title={refreshView === 'checking' ? '正在检查资料' : '正在更新资料'} />}
       {selected.published
-        ? <WikiReader key={selected.slug} slug={selected.slug} revision={revision} hideToggle report={report} onReportChange={setReport} onPage={setWikiPage} onMarkdown={setMarkdown} />
+        ? <div hidden={!report && refreshView !== 'idle'}><WikiReader key={selected.slug} slug={selected.slug} revision={revision} hideToggle report={report} reportActionSlot={reportSlot} onReportChange={setReport} onPage={setWikiPage} onMarkdown={setMarkdown} /></div>
         : <p className="text-sm text-muted-foreground">{selected.official_name} 的资料尚待补充。</p>}
     </GlassCard>}
     <Disclaimer />

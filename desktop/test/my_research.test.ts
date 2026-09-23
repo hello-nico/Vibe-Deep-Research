@@ -45,6 +45,8 @@ test("我的研究 facade 允许 Topic 冒号 ID、确认关联与记录接口�
   assert.equal(researchRoute("GET", "/wiki/companies/002403.SZ/provider-snapshot"), true);
   assert.equal(researchRoute("POST", "/wiki/companies/002403.SZ/provider-snapshot"), false);
   assert.equal(researchRoute("GET", "/wiki/companies/002403/provider-snapshot"), false);
+  assert.equal(researchRoute("POST", "/research-results/market/preview"), true);
+  assert.equal(researchRoute("GET", "/research-results/market/preview"), false);
   assert.equal(researchRoute("GET", "/notes"), true);
   assert.equal(researchRoute("POST", "/notes"), true);
   assert.equal(researchRoute("GET", "/notes/note-11111111-1111-4111-8111-111111111111"), true);
@@ -504,7 +506,9 @@ test("议题工作区先恢复会话、审阅草案正文，并用 source_id 读
   assert.match(workspace, /<PageHeader title=\{title\} subtitle=\{subtitle\} \/>/);
   assert.doesNotMatch(workspace, /actions=\{expandButton/);
   assert.match(source, /className="topic-panel"/);
-  assert.match(source, /finance-session-action/);
+  assert.match(source, /workspace-action workspace-action-primary/);
+  assert.match(source, /<WikiViewTabs report=\{report\} onChange=\{setReport\}/);
+  assert.match(source, /<WorkspaceMoreMenu actions=/);
   assert.doesNotMatch(source, /<PageHeader/);
   assert.doesNotMatch(source, /xl:grid-cols-\[minmax/);
   const css = readFileSync(new URL("../src/index.css", import.meta.url), "utf8");

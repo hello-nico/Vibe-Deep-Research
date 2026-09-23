@@ -1,6 +1,9 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
+import { RotateCw } from 'lucide-react';
 import { researchRead, type WikiPage } from '../lib/research';
 import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-session';
+import { ResearchLoading } from './ui/ResearchLoading';
 import './wiki-report.css';
 
 interface ReportMeta {
@@ -57,7 +60,8 @@ export function reportPrompt(page: WikiPage): string {
   return `为《${page.spec.title || pageSlug(page)}》生成一份图文报告。`;
 }
 
-export function WikiReportPane({ page, fallback = null, active = true }: { page: WikiPage; fallback?: ReactNode; active?: boolean }) {
+/** `actionSlot`: the page toolbar's action group; when given, regenerate lives there instead of above the report. */
+export function WikiReportPane({ page, fallback = null, active = true, actionSlot = null }: { page: WikiPage; fallback?: ReactNode; active?: boolean; actionSlot?: HTMLElement | null }) {
   const slug = pageSlug(page);
   const inputHash = page.input_hash ?? '';
   const sessions = useContext(ResearchSessionContext);
@@ -193,7 +197,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
         if (Date.now() - requestedAt.current > 15_000 && awaitingArtifact.current) {
           setPendingRun(false);
           setTask(previous => previous ? { ...previous, running: false } : previous);
-          setError('暂时无法确认报告任务状态，请查看生成过程后再试。');
+          setError('暂时无法确认报告任务状态，可在「我的研究 · 任务」查看过程后重试。');
           startedSession.current = '';
         }
         setTaskReady(true);
@@ -212,8 +216,8 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
         if (awaitingArtifact.current && found && found.inputHash === inputHash) {
           const ended = sessions.sessionState(found.sessionId);
           setError(ended?.failed || ended?.lastAgentError || ended?.promptError
-            ? '报告生成失败，研究页仍可阅读；可在生成过程中查看后重试。'
-            : '报告生成已结束，但产出尚未确认；可在生成过程中查看。');
+            ? '报告生成失败，研究页仍可阅读；可在「我的研究 · 任务」查看过程后重试。'
+            : '报告生成已结束，但产出尚未确认；可在「我的研究 · 任务」查看过程后重试。');
         }
       }
       wasRunning.current = running;
@@ -290,36 +294,26 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const loadingDetail = active && Boolean(selected) && !detail && !error;
   const waiting = active && !showGenerated && !loadingList && !loadingDetail;
   const canGenerate = items !== null && !generating;
-  const openProcess = () => sessions?.openTaskProcess({ sessionId: task?.sessionId || '', title: `报告生成 · ${page.spec.title || slug}`, kind: 'report' });
-  const processButton = task?.sessionId ? <button type="button" className={showGenerated ? 'wiki-report-tab' : 'workspace-action'} onClick={openProcess}>生成过程</button> : null;
   return <>
+    {showGenerated && canGenerate && actionSlot && createPortal(
+      <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">
-      <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
+      {((canGenerate && !actionSlot) || error) && <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
         {selected?.current && <span className="sr-only">对应当前研究页</span>}
-        {canGenerate && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
-        {processButton}
+        {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
         {error && <span role="alert" className="text-destructive">{error}</span>}
-      </div>
+      </div>}
       <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={detail.html} style={{ minHeight: 480 }} />
     </div>}
     {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '正在打开报告…' : '正在查看是否已有报告…'}</p>}
     {waiting && <div className="wiki-report-empty">
       {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
       {busyOtherVersion && !generating && <p className="mb-3 text-sm text-muted-foreground">可生成当前版本。</p>}
-      {generating ? <>
-        <p className="font-medium">{taskStale ? '另一版本仍在生成' : '正在生成图文报告'}</p>
-        <p className="mt-2 text-sm text-muted-foreground">进度在生成过程里。研究页原文可随时切回去看。</p>
-      </> : canGenerate ? (
-        <button type="button" className="wiki-report-empty-hit" aria-label={items?.some(item => item.current) ? '重新生成图文报告' : '生成图文报告'} onClick={generate}>
-          <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
-          <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
-          <span className="workspace-action workspace-action-primary mt-4">{items?.some(item => item.current) ? '重新生成' : '生成报告'}</span>
-        </button>
-      ) : <>
+      {generating ? <ResearchLoading title={taskStale ? '另一版本仍在生成' : '正在生成图文报告'} sections={['读取报告方法', '选择模板', '读取研究页', '组织图文', '保存报告']} /> : <>
         <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
         <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
+        {canGenerate && <button type="button" className="workspace-action workspace-action-primary mt-4" onClick={generate}>{items?.some(item => item.current) ? '重新生成' : '生成报告'}</button>}
       </>}
-      {processButton && <div className="mt-4 flex flex-wrap justify-center gap-2">{processButton}</div>}
     </div>}
     {!active && fallback}
   </>;

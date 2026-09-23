@@ -90,6 +90,3 @@ a.refresh-source-title:hover { color: hsl(var(--primary)); text-decoration: unde
   .refresh-dialog-body { padding: 0 20px 20px; }
   .refresh-dialog-footer { padding: 14px 20px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .refresh-dialog .animate-spin, .refresh-trigger .animate-spin { animation: none; }
-}

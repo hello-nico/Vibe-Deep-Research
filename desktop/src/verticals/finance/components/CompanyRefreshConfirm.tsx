@@ -16,6 +16,7 @@ type CheckRecord = {
   failed_sources?: string[]; error?: { code: string; message: string }; proposal?: Proposal;
 };
 type Busy = 'prepare' | 'confirm' | 'reject' | 'read' | null;
+export type RefreshViewState = 'idle' | 'checking' | 'updating';
 async function request<T>(body: Record<string, unknown>): Promise<T> {
   const response = await fetch('/finance-maintenance-refresh', {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
@@ -25,20 +26,20 @@ async function request<T>(body: Record<string, unknown>): Promise<T> {
   return value as T;
 }
 
-export function CompanyRefreshConfirm({ slug, version, title, onUpdated }: {
-  slug: string; version?: string; title: string; onUpdated: () => void;
+export function CompanyRefreshConfirm({ slug, version, title, onUpdated, onStateChange }: {
+  slug: string; version?: string; title: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
 }) {
-  return <RefreshConfirm page="company" slug={slug} version={version} title={title} onUpdated={onUpdated} />;
+  return <RefreshConfirm page="company" slug={slug} version={version} title={title} onUpdated={onUpdated} onStateChange={onStateChange} />;
 }
 
-export function IndustryRefreshConfirm({ slug, version, title, onUpdated }: {
-  slug: string; version?: string; title: string; onUpdated: () => void;
+export function IndustryRefreshConfirm({ slug, version, title, onUpdated, onStateChange }: {
+  slug: string; version?: string; title: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
 }) {
-  return <RefreshConfirm page="industry" slug={slug} version={version} title={title} onUpdated={onUpdated} />;
+  return <RefreshConfirm page="industry" slug={slug} version={version} title={title} onUpdated={onUpdated} onStateChange={onStateChange} />;
 }
 
-function RefreshConfirm({ page, slug, version, title, onUpdated }: {
-  page: 'company' | 'industry'; slug: string; version?: string; title: string; onUpdated: () => void;
+function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }: {
+  page: 'company' | 'industry'; slug: string; version?: string; title: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
 }) {
   const [check, setCheck] = useState<CheckRecord | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -152,6 +153,9 @@ function RefreshConfirm({ page, slug, version, title, onUpdated }: {
   const pending = proposal && ['open', 'executing', 'unknown'].includes(proposal.status);
   const isChecking = busy === 'prepare' || check?.status === 'checking';
   const isUpdating = busy === 'confirm' || proposal?.status === 'executing';
+  const viewState: RefreshViewState = isChecking ? 'checking' : isUpdating ? 'updating' : 'idle';
+  useEffect(() => { onStateChange?.(viewState); }, [onStateChange, viewState]);
+  useEffect(() => () => { onStateChange?.('idle'); }, [onStateChange]);
   const source = page === 'industry' ? check?.source || proposal?.items[0]?.args?.source : undefined;
   const result = proposal?.items[0]?.receipt?.result;
   const receiptError = proposal?.items[0]?.receipt?.error;
@@ -176,10 +180,10 @@ function RefreshConfirm({ page, slug, version, title, onUpdated }: {
     <button ref={triggerRef} type="button" className={`workspace-action refresh-trigger${isChecking || isUpdating ? ' is-loading' : ''}`} disabled={!!busy || check?.status === 'checking' || (!pending && !version)}
       aria-busy={isChecking || isUpdating}
       onClick={() => { if (uncertain) { void readBack(); return; } if (pending) { setOpen(true); return; } void prepare(); }}>
-      <RefreshCw className={isChecking || isUpdating ? 'animate-spin' : ''} />
+      <RefreshCw />
       {isChecking ? '正在检查资料…'
-        : busy === 'confirm' ? '正在更新资料…' : uncertain ? '查看刷新结果'
-          : proposal?.status === 'executing' ? '查看刷新进度' : proposal?.status === 'unknown' ? '查看刷新结果'
+        : isUpdating ? '资料更新中…' : uncertain ? '查看刷新结果'
+          : proposal?.status === 'unknown' ? '查看刷新结果'
             : proposal?.status === 'open' ? '继续确认刷新' : '刷新资料'}
     </button>
     {notice && createPortal(<div role="alert" className="refresh-notice">
@@ -208,8 +212,8 @@ function RefreshConfirm({ page, slug, version, title, onUpdated }: {
           {!!check?.failed_sources?.length && <p className="refresh-dialog-scope">未能检查：{check.failed_sources.join('、')}。这些数据将保留原值。</p>}
           <p className="refresh-dialog-scope">{page === 'industry' ? '只追加来源链接，研究内容保持不变。' : '只更新数据，研究内容和原文资料保持不变。'}</p>
         </div> : <div className="refresh-dialog-body" role="status" aria-live="polite">
-          {busy === 'reject' ? <p className="refresh-dialog-state"><RefreshCw className="animate-spin" />正在取消…</p>
-            : busy === 'read' ? <p className="refresh-dialog-state"><RefreshCw className="animate-spin" />正在查询结果…</p>
+          {busy === 'reject' ? <p className="refresh-dialog-state"><RefreshCw />正在取消…</p>
+            : busy === 'read' ? <p className="refresh-dialog-state"><RefreshCw />正在查询结果…</p>
               : busy === 'confirm' || proposal.status === 'executing' ? <p className="refresh-dialog-state"><RefreshCw />资料更新中，可继续浏览本页。</p>
                 : <><p className="refresh-dialog-state">{['unknown', 'partial'].includes(proposal.status) ? <CircleAlert /> : <Check />}{statusText[proposal.status] || '请查看刷新结果'}</p>
                 {result && <p className="refresh-dialog-detail">{resultText}</p>}

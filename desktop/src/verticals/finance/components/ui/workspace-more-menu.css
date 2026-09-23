@@ -1,0 +1,10 @@
+.workspace-more-trigger { white-space: nowrap; }
+.workspace-more-menu { min-width: 176px; }
+.workspace-more-option {
+  width: 100%; padding: 6px 12px; border: 0; background: transparent;
+  text-align: left; cursor: pointer;
+}
+.workspace-more-option:hover:not(:disabled), .workspace-more-option[data-active="true"] {
+  background: Highlight; color: HighlightText;
+}
+.workspace-more-option:disabled { opacity: .45; cursor: not-allowed; }

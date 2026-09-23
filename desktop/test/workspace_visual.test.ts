@@ -37,6 +37,12 @@ test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝�
   const chatPatch = readFileSync(new URL("../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.1.2-rc.1.patch", import.meta.url), "utf8");
   assert.match(chatPatch, /\+.*"chat\.deepDiving": "研究中…"/);
   assert.match(chatPatch, /-.*"chat\.deepDiving": "深度求索中\.\.\."/);
+  const presetPatch = readFileSync(new URL("../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-agent-preset+0.1.2-rc.1.patch", import.meta.url), "utf8");
+  assert.match(presetPatch, /\+.*const list = scope\.sessions\.list;/);
+  assert.match(presetPatch, /\+.*const state = list\.getSnapshot\(\);/);
+  assert.match(presetPatch, /-.*const state = scope\.sessions\.list\.getSnapshot\(\);/);
+  assert.match(presetPatch, /\+.*const stop = list\.subscribe\(\(\) => \{/);
+  assert.match(presetPatch, /-.*const stop = scope\.sessions\.list\.subscribe\(\(\) => \{/);
 });
 test("公开暖橙玻璃风保留可访问性与非绿色品牌", () => {
   const css = read("index.css");
@@ -155,6 +161,15 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   assert.match(read("verticals/finance/pages/UploadedReports.tsx"), /DashboardPanel/);
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /DashboardPanel/);
   assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /useAiPage/);
+  const watch = read("verticals/finance/pages/Watchlist.tsx");
+  assert.match(watch, /watch-remove-action/);
+  assert.match(watch, /refresh-dialog-backdrop/);
+  assert.match(watch, /createPortal/);
+  assert.match(watch, /确认移除/);
+  assert.match(watch, /从自选移除/);
+  assert.match(watch, /setPendingRemove/);
+  assert.doesNotMatch(watch, /library-modal-backdrop/);
+  assert.doesNotMatch(watch, /onClick=\{\(\) => remove\(c\)\}/);
   assert.match(read("verticals/finance/assistant/snapshot.ts"), /已渲染 Wiki/);
   assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /buildWikiPageSnapshot/);
   assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);

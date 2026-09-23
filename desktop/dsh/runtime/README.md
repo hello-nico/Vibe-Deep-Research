@@ -22,7 +22,7 @@
 | dsh-session | bug fix | `Session.append` 接受并持久保留显式 `ignorable: true` envelope marker，使插件的纯信息事件可被旧 vocabulary 的冷读路径安全跳过；缺省仍为 required，surface 事件仍要求 `SurfaceIntent` | 上游 `Session.append` 等价支持、校验并保留该 marker，且未知 required 事件仍被 persistence reader 拒绝 |
 | dsh-client-ui-settings-models | 产品功能 | 已有 Provider 配置与模型管理改进（自定义 Provider / 模型增删 / 连通性测试等 UI 依赖） | 逐项对照上游设置页能力清单，等价覆盖后退出；退出前不能删除（模型接入入口依赖它） |
 | dsh-client-ui-model-selection | 产品功能 | 模型筛选与选择行为（会话模型切换、筛选控件） | 上游筛选/选择能力等价后退出 |
-| dsh-client-ui-conversation | 产品配置 + 文案 | 输入占位与 hero 文案产品化（“继续你的研究问题…”、“今天，想研究什么？”） | 上游提供占位 / hero 文案配置点后改配置 |
+| dsh-client-ui-agent-preset | bug fix | 会话列表订阅先握住全局 `list` store，不再在通知回调里回查 `scope.sessions`。产品把 `#dsh-conversation` 挂在非对话路由上时，conversation isolate 已 inactive，回查会刷屏 `cannot get required service "sessions" in inactive context` | 上游列表订阅不再经过 inactive isolate 的 `sessions` 查找，升级后在个股/行业图文报告页硬刷新核对控制台不再刷该错 |
 | dsh-client-ui-chat | bug fix + 文案 | ① 错误语义：区分额度（QUOTA）/ 认证（AUTH）/ 服务商拒绝（FORBIDDEN）；② 运行中文案「研究中…」替代「深度求索中...」 | ① 上游错误码语义等价；② 上游文案可配置 |
 | dsh-client-ui-trajectory | 文案 | 轨迹面板 QUOTA / FORBIDDEN 失败语义文案（中英） | 上游文案可配置或语义等价 |
 | dsh-client-ui-deliverables | 产品功能 | 本地路径引用解析（`localPathReference`：绝对路径 / 含分隔符 / 常规文件名才当路径，裸标识符保持惰性）；产物为空时仍提供 mention 解析 | 上游支持等价本地路径 mention 与空产物行为 |

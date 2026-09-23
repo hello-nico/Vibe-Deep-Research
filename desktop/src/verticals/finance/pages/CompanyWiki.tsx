@@ -19,7 +19,8 @@ import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
-import { CompanyRefreshConfirm } from '../components/CompanyRefreshConfirm';
+import { CompanyRefreshConfirm, type RefreshViewState } from '../components/CompanyRefreshConfirm';
+import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
 
 const VIEW_KEY = 'vr-company-roster-view';
 const RECENT_LIMIT = 9;
@@ -32,6 +33,8 @@ export function CompanyWiki() {
   const query = params.get('q') || '';
   const [rosterRev, setRosterRev] = useState(0);
   const [report, setReport] = useState(false);
+  const [reportSlot, setReportSlot] = useState<HTMLElement | null>(null);
+  const [refreshView, setRefreshView] = useState<RefreshViewState>('idle');
   const overviewKey = `finance-company-overview:${query}`;
   const setSlug = (value: string) => {
     if (!slug) sessionStorage.setItem(overviewKey, String(document.getElementById('workspace-main')?.scrollTop || 0));
@@ -342,24 +345,32 @@ export function CompanyWiki() {
     {genHere.phase === 'failed' && current?.aShare && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void startCompanyResearch()}>重试</button>}
     {['done', 'partial', 'review', 'failed', 'unconfirmed'].includes(genHere.phase) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => setGen(null)}>收起</button>}
   </div> : null;
-  return <div><PageHeader title="个股研究" subtitle="只显示已加入研究的公司。自选与研究名单分开。" actions={<div className="flex flex-col items-end gap-2">{slug ? <CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current?.title || '公司资料'} onUpdated={() => refresh(x => x + 1)} /> : refreshing ? <ResearchRefreshStatus /> : <button className="workspace-action" onClick={() => void refreshData()}><RefreshCw size={14} />刷新列表</button>}{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div>} />
+  return <div><PageHeader title="个股研究" subtitle="只显示已加入研究的公司。自选与研究名单分开。" actions={!slug ? <div className="flex flex-col items-end gap-2">{refreshing ? <ResearchRefreshStatus /> : <button className="workspace-action" onClick={() => void refreshData()}><RefreshCw size={14} />刷新列表</button>}{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div> : undefined} />
     {error && <p role="alert" className="mb-4">{error}</p>}
     {wikiError && <p role="alert" className="mb-4">公司资料暂时读不到：{wikiError}<button className="workspace-action ml-2" onClick={() => refresh(x => x + 1)}>重试</button></p>}
     {!slug && listLoading && <ResearchLoading title="正在读取公司资料" sections={['研究名单', '公司资料']} />}
-    {slug && <div className="workspace-toolbar flex flex-wrap items-center gap-3">
-      <button className="workspace-action" onClick={() => setSlug('')}><ArrowLeft size={14} />研究名单</button>
-      <WorkspaceSelect
-        aria-label="切换公司"
-        className="max-w-full"
-        value={current?.slug || slug}
-        onChange={setSlug}
-        searchPlaceholder="搜索已加入的公司"
-        emptyText="名单里没有匹配的公司"
-        options={switchOptions}
-      />
-      {current && <button className="workspace-action" onClick={() => void leave(current.symbol)}><X size={14} />移出研究</button>}
-      {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
-      {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} />}
+    {slug && <div className="object-toolbar">
+      <div className="object-toolbar-group">
+        <button className="workspace-action" onClick={() => setSlug('')}><ArrowLeft size={14} />研究名单</button>
+        <WorkspaceSelect
+          aria-label="切换公司"
+          className="max-w-full"
+          value={current?.slug || slug}
+          onChange={setSlug}
+          searchPlaceholder="搜索已加入的公司"
+          emptyText="名单里没有匹配的公司"
+          options={switchOptions}
+        />
+        {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} />}
+      </div>
+      <div className="object-toolbar-group object-toolbar-actions">
+        {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
+        {/* 研究页的动作是刷新资料；图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
+        {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
+        {current?.hasWiki && report && <span ref={setReportSlot} className="contents" />}
+        {current && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出研究', icon: <X size={14} />, onSelect: () => void leave(current.symbol) }]} />}
+      </div>
+      {notice.slug === slug && notice.text && !refreshing && <span role="status" className="object-toolbar-notice">{notice.text}</span>}
     </div>}
     {slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
       {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
@@ -385,7 +396,8 @@ export function CompanyWiki() {
         {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究没有完成，可以重试。'}</p>}
         {genActions}
       </div>}
-      {current?.hasWiki ? <WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /> : null}
+      {current?.hasWiki && !report && refreshView !== 'idle' && <WikiLoading slug={slug} title={refreshView === 'checking' ? '正在检查资料' : '正在更新资料'} />}
+      {current?.hasWiki ? <div hidden={!report && refreshView !== 'idle'}><WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} reportActionSlot={reportSlot} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /></div> : null}
     </GlassCard>
     : !listLoading ? <>
       <div className="mb-4 flex flex-wrap items-center gap-2">
