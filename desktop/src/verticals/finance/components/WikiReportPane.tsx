@@ -4,6 +4,7 @@ import { RotateCw } from 'lucide-react';
 import { researchRead, type WikiPage } from '../lib/research';
 import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-session';
 import { ResearchLoading } from './ui/ResearchLoading';
+import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
 import './wiki-report.css';
 
 interface ReportMeta {
@@ -268,6 +269,16 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       if (result.sessionId) {
         startedSession.current = result.sessionId;
         setTask({ sessionId: result.sessionId, slug, inputHash, running: true });
+        trackTask({
+          kind: 'report',
+          object: {
+            slug, title: page.spec.title || slug,
+            kind: page.spec.type === 'industry' ? 'industry' : 'company',
+            path: objectPathFromLocation(),
+          },
+          ref: result.sessionId,
+          baseline: baselineReport.current ?? undefined,
+        });
       }
     }).catch(() => {
       if (epoch !== pageEpoch.current) return;

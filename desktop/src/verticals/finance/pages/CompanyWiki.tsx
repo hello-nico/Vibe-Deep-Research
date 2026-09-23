@@ -32,7 +32,12 @@ export function CompanyWiki() {
   const slug = params.get('company') || '';
   const query = params.get('q') || '';
   const [rosterRev, setRosterRev] = useState(0);
-  const [report, setReport] = useState(false);
+  const report = params.get('view') === 'report';
+  const setReport = (value: boolean) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set('view', 'report'); else next.delete('view');
+    setParams(next, { replace: true });
+  };
   const [reportSlot, setReportSlot] = useState<HTMLElement | null>(null);
   const [refreshView, setRefreshView] = useState<RefreshViewState>('idle');
   const overviewKey = `finance-company-overview:${query}`;
@@ -40,6 +45,8 @@ export function CompanyWiki() {
     if (!slug) sessionStorage.setItem(overviewKey, String(document.getElementById('workspace-main')?.scrollTop || 0));
     const next = new URLSearchParams(params);
     next.delete('reader');
+    next.delete('view');
+    next.delete('refresh');
     if (value) next.set('company', value); else next.delete('company');
     setParams(next);
     document.getElementById('workspace-main')?.scrollTo(0, 0);
@@ -79,7 +86,6 @@ export function CompanyWiki() {
   const genRef = useRef(gen);
   genRef.current = gen;
   const [sessionsRev, setSessionsRev] = useState(0);
-  useEffect(() => { setReport(false); }, [slug]);
   useEffect(() => sessions.subscribeSessionList(() => setSessionsRev(x => x + 1)), [sessions]);
   const [quoteNames, setQuoteNames] = useState<Record<string, string>>({});
   const [view, setView] = useState<'grid' | 'list'>(() => prefGet(VIEW_KEY) === 'list' ? 'list' : 'grid');

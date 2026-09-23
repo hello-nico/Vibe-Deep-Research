@@ -59,23 +59,44 @@ a.refresh-source-title:hover { color: hsl(var(--primary)); text-decoration: unde
   background: hsl(var(--primary)); border-color: hsl(var(--primary)); color: hsl(var(--primary-foreground));
 }
 .refresh-dialog-footer .workspace-action-primary:hover:not(:disabled) { background: hsl(var(--primary) / .88); }
-.refresh-notice {
+.task-notice-stack,
+.task-notice-local {
   position: fixed; right: 24px; top: 80px; z-index: 90;
-  display: flex; align-items: flex-start; gap: 12px;
+}
+.task-notice-stack { display: flex; flex-direction: column; gap: 8px; }
+.task-notice {
+  display: flex; align-items: flex-start; gap: 12px; cursor: pointer;
   width: min(360px, calc(100vw - 32px)); padding: 16px;
   border: 1px solid hsl(var(--border)); border-radius: 14px;
   background: hsl(var(--card)); color: hsl(var(--foreground));
   box-shadow: 0 14px 40px rgb(15 23 42 / .12), 0 2px 8px rgb(15 23 42 / .04);
+  animation: task-notice-in 200ms ease;
 }
-.refresh-notice-icon {
+@keyframes task-notice-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .task-notice { animation: none; }
+}
+.task-notice-icon {
   display: grid; flex: none; place-items: center; width: 30px; height: 30px;
   border-radius: 9px; background: hsl(var(--primary) / .09); color: hsl(var(--primary));
 }
-.refresh-notice > div { min-width: 0; flex: 1; }
-.refresh-notice strong { display: block; margin-top: 3px; font-size: 13px; font-weight: 600; line-height: 1.4; }
-.refresh-notice p { margin: 6px 0 0; color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.55; }
-.refresh-notice button { display: grid; flex: none; place-items: center; width: 22px; height: 22px; padding: 0; border: 0; border-radius: 5px; background: transparent; color: hsl(var(--muted-foreground)); }
-.refresh-notice button:hover { background: hsl(var(--muted)); }
+.task-notice-icon.is-warn { background: hsl(var(--destructive) / .1); color: hsl(var(--destructive)); }
+.task-notice > div { min-width: 0; flex: 1; }
+.task-notice strong { display: block; margin-top: 3px; font-size: 13px; font-weight: 600; line-height: 1.4; }
+.task-notice p { margin: 6px 0 0; color: hsl(var(--muted-foreground)); font-size: 12px; line-height: 1.55; }
+.task-notice > button {
+  display: grid; flex: none; place-items: center; width: 22px; height: 22px; padding: 0; border: 0;
+  border-radius: 5px; background: transparent; color: hsl(var(--muted-foreground));
+}
+.task-notice > button:hover { background: hsl(var(--muted)); }
+.task-notice-link {
+  display: inline; margin-top: 8px; padding: 0; border: 0; background: none;
+  color: hsl(var(--primary)); font-size: 12px; font-weight: 600;
+}
+.task-notice-link:hover { text-decoration: underline; }
 .workspace-action.refresh-trigger.is-loading:disabled {
   opacity: 1; cursor: progress;
   border-color: hsl(var(--primary) / .2);
@@ -84,7 +105,7 @@ a.refresh-source-title:hover { color: hsl(var(--primary)); text-decoration: unde
 .workspace-action.refresh-trigger { min-width: 130px; justify-content: center; white-space: nowrap; }
 .refresh-dialog :is(button, a):focus-visible { outline: 2px solid hsl(var(--primary) / .6); outline-offset: 2px; }
 @media (max-width: 640px) {
-  .refresh-notice { right: 16px; top: 80px; }
+  .task-notice-stack, .task-notice-local { right: 16px; top: 80px; }
   .refresh-dialog-backdrop { padding: 12px; }
   .refresh-dialog-header { padding: 20px 20px 16px; }
   .refresh-dialog-body { padding: 0 20px 20px; }

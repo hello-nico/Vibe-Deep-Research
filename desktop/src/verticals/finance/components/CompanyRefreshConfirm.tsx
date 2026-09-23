@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { CircleAlert, Check, ExternalLink, RefreshCw, X } from 'lucide-react';
 import './refresh-confirm.css';
+import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
 
 type Proposal = {
   proposal_id: string; version: number; status: string;
@@ -69,7 +70,10 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
     let active = true;
     setCheck(null); setProposal(null); setOpen(false); initiatedRef.current = false;
     void request<CheckRecord | null>({ operation: 'current', page, slug }).then(value => {
-      if (active && !initiatedRef.current && value && value.target_version === version) acceptCheck(value, false);
+      if (active && !initiatedRef.current && value && value.target_version === version) {
+        acceptCheck(value, false);
+        if (new URLSearchParams(window.location.search).get('refresh') === 'confirm' && value.proposal?.status === 'open') setOpen(true);
+      }
     }).catch(() => { /* Existing page remains usable if check history is unavailable. */ });
     return () => { active = false; };
   }, [page, slug, version]);
@@ -99,6 +103,12 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
     try {
       initiatedRef.current = true;
       const value = await request<CheckRecord>({ operation: 'prepare', page, slug, version });
+      if (value.check_id && value.status !== 'unchanged') {
+        trackTask({
+          kind: 'refresh', object: { slug, title, kind: page, path: objectPathFromLocation() },
+          ref: value.check_id, phase: 'check', page,
+        });
+      }
       acceptCheck(value, value.status !== 'checking'); setUncertain(false);
     } catch (err) {
       const message = err instanceof Error ? err.message : '刷新没能开始，请重试';
@@ -110,6 +120,12 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
     if (!proposal) return;
     setBusy(approve ? 'confirm' : 'reject'); setError('');
     if (approve) { setOpen(false); triggerRef.current?.focus(); }
+    if (approve) {
+      trackTask({
+        kind: 'refresh', object: { slug, title, kind: page, path: objectPathFromLocation() },
+        ref: proposal.proposal_id, phase: 'write', page,
+      });
+    }
     try {
       const value = await request<Proposal>({ operation: 'confirm', page, proposal_id: proposal.proposal_id, version: proposal.version, approve });
       setProposal(value); setUncertain(false);
@@ -186,10 +202,10 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
           : proposal?.status === 'unknown' ? '查看刷新结果'
             : proposal?.status === 'open' ? '继续确认刷新' : '刷新资料'}
     </button>
-    {notice && createPortal(<div role="alert" className="refresh-notice">
-      <span className="refresh-notice-icon"><CircleAlert aria-hidden="true" size={17} /></span>
+    {notice && createPortal(<div role="alert" className="task-notice task-notice-local">
+      <span className="task-notice-icon"><CircleAlert aria-hidden="true" size={17} /></span>
       <div><strong>{notice.title}</strong><p>{notice.detail}</p></div>
-      <button type="button" aria-label="关闭提示" onClick={() => setNotice(null)}><X size={16} /></button>
+      <button type="button" aria-label="关闭提醒" onClick={() => setNotice(null)}><X size={16} /></button>
     </div>, document.body)}
     {open && proposal && createPortal(<div className="refresh-dialog-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) close(); }}>
       <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="refresh-dialog-title" tabIndex={-1}

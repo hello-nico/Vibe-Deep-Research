@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { ChevronLeft, Layers3 } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -23,6 +23,7 @@ import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
 export function IndustryCenter() {
   const { key } = useParams();
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [items, setItems] = useState<NbsIndustry[] | null>(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
@@ -30,7 +31,12 @@ export function IndustryCenter() {
   const [markdown, setMarkdown] = useState("");
   const [profileCount, setProfileCount] = useState<number>();
   const [query, setQuery] = useState("");
-  const [report, setReport] = useState(false);
+  const report = params.get("view") === "report";
+  const setReport = (value: boolean) => {
+    const next = new URLSearchParams(params);
+    if (value) next.set("view", "report"); else next.delete("view");
+    setParams(next, { replace: true });
+  };
   const [reportSlot, setReportSlot] = useState<HTMLElement | null>(null);
   const [refreshView, setRefreshView] = useState<RefreshViewState>('idle');
   const [draftToken, setDraftToken] = useState("");

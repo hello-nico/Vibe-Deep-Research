@@ -174,6 +174,8 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /buildWikiPageSnapshot/);
   assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);
   assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /params.get\('view'\) === 'report'/);
+  assert.match(read("verticals/finance/components/layout/Layout.tsx"), /TaskNotices/);
 });
 
 test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
