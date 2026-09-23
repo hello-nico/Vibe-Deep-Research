@@ -230,9 +230,22 @@ async function ensureTaskHost(ctx, signal) {
 }
 
 function watchReportRun(run, abort) {
-  const finish = Promise.resolve(run.result).then(() => undefined, () => undefined).finally(() => {
-    reportRuns.delete(run.id);
-    return releaseHandle(run);
+  const finish = Promise.resolve(run.result).then(result => {
+    const store = loadReportTasks();
+    if (store.sessions[run.id]) {
+      store.sessions[run.id] = { ...store.sessions[run.id], run_status: result?.stopReason === 'completed' ? 'completed'
+        : result?.stopReason === 'aborted' ? 'cancelled' : 'failed', finished_at: new Date().toISOString() };
+      writeReportStore(store);
+    }
+  }, () => {
+    const store = loadReportTasks();
+    if (store.sessions[run.id]) {
+      store.sessions[run.id] = { ...store.sessions[run.id], run_status: 'failed', finished_at: new Date().toISOString() };
+      writeReportStore(store);
+    }
+  }).catch(() => {}).finally(async () => {
+    try { await releaseHandle(run); }
+    finally { reportRuns.delete(run.id); }
   });
   reportRuns.set(run.id, { abort, run, finish });
   return finish;
@@ -429,7 +442,7 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   assertActive(signal);
   const store = loadReportTasks();
   const running = sessionId => reportRuns.has(sessionId) || sessionRunning(ctx, sessionId);
-  const matches = Object.entries(store.sessions).filter(([, bind]) => bind?.slug === slug);
+  const matches = Object.entries(store.sessions).filter(([, bind]) => (bind?.kind || 'report') === 'report' && bind?.slug === slug);
   const same = matches.find(([id, bind]) => running(id) && bind.input_hash === input_hash);
   if (same) return { session_id: same[0], status: 'running', host_session_id: store.host_session_id || '' };
   const other = matches.find(([id, bind]) => running(id) && bind.input_hash !== input_hash);
@@ -452,6 +465,7 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   }
   next.host_session_id = hostId;
   next.pending = {
+    kind: 'report',
     parent_id: hostId,
     slug,
     input_hash,
@@ -487,7 +501,7 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
     watchReportRun(run, abort);
     const after = loadReportTasks();
     if (after.pending?.parent_id === hostId) {
-      after.sessions[run.id] = { slug, input_hash, bound_at: new Date().toISOString() };
+      after.sessions[run.id] = { kind: 'report', slug, input_hash, bound_at: new Date().toISOString(), run_status: 'running' };
       after.pending = null;
       writeReportStore(after);
     }
@@ -510,6 +524,79 @@ export function cancelReportRun(session_id) {
   if (!entry) throw Object.assign(new Error('没有可中止的运行中任务'), { status: 404 });
   entry.abort.abort();
   return { session_id, status: 'cancelling' };
+}
+
+export async function startResearchRun(ctx, { slug, symbol, prompt, title }) {
+  if (!/^companies\/[A-Za-z0-9._-]{1,100}$/.test(slug || '') || !/^[A-Za-z0-9.]{1,24}$/.test(symbol || ''))
+    throw Object.assign(new Error('invalid company target'), { status: 422 });
+  const message = typeof prompt === 'string' ? prompt.trim() : '';
+  if (!message) throw Object.assign(new Error('invalid prompt'), { status: 422 });
+  const { signal } = lifetimeFor(ctx);
+  const start = () => startResearchRunLocked(ctx, { slug, symbol, prompt: message, title }, signal);
+  const run = spawnChain.then(start, start);
+  spawnChain = run.then(() => undefined, () => undefined);
+  return run;
+}
+
+async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, signal) {
+  assertActive(signal);
+  const store = loadReportTasks();
+  const active = Object.entries(store.sessions).find(([id, bind]) => bind?.kind === 'research' && bind.slug === slug
+    && (reportRuns.has(id) || sessionRunning(ctx, id)
+      || (bind.settlement_status === 'running' && Date.now() - Date.parse(bind.settlement_updated_at || '') < RUNNING_STALE_MS)));
+  if (active) return { session_id: active[0], status: 'running', host_session_id: store.host_session_id || '' };
+  if (!ctx?.subagents?.start) throw Object.assign(new Error('研究子 Agent 能力不可用'), { status: 503 });
+  const selection = ctx.agentDefaultModel.currentSelection();
+  if (!selection?.provider || !selection?.model) throw Object.assign(new Error('请先在设置中配置默认模型。'), { status: 409 });
+  const host = await ensureTaskHost(ctx, signal);
+  const hostId = host.session.id;
+  const next = loadReportTasks();
+  if (next.pending && pendingAge(next.pending) < PENDING_STALE_MS)
+    throw Object.assign(new Error('另一任务正在启动'), { status: 409 });
+  const model_selection = { provider: selection.provider, model: selection.model,
+    ...(selection.reasoningEffort ? { reasoningEffort: selection.reasoningEffort } : {}) };
+  next.pending = { kind: 'research', parent_id: hostId, slug, symbol, model_selection,
+    title: title || `公司研究 · ${symbol}`, requested_at: new Date().toISOString() };
+  writeReportStore(next);
+  const abort = new AbortController();
+  const onUnload = () => abort.abort();
+  signal.addEventListener('abort', onUnload, { once: true });
+  try {
+    const run = await ctx.subagents.start('spawn', {
+      parent: host, signal: abort.signal,
+      agentOptions: model_selection,
+      prompt: [{ type: 'text', text: prompt }], label: next.pending.title, maxDepth: 1,
+      toolFilter: { allow: [] },
+      persona: 'Research the bound company using the deep_research tools. Ground conclusions in evidence. Do not ask the user, publish drafts, create another agent, or write to the parent conversation.',
+    });
+    if (signal.aborted) {
+      void Promise.resolve(run.result).catch(() => {});
+      await releaseHandle(run);
+      assertActive(signal);
+    }
+    const after = loadReportTasks();
+    if (after.pending?.parent_id === hostId && after.pending?.kind === 'research') {
+      after.sessions[run.id] = { kind: 'research', slug, symbol, title: next.pending.title, model_selection,
+        bound_at: new Date().toISOString(), run_status: 'running' };
+      after.pending = null;
+      writeReportStore(after);
+    }
+    watchReportRun(run, abort);
+    return { session_id: run.id, status: 'started', host_session_id: hostId };
+  } catch (error) {
+    const failed = loadReportTasks();
+    if (failed.pending?.parent_id === hostId && failed.pending?.kind === 'research') {
+      failed.pending = null;
+      writeReportStore(failed);
+    }
+    throw error;
+  } finally { signal.removeEventListener('abort', onUnload); }
+}
+
+export function cancelResearchRun(session_id) {
+  if (loadReportTasks().sessions[session_id]?.kind !== 'research')
+    throw Object.assign(new Error('不是公司研究任务'), { status: 404 });
+  return cancelReportRun(session_id);
 }
 
 function backendBase() {
@@ -576,6 +663,15 @@ export function installHostState(ctx, track = disposer => disposer) {
         send(res, 200, await startReportRun(ctx, body));
       } catch (error) {
         send(res, error.status || 500, { detail: error.message || 'report run failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-research-runs', async handler(req, res) {
+      try {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+        const body = await readBody(req);
+        send(res, 200, body?.action === 'cancel' ? cancelResearchRun(body.session_id) : await startResearchRun(ctx, body));
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || 'research run failed' });
       }
     } })),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-assistant-sessions', async handler(req, res) {

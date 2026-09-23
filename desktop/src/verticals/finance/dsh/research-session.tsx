@@ -1,5 +1,6 @@
 import { createContext, useContext } from 'react';
 import type { CompanySnapshotQuote } from '../../../core/ai/pageContext';
+import type { ResearchTaskStatus } from '../lib/reportTasks';
 
 export interface TopicSessionMatch {
   topicId: string;
@@ -12,13 +13,15 @@ export interface CompanySessionRef {
   title: string;
   running: boolean;
   updatedAt?: string;
+  status?: ResearchTaskStatus;
+  runStatus?: 'running' | 'completed' | 'failed' | 'cancelled';
 }
 
 export interface StartSessionOptions {
   navigate?: boolean;
   // 报告生成任务：独立会话身份 + host 绑定（slug + 输入版本），DSH 据此识别受限报告角色。
   // 不与公司研究会话去重；同题同版本运行中复用，完成后重试开新子 Agent。
-  task?: { kind: 'report'; slug: string; inputHash: string; title?: string };
+  task?: { kind: 'report'; slug: string; inputHash: string; title?: string } | { kind: 'research'; slug: string; symbol: string; title: string };
 }
 
 export interface StartSessionResult {
@@ -41,8 +44,10 @@ export interface ReportTaskRef {
 export interface TaskProcessRef {
   sessionId: string;
   title: string;
-  kind: 'report' | 'knowledge';
+  kind: 'report' | 'research' | 'knowledge';
   parentSessionId?: string;
+  settlementSessionId?: string;
+  status?: string;
   resultHref?: string;
 }
 
@@ -84,6 +89,7 @@ export interface SessionState {
 
 export interface ResearchSessions {
   companySymbols(): Promise<string[]>;
+  legacyCompanyTasks(): Promise<{ sessionId: string; title: string; symbol: string; running: boolean; updatedAt?: string }[]>;
   /** Running 公司研究 sessions from the same DSH list findCompanySession uses. */
   listRunningCompanySymbols(): Promise<string[]>;
   start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult>;
@@ -93,6 +99,7 @@ export interface ResearchSessions {
   findReportTask(slug: string): Promise<ReportTaskRef | null>;
   /** Live snapshot of an open session; null when the session scope is unavailable. */
   sessionState(sessionId: string): SessionState | null;
+  taskRunning(sessionId: string): boolean;
   restoreTopic(topicId: string, title?: string, signal?: AbortSignal): Promise<TopicSessionMatch>;
   startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }): Promise<void>;
   startAssistant(input: {

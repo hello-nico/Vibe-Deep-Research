@@ -11,6 +11,7 @@ test("开发和预览入口代理报告绑定接口", () => {
   for (const section of [config.server, config.preview]) {
     assert.ok(section.proxy['/finance-report-tasks']);
     assert.ok(section.proxy['/finance-report-runs']);
+    assert.ok(section.proxy['/finance-research-runs']);
     assert.equal(section.proxy['/finance-report-runs'].target, section.proxy['/finance-topic-sessions'].target);
     assert.equal(typeof section.proxy['/api'].configure, 'function');
   }

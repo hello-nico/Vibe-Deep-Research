@@ -4,7 +4,7 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
-import { companySlug } from '../lib/research';
+import { backgroundTaskForSession, companySlug, loadBackgroundTasks } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
 import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentReadSearch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, mentionLabel, parseDocumentRef, pendingLibraryCites, queueLibraryCites, rememberMentionLabel, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
 import { SearchPreviews } from './search-previews';
@@ -14,7 +14,7 @@ import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } from "../assistant/sessions.ts";
 import { applyAssistant } from "../assistant/apply.ts";
-import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
+import { cancelReportRun, cancelResearchRun, legacyCompanySymbol, loadReportTasks, researchTaskStatus, startReportRun, startResearchRun } from "../lib/reportTasks";
 import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
 import { userFacingRuntimeError } from "../lib/userFacingError";
 import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
@@ -288,6 +288,7 @@ export function apply(ctx: Context) {
     Boolean(item?.parentId || item?.origin === 'subagent' || item?.blank);
   const isBackgroundChat = (id: string, item: { parentId?: string; origin?: string; blank?: boolean } | undefined, hidden: HiddenChats) => {
     if (nativeBackground(item)) return true;
+    if (legacyCompanySymbol((item as { title?: string } | undefined)?.title || '')) return true;
     if (hidden.status !== 'ready') return true;
     return hidden.ids.has(id);
   };
@@ -385,11 +386,22 @@ export function apply(ctx: Context) {
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
     const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
-    return list.ids.flatMap(id => {
+    const symbols = list.ids.flatMap(id => {
       const item = list.byId[id];
       const symbol = item?.cwd === workspace && !archived.has(id)
-        ? /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1] : undefined;
+        ? legacyCompanySymbol(item.title ?? '') : undefined;
       return symbol ? [symbol] : [];
+    });
+    const tasks = await loadReportTasks().catch(() => null);
+    return [...new Set([...symbols, ...Object.values(tasks?.sessions || {}).filter(binding => binding.kind === 'research').map(binding => binding.symbol || '')])].filter(Boolean);
+  }, async legacyCompanyTasks() {
+    await session;
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    return list.ids.flatMap(id => {
+      const item = list.byId[id];
+      const symbol = item?.cwd === workspace ? legacyCompanySymbol(item.title || '') : undefined;
+      return symbol ? [{ sessionId: id, title: item?.title || '', symbol, running: Boolean(item?.running), updatedAt: item?.updatedAt }] : [];
     });
   }, async listRunningCompanySymbols() {
     await session;
@@ -401,8 +413,12 @@ export function apply(ctx: Context) {
     for (const id of list.ids) {
       const item = list.byId[id];
       if (item?.cwd !== workspace || archived.has(id) || !item.running) continue;
-      const symbol = /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1];
+      const symbol = legacyCompanySymbol(item.title ?? '');
       if (symbol) symbols.add(symbol);
+    }
+    const tasks = await loadReportTasks().catch(() => null);
+    for (const [id, binding] of Object.entries(tasks?.sessions || {})) {
+      if (binding.kind === 'research' && list.byId[id]?.running && binding.symbol) symbols.add(binding.symbol);
     }
     return [...symbols];
   }, async start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult> {
@@ -410,6 +426,17 @@ export function apply(ctx: Context) {
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     const task = options?.task;
     if (task?.kind === 'report') return startReportTask(question, task);
+    if (task?.kind === 'research') {
+      const key = task.slug;
+      if (companyStarts.has(key)) return companyStarts.get(key)!;
+      const run = (async (): Promise<StartSessionResult> => {
+        const result = await startResearchRun({ slug: task.slug, symbol: task.symbol, prompt: question, title: task.title });
+        await client.sessions.refresh().catch(() => {});
+        return { sessionId: result.session_id, status: result.status };
+      })();
+      companyStarts.set(key, run);
+      try { return await run; } finally { companyStarts.delete(key); }
+    }
     const key = company?.symbol;
     if (key && companyStarts.has(key)) return companyStarts.get(key)!;
     const go = options?.navigate !== false;
@@ -439,11 +466,22 @@ export function apply(ctx: Context) {
     if (!workspaceId) return null;
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
+    const tasks = await loadReportTasks().catch(() => null);
+    const bound = Object.entries(tasks?.sessions || {}).filter(([, binding]) => binding.kind === 'research' && binding.symbol === symbol);
+    bound.sort((a, b) => String(b[1].bound_at || '').localeCompare(String(a[1].bound_at || '')));
+    if (bound.length) {
+      const [id, binding] = bound[0]!;
+      const running = Boolean(list.byId[id]?.running);
+      const settlement = await loadBackgroundTasks().then(items => backgroundTaskForSession(items, id)).catch(() => null);
+      const status = researchTaskStatus(binding, running, settlement);
+      return { sessionId: id, title: binding.title || `公司研究 · ${symbol}`, running: status === 'researching',
+        updatedAt: binding.finished_at || binding.bound_at,
+        status, runStatus: binding.run_status };
+    }
     const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
-    const prefix = `公司研究 · ${symbol} · `;
     const ids = list.ids.filter(id => {
       const item = list.byId[id];
-      return item?.cwd === workspace && !archived.has(id) && (item.title ?? '').startsWith(prefix);
+      return item?.cwd === workspace && !archived.has(id) && legacyCompanySymbol(item.title ?? '') === symbol;
     });
     ids.sort((a, b) => (new Date(list.byId[b]?.updatedAt ?? 0).getTime() || 0) - (new Date(list.byId[a]?.updatedAt ?? 0).getTime() || 0));
     const id = ids[0];
@@ -457,7 +495,7 @@ export function apply(ctx: Context) {
     const list = client.sessions.list.getSnapshot();
     const store = await loadReportTasks();
     const bindings = store.sessions || {};
-    const ids = Object.keys(bindings).filter(id => bindings[id]?.slug === slug && id !== store.host_session_id);
+    const ids = Object.keys(bindings).filter(id => (bindings[id]?.kind || 'report') === 'report' && bindings[id]?.slug === slug && id !== store.host_session_id);
     ids.sort((a, b) => {
       const run = Number(Boolean(list.byId[b]?.running)) - Number(Boolean(list.byId[a]?.running));
       if (run) return run;
@@ -547,6 +585,7 @@ export function apply(ctx: Context) {
     await router.navigate('/');
   }, openTaskProcess(task: TaskProcessRef) {
     if (task.parentSessionId) taskParents.set(task.sessionId, task.parentSessionId);
+    if (task.parentSessionId && task.settlementSessionId) taskParents.set(task.settlementSessionId, task.parentSessionId);
     taskProcess = task;
     taskProcessListeners.forEach(listener => listener());
   }, closeTaskProcess() {
@@ -570,7 +609,11 @@ export function apply(ctx: Context) {
     trajectoryStores.set(sessionId, store);
     return store;
   }, async cancelTask(sessionId: string) {
-    await cancelReportRun(sessionId);
+    const binding = (await loadReportTasks()).sessions[sessionId];
+    if (binding?.kind === 'research') await cancelResearchRun(sessionId);
+    else await cancelReportRun(sessionId);
+  }, taskRunning(sessionId: string) {
+    return Boolean(client.sessions.list.getSnapshot().byId[sessionId]?.running);
   }, async cancelSession(sessionId: string) {
     await session;
     const reference = client.sessions.retain(sessionId, { source: 'controllerOperation' });

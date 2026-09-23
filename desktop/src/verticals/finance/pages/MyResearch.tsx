@@ -23,14 +23,17 @@ import {
   type ResearchTopicRouteResult,
   type ResearchTopicSummary,
 } from "../lib/research";
-import { loadReportTasks } from "../lib/reportTasks";
+import { loadReportTasks, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
 const TASK_STATUS: Record<string, string> = {
   running: "执行中", waiting_ingest: "等待报告入库", interrupted: "已中断", no_increment: "无新增",
   awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消", recorded: "已记录",
+  researching: '研究中', settling: '整理中', completed: '研究已结束', unconfirmed: '结果待确认',
 };
+
+type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_token?: string };
 
 const RESEARCH_TABS = [
   { value: "topics", label: "议题", icon: BookOpen },
@@ -59,7 +62,7 @@ export function MyResearch() {
   const [notesError, setNotesError] = useState(notesLoadError()?.message || "");
   const [notesBusy, setNotesBusy] = useState(false);
   const [notesTick, setNotesTick] = useState(0);
-  const [tasks, setTasks] = useState<{ id: string; kind?: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null>(null);
+  const [tasks, setTasks] = useState<TaskRow[] | null>(null);
   const [tasksError, setTasksError] = useState("");
   const [topicQuestion, setTopicQuestion] = useState("");
   const [topicRouteResult, setTopicRouteResult] = useState<ResearchTopicRouteResult | null>(null);
@@ -108,24 +111,41 @@ export function MyResearch() {
     let first = true;
     const load = async () => {
       try {
-        const [bgResponse, reports] = await Promise.all([
+        const [bgResponse, reports, legacy] = await Promise.all([
           fetch("/finance-background-tasks", { signal: controller.signal }),
-          loadReportTasks().catch(() => ({ sessions: {} as Record<string, { slug: string; input_hash: string; bound_at?: string }>, host_session_id: '' })),
+          loadReportTasks().catch((): ReportTaskStore => ({ sessions: {}, host_session_id: '' })),
+          researchSessions?.legacyCompanyTasks().catch(() => []) || Promise.resolve([]),
         ]);
         if (!bgResponse.ok) throw new Error("任务读取失败");
         const body = await bgResponse.json() as { items?: NonNullable<typeof tasks> };
         if (controller.signal.aborted) return;
-        const reportItems = Object.entries(reports.sessions || {}).filter(([id]) => id && id !== reports.host_session_id).map(([id, bind]) => ({
+        const background = Array.isArray(body.items) ? body.items : [];
+        const settlements = new Map(background.filter(item => item.source_session_id).map(item => [item.source_session_id!, item]));
+        const reportItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([id, bind]) => id && id !== reports.host_session_id && (bind.kind || 'report') === 'report').map(([id, bind]) => ({
           id,
           kind: 'report' as const,
           title: `图文报告 · ${bind.slug}`,
-          display_status: researchSessions?.sessionState(id)?.running ? 'running' : 'recorded',
+          display_status: researchSessions?.taskRunning(id) ? 'running' : bind.run_status === 'completed' ? 'recorded' : bind.run_status || 'recorded',
           started_at: bind.bound_at,
           child_session_id: id,
           targets: [bind.slug],
           summary: bind.slug,
         }));
-        const items = [...reportItems, ...(Array.isArray(body.items) ? body.items.map(item => ({ ...item, kind: item.kind || 'knowledge' })) : [])];
+        const researchItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([, bind]) => bind.kind === 'research').map(([id, bind]) => {
+          const settlement = settlements.get(id);
+          const running = researchSessions?.taskRunning(id);
+          return { id, kind: 'research', title: bind.title || `公司研究 · ${bind.symbol || bind.slug.replace(/^companies\//, '')}`,
+            display_status: researchTaskStatus(bind, Boolean(running), settlement),
+            started_at: bind.bound_at, finished_at: settlement?.finished_at || bind.finished_at,
+            parent_session_id: reports.host_session_id, child_session_id: id,
+            settlement_session_id: settlement?.child_session_id || settlement?.id,
+            targets: [bind.slug], summary: settlement?.summary || '' };
+        });
+        const legacyItems: TaskRow[] = legacy.map(item => ({ id: item.sessionId, kind: 'research', title: item.title,
+          display_status: item.running ? 'researching' : 'recorded', started_at: item.updatedAt,
+          child_session_id: item.sessionId, targets: [`companies/${item.symbol}`] }));
+        const items = [...reportItems, ...researchItems, ...legacyItems,
+          ...background.filter(item => !item.source_session_id || !reports.sessions?.[item.source_session_id]).map(item => ({ ...item, kind: item.kind || 'knowledge' }))];
         items.sort((a, b) => String(b.started_at || '').localeCompare(String(a.started_at || '')));
         setTasksError("");
         setTasks(items);
@@ -257,8 +277,8 @@ export function MyResearch() {
         {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
       </div>
       {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
-      {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target) => researchSessions?.openTaskProcess({
-        sessionId: id, kind, title, parentSessionId: parentId,
+      {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
+        sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
         resultHref: target ? `/research?company=${encodeURIComponent(target.replace(/^companies\//, ""))}` : undefined,
       })} onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "topics" ? <>
         <form onSubmit={startTopic} className="border-b border-border/30 pb-4">
@@ -330,9 +350,9 @@ export function MyResearch() {
 }
 
 function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
-  tasks: { id: string; kind?: string; title?: string; question?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; child_session_id?: string; targets?: string[]; draft_token?: string }[] | null;
+  tasks: TaskRow[] | null;
   error: string;
-  onOpenProcess?: (sessionId: string, kind: 'report' | 'knowledge', title: string, parentSessionId?: string, target?: string) => void;
+  onOpenProcess?: (sessionId: string, kind: 'report' | 'research' | 'knowledge', title: string, parentSessionId?: string, target?: string, settlementId?: string, status?: string) => void;
   onOpenSource?: (sessionId: string) => void | Promise<void>;
 }) {
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
@@ -341,8 +361,8 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
   return <>{tasks.map(task => {
     const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
     const processId = task.child_session_id || task.id;
-    const kind = task.kind === 'report' ? 'report' as const : 'knowledge' as const;
-    const title = task.title || (kind === 'report' ? '图文报告' : '知识整理');
+    const kind = task.kind === 'report' ? 'report' as const : task.kind === 'research' ? 'research' as const : 'knowledge' as const;
+    const title = task.title || (kind === 'report' ? '图文报告' : kind === 'research' ? '公司研究' : '知识整理');
     const summary = task.summary || task.question || '';
     const target = task.targets?.join('、') || '';
     const showSummary = Boolean(summary && summary !== title && summary !== target);
@@ -359,7 +379,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
         {target && !title.includes(target) && <p className="mt-1 text-xs text-muted-foreground">{target}</p>}
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
-        {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0])}>查看过程</button>}
+        {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
         {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ''))}`}>打开研究页</Link>}
       </div>

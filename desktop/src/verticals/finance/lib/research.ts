@@ -225,6 +225,7 @@ export interface BackgroundTask {
   finished_at?: string;
   summary?: string;
   parent_session_id?: string;
+  source_session_id?: string;
   child_session_id?: string;
   targets?: string[];
   draft_token?: string;
@@ -242,7 +243,7 @@ export async function loadBackgroundTasks(signal?: AbortSignal): Promise<Backgro
 // 找某会话最新一条后台任务（按开始时间倒序）。
 export function backgroundTaskForSession(tasks: BackgroundTask[], sessionId: string | null | undefined): BackgroundTask | null {
   if (!sessionId) return null;
-  const matches = tasks.filter(task => task.parent_session_id === sessionId);
+  const matches = tasks.filter(task => (task.source_session_id || task.parent_session_id) === sessionId);
   if (!matches.length) return null;
   matches.sort((a, b) => String(b.started_at || "").localeCompare(String(a.started_at || "")));
   return matches[0] ?? null;

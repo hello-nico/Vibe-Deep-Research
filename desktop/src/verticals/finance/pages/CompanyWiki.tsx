@@ -6,6 +6,7 @@ import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
 import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
+import { RESEARCH_SETTLEMENT_MS } from '../lib/reportTasks';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
 import { api } from '../lib/api';
@@ -239,13 +240,14 @@ export function CompanyWiki() {
       if (!alive || !tracked || tracked.slug !== slug) return;
       if (tracked.phase === 'researching' && tracked.sessionId) {
         const state = sessions.sessionState(tracked.sessionId);
-        const running = state ? state.running
-          : (await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null))?.running ?? true;
+        const bound = await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null);
+        const running = state ? state.running : bound?.running ?? true;
         if (!alive) return;
-        if (state?.failed || state?.lastAgentError || state?.promptError) {
+        if (state?.failed || state?.lastAgentError || state?.promptError || ['failed', 'cancelled'].includes(bound?.runStatus || '')
+          || (bound?.runStatus === 'running' && bound.status === 'interrupted')) {
           // Raw agent errors stay in the execution conversation; the page shows a generic failure.
           setGen(prev => prev && prev.sessionId === tracked.sessionId
-            ? { ...prev, phase: 'failed', message: '这次研究没有完成，可以查看执行对话后重试。' } : prev);
+            ? { ...prev, phase: 'failed', message: '这次研究没有完成，请查看任务记录后重试。' } : prev);
           return;
         }
         if (!running) {
@@ -258,6 +260,15 @@ export function CompanyWiki() {
         if (!alive) return;
         const record = tasks ? backgroundTaskForSession(tasks, tracked.sessionId) : null;
         const display = record?.display_status || record?.status || '';
+        if (!record) {
+          const bound = await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null);
+          if (!alive) return;
+          if (['failed', 'cancelled', 'interrupted'].includes(bound?.status || '')) {
+            setGen(prev => prev && prev.sessionId === tracked.sessionId
+              ? { ...prev, phase: 'failed', message: '结果整理没有完成，详情见任务记录。' } : prev);
+            return;
+          }
+        }
         if (record && !['running', 'waiting_ingest'].includes(display)) {
           refresh(x => x + 1);
           if (display === 'awaiting_authorization' || display === 'partial') {
@@ -292,7 +303,7 @@ export function CompanyWiki() {
             setGen(prev => prev && prev.sessionId === tracked.sessionId ? { ...prev, baselineHash: page.input_hash } : prev);
           }
         } catch { /* page may still be missing; retry next tick */ }
-        if (Date.now() - (tracked.settleAt ?? Date.now()) > 180_000) {
+        if (Date.now() - (tracked.settleAt ?? Date.now()) > RESEARCH_SETTLEMENT_MS) {
           setGen(prev => prev && prev.sessionId === tracked.sessionId
             ? { ...prev, phase: 'unconfirmed', message: '研究已结束，结果还在整理，完成后本页会更新。' } : prev);
           return;
@@ -330,18 +341,15 @@ export function CompanyWiki() {
     refresh(x => x + 1);
     try {
       const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${target.title}（${target.symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${target.title} \`${target.slug}\``;
-      const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name: target.title }, { navigate: false });
+      const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name: target.title }, {
+        navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${target.title}` },
+      });
       if (activeSlug.current !== target.slug) return;
       const baseline = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
       setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: baseline?.input_hash });
     } catch (e) {
       if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: `研究页已建立，但研究没能开始：${e instanceof Error ? e.message : String(e)}`, pageReady: true });
     }
-  };
-  const openCompanySession = async () => {
-    if (!gen?.sessionId) return;
-    try { await sessions.openSession(gen.sessionId); }
-    catch (e) { setError(e instanceof Error ? e.message : String(e)); }
   };
   // HK/US and other unsupported markets keep the plain conversation path; the
   // Wiki entry is never presented as if it could produce a page.
@@ -407,7 +415,6 @@ export function CompanyWiki() {
     : genHere?.phase === 'settling' ? '研究已结束，正在整理结果…'
     : `${genHere?.pageReady ? '研究页已建立，' : ''}研究进行中，结果会陆续更新到本页。`;
   const genActions = genHere ? <div className="mt-3 flex flex-wrap gap-2">
-    {genHere.sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void openCompanySession()}>查看执行对话</button>}
     {genHere.phase !== 'ensuring' && <Link className="workspace-action workspace-action-compact" to="/my-research?tab=tasks">查看任务记录</Link>}
     {genHere.phase === 'failed' && current?.aShare && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void startCompanyResearch()}>重试</button>}
     {['done', 'partial', 'review', 'failed', 'unconfirmed'].includes(genHere.phase) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => setGen(null)}>收起</button>}
