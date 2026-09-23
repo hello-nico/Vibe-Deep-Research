@@ -42,7 +42,9 @@ def cninfo_announcements(code: str, page_size: int = 30) -> list[dict]:
     headers = {"User-Agent": UA, "Content-Type": "application/x-www-form-urlencoded", "Referer": "https://www.cninfo.com.cn/new/disclosure", "Origin": "https://www.cninfo.com.cn"}
     d = http_post_json("https://www.cninfo.com.cn/new/hisAnnouncement/query", data=payload, headers=headers, timeout=15)
     return [{"title": it.get("announcementTitle", ""), "type": it.get("announcementTypeName", ""), "date": _ts_to_date(it.get("announcementTime")),
-             "url": f"https://www.cninfo.com.cn/new/disclosure/detail?annoId={it.get('announcementId', '')}"} for it in d.get("announcements", []) or []]
+             "url": (f"https://www.cninfo.com.cn/new/disclosure/detail?stockCode={it.get('secCode', '')}"
+                     f"&announcementId={it.get('announcementId', '')}&announcementTime={_ts_to_date(it.get('announcementTime'))}")}
+            for it in d.get("announcements", []) or []]
 
 
 def cninfo_irm(code: str, page_size: int = 30, page_num: int = 1) -> list[dict]:
