@@ -327,6 +327,19 @@
   .workspace-content > div > .glass,
   .workspace-content > .workspace-page-enter > div > .glass { margin-bottom: 20px; }
   .conversation-footer > .workspace-page-enter { height: 100%; min-height: 0; }
+  .watch-market-notice {
+    color: hsl(var(--foreground));
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+    animation: watch-market-notice 2.4s ease forwards;
+  }
+  @keyframes watch-market-notice {
+    0% { opacity: 0; }
+    14% { opacity: 1; }
+    68% { opacity: 1; }
+    100% { opacity: 0; }
+  }
   @keyframes workspace-page-enter {
     from { opacity: 0; transform: translateY(8px); }
     to { opacity: 1; transform: none; }

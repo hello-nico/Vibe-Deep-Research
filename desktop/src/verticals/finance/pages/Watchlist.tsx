@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, X, RefreshCw, Star } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
@@ -7,6 +7,7 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import { addCodes, addWatch, loadWatch, removeWatch } from "@/lib/watchlist";
 import { addToRoster, loadRoster } from "../lib/researchRoster";
 import { companySlug } from "../lib/research";
+import { marketOfSymbol } from "../lib/marketSymbol";
 import { prefGet, prefSet } from "@/lib/prefs";
 import { useLiveQuotes, isTradingHours } from "@/hooks/useLiveQuotes";
 import { cn } from "@/lib/utils";
@@ -24,13 +25,27 @@ export function Watchlist() {
   const [hint, setHint] = useState<string | null>(null);
   const [joined, setJoined] = useState<Set<string>>(() => new Set(loadRoster()));
   const [researching, setResearching] = useState<string | null>(null);
+  const [marketNotice, setMarketNotice] = useState<{ symbol: string; id: number } | null>(null);
+  const marketNoticeTimer = useRef<number | null>(null);
+  useEffect(() => () => {
+    if (marketNoticeTimer.current) window.clearTimeout(marketNoticeTimer.current);
+  }, []);
+  const remindUnsupportedMarket = (symbol: string) => {
+    if (marketNoticeTimer.current) window.clearTimeout(marketNoticeTimer.current);
+    setMarketNotice({ symbol, id: Date.now() });
+    marketNoticeTimer.current = window.setTimeout(() => setMarketNotice(null), 2600);
+  };
   const joinResearch = async (symbol: string) => {
     if (joined.has(symbol)) return;
+    if (marketOfSymbol(symbol) !== "CN") {
+      remindUnsupportedMarket(symbol);
+      return;
+    }
     setResearching(symbol); setHint(null);
     try {
       await addToRoster(symbol);
       setJoined(new Set(loadRoster()));
-      setHint(/^\d{6}$/.test(symbol) ? `已加入研究名单。可打开个股研究查看资料。` : `已加入研究名单。港股 / 美股目前没有公司资料页，名单会保留。`);
+      setHint("已加入研究名单。可打开个股研究查看资料。");
     } catch (e) { setHint(String(e)); } finally { setResearching(null); }
   };
   const [live, setLive] = useState(() => prefGet(LIVE_KEY) === "on");
@@ -190,7 +205,7 @@ export function Watchlist() {
                       <td className="px-2 py-2.5 font-mono text-muted-foreground">{q?.pe_ttm ?? "—"}</td>
                       <td className="px-2 py-2.5 font-mono text-muted-foreground">{q?.pb ?? "—"}</td>
                       <td className="px-2 py-2.5 font-mono text-muted-foreground">{q?.turnover_pct ?? "—"}</td>
-                      <td className="px-2 py-2.5">
+                      <td className="whitespace-nowrap px-2 py-2.5">
                         <button
                           onClick={() => remove(c)}
                           className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-destructive/10 hover:text-destructive focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary"
@@ -201,6 +216,9 @@ export function Watchlist() {
                         </button>
                         <button disabled={researching !== null || joined.has(c)} onClick={() => void joinResearch(c)} className="workspace-action workspace-action-compact ml-3">{researching === c ? '正在加入…' : joined.has(c) ? '已加入研究' : '加入研究'}</button>
                         {joined.has(c) && <Link className="workspace-action workspace-action-compact ml-2" to={`/research?company=${encodeURIComponent(companySlug(c) || c)}`}>打开研究</Link>}
+                        {marketNotice?.symbol === c && (
+                          <span key={marketNotice.id} role="status" className="watch-market-notice ml-3">暂不支持港美股</span>
+                        )}
                       </td>
                     </tr>
                   );
