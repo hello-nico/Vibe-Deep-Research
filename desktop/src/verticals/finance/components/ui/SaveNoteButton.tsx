@@ -30,10 +30,10 @@ export function SaveNoteButton({ kind, title, content }: { kind: string; title: 
       title={err || undefined}
       className="workspace-action workspace-action-compact"
     >
-      {state === "saved" ? (<><Check className="h-3.5 w-3.5" /> 已存入沉淀</>)
+      {state === "saved" ? (<><Check className="h-3.5 w-3.5" /> 已保存为记录</>)
         : state === "failed" ? (<><AlertCircle className="h-3.5 w-3.5 text-destructive" /> 没存上，点这里重试</>)
         : state === "saving" ? (<><BookmarkPlus className="h-3.5 w-3.5" /> 存入中…</>)
-        : (<><BookmarkPlus className="h-3.5 w-3.5" /> 存入沉淀</>)}
+        : (<><BookmarkPlus className="h-3.5 w-3.5" /> 保存为记录</>)}
     </button>
   );
 }

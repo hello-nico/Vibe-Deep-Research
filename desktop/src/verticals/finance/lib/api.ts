@@ -480,12 +480,16 @@ async function marketOverviewOf(pre?: { sentiment?: Envelope; board_flow?: Envel
   };
 }
 
-async function emotionOf(): Promise<ShortTermEmotion> {
-  const [zt, zb, yzt] = await Promise.all([
-    env("em_zt_pool"),
-    env("em_zb_pool").catch(() => undefined),
-    env("em_yzt_pool").catch(() => undefined),
-  ]);
+/**
+ * 🔴 三个池一律用**这一屏已经取回的信封**(Core 页面查询 `/page/review`,已按业务日注入日期)。
+ *    此前这里不带日期自己取,快照没有时效上限、刷新也不传 —— 页面连续两周显示 09-08 的涨停池。
+ *    涨停池缺失就报错让界面显示缺口;炸板 / 昨日池缺失只让对应比率为 null。不回退自取。
+ */
+async function emotionOf(pre: { zt_pool?: Envelope; zb_pool?: Envelope; yzt_pool?: Envelope }): Promise<ShortTermEmotion> {
+  const zt = pre.zt_pool;
+  if (!zt) throw new Error("涨停池未取到");
+  const zb = pre.zb_pool;
+  const yzt = pre.yzt_pool;
 
   const base = rows(zt)
     .map((r) => {

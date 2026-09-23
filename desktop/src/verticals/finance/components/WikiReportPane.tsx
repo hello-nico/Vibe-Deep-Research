@@ -1,7 +1,6 @@
 import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { researchRead, type WikiPage } from '../lib/research';
 import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-session';
-import { reportDesignContract } from './WikiReport';
 import './wiki-report.css';
 
 interface ReportMeta {
@@ -53,20 +52,9 @@ function pageSlug(page: WikiPage): string {
   return page.spec.slug || '';
 }
 
+// 报告步骤、样式与页面类型契约由 Stock 的 wiki_report 角色提示按绑定页面注入；这里只写用户能读懂的一句话。
 export function reportPrompt(page: WikiPage): string {
-  const slug = pageSlug(page);
-  return [
-    `为 Wiki 页 ${slug} 生成一份交互图文报告。这是一次受限的报告生成任务：只使用本会话可用的四个工具。`,
-    reportDesignContract(page.spec.type ?? ''),
-    `第一步，用 read_research_method 依次读取 lieflat-skill（报告纪律）与 lieflat-reports（报告模板目录），比较候选模板。`,
-    `第二步，用 read_research_method 加载你从 lieflat-r01 至 lieflat-r12 中选定的报告模板，理解其结构如何适用于本页材料。`,
-    `第三步，用 wiki_read 读取 ${slug} 的当前接受版本；读取会钉住输入快照，之后发布只认这个快照。`,
-    `第四步，按选定模板的骨架组织本页真实材料，输出一个自包含 HTML 片段：只允许内联样式与内联脚本；禁止外部资源、网络请求、iframe、表单与跳转链接。`,
-    `字级纪律：标题 28px、章节标题 18px、正文 14px、标签与注释 12px；数字用 tabular-nums；品牌橙最多一个焦点；涨跌红涨绿跌。`,
-    `每个引用证据的数字或结论元素带 data-ref；其值必须从 wiki_read 返回的 spec 中 ref/refs 字段逐字复制一个完整引用 ID。一个 data-ref 只放一个 ID，禁止用 | 拼接、增删前缀、URL 编码或自行添加 source:来源名称。多条依据使用多个独立引用元素；保留原 ID 中的 + 等字符。缺数据显示"待补充"，缺失与 0 区分，不补造数值。`,
-    `图表只表达真实的趋势、对比、构成或阈值关系：长度编码零基线、同组比较共享刻度、直接标注优先于图例；没有关系可表达就不画图。`,
-    `最后调用 wiki_report_publish，参数：slug、html、title、template（选定的 lieflat-rNN 名称）。保存失败说明真实原因，不要把 HTML 粘进正文。`,
-  ].join('\n');
+  return `为《${page.spec.title || pageSlug(page)}》生成一份图文报告。`;
 }
 
 export function WikiReportPane({ page, fallback = null, active = true }: { page: WikiPage; fallback?: ReactNode; active?: boolean }) {
@@ -253,7 +241,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   }, [detail, selected?.report_id]);
 
   const generate = () => {
-    if (!sessions) { setError('研究会话尚未连接，稍后再试。'); return; }
+    if (!sessions) { setError('研究服务正在连接，请稍后再试。'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
     const epoch = pageEpoch.current;
     watchedLive.current = true;
@@ -263,7 +251,7 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
     setError(''); setStarting(true); setPendingRun(true);
     void sessions.start(reportPrompt(page), undefined, {
       navigate: false,
-      task: { kind: 'report', slug, inputHash, title: `报告生成 · ${slug}` },
+      task: { kind: 'report', slug, inputHash, title: `报告生成 · ${page.spec.title || slug}` },
     }).then(result => {
       if (epoch !== pageEpoch.current) return;
       setBusyOtherVersion(result.status === 'busy_other_version');
@@ -302,12 +290,12 @@ export function WikiReportPane({ page, fallback = null, active = true }: { page:
   const loadingDetail = active && Boolean(selected) && !detail && !error;
   const waiting = active && !showGenerated && !loadingList && !loadingDetail;
   const canGenerate = items !== null && !generating;
-  const openProcess = () => sessions?.openTaskProcess({ sessionId: task?.sessionId || '', title: `报告生成 · ${slug}`, kind: 'report' });
+  const openProcess = () => sessions?.openTaskProcess({ sessionId: task?.sessionId || '', title: `报告生成 · ${page.spec.title || slug}`, kind: 'report' });
   const processButton = task?.sessionId ? <button type="button" className={showGenerated ? 'wiki-report-tab' : 'workspace-action'} onClick={openProcess}>生成过程</button> : null;
   return <>
     {showGenerated && detail && <div className="wiki-report-shell">
       <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
-        {selected?.current && <span className="sr-only">对应当前 Wiki</span>}
+        {selected?.current && <span className="sr-only">对应当前研究页</span>}
         {canGenerate && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
         {processButton}
         {error && <span role="alert" className="text-destructive">{error}</span>}

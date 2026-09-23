@@ -56,7 +56,7 @@ export function WikiDraftPublish({
     </div>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
     {preview && <div className="space-y-3">
-      <p className="text-xs text-muted-foreground">未发布草案 · 确认发布前必须先审阅这里的正文。发布后才是可回读 Wiki。</p>
+      <p className="text-xs text-muted-foreground">草案 · 请先阅读正文，确认后发布到研究页。</p>
       {preview.previews?.map(item => <GlassCard key={item.slug}><KnowledgeText markdown={item.markdown} /></GlassCard>)}
     </div>}
   </div>;

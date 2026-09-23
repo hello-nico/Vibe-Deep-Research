@@ -42,7 +42,7 @@ export async function bindAssistantSession(input: {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === 'string' ? body.detail : '问助手会话绑定失败，请重试');
+    throw new Error(typeof body.detail === 'string' ? body.detail : '问助手没能启动，请重试');
   }
   return response.json() as Promise<{
     plugin: AssistantPlugin;
@@ -54,7 +54,7 @@ export async function bindAssistantSession(input: {
 
 export async function loadAssistantSessions() {
   const response = await fetch('/finance-assistant-sessions');
-  if (!response.ok) throw new Error('问助手会话读取失败');
+  if (!response.ok) throw new Error('问助手暂时加载不出来，请重试');
   return response.json() as Promise<{
     sessions: Record<string, { plugin?: AssistantPlugin; mode: AssistantMode; target?: string; page_key?: string }>;
     pages: Record<string, { session_id: string; plugin?: AssistantPlugin; mode: AssistantMode; target?: string }>;
@@ -63,37 +63,37 @@ export async function loadAssistantSessions() {
 
 export function assistantModeHint(mode: AssistantMode): string {
   return mode === 'agent'
-    ? 'Agent 深查：先用页面快照，只补问题所需缺口，可维护资料。'
-    : 'Ask 即答：只用发送时的页面快照与 @ 读取结果，不取数、不写。';
+    ? 'Agent 深查：页面信息不够时会自己查资料、读原文，稍慢一些'
+    : 'Ask 即答：根据本页内容和你 @ 的条目直接回答';
 }
 
 export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
   if (plugin === 'market') {
-    return '这里看的是当日盘面：指数、情绪和资金。引用指数或个股后提问，我说明表现、观察日和数据缺口，不解释成买卖建议。输入 @ 可以搜索本页已加载的条目。';
+    return '问我今天的盘面：指数表现、市场情绪、资金流向。输入 @ 选一个指数或个股，可以问得更具体。';
   }
   if (plugin === 'intel') {
-    if (pageKey.includes('filings')) return '这里是关注股票的公告列表。引用一条公告后提问，我按本轮已读内容区分披露事实、影响推断和待核实事项。输入 @ 搜索本页公告。';
-    if (pageKey.includes('investment-news')) return '这里是按赛道整理的资讯。引用一条报道后提问，我只分析这条事件本身，并区分原报道、事实和待核实条件。输入 @ 搜索本页资讯。';
-    if (pageKey.includes('events')) return '这里是事件与日程。引用一条后提问，我说明时间、对象和还缺什么证据。输入 @ 搜索本页条目。';
-    return '这里是公开新闻列表。引用一条新闻后提问，我按本轮已读内容区分报道、事件事实和影响推断。输入 @ 搜索本页新闻。';
+    if (pageKey.includes('filings')) return '输入 @ 选一条公告，我帮你读懂它说了什么、可能影响什么。';
+    if (pageKey.includes('investment-news')) return '输入 @ 选一篇报道，我帮你解读这件事，以及它会影响谁。';
+    if (pageKey.includes('events')) return '输入 @ 选一个事件，我帮你看它在问什么、市场怎么定价。';
+    return '输入 @ 选一条新闻，我帮你解读这件事，以及它会影响谁。';
   }
   if (plugin === 'industry_wiki') {
     if (pageKey.startsWith('industry-wiki:industries/')) {
-      return '这里是这个行业的研究页。直接问经营机制、结构变化或会传导到哪些公司；材料够用就分析，缺页和缺数会单独说清。输入 @ 引用本页行业。';
+      return '直接问这个行业怎么赚钱、最近有什么变化、会影响哪些公司。';
     }
-    return '这里是行业研究目录。引用一个行业后，我从经营机制、结构变化和公司传导来回答。输入 @ 搜索本页行业。';
+    return '输入 @ 选一个行业，问它怎么赚钱、最近有什么变化。';
   }
   if (plugin === 'industry_profile') {
     if (pageKey !== 'industry-profile:list' && pageKey.startsWith('industry-profile:')) {
-      return '这里是这份产业研究。我会把它当作线索，展开供需、产业链和还需要核实的问题，而不是只复述目录。输入 @ 引用本页产业。';
+      return '问这个产业的供需、产业链位置，或者还有哪些问题值得核实。';
     }
-    return '这里是申万产业研究目录。引用一个产业后，我比较供需、产业链和验证问题。输入 @ 搜索本页产业。';
+    return '输入 @ 选一个产业，比较供需、产业链和值得核实的问题。';
   }
   if (plugin === 'company_wiki') {
     if (pageKey.startsWith('company-wiki:companies/')) {
-      return '这里是这家公司的研究页。按你的问题选择经营、财务或估值来分析；已有材料够用就直接答，缺什么再补。输入 @ 引用本公司或比较对象。';
+      return '问经营、财务或估值都可以。输入 @ 选另一家公司可以做对比。';
     }
-    return '这里是个股研究名单。引用一家公司后，可以问它做什么、财务或估值怎么看。输入 @ 搜索本页公司。';
+    return '输入 @ 选一家公司，问它做什么、财务或估值怎么看。';
   }
-  return '引用本页对象后提问。输入 @ 可以搜索已加载的条目。';
+  return '输入 @ 选择本页条目后提问。';
 }

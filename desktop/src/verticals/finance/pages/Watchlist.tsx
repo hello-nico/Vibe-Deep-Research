@@ -158,7 +158,7 @@ export function Watchlist() {
                 {polling && <span className="text-primary/80">自动刷新 · 间隔 3 秒</span>}
                 {updatedAt && (
                   <span className="font-mono" title="所显示价格中最早的数据时间；不是成交时间，上游可能延迟">
-                    最早快照 {new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}
+                    最早数据时间 {new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}
                   </span>
                 )}
               </>

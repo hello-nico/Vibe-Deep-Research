@@ -57,7 +57,7 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
     assert.ok(path.includes('parse_revision_id=r1'));
     assert.throws(() => pinnedBlockPath({ ...identity, parse_revision_id: '' }));
     globalThis.fetch = async () => new Response(JSON.stringify({ ...identity, parse_revision_id: 'r2', text: '错误版本' }));
-    await assert.rejects(readPinnedBlock(identity, new AbortController().signal), /校验失败/);
+    await assert.rejects(readPinnedBlock(identity, new AbortController().signal), /版本核对失败/);
     globalThis.fetch = async () => new Response(JSON.stringify({ results: [{ ref: 'claim:a', status: 'resolved', kind: 'claim', data: { support_groups: [{ mode: 'all_of', segments: [{ evidence_id: 'evidence:abc123:x:r1:p2:b3' }] }] } }] }));
     const claim = await loadEvidence('claim:a', new AbortController().signal);
     assert.deepEqual(claim.related, ['evidence:abc123:x:r1:p2:b3']);

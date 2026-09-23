@@ -120,7 +120,8 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /finance-assistant-transcript/);
   assert.match(read("core/ai/pageContext.tsx"), /\[pageKey, sig\]/);
   assert.doesNotMatch(read("core/ai/pageContext.tsx"), /}, \[ctx, pageKey, sig\]/);
-  assert.match(read("verticals/finance/assistant/prompt.ts"), /必须消费这份结果作判断/);
+  assert.match(read("verticals/finance/assistant/prompt.ts"), /已在发送时读取，直接使用[^']*补读是另一份结果，不覆盖、不混用本轮内容/);
+  assert.match(read("verticals/finance/assistant/prompt.ts"), /页面显示值，不是工具读取的证据/);
   assert.doesNotMatch(read("verticals/finance/assistant/prompt.ts"), /persist=false|统一 Fetcher/);
   assert.match(read("verticals/finance/assistant/apply.ts"), /async ensureAssistant[\s\S]*assistantStarts\.has\(key\)/);
   assert.match(read("verticals/finance/assistant/apply.ts"), /bindAssistantPrompt/);

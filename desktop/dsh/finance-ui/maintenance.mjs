@@ -1,10 +1,9 @@
-import { randomUUID } from 'node:crypto';
-
 const COMPANY = /^companies\/\d{6}-(?:sh|sz|bj)$/;
+const INDUSTRY = /^industries\/nbs-.+$/;
 
 async function backend(route, payload, signal) {
   const token = process.env.STOCK_RESEARCH_HOOK_TOKEN?.trim();
-  if (!token) throw Object.assign(new Error('资料维护服务未配置'), { status: 503 });
+  if (!token) throw Object.assign(new Error('资料刷新服务未启用'), { status: 503 });
   const base = (process.env.STOCK_RESEARCH_BACKEND_URL || 'http://127.0.0.1:8700/api/v1').replace(/\/$/, '');
   const response = await fetch(base + route, {
     method: payload ? 'POST' : 'GET', signal,
@@ -14,43 +13,50 @@ async function backend(route, payload, signal) {
   const result = await response.json();
   if (!response.ok) {
     const messages = {
-      stale_version: '提案已变化，请回查最新记录后再操作',
-      stale_target: '公司资料已更新，请重新读取并准备刷新',
-      execution_unknown: '执行结果仍待核实，请回查记录，不要重复提交',
-      binding_mismatch: '确认与原提案不匹配，请重新准备刷新',
-      not_found: '未找到这条刷新记录，请重新准备',
+      stale_version: '内容有更新，请重新打开后确认',
+      stale_target: '页面资料有更新，请刷新页面后再试',
+      stale_source: '统计局来源有更新，请重新点击刷新',
+      source_unavailable: '国家统计局表3资料暂时不可用，请稍后重试',
+      execution_unknown: '结果还在确认中，请稍后查看，先不要重复刷新',
+      binding_mismatch: '内容有更新，请重新打开后确认',
+      not_found: '没找到这次刷新，请重新点击刷新',
     };
-    throw Object.assign(new Error(messages[result.detail?.code] || '维护请求未通过校验，请重新读取后确认'), { status: response.status });
+    throw Object.assign(new Error(messages[result.detail?.code] || result.detail?.message || '请求没有通过，请刷新页面后再试'),
+      { status: response.status, code: result.detail?.code || 'request_failed' });
   }
   return result;
 }
 
-// Only the explicit company refresh button uses this facade. Agent proposals and
+// Only explicit Wiki refresh buttons use this facade. Agent proposals and
 // their native question answers never pass through this browser endpoint.
 export async function companyRefreshRequest(input, signal, request = backend) {
+  const industry = input.page === 'industry';
+  if (input.operation === 'current') {
+    if (!(industry ? INDUSTRY : COMPANY).test(input.slug || ''))
+      throw Object.assign(new Error('页面身份无效'), { status: 422 });
+    return request(`/wiki/refresh-checks/current?page=${industry ? 'industry' : 'company'}&slug=${encodeURIComponent(input.slug)}`, undefined, signal);
+  }
+  if (input.operation === 'read_check') {
+    if (!/^check-[a-f0-9]{32}$/.test(input.check_id || ''))
+      throw Object.assign(new Error('检查记录无效'), { status: 422 });
+    return request(`/wiki/refresh-checks/${input.check_id}`, undefined, signal);
+  }
   if (input.operation === 'prepare') {
-    if (!COMPANY.test(input.slug || '') || !/^[a-f0-9]{64}$/.test(input.version || ''))
-      throw Object.assign(new Error('请先读取当前公司资料，再发起刷新'), { status: 422 });
-    const identity = randomUUID();
-    return request('/wiki/maintenance-proposals', {
-      origin: 'refresh_button', role: 'company_wiki',
-      source_session: `refresh-button:${identity}`, source_turn: identity,
-      items: [{ item_id: 'refresh-company', action: 'timeline_refresh',
-        label: '更新这家公司的接口资料', description: '重新获取财务与估值接口数据；保留研究判断和原文资料。',
-        target: { kind: 'wiki', id: input.slug, version: input.version }, args: { slug: input.slug, scope: 'api' } }],
-    }, signal);
+    if (!(industry ? INDUSTRY : COMPANY).test(input.slug || '') || !/^[a-f0-9]{64}$/.test(input.version || ''))
+      throw Object.assign(new Error('页面还没加载完，请稍后再刷新'), { status: 422 });
+    return request('/wiki/refresh-checks', { page: industry ? 'industry' : 'company', slug: input.slug, version: input.version }, signal);
   }
   if (!['read', 'confirm'].includes(input.operation) || typeof input.proposal_id !== 'string' || !/^[A-Za-z0-9:_-]{1,100}$/.test(input.proposal_id))
-    throw Object.assign(new Error('无效的刷新请求'), { status: 422 });
+    throw Object.assign(new Error('刷新请求无效，请刷新页面后重试'), { status: 422 });
   const route = `/wiki/maintenance-proposals/${encodeURIComponent(input.proposal_id)}`;
   const proposal = await request(route, undefined, signal);
-  if (proposal.origin !== 'refresh_button' || proposal.role !== 'company_wiki'
+  if (proposal.origin !== 'refresh_button' || proposal.role !== (industry ? 'industry_wiki' : 'company_wiki')
     || proposal.items?.length !== 1 || proposal.items[0].action !== 'timeline_refresh'
-    || proposal.items[0].args?.scope !== 'api')
-    throw Object.assign(new Error('此入口只能处理公司刷新按钮的请求'), { status: 403 });
+    || proposal.items[0].args?.scope !== (industry ? 'industry_sources' : 'api'))
+    throw Object.assign(new Error('此处只能处理当前页面的刷新，请刷新页面后重试'), { status: 403 });
   if (input.operation === 'read') return proposal;
   if (typeof input.approve !== 'boolean' || input.version !== proposal.version)
-    throw Object.assign(new Error('刷新提案已变化，请重新查看并确认'), { status: 409 });
+    throw Object.assign(new Error('内容有更新，请重新打开后确认'), { status: 409 });
   return request(`${route}/confirm`, {
     expected_version: input.version, source_session: proposal.source_session, source_turn: proposal.source_turn,
     selections: [{ item_id: proposal.items[0].item_id, decision: input.approve ? 'approve' : 'reject' }],
@@ -74,12 +80,13 @@ export function installCompanyRefresh(ctx) {
       }
       let input;
       try { input = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
-      catch { throw Object.assign(new Error('无效的刷新请求'), { status: 400 }); }
-      if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('无效的刷新请求'), { status: 400 });
+      catch { throw Object.assign(new Error('刷新请求无效，请刷新页面后重试'), { status: 400 }); }
+      if (!input || typeof input !== 'object' || Array.isArray(input)) throw Object.assign(new Error('刷新请求无效，请刷新页面后重试'), { status: 400 });
       res.end(JSON.stringify(await companyRefreshRequest(input, controller.signal)));
     } catch (error) {
       res.writeHead(error.status || 502);
-      res.end(JSON.stringify({ detail: error.status ? error.message : '未能确认执行结果，请回查此项维护记录，不要重复提交刷新。' }));
+      res.end(JSON.stringify({ detail: error.status ? error.message : '结果还在确认中，请稍后查看，先不要重复刷新。',
+        code: error.code || 'request_failed' }));
     } finally { res.off('close', close); }
   } });
 }

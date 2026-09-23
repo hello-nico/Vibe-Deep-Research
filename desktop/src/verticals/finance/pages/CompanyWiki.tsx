@@ -175,7 +175,7 @@ export function CompanyWiki() {
         if (state?.failed || state?.lastAgentError || state?.promptError) {
           // Raw agent errors stay in the execution conversation; the page shows a generic failure.
           setGen(prev => prev && prev.sessionId === tracked.sessionId
-            ? { ...prev, phase: 'failed', message: '本轮研究未成功完成，可在执行对话中查看过程后重试。' } : prev);
+            ? { ...prev, phase: 'failed', message: '这次研究没有完成，可以查看执行对话后重试。' } : prev);
           return;
         }
         if (!running) {
@@ -193,17 +193,17 @@ export function CompanyWiki() {
           if (display === 'awaiting_authorization' || display === 'partial') {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
               ? { ...prev, phase: display === 'partial' ? 'partial' : 'review', draftToken: record.draft_token, message: display === 'partial'
-                ? '后台整理部分完成，请查看任务记录中的成果与未完成事项；不代表本页已更新。'
-                : '研究草案已生成，待审阅；尚未发布到本页。' } : prev);
+                ? '部分内容已整理，本页暂未更新。详情见任务记录。'
+                : '草案已生成，你确认后才会显示在本页。' } : prev);
           } else if (['ready', 'done', 'completed'].includes(display)) {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '后台任务已完成，页面显示当前已发布内容；具体成果见任务记录。' } : prev);
+              ? { ...prev, phase: 'done', message: '研究已完成。详情见任务记录。' } : prev);
           } else if (display === 'no_increment') {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '本轮研究结束，没有产生新增内容。' } : prev);
+              ? { ...prev, phase: 'done', message: '研究已结束，这次没有新增内容。' } : prev);
           } else {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'failed', message: '后台整理未成功完成，可在任务记录中查看详情。' } : prev);
+              ? { ...prev, phase: 'failed', message: '结果整理没有完成，详情见任务记录。' } : prev);
           }
           return;
         }
@@ -215,7 +215,7 @@ export function CompanyWiki() {
           if (!record && tracked.baselineHash && page.input_hash && page.input_hash !== tracked.baselineHash) {
             refresh(x => x + 1);
             setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '页面已更新，显示当前已发布内容。' } : prev);
+              ? { ...prev, phase: 'done', message: '本页已更新。' } : prev);
             return;
           }
           if (!tracked.baselineHash && page.input_hash) {
@@ -224,7 +224,7 @@ export function CompanyWiki() {
         } catch { /* page may still be missing; retry next tick */ }
         if (Date.now() - (tracked.settleAt ?? Date.now()) > 180_000) {
           setGen(prev => prev && prev.sessionId === tracked.sessionId
-            ? { ...prev, phase: 'unconfirmed', message: '本轮研究已结束，后台沉淀结果尚未确认，可在任务记录中查看进度。' } : prev);
+            ? { ...prev, phase: 'unconfirmed', message: '研究已结束，结果还在整理，完成后本页会更新。' } : prev);
           return;
         }
       }
@@ -259,15 +259,13 @@ export function CompanyWiki() {
     if (activeSlug.current !== target.slug) return;
     refresh(x => x + 1);
     try {
-      const prompt = ensured.action === 'exists'
-        ? `请继续研究 ${target.title}（${target.symbol}）。先读取公司 Wiki（${target.slug}）现有内容、缺口与资料时间线，再按缺口补充年报、公告与行情证据。不要重复创建页面；研究结束后由系统按既有流程沉淀与刷新页面。`
-        : `请研究 ${target.title}（${target.symbol}）。公司已建立基础资料页 ${target.slug}，请读取该 Wiki 的缺口与资料时间线，按缺口补取年报、公告与行情证据。不要重复创建页面；研究结束后由系统按既有流程沉淀与刷新页面。`;
+      const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${target.title}（${target.symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${target.title} \`${target.slug}\``;
       const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name: target.title }, { navigate: false });
       if (activeSlug.current !== target.slug) return;
       const baseline = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
       setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: baseline?.input_hash });
     } catch (e) {
-      if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: `资料页已生成，研究会话启动失败：${e instanceof Error ? e.message : String(e)}`, pageReady: true });
+      if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: `研究页已建立，但研究没能开始：${e instanceof Error ? e.message : String(e)}`, pageReady: true });
     }
   };
   const openCompanySession = async () => {
@@ -282,7 +280,7 @@ export function CompanyWiki() {
     setError('');
     try {
       await sessions.start(
-        `请基于已有公开资料研究 ${current.title}（${current.symbol}）。该公司目前不在公司资料页覆盖范围，研究结论以对话为准，不要把加入研究名单当成资料已发布。`,
+        `基于公开资料研究 ${current.title}（${current.symbol}）。这家公司暂时没有研究页，结论只保留在这次对话里。`,
         { symbol: current.symbol, name: current.title },
       );
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
@@ -335,9 +333,9 @@ export function CompanyWiki() {
       return wiki ? [wiki] : [];
     });
   useAiPageObjects(pageKey, companyObjects);
-  const wikiWaitTitle = genHere?.phase === 'ensuring' ? '正在创建公司资料页'
-    : genHere?.phase === 'settling' ? '本轮研究已结束，后台正在整理研究成果…'
-    : `${genHere?.pageReady ? '资料页已生成，' : ''}研究进行中，结果会逐步沉淀到本页。`;
+  const wikiWaitTitle = genHere?.phase === 'ensuring' ? '正在建立研究页'
+    : genHere?.phase === 'settling' ? '研究已结束，正在整理结果…'
+    : `${genHere?.pageReady ? '研究页已建立，' : ''}研究进行中，结果会陆续更新到本页。`;
   const genActions = genHere ? <div className="mt-3 flex flex-wrap gap-2">
     {genHere.sessionId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void openCompanySession()}>查看执行对话</button>}
     {genHere.phase !== 'ensuring' && <Link className="workspace-action workspace-action-compact" to="/my-research?tab=tasks">查看任务记录</Link>}
@@ -367,8 +365,8 @@ export function CompanyWiki() {
       {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
         <h2 className="text-base font-semibold">{current.title}<span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{current.symbol}</span></h2>
         <p className="text-sm text-muted-foreground">{current.aShare
-          ? '已加入研究，公司资料尚未生成。开始研究会先建立资料页，再围绕缺口补充证据。'
-          : '已加入研究。港股 / 美股目前没有公司资料页，可用深度对话继续研究。'}</p>
+          ? '已加入研究，还没有研究页。开始研究后会先建立研究页，再补充资料。'
+          : '已加入研究。港股 / 美股暂时没有研究页，可以在深度对话中研究。'}</p>
         <div className="flex flex-wrap gap-2">
           {current.aShare
             ? <button type="button" className="workspace-action workspace-action-primary" disabled={!!gen && gen.slug === slug && (gen.phase === 'ensuring' || gen.phase === 'researching' || gen.phase === 'settling')} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
@@ -378,13 +376,13 @@ export function CompanyWiki() {
       </div>}
       {wikiWait && genHere && <><WikiLoading slug={slug} title={wikiWaitTitle} />{genHere.phase !== 'ensuring' && genActions}</>}
       {genHere && !wikiWait && <div className="mb-4 rounded-xl border border-border p-4" role="status">
-        {genHere.phase === 'researching' && <p className="text-sm">{genHere.pageReady ? '资料页已生成，' : ''}研究进行中，结果会逐步沉淀到本页。</p>}
-        {genHere.phase === 'settling' && <p className="text-sm">本轮研究已结束，后台正在整理研究成果…</p>}
-        {genHere.phase === 'done' && <p className="text-sm">{genHere.message || '本轮研究已结束，页面显示当前已发布内容。'}</p>}
+        {genHere.phase === 'researching' && <p className="text-sm">{genHere.pageReady ? '研究页已建立，' : ''}研究进行中，结果会陆续更新到本页。</p>}
+        {genHere.phase === 'settling' && <p className="text-sm">研究已结束，正在整理结果…</p>}
+        {genHere.phase === 'done' && <p className="text-sm">{genHere.message || '研究已结束。'}</p>}
         {(genHere.phase === 'partial' || genHere.phase === 'review') && <p className="text-sm">{genHere.message}</p>}
-        {genHere.phase === 'review' && genHere.draftToken && <WikiDraftPublish draftToken={genHere.draftToken} onPublished={() => { refresh(x => x + 1); setGen(prev => prev && prev.slug === slug ? { ...prev, phase: 'done', message: 'Wiki 已更新，可回读新版本。' } : prev); }} />}
-        {genHere.phase === 'unconfirmed' && <p className="text-sm">{genHere.message || '本轮研究已结束，后台沉淀结果尚未确认。'}</p>}
-        {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究未完成，可重试。'}</p>}
+        {genHere.phase === 'review' && genHere.draftToken && <WikiDraftPublish draftToken={genHere.draftToken} onPublished={() => { refresh(x => x + 1); setGen(prev => prev && prev.slug === slug ? { ...prev, phase: 'done', message: '本页已更新。' } : prev); }} />}
+        {genHere.phase === 'unconfirmed' && <p className="text-sm">{genHere.message || '研究已结束，结果还在整理。'}</p>}
+        {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究没有完成，可以重试。'}</p>}
         {genActions}
       </div>}
       {current?.hasWiki ? <WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /> : null}

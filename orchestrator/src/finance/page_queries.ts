@@ -67,6 +67,9 @@ export const FINANCE_PAGE_QUERIES: Record<string, PageQueryDef> = {
       { id: "sentiment", title: "情绪", note: "涨停 / 炸板 / 跌停三个计数", endpoint: "em_limit_up_sentiment", injectContext: true, injectAs: { date_compact: "date" } },
       { id: "reason", title: "强势股原因", note: "同花顺的题材归因:是市场叙事,不是核验过的因果", endpoint: "ths_hot_reason", injectContext: true, injectAs: { date: "date" } },
       { id: "zt_pool", title: "涨停梯队", note: "按连板数排;说明栏是取数层原文(含首封时间)", endpoint: "em_zt_pool", injectContext: true, injectAs: { date_compact: "date" } },
+      // 短线情绪的封板率 / 炸板率 / 晋级率要这两个池,与涨停池同一业务日;不带日期会读到任意一天的旧快照
+      { id: "zb_pool", title: "炸板池", note: "当日触及涨停后打开的个股;用于封板率与炸板率", endpoint: "em_zb_pool", injectContext: true, injectAs: { date_compact: "date" } },
+      { id: "yzt_pool", title: "昨日涨停池", note: "上一交易日涨停股在本业务日的表现;用于晋级率", endpoint: "em_yzt_pool", injectContext: true, injectAs: { date_compact: "date" } },
       // ⚠️ 这个源**只给当日**(period 只有 today / 5d / 10d,没有"指定某一天")——
       //    所以盘中打开时它是**今天的进行时**,与本页其余几块的业务日期不是同一天。
       //    如实写在 note 里,别让人以为整页都是同一天(这正是 mixed_ages 要提醒的那类问题)。

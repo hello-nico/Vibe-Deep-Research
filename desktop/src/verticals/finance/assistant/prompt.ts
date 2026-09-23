@@ -250,7 +250,7 @@ function formatMarketFromSnapshot(item: AssistantObjectRef, indices: MarketSnaps
     `  来源：${row.source?.trim() || '未标注'}`,
     row.fetched_at ? `  取数时点：${row.fetched_at}` : '',
     `  页面显示：点位 ${row.price ?? '—'}，涨跌幅 ${row.change_pct == null ? '—' : `${row.change_pct > 0 ? '+' : ''}${row.change_pct}%`}`,
-    '  说明：以上来自发送时页面快照，不是工具读取结果。',
+    '  说明：这是页面显示值，不是工具读取的证据。',
   ].filter(Boolean).join('\n');
 }
 
@@ -321,11 +321,11 @@ export async function bindAssistantPrompt(input: {
     : '（本页未提供页面快照）';
   return [
     formatSnapshotSection('页面快照', [
-      '以下为发送时页面已加载并展示的数据；是本轮固定输入，不进入证据层，后续刷新不会改写本回答依据。',
+      '以下为用户发送时页面展示的数据，代表用户当前关注的内容；它不是证据，作为结论依据时注明来自页面显示及其时点。',
       snapshotBody,
     ]),
     bound.length ? formatSnapshotSection('引用读取结果', [
-      '以下 @ 对象已由宿主在发送时确定性读取；必须消费这份结果作判断，不要再次抓取同一对象。补读只能作为另一份新结果，不能覆盖或混用本轮版本。',
+      '以下 @ 对象已在发送时读取，直接使用，不要重复读取同一对象；需要更多信息可以补读，但补读是另一份结果，不覆盖、不混用本轮内容。',
       bound.join('\n'),
     ]) : '',
     formatSnapshotSection('身份与问题', [
@@ -335,7 +335,7 @@ export async function bindAssistantPrompt(input: {
           ? `本轮引用：${input.objects.map(o => o.label).join('、')}`
           : '',
       `当前页面：${input.title}`,
-      `模式：${input.mode === 'agent' ? 'Agent（深查：可补缺口）' : 'Ask（即答：只用上述上下文）'}`,
+      `模式：${input.mode === 'agent' ? 'Agent（可按需检索补充）' : 'Ask（即答：只用上述上下文）'}`,
       `用户问题：\n${input.prompt.trim()}`,
     ]),
   ].filter(Boolean).join('\n\n');

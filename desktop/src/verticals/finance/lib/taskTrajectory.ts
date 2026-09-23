@@ -2,23 +2,30 @@ import type { TaskTrajectorySnapshot, TaskTrajectoryStep } from '../dsh/research
 
 const TOOL_LABELS: Record<string, string> = {
   today: '当前日期',
-  wiki_read: '读取 Wiki',
+  wiki_read: '读取研究页',
   read_research_method: '读取研究方法',
   wiki_report_publish: '发布报告',
-  wiki_validate_page_draft: '校验 Wiki 草案',
+  wiki_validate_page_draft: '检查研究页草稿',
   fetch_source_url: '读取来源网页',
-  observe_market: '观察行情',
-  observe_radar: '观察资讯',
+  observe_market: '查看行情',
+  observe_radar: '查看资讯',
   read_industry_profile: '读取产业研究',
-  calculate_metrics: '确定性计算',
+  calculate_metrics: '计算',
   calculate_market_result: '区间计算',
   generate_market_result: '生成行情成果',
   generate_financial_result: '生成财务成果',
-  source_ingest_periodic_report: '入库定期报告',
-  query_observation: '查询观察',
-  wiki_search: '搜索 Wiki',
-  resolve_refs: '解析引用',
+  source_ingest_periodic_report: '保存定期报告',
+  query_observation: '查询公司数据',
+  wiki_search: '搜索研究页',
+  resolve_refs: '识别引用对象',
   search_external: '检索外部资料',
+};
+
+const OPERATION_LABELS: Record<string, string> = {
+  align: '单位对齐', yoy: '同比', qoq: '环比', cumulative_to_quarter: '累计转单季',
+  cash_rollforward: '现金勾稽', statement_linkage: '三表勾稽', fcf_proxy: '自由现金流',
+  discount: '折现', terminal_gordon: '永续价值', multiple: '估值倍数', per_share: '每股价值',
+  sensitivity_grid: '敏感性分析', market_window: '区间涨跌',
 };
 
 function toolStepTitle(name: string, argsRaw?: string): string {
@@ -27,10 +34,7 @@ function toolStepTitle(name: string, argsRaw?: string): string {
   try {
     const args = JSON.parse(argsRaw) as Record<string, unknown>;
     if (name === 'calculate_metrics' && typeof args.operation === 'string') {
-      const bits = [`算子 ${args.operation}`];
-      const quantities = Array.isArray(args.quantities) ? args.quantities : [];
-      const slots = quantities.map(item => item && typeof item === 'object' && 'slot' in item ? String((item as { slot?: string }).slot) : '').filter(Boolean);
-      if (slots.length) bits.push(`槽位 ${slots.join('/')}`);
+      const bits = [OPERATION_LABELS[args.operation] || args.operation];
       if (args.window_start && args.window_end) bits.push(`${String(args.window_start)}→${String(args.window_end)}`);
       return `${base} · ${bits.join(' · ')}`;
     }
@@ -235,7 +239,7 @@ function stepFromNode(node: Record<string, unknown>, index: number): TaskTraject
     return { id, kind, title: '输出达到上限', body: '本轮因长度上限结束。', time };
   }
   if (kind === 'compaction') {
-    return { id, kind, title: '上下文已压缩', body: String(node.summary || '').trim(), time };
+    return { id, kind, title: '已精简早期对话', body: String(node.summary || '').trim(), time };
   }
   return { id, kind, title: '执行记录', body: contentText(node.content) || contentText(node.blocks), time };
 }

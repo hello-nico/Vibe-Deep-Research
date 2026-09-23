@@ -36,7 +36,7 @@ test('图文报告只打开当前版本，不提供历史下拉', async () => {
   } finally { await env.cleanup(); }
 });
 
-for (const [status, expected] of [['partial', '后台整理部分完成'], ['awaiting_authorization', '研究草案已生成，待审阅']]) {
+for (const [status, expected] of [['partial', '部分内容已整理'], ['awaiting_authorization', '你确认后才会显示']]) {
   test(`后台 ${status} 保留真实业务状态，不宣告 Wiki 已发布`, async () => {
     const env = await bootCompany();
     try {
@@ -57,26 +57,17 @@ for (const [status, expected] of [['partial', '后台整理部分完成'], ['awa
       assert.ok(env.container.textContent.includes(expected));
       assert.ok(!env.container.textContent.includes('研究成果已沉淀'));
       assert.ok(env.container.textContent.includes('查看任务记录'));
-      assert.ok(!env.container.textContent.includes('后台正在整理'));
+      assert.ok(!env.container.textContent.includes('正在整理结果'));
     } finally { await env.cleanup(); }
   });
 }
 
-test('四类生成任务继承各自底稿的叙事与产品样式', async () => {
+test('报告任务首问只含用户可读的一句话，不含工具名与页面标识', async () => {
   const env = await boot();
   try {
-    for (const [type, expected] of [['company', '指标×报告期'], ['industry', '分类来源'], ['theme', '催化与证伪'], ['comparison', '对比矩阵']]) {
-      const input = page('companies/test'); input.spec.type = type;
-      const prompt = env.pane.reportPrompt(input);
-      assert.ok(prompt.includes(expected), type);
-      assert.ok(prompt.includes('1120px'));
-      assert.ok(prompt.includes('lieflat-r01'));
-      assert.ok(prompt.includes('内部代码'));
-      assert.ok(prompt.includes('逐字复制一个完整引用 ID'));
-      assert.ok(prompt.includes('禁止用 | 拼接'));
-      assert.ok(prompt.includes('URL 编码'));
-      assert.ok(!prompt.includes('data-ref="claim:...|'));
-    }
+    const prompt = env.pane.reportPrompt(page('companies/test'));
+    assert.equal(prompt, '为《测试页》生成一份图文报告。');
+    assert.ok(!/read_research_method|wiki_read|wiki_report_publish|data-ref|companies\//.test(prompt));
   } finally { await env.cleanup(); }
 });
 
@@ -179,7 +170,7 @@ test('晚到的列表响应不会覆盖已切换的页面版本', async () => {
     await env.act(async () => { listA.resolve(Response.json({ items: [] })); });
     await env.act(async () => {});
     assert.ok(env.container.querySelector('iframe'), 'B 版本生成版应展示');
-    assert.ok(env.container.textContent.includes('对应当前 Wiki'), '应标注对应当前 Wiki');
+    assert.ok(env.container.textContent.includes('对应当前研究页'), '应标注对应当前研究页');
     assert.deepEqual(sessions.startCalls.map(c => c[2]), [], '迟到的空列表不得触发重复发起: ' + JSON.stringify(sessions.startCalls.map(c => c[0]?.slice?.(0,60))));
   } finally { await env.cleanup(); }
 });
@@ -417,11 +408,11 @@ test('会话结束后：后台整理中 → 无新增确认 → done；原始错
     running = false;
     tasks = [{ id: 'bg-1', parent_session_id: 's-co-1', display_status: 'running', started_at: '2026-09-12T00:00:00Z' }];
     await env.runTimers(4);
-    assert.ok(env.container.textContent.includes('后台正在整理'), '执行结束后应显示后台整理中');
+    assert.ok(env.container.textContent.includes('正在整理结果'), '执行结束后应显示后台整理中');
     // 沉淀确认：无新增。
     tasks = [{ id: 'bg-1', parent_session_id: 's-co-1', display_status: 'no_increment', started_at: '2026-09-12T00:00:00Z' }];
     await env.runTimers(4);
-    assert.ok(env.container.textContent.includes('没有产生新增内容'), '应如实报告本轮无新增');
+    assert.ok(env.container.textContent.includes('没有新增内容'), '应如实报告本轮无新增');
   } finally { await env.cleanup(); }
 });
 
@@ -450,10 +441,10 @@ test('查不到后台任务且页面未变：超时后明确"尚未确认"而非
       await env.act(async () => {});
       running = false;
       await env.runTimers(2); // researching → settling（settleAt 以此刻为准）
-      assert.ok(env.container.textContent.includes('后台正在整理'), '应先进入后台整理中');
+      assert.ok(env.container.textContent.includes('正在整理结果'), '应先进入后台整理中');
       offset = 200_000; // 沉淀窗口之外
       await env.runTimers(4);
-      assert.ok(env.container.textContent.includes('尚未确认'), '超时后应显示结果待确认而非完成');
+      assert.ok(env.container.textContent.includes('结果还在整理'), '超时后应显示结果待确认而非完成');
     } finally { Date.now = realNow; }
   } finally { await env.cleanup(); }
 });

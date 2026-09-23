@@ -240,7 +240,7 @@ export function MyResearch() {
       : tab === "memory"
         ? "用户画像、近期记忆与 Topic 建议"
       : (topics?.length ? `${status === "archived" ? "已归档" : "研究中"}议题 ${topics.length} 个` : status === "archived" ? "还没有已归档议题" : "还没有研究中的议题"),
-    suggestions: ["帮我找出现在最该继续的电力议题", "这些记录里哪些和行业议题有关"],
+    suggestions: ["哪个议题最值得先继续", "这些记录和哪些议题有关"],
   });
   const current = RESEARCH_TABS.find(item => item.value === tab)!;
   return <div>
@@ -278,13 +278,13 @@ export function MyResearch() {
               <Plus className="h-4 w-4" />{topicRouteBusy ? "发起中…" : "发起议题"}
             </button>
           </div>
-          <p id="topic-question-hint" className="mt-2 text-xs text-muted-foreground">系统会先查找已有议题；匹配时继续原议题，否则建立新的持续研究问题。</p>
+          <p id="topic-question-hint" className="mt-2 text-xs text-muted-foreground">如果已有相近的议题，会直接接着研究。</p>
         </form>
         {topicRouteError && <p role="alert" className="mt-3 text-sm text-destructive">{topicRouteError}</p>}
         {topicRouteStatus && <p role="status" className="mt-3 text-sm text-primary">{topicRouteStatus}</p>}
         {topicRouteResult?.action === "choose" && <div className="mt-4 border-b border-border/30 pb-4">
           <p className="text-sm font-medium">{topicRouteResult.reason === ARCHIVED_TOPIC_TEXT_SEARCH
-            ? "归档议题中找到文本匹配项，请选择要恢复的议题，或修改问题后再发起："
+            ? "已归档的议题里有相近的问题，可以恢复继续，或修改问题后新建："
             : "找到可能相关的议题，请选择要继续的议题："}</p>
           <div className="mt-2 flex flex-col gap-2">
             {topicRouteResult.candidates?.map(candidate => <button
@@ -337,7 +337,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
 }) {
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!tasks) return <ResearchLoading compact title="正在读取任务" sections={["执行状态", "成果摘要"]} />;
-  if (!tasks.length) return <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话结束后若有原文缺口才会出现在这里，不会自动建立议题。</div>;
+  if (!tasks.length) return <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话需要补读原文时，整理进度会显示在这里；不会自动建立议题。</div>;
   return <>{tasks.map(task => {
     const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
     const processId = task.child_session_id || task.id;
@@ -361,7 +361,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
       <div className="flex shrink-0 flex-wrap gap-2">
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0])}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
-        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ''))}`}>打开目标 Wiki</Link>}
+        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ''))}`}>打开研究页</Link>}
       </div>
     </div>;
   })}</>;
@@ -391,7 +391,7 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
   if (notes && notes.length === 0) {
     return <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
       <NotebookPen className="h-8 w-8 text-muted-foreground/40" />
-      独立记录会留在这里。保存大盘问答不会自动变成议题。
+      你在各页保存的记录会出现在这里。
     </div>;
   }
   return <div className="space-y-2">
@@ -492,7 +492,7 @@ function MemoryPanel() {
     {section("用户画像", soul, "soul")}
     {section("近期研究记忆", recent, "recent")}
     <section>
-      <h2 className="text-base font-semibold">Topic 建议</h2>
+      <h2 className="text-base font-semibold">议题建议</h2>
       {candidates && candidates.length === 0 && <p className="mt-2 text-sm text-muted-foreground">还没有待处理建议。</p>}
       {candidates?.map(item => <div key={item.id} className="mt-3 border-t border-border/40 pt-3 text-sm">
         <p className="font-medium">{item.question}</p>

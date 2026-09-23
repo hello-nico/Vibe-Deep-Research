@@ -16,6 +16,7 @@ import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { wikiAssistantObject } from "../lib/pageAssistantObjects";
 import { buildDirectorySnapshot, buildWikiPageSnapshot } from "../assistant/snapshot.ts";
 import { WikiDraftPublish } from "../components/WikiDraftPublish";
+import { IndustryRefreshConfirm } from "../components/CompanyRefreshConfirm";
 
 export function IndustryCenter() {
   const { key } = useParams();
@@ -29,6 +30,7 @@ export function IndustryCenter() {
   const [query, setQuery] = useState("");
   const [report, setReport] = useState(false);
   const [draftToken, setDraftToken] = useState("");
+  const [revision, setRevision] = useState(0);
   useEffect(() => { setWikiPage(null); setDraftToken(""); setMarkdown(""); }, [key]);
   useEffect(() => {
     const controller = new AbortController(); setError("");
@@ -95,7 +97,7 @@ export function IndustryCenter() {
     <PageHeader title={selected?.official_name || "行业研究"} subtitle={selected ? undefined : "了解行业如何运转，沿着问题持续研究。"}
       search={selected ? undefined : <WorkspaceSearch className="mb-0" placeholder="搜索行业名称" value={query} onChange={setQuery} />}
       actions={selected ? undefined : profilesLink} />
-    {selected && <div className="workspace-toolbar justify-between"><div className="flex min-w-0 flex-wrap items-center gap-3"><Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link><WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />{selected.published && <WikiViewTabs report={report} onChange={setReport} />}</div>{profilesLink}</div>}
+    {selected && <div className="workspace-toolbar justify-between"><div className="flex min-w-0 flex-wrap items-center gap-3"><Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link><WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />{selected.published && <WikiViewTabs report={report} onChange={setReport} />}</div><div className="flex flex-wrap items-start gap-2">{selected.published && <IndustryRefreshConfirm key={selected.slug} slug={selected.slug} version={wikiPage?.input_hash} title={selected.official_name} onUpdated={() => setRevision(value => value + 1)} />}{profilesLink}</div></div>}
     {error && <p role="alert">{error}</p>}
     {status === "unavailable" && <p role="status" className="mb-4 text-sm text-muted-foreground">行业资料暂时无法读取，请稍后重试。</p>}
     {!items && !error && (key
@@ -115,11 +117,11 @@ export function IndustryCenter() {
       : <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{items.length ? "没有匹配的行业，请调整搜索。" : "暂无行业资料。"}</p></GlassCard>)}
     {selected && <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
       {draftToken && <div className="mb-4 rounded-xl border border-border p-4" role="status">
-        <p className="text-sm">研究草案已生成，待审阅；尚未发布到本页。</p>
+        <p className="text-sm">草案已生成，你确认后才会显示在本页。</p>
         <WikiDraftPublish draftToken={draftToken} onPublished={() => { setDraftToken(""); setWikiPage(null); }} />
       </div>}
       {selected.published
-        ? <WikiReader key={selected.slug} slug={selected.slug} hideToggle report={report} onReportChange={setReport} onPage={setWikiPage} onMarkdown={setMarkdown} />
+        ? <WikiReader key={selected.slug} slug={selected.slug} revision={revision} hideToggle report={report} onReportChange={setReport} onPage={setWikiPage} onMarkdown={setMarkdown} />
         : <p className="text-sm text-muted-foreground">{selected.official_name} 的资料尚待补充。</p>}
     </GlassCard>}
     <Disclaimer />

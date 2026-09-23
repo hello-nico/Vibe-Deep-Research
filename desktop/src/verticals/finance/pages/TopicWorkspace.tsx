@@ -18,7 +18,7 @@ import { useAiPage } from "../../../core/ai/pageContext";
 
 function DraftPreview({ draft }: { draft: WikiDraft }) {
   return <div className="space-y-4">
-    <p className="text-xs text-muted-foreground">未发布草案 · 确认发布前必须先审阅这里的正文</p>
+    <p className="text-xs text-muted-foreground">草案 · 请先阅读正文，再确认发布</p>
     {draft.previews?.map(preview => <GlassCard key={preview.slug}>
       <KnowledgeText markdown={preview.markdown} />
     </GlassCard>)}
@@ -97,11 +97,11 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         gate.setGate({ blocking: false, message: "" });
         return;
       }
-      gate.setGate({ blocking: true, message: "正在接上该议题的对话，匹配完成前不能输入。" });
+      gate.setGate({ blocking: true, message: "正在打开这个议题的对话…" });
       void research.restoreTopic(topicId, undefined, controller.signal).then(match => {
         if (cancelled) return;
         if (match.matched) gate.setGate({ blocking: false, message: "" });
-        else gate.setGate({ blocking: true, message: "未能接上该议题的对话，请刷新后重试。" });
+        else gate.setGate({ blocking: true, message: "这个议题的对话没能打开，请刷新后重试。" });
       }).catch(e => {
         if (!cancelled) gate.setGate({ blocking: true, message: e instanceof Error ? e.message : String(e) });
       });
@@ -114,13 +114,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       unsubscribe();
     };
   }, [topicId]);
-  const prompt = (fresh = false) => [
-    `当前议题：${topic?.title || topicId}（${topicId}）。`,
-    "产品已提供可分页的沉淀记录。请用 note_list 翻页，并用 note_read 补读正文后再提议相关记录。",
-    "用户确认前不要声称已写入关联。Theme / Comparison 用 read_composition_skill 与 wiki_validate_page_draft；校验成功不等于已发布。",
-    "先读取 topic_list_links 的当前议题已有关系；已关联记录不重复提议，不把旧会话中的提案状态当作当前状态。",
-    fresh ? "这是同一议题的新会话，读取持久 Topic / Wiki / Link 继续，不要复制旧会话全文。" : "继续当前议题研究。",
-  ].join("\n");
+  // 只写用户能读懂的一句话和议题标签；工作步骤由 Stock 的 my_research 角色提示负责。
+  const prompt = (fresh = false) =>
+    `${fresh ? "在新对话里继续研究这个议题" : "继续研究这个议题"}：引用议题：${topic?.title || topicId} \`${topicId}\``;
   const start = async (fresh = false) => {
     setBusy(fresh ? "new" : "continue"); setError("");
     try {
@@ -190,7 +186,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     key: `topic:${topicId}`,
     title: topic?.title || "议题工作区",
     context: topic?.markdown || `议题 ${topicId}`,
-    suggestions: ["哪些沉淀记录与这个电力问题有关", "可以形成哪些 Theme 或 Comparison"],
+    suggestions: ["哪些记录与这个议题有关", "能整理成哪些主题研究或对比研究"],
   });
   const wikiPages = pages.filter(item => /^(themes|comparisons|industries|companies)\//.test(item.target_id));
   const selectedNote = selected.startsWith("note:") ? noteMap[selected.slice(5)] : undefined;
@@ -267,7 +263,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       </section>
       <section className="topic-section">
         <h2>待发布草案</h2>
-        {pendingDrafts.length === 0 && <p className="text-sm text-muted-foreground">助手校验成功的 Theme / Comparison 会出现在这里，确认后才写入 Wiki。</p>}
+        {pendingDrafts.length === 0 && <p className="text-sm text-muted-foreground">助手整理好的主题研究或对比研究会出现在这里，你确认后才会发布。</p>}
         {pendingDrafts.map(item => <div key={item.draft_token} className="topic-material">
           <p className="text-sm">{item.titles?.join("、") || "未命名草案"}</p>
           <div className="mt-2 flex gap-2">
@@ -285,7 +281,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       {selected && /^(themes|comparisons|industries|companies)\//.test(selected) && <WikiReader slug={selected} />}
       {selected.startsWith("note:") && <section className="topic-section">
         <h2>{selectedNote?.title || "记录"}</h2>
-        {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已不在仓储中，关联目标失效，原记录若仍存在请从记录页查看。</p>}
+        {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已被删除或移动，可以到「记录」里查找。</p>}
       </section>}
     </>}
     <Disclaimer compact />

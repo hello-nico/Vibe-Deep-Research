@@ -23,12 +23,12 @@ export async function resolveEvidence(ref: string, signal: AbortSignal): Promise
   return result;
 }
 export function pinnedBlockPath(block: Pick<SourceBlock, 'document_id' | 'parse_revision_id' | 'parsed_content_sha256' | 'block_id'>) {
-  if (!block.document_id || !block.parse_revision_id || !/^[a-f0-9]{64}$/.test(block.parsed_content_sha256) || !block.block_id) throw new Error('来源定位不完整，无法读取原文。');
+  if (!block.document_id || !block.parse_revision_id || !/^[a-f0-9]{64}$/.test(block.parsed_content_sha256) || !block.block_id) throw new Error('这条来源信息不完整，暂时无法打开原文。');
   return `/wiki/documents/${encodeURIComponent(block.document_id)}/blocks/${encodeURIComponent(block.block_id)}?` + new URLSearchParams({ parse_revision_id: block.parse_revision_id, parsed_content_sha256: block.parsed_content_sha256 });
 }
 export async function readPinnedBlock(block: Parameters<typeof pinnedBlockPath>[0], signal: AbortSignal) {
   const result = await researchRead<SourceBlock>(pinnedBlockPath(block), { signal });
-  if (['document_id', 'parse_revision_id', 'parsed_content_sha256', 'block_id'].some(key => result[key as keyof SourceBlock] !== block[key as keyof typeof block])) throw new Error('来源定位校验失败。');
+  if (['document_id', 'parse_revision_id', 'parsed_content_sha256', 'block_id'].some(key => result[key as keyof SourceBlock] !== block[key as keyof typeof block])) throw new Error('原文版本核对失败，暂时无法打开。');
   return result;
 }
 export interface EvidenceView { title: string; text: string; page?: number; block?: SourceBlock; related: string[]; href?: string }

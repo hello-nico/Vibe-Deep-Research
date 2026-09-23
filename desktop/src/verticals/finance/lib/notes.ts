@@ -44,7 +44,7 @@ function toCategory(kind: string): string {
   const direct = KIND_TO_CATEGORY[kind.trim()];
   if (direct) return direct;
   if (CATEGORY_LABELS[kind.trim()]) return kind.trim();
-  throw new Error(`研究记录的分类「${kind}」没有对应的枚举 —— 加分类要同时改 Backend notes 与产品映射`);
+  throw new Error(`暂不支持「${kind}」类记录`);
 }
 
 const ASK_KIND_ALIASES = new Set(["问 Agent", "问AI", "问 AI"]);

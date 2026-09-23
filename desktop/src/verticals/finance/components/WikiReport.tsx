@@ -9,23 +9,7 @@ import { symbolFromCompanySlug, type WikiBlock, type WikiPage } from '../lib/res
 import { factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
 import './wiki-report.css';
 
-// 与下面四类底稿同属报告表达层；生成任务继承阅读顺序，不另建模板执行器。
-export function reportDesignContract(type: string): string {
-  const narratives: Record<string, string> = {
-    company: '公司：身份与最新有依据的关键读数 → 已有经营机制/研究判断 → 经营、财务、估值的指标×报告期证据表 → 关系摘要 → 观察窗口与资料时间线 → 关注点、缺口。不同报告期和口径不直接合并；没有研究判断时不得把事实改名为判断。',
-    industry: '行业：分类身份与覆盖范围 → 成员公司 → 经营机制 → 行业结构与上下游关系 → 关注点、资料时间线和缺口。保留页面自身分类来源，不能默认改成申万；机制缺失时明确待补充。',
-    theme: '主题：已有核心论点 → 作用机制 → 成员规则与成员 → 异质性 → 催化与证伪条件 → 当前关注点与缺口。成员差异不等于反证；没有原始论点时不得凭图表补造。',
-    comparison: '比较：比较问题、时间范围和可比程度 → 比较对象及各自快照 → 维度与口径 → 对比矩阵 → 结构差异 → 权衡与结论 → 缺口。单元格保留核验状态、单位和引用；缺失不得填零，不跨口径排名。',
-  };
-  return [
-    `本页底稿契约：${narratives[type] ?? '按输入页面的实际章节阅读；不得新增事实或判断。'}`,
-    'Lieflat 模板用于实现上述阅读顺序。可按数据调整章节密度、旁注与图型，但不得覆盖底稿的业务含义。没有内容的可选章节可省略，关键缺口必须保留。',
-    '产品样式：报告最大宽度 1120px，正文约 46em，表格和矩阵可展开并在窄屏横向滚动；统一无衬线字体、轻分隔线、橙色强调和固定字级，避免巨大封面留白或多层卡片。',
-    '页眉只写中文行业身份，不展示申万、东财或其他分类的内部代码与括号代码。',
-    '同时提供浅色与深色配色（prefers-color-scheme），保证正文和引用对比度。图数切换、章节定位、证据点击在本报告内完成，不导航到外站。',
-  ].join('\n');
-}
-
+// 下面四类底稿的阅读顺序同时写在 Stock 的 wiki_report 角色提示中（reportTaskPrompt），生成任务按它组织；改动阅读顺序时两处同步。
 /** Markdown body with citation links; shared by report and research views. */
 export function KnowledgeText({ markdown }: { markdown: string }) {
   const body = markdown.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
@@ -99,12 +83,8 @@ function Shell({ page, lead, children }: { page: WikiPage; lead?: ReactNode; chi
     </header>
     <div className="wr-main">{children}</div>
     <footer className="wr-footer">
-      <span>{[
-        spec.subject_id ? `主体 ${spec.subject_id}` : '',
-        spec.status ? `状态 ${STATUS_LABELS[spec.status] ?? spec.status}` : '',
-        spec.superseded_by ? `已被 ${spec.superseded_by} 替代` : '',
-      ].filter(Boolean).join(' · ') || 'Vibe Finance'}</span>
-      <span>数字可回到依据 · 点击引用核对来源</span>
+      <span>{spec.superseded_by ? '本页已有更新版本' : 'Vibe Finance'}</span>
+      <span>点击数字可查看出处</span>
     </footer>
   </article>;
 }
@@ -314,9 +294,9 @@ function IndustryReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (sl
   const coverage = dict(identity?.coverage);
   return <Shell page={page} lead={<>
     <p className="wr-lede"><span className="wr-dim">{[String(identity?.industry_code || ''), String(identity?.parent_industry || ''), String(identity?.note || '')].filter(Boolean).join(' · ')}</span></p>
-    {(coverage?.constituent_count != null || coverage?.company_pages != null) && <p className="wr-compare-note">资料覆盖：{[
-      coverage?.constituent_count != null ? `成分股 ${coverage.constituent_count}` : '',
-      coverage?.company_pages != null ? `已编译公司页 ${coverage.company_pages}` : '',
+    {(coverage?.constituent_count != null || coverage?.company_pages != null) && <p className="wr-compare-note">覆盖范围：{[
+      coverage?.constituent_count != null ? `成分股 ${coverage.constituent_count} 家` : '',
+      coverage?.company_pages != null ? `已有研究页 ${coverage.company_pages} 家` : '',
       typeof coverage?.basis === 'string' && coverage.basis.trim() ? String(coverage.basis) : '',
     ].filter(Boolean).join(' · ')}</p>}
   </>}>
@@ -330,7 +310,7 @@ function IndustryReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (sl
         {kind === 'relation_summary' ? <RelationList content={dict(block.content)} /> : <Prose content={block.content} />}
       </Section>;
     })}
-    {blockOf(page, 'source_timeline') && <Section title="资料时间线" refs={blockOf(page, 'source_timeline')?.refs}><SourceTimeline content={contentDict(page, 'source_timeline') ?? undefined} /></Section>}
+    {blockOf(page, 'source_timeline') && <Section title="资料时间线" refs={blockOf(page, 'source_timeline')?.refs}><Prose content={blockOf(page, 'source_timeline')?.content} /></Section>}
     <Gaps block={blockOf(page, 'gaps')} />
   </Shell>;
 }
@@ -343,9 +323,9 @@ function ThemeReport({ page }: { page: WikiPage }) {
       ['mechanism', '机制'],
       ['membership_rule', '成员规则'],
       ['members', '成员'],
-      ['heterogeneity', '异质性'],
+      ['heterogeneity', '成员差异'],
       ['catalysts_and_breakers', '催化与证伪'],
-      ['attention', '当前注意力'],
+      ['attention', '当前关注点'],
     ] as const).map(([kind, title]) => {
       const block = blockOf(page, kind);
       if (!block || isPending(block)) return null;
@@ -374,14 +354,14 @@ function ComparisonReport({ page }: { page: WikiPage }) {
     ].filter(Boolean).join(' · ')}</p>
   </>}>
     {!!subjects.length && <Section title="比较对象">
-      <ul className="wr-members">{subjects.map(item => <li key={item.entity_id}>{item.entity_id.replace(/^company:/, '')}<span className="wr-compare-note">（快照 {fmtDate(item.snapshot_as_of)}）</span></li>)}</ul>
+      <ul className="wr-members">{subjects.map(item => <li key={item.entity_id}>{item.entity_id.replace(/^company:/, '')}<span className="wr-compare-note">（数据截至 {fmtDate(item.snapshot_as_of)}）</span></li>)}</ul>
     </Section>}
     {!!scope?.dimensions.length && <Section title="比较维度">
       <ul>{scope.dimensions.map(dim => <li key={dim.id}><strong>{dim.title}</strong>：{dim.basis}；方向：{DIRECTION_LABELS[dim.direction] ?? dim.direction}{dim.weight != null && `；权重 ${dim.weight}`}</li>)}</ul>
     </Section>}
     {matrix && Array.isArray(matrix.rows) && <Section title="对比矩阵" refs={blockOf(page, 'comparison_matrix')?.refs}>
       <div className="wr-table-wrap"><table className="wr-table">
-        <caption>{String(matrix.unit_note || '按冻结口径比较；单元格为核验状态与数值')}</caption>
+        <caption>{String(matrix.unit_note || '按统一口径比较；每格显示数值与核验状态')}</caption>
         <thead><tr><th scope="col">维度</th>{subjects.map(item => <th key={item.entity_id} scope="col">{item.entity_id.replace(/^company:/, '')}</th>)}</tr></thead>
         <tbody>{(matrix.rows as unknown[]).map((row, index) => {
           const record = dict(row);

@@ -23,7 +23,7 @@
 
 | 模块 | 源码 / 契约与 Task |
 |---|---|
-| 产品页面与 DSH UI 插件 | `desktop/src/verticals/finance/`、`desktop/dsh/finance-ui/`；[M6 边界](docs/架构边界与UI组合方案_M6_2026-09-09.md) |
+| 产品页面与 DSH UI 插件 | `desktop/src/verticals/finance/`、`desktop/dsh/finance-ui/`；[M6 边界](docs/架构边界与UI组合方案_M6_2026-09-09.md)；用户可见文案见[界面文案收敛 Task](docs/界面文案收敛_Task_2026-09-23.md)、[深度对话提示词与文案收敛 Task](docs/深度对话提示词与文案收敛_Task_2026-09-23.md) |
 | DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts`；[运行时说明](desktop/dsh/runtime/README.md) |
 | 本机数据服务与 Client 存储 | `orchestrator/src/api.ts`、`service.ts`、`client_store.ts`；[M8.5 Task](docs/Client选择与研究数据归属_Task_M8.5_2026-09-14.md) |
 | 研究知识与发布 | Stock-Research 仓库的 Backend 与 DSH 插件；[M8 Task](docs/我的研究与行业入口_Task_M8_2026-09-10.md) |

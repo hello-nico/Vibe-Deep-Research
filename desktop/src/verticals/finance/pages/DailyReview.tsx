@@ -78,7 +78,6 @@ export function DailyReview() {
     const globalTask = marketRequest(api.globalIndices(refresh)).then(setGlobalIdx)
       .catch((e) => setGlobalErr(e instanceof Error ? e.message : "全球指数获取失败"))
       .finally(() => setGlobalDone(true));
-    const emotionTask = marketRequest(api.emotion()).then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
     const turnoverTask = marketRequest(api.turnoverTop()).then(setTurnover).catch(() => {}).finally(() => setToDone(true));
 
     /**
@@ -87,18 +86,22 @@ export function DailyReview() {
      *    而且 **BFF 注入了业务日、页面这边没有**,同一屏的状态与数字可能是不同两天的。
      */
     setPageErr(null);
-    const overviewTask = marketRequest(localService
-      .page("review", { refresh })
+    const pageTask = marketRequest(localService.page("review", { refresh }));
+    const block = (meta: PageResult, id: string) => meta.blocks.find((b) => b.id === id)?.envelope as never;
+    const overviewTask = pageTask
       .then(async (meta) => {
-        const env = (id: string) => meta.blocks.find((b) => b.id === id)?.envelope as never;
-        const overview = await api.marketOverview({ sentiment: env("sentiment"), board_flow: env("board_flow"), zt_pool: env("zt_pool") });
+        const overview = await api.marketOverview({ sentiment: block(meta, "sentiment"), board_flow: block(meta, "board_flow"), zt_pool: block(meta, "zt_pool") });
         return { meta, overview };
-      }))
+      })
       .then(({ meta, overview }) => { setPageMeta(meta); setOverview(overview); })
       // 🔴 不吞:取不到这一屏 = 业务日与缺口保护都没了,必须让用户看见,
       //    否则页面会拿着旧数据继续显示得像正常一样
       .catch((e) => { setPageMeta(null); setPageErr(e instanceof Error ? e.message : String(e)); })
       .finally(() => setOvDone(true));
+    // 短线情绪与上面同一屏、同一业务日:涨停 / 炸板 / 昨日涨停三个池都取自 /page/review
+    const emotionTask = pageTask
+      .then((meta) => api.emotion({ zt_pool: block(meta, "zt_pool"), zb_pool: block(meta, "zb_pool"), yzt_pool: block(meta, "yzt_pool") }))
+      .then(setEmotion).catch(() => {}).finally(() => setEmoDone(true));
     await Promise.allSettled([indexTask, globalTask, emotionTask, turnoverTask, overviewTask]);
     fetchingRef.current = false;
   };
@@ -106,7 +109,7 @@ export function DailyReview() {
   // 数据块占位：请求没回来 = 加载中；回来了但为空 = 数据源暂不可用（别让用户干等）
   const pending = (done: boolean) => (
     <p className="py-4 text-center text-sm text-muted-foreground/60">
-      {done ? "暂无数据：可能是非交易时段或数据源暂时不可用，可点「大盘指数」旁的刷新重试" : "加载中…"}
+      {done ? "暂无数据：可能是非交易时段或数据源暂时不可用，可以点「大盘指数」旁的刷新重试" : "加载中…"}
     </p>
   );
 
@@ -260,8 +263,8 @@ export function DailyReview() {
 
       {pageErr && (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-          这一屏没取到：{pageErr}
-          <span className="ml-1 text-destructive/80">—— 下面的数字不要当今天的看。</span>
+          本页数据没有加载完整：{pageErr}
+          <span className="ml-1 text-destructive/80">下面可能是旧数据。</span>
         </div>
       )}
 
@@ -275,7 +278,7 @@ export function DailyReview() {
         {indices.length === 0
           ? [1, 2, 3, 4].map((i) => (
               <GlassCard key={i} className="p-3">
-                <p className="text-xs text-muted-foreground">{idxErr ? "行情未接通" : "加载中…"}</p>
+                <p className="text-xs text-muted-foreground">{idxErr ? "行情暂时取不到" : "加载中…"}</p>
                 <p className="mt-1 font-mono text-lg font-bold text-muted-foreground/40">—</p>
               </GlassCard>
             ))
@@ -299,7 +302,7 @@ export function DailyReview() {
             {globalIdx.map((g) => (
               <GlassCard key={g.key} className="p-3">
                 <p className="truncate text-xs text-muted-foreground">{g.name} <span className="text-muted-foreground/40">{g.region}</span></p>
-                <p title={`数据时间：${g.fetched_at ?? "未知"}；价格证据：${g.evidence_id ?? "未取得"}`} className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
+                <p title={`数据时间：${g.fetched_at ?? "未知"}`} className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
                 <p className={cn("text-xs", g.change_pct == null ? "text-muted-foreground" : pctColor(g.change_pct))}>
                   {g.change_pct == null ? "—" : `${g.change_pct > 0 ? "+" : ""}${g.change_pct}%`}
                 </p>
@@ -380,7 +383,7 @@ export function DailyReview() {
             </div>
             {/* 连板股清单（2 板以上，客观公开榜单） */}
             <div className="mt-3">
-              <p className="mb-1.5 text-[11px] text-muted-foreground">连板股（2 板以上连续涨停）· 客观公开榜单，非推荐 / 非预测</p>
+              <p className="mb-1.5 text-[11px] text-muted-foreground">连板股（2 板以上连续涨停）· 公开榜单</p>
               {emotion.lianban_stocks.length === 0 ? (
                 <p className="text-xs text-muted-foreground/50">今日无 2 板以上个股</p>
               ) : (
@@ -415,7 +418,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4c. 全市场成交额 TOP20（客观公开榜单） */}
-      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="客观公开榜单，非推荐 / 非预测 / 不构成投资建议" updated={turnover?.updated} />
+      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="公开榜单" updated={turnover?.updated} />
       <GlassCard className="mb-6">
         {!turnover || turnover.stocks.length === 0 ? (
           pending(toDone)

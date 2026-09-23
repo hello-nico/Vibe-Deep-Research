@@ -20,7 +20,7 @@ import { buildEventsProbabilitySnapshot } from '../assistant/snapshot.ts';
 
 // 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
 const TABS = [
-  { key: "investment-news", label: "Investment News", icon: Rss, integrated: true, desc: "12 赛道全球公开 RSS 资讯（集成自 investment-news 仓库）" },
+  { key: "investment-news", label: "Investment News", icon: Rss, integrated: true, desc: "12 个赛道的全球公开资讯" },
   { key: "news", label: "公开新闻", icon: Newspaper, integrated: false, desc: "汇总关注列表里各个股的近期新闻（公开源）" },
   { key: "filings", label: "A股公告", icon: FileText, integrated: false, desc: "汇总关注列表里各个股的近期公告（东财公开披露）" },
   { key: "events", label: "事件概率", icon: TrendingUp, integrated: true, desc: "全球宏观预期概率 —— 预测市场的公开定价（Polymarket / Kalshi），只读、免登录" },
@@ -104,7 +104,7 @@ function InvestmentNewsPanel() {
       ...s,
       [ind.key]: done === ind.items.length
         ? { status: "done", done, total: ind.items.length }
-        : { status: "partial", done, total: ind.items.length, error: errors[0] ?? "模型漏回了部分标题" },
+        : { status: "partial", done, total: ind.items.length, error: errors[0] ?? "部分标题未翻译" },
     }));
   }, []);
 
@@ -178,10 +178,10 @@ function InvestmentNewsPanel() {
               刷新中 = 下面是存档、新的在路上；刷新没成功 = 下面仍是存档，别让他以为是最新的。 */}
           {refreshing && hasData && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Loader2 className="h-3 w-3 animate-spin" /> 刷新中（下面是上次的存档）
+              <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
-          {loading && <span className="text-[11px]">正在取…（这一页还没有存档）</span>}
+          {loading && <span className="text-[11px]">正在加载…</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <div className="flex flex-wrap items-center gap-2">
@@ -195,7 +195,7 @@ function InvestmentNewsPanel() {
           <button onClick={refresh} disabled={refreshing || bulk.running}
             className="workspace-action">
             {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {refreshing ? "抓取中…" : "刷新"}
+            {refreshing ? "更新中…" : "刷新"}
           </button>
         </div>
       </div>
@@ -208,7 +208,7 @@ function InvestmentNewsPanel() {
 
       {!hasData && !err ? (
         <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">
-          还没有抓取资讯，点上方<b className="text-foreground">「刷新」</b>拉取（约 20-40 秒）。
+          还没有资讯，点上方<b className="text-foreground">「刷新」</b>获取（约 20-40 秒）。
         </div>
       ) : (
         <>
@@ -402,16 +402,16 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
           {/* 🔴 先给存档、后台刷 ⇒ 得让人看得出现在这一屏是哪一份 */}
           {refreshing && rows.length > 0 && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Loader2 className="h-3 w-3 animate-spin" /> 刷新中（下面是上次的存档）
+              <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
-          {loading && <span className="text-[11px]">正在取…（这一页还没有存档）</span>}
+          {loading && <span className="text-[11px]">正在加载…</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <button onClick={refresh} disabled={loading || refreshing}
           className="workspace-action">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {refreshing ? "拉取中…" : "刷新"}
+          {refreshing ? "更新中…" : "刷新"}
         </button>
       </div>
 
@@ -462,7 +462,7 @@ export function Intel() {
   return (
     <div>
       {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && tab !== 'events' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
-      <PageHeader title="资讯雷达" subtitle="多来源资讯中心：AI 帮你跨源捞资讯、提炼要点" />
+      <PageHeader title="资讯雷达" subtitle="汇总多个来源的资讯，AI 帮你提炼要点" />
 
       <div className="mb-4">
         <WorkspaceTabs
@@ -531,12 +531,12 @@ function EventsPanel() {
       partial: data?.partial ?? false,
       loading, refreshing, err, staleNote,
     }),
-    suggestions: ['这些事件概率说明了什么', '哪个合约值得关注', '怎么理解这组读法护栏'],
+    suggestions: ['这些事件概率说明了什么', '哪个合约值得关注', '这些数据该怎么读'],
   };
   useAiPage(eventsPage);
   useAiPageObjects(eventsPage.key, []);
 
-  if (loading) return <p className="mt-4 text-sm text-muted-foreground">正在取…（这一页还没有存档）</p>;
+  if (loading) return <p className="mt-4 text-sm text-muted-foreground">正在加载…</p>;
   if (err) return <p className="mt-4 text-sm text-destructive">{err}</p>;
   if (!data || data.items.length === 0)
     return <p className="mt-4 text-sm text-muted-foreground">这一轮没取到合约报价（上游可能暂时不可用），不代表没有相关事件。</p>;
@@ -552,7 +552,7 @@ function EventsPanel() {
         <span className="text-[11px] text-muted-foreground/60">{`更新于 ${data.updated}`}</span>
         {refreshing && (
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-            <Loader2 className="h-3 w-3 animate-spin" /> 刷新中（下面是上次的存档）
+            <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
           </span>
         )}
         {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}

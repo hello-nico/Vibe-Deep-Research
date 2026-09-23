@@ -19,6 +19,11 @@ export function loadWatch(): string[] {
   return [...cache];
 }
 
+/** Test hook: mention fallback needs an in-memory watch list without Client SQLite. */
+export function replaceWatchCache(symbols: readonly string[]) {
+  cache = [...symbols];
+}
+
 function enqueue(work: () => Promise<void>): Promise<void> {
   const next = saveQueue.catch(() => undefined).then(work);
   saveQueue = next.catch(() => undefined);

@@ -39,13 +39,13 @@ test('过程投影保留工具名、参数、结果、耗时和错误，而不�
       ],
     },
   });
-  assert.equal(toolLabel('wiki_read'), '读取 Wiki');
-  assert.match(snap.runningCalls[0].name, /读取 Wiki/);
+  assert.equal(toolLabel('wiki_read'), '读取研究页');
+  assert.match(snap.runningCalls[0].name, /读取研究页/);
   assert.match(snap.runningCalls[0].args || '', /companies\/a/);
   assert.equal(snap.steps[0].body, '生成报告');
   assert.equal(snap.steps[1].body, '先读取页面');
   assert.equal(snap.steps[1].durationMs, 8);
-  assert.match(snap.steps[2].title, /读取 Wiki · companies\/a/);
+  assert.match(snap.steps[2].title, /读取研究页 · companies\/a/);
   assert.equal(snap.steps[2].body, '已钉住快照');
   assert.match(snap.steps[2].args || '', /companies\/a/);
   assert.equal(snap.steps[2].durationMs, 15);
@@ -67,9 +67,9 @@ test('同名计算步骤按算子与窗口起止区分标题', () => {
       ],
     },
   });
-  assert.match(snap.runningCalls[0].name, /算子 yoy/);
+  assert.match(snap.runningCalls[0].name, /计算 · 同比/);
   assert.match(snap.runningCalls[1].name, /2026-01-02→2026-01-31/);
-  assert.match(snap.steps[0].title, /算子 market_window/);
+  assert.match(snap.steps[0].title, /计算 · 区间涨跌/);
   assert.match(snap.steps[0].title, /2026-06-01→2026-09-15/);
   assert.notEqual(snap.steps[0].title, snap.steps[1].title);
 });

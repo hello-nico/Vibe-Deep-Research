@@ -147,6 +147,6 @@ export interface ResearchSessions {
 export const ResearchSessionContext = createContext<ResearchSessions | null>(null);
 export function useResearchSessions() {
   const sessions = useContext(ResearchSessionContext);
-  if (!sessions) throw new Error('研究会话尚未连接');
+  if (!sessions) throw new Error('研究服务正在连接，请稍后再试');
   return sessions;
 }

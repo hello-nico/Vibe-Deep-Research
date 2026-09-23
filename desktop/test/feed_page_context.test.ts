@@ -82,20 +82,20 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
   assert.equal(assistantBindingForPage('signals'), null);
 });
 test('问助手开场介绍按页面区分，对象提示不出现已发布版本或当前页', () => {
-  assert.match(assistantIntro('market', 'daily-review'), /当日盘面/);
-  assert.match(assistantIntro('intel', 'intel:investment-news:ai'), /赛道整理的资讯/);
-  assert.match(assistantIntro('intel', 'intel:filings'), /公告列表/);
-  assert.match(assistantIntro('industry_wiki', 'industry-wiki:industries/nbs-power'), /这个行业的研究页/);
-  assert.match(assistantIntro('industry_profile', 'industry-profile:list'), /产业研究目录/);
-  assert.match(assistantIntro('company_wiki', 'company-wiki:list'), /个股研究名单/);
-  assert.match(assistantIntro('company_wiki', 'company-wiki:companies/600900-sh'), /这家公司的研究页/);
+  assert.match(assistantIntro('market', 'daily-review'), /今天的盘面/);
+  assert.match(assistantIntro('intel', 'intel:investment-news:ai'), /选一篇报道/);
+  assert.match(assistantIntro('intel', 'intel:filings'), /选一条公告/);
+  assert.match(assistantIntro('industry_wiki', 'industry-wiki:industries/nbs-power'), /这个行业怎么赚钱/);
+  assert.match(assistantIntro('industry_profile', 'industry-profile:list'), /选一个产业/);
+  assert.match(assistantIntro('company_wiki', 'company-wiki:list'), /选一家公司/);
+  assert.match(assistantIntro('company_wiki', 'company-wiki:companies/600900-sh'), /另一家公司可以做对比/);
   const wiki = wikiAssistantObject({ slug: 'companies/600900-sh', title: '长江电力', inputHash: 'a'.repeat(64), section: '个股研究' });
   assert.equal(wiki?.hint, undefined);
   assert.doesNotMatch(JSON.stringify(wiki), /已发布版本|当前页/);
 });
 test('问助手输入框按 Ask/Agent 各给一句权限说明', () => {
-  assert.match(assistantModeHint('ask'), /Ask 即答.*不取数、不写/);
-  assert.match(assistantModeHint('agent'), /Agent 深查.*只补问题所需缺口/);
+  assert.match(assistantModeHint('ask'), /Ask 即答.*本页内容/);
+  assert.match(assistantModeHint('agent'), /Agent 深查.*查资料/);
   assert.notEqual(assistantModeHint('ask'), assistantModeHint('agent'));
 });
 test('大盘可见个股登记为公司行情身份，不把连板数字当版本，也不造涨停榜集合', () => {

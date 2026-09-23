@@ -8,13 +8,7 @@ test('研究引用拒绝文件路径，发送前核对对象并保留稳定身�
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: httpServer() }, watch: null }, appType: 'custom' });
   const originalFetch = globalThis.fetch;
   try {
-    const { researchTarget, researchObjectSource, matchCompanies } = await server.ssrLoadModule('/src/verticals/finance/dsh/research-input.ts');
-    const companies = [
-      ...Array.from({ length: 4 }, (_, i) => ({ code: `60000${i}`, name: `其他公司${i}`, symbol: `60000${i}.SH` })),
-      { code: '300750', name: '宁德时代', symbol: '300750.SZ' },
-    ];
-    assert.deepEqual(matchCompanies(companies, '宁德时代 首次回购'), [companies[4]]);
-    assert.deepEqual(matchCompanies(companies, '300750.SZ 首次回购'), [companies[4]]);
+    const { researchTarget, researchObjectSource } = await server.ssrLoadModule('/src/verticals/finance/dsh/research-input.ts');
     for (const value of ['/Users/apple/workspace/wiki/a', '../companies/a', 'companies/../../secret', 'javascript:alert(1)', 'wiki/README.md']) assert.equal(researchTarget(value), null);
     assert.deepEqual(researchTarget('companies/600900-sh'), { kind: 'wiki', id: 'companies/600900-sh' });
     assert.deepEqual(researchTarget('stock-ref://source/doc%3Ar1%3Ablock'), { kind: 'evidence', id: 'source:doc:r1:block' });
@@ -39,17 +33,19 @@ test('研究引用拒绝文件路径，发送前核对对象并保留稳定身�
       }
       return new Response(JSON.stringify({ items: Array.from({ length: 8 }, (_, i) => ({ slug: `companies/${i}`, topic_id: `topic:${i}`, title: `最近 ${i}` })) }));
     };
-    const candidates = await researchObjectSource.candidates(null, { query: '电力', signal });
-    assert.equal(candidates.length, 28);
-    assert.equal(requests.length, 7);
+    // @ offers only company pages, industry pages and My Documents: 5 latest each.
+    const recent = await researchObjectSource.candidates(null, { query: '', signal });
+    assert.equal(requests.length, 3);
+    assert.deepEqual([...new Set(recent.map((item: { section: string }) => item.section))], ['公司', '行业', '资料']);
+    assert.equal(recent.length, 13);
+    assert.ok(requests.some(url => url.includes('/wiki/pages?kind=companies') && url.includes('sort=updated') && url.includes('limit=5')));
+    assert.ok(requests.some(url => url.includes('/wiki/pages?kind=industries')));
     assert.ok(requests.some(url => url.includes('/documents/uploads')));
-    assert.ok(requests.some(url => url.includes('/industries/profiles')));
-    assert.ok(requests.filter(url => url.includes('/wiki/')).every(url => url.includes('limit=5') && url.includes(encodeURIComponent('电力'))));
-    assert.ok(requests.filter(url => url.includes('/pages?')).every(url => url.includes('sort=updated')));
-    const marketHits = await researchObjectSource.candidates(null, { query: '沪深', signal });
-    assert.ok(marketHits.some((item: { value: string }) => item.value === 'market:000300.SH'));
-    assert.ok(marketHits.some((item: { value: string }) => item.value === 'market:indices'));
-    assert.equal(marketHits.some((item: { name: string; value: string }) => /情绪|资金流/.test(item.name + item.value)), false);
+    assert.equal(requests.some(url => /research-topics|kind=themes|kind=comparisons|industries\/profiles|finance-api/.test(url)), false);
+    // A typed query goes to the Backend substring match (name or stock code).
+    requests.length = 0;
+    await researchObjectSource.candidates(null, { query: '神火', signal });
+    assert.ok(requests.filter(url => url.includes('/wiki/pages?')).every(url => url.includes(encodeURIComponent('神火'))));
     assert.deepEqual(researchTarget('market:000300.SH'), { kind: 'market', id: '000300.SH' });
     assert.deepEqual(researchTarget('market:indices'), { kind: 'market', id: 'indices' });
     assert.deepEqual(researchTarget(`profile:sw2:801160:${'a'.repeat(64)}`), { kind: 'profile', id: `profile:sw2:801160:${'a'.repeat(64)}` });
@@ -88,46 +84,23 @@ test('研究引用拒绝文件路径，发送前核对对象并保留稳定身�
     await assert.rejects(researchObjectSource.codec.serialize('companies/missing', signal));
     assert.match(await researchObjectSource.codec.serialize(`document:${id}`, signal), /已从我的资料移除，无法打开原件/);
     assert.match(await researchObjectSource.codec.serialize(`document:${id}`, signal), new RegExp('`document:' + id + '`'));
-    const newsEvidence = (title: string, url: string, field: string) => ({
-      id: url, symbol: '300750', market: 'CN', field, value: title, unit: '', currency: '',
-      period: '2026-09-20', as_of: '2026-09-20', source: 'test', endpoint: field, fetched_at: '2026-09-20',
-      adjustment: '', raw_ref: null, record_key: url, note: `url=${url}`,
-    });
-    globalThis.fetch = async (input, init) => {
+    // One busy category must not empty the whole menu.
+    globalThis.fetch = async input => {
       const url = String(input);
-      if (url.includes('/finance-api/fetch')) {
-        const body = JSON.parse(String(init?.body || '{}'));
-        if (body.endpoint === 'cninfo_announcements') {
-          return new Response(JSON.stringify({ envelope: { evidence: [
-            newsEvidence('首次回购报告书', 'https://example.com/filing/buyback', 'announcement_title'),
-            newsEvidence('日常关联交易', 'https://example.com/filing/daily', 'announcement_title'),
-          ] } }));
-        }
-        if (body.endpoint === 'em_stock_news') {
-          return new Response(JSON.stringify({ envelope: { evidence: [
-            newsEvidence('宁德时代扩产', 'https://example.com/news/capex', 'news_title'),
-          ] } }));
-        }
-        return new Response(JSON.stringify({ envelope: { evidence: [] } }));
+      if (url.includes('kind=industries')) return new Response('busy', { status: 503 });
+      if (url.includes('kind=companies') && url.includes('000933')) {
+        return new Response(JSON.stringify({ items: [{ slug: 'companies/000933-sz', title: '神火股份', input_hash: 'b'.repeat(64) }], total: 1 }));
       }
-      if (url.includes('/wiki/pages?kind=companies')) {
-        return new Response(JSON.stringify({ items: [{ slug: 'companies/300750-sz', title: '宁德时代', input_hash: 'a'.repeat(64) }], total: 1 }));
-      }
-      if (url.includes('/documents/uploads') || url.includes('/industries/profiles') || url.includes('/wiki/')) {
-        return new Response(JSON.stringify({ items: [], total: 0 }));
-      }
-      return new Response(JSON.stringify({ items: [] }));
+      return new Response(JSON.stringify({ items: [], total: 0 }));
     };
-    const byName = await researchObjectSource.candidates(null, { query: '宁德时代', signal });
-    assert.ok(byName.some((item: { value: string }) => item.value === 'company:300750.SZ'));
-    assert.ok(byName.some((item: { value: string; section: string }) => item.section === '公告' && item.value.includes('filing/buyback')));
-    assert.ok(byName.some((item: { value: string; section: string }) => item.section === '新闻' && item.value.includes('news/capex')));
-    const byTitle = await researchObjectSource.candidates(null, { query: '宁德时代 首次回购', signal });
-    assert.ok(byTitle.some((item: { value: string; section: string }) => item.section === '公告' && item.value.includes('filing/buyback')));
-    assert.equal(byTitle.some((item: { value: string }) => String(item.value).includes('filing/daily')), false);
+    const byCode = await researchObjectSource.candidates(null, { query: '000933', signal });
+    assert.deepEqual(byCode.map((item: { section: string; name: string }) => [item.section, item.name]), [['公司', '神火股份']]);
     const { providerSnapshot } = await server.ssrLoadModule('/src/verticals/finance/lib/wikiFacts.ts');
     const snapshot = providerSnapshot({ source: 'provider', provider: 'hithink', metric: 'revenue', value: 100, unit: '元', period: '2026H1' });
     assert.match(snapshot, /数值：100.00 元/);
     assert.doesNotMatch(snapshot, /REST|GET |本机|\/api\//);
-  } finally { globalThis.fetch = originalFetch; await server.close(); }
+  } finally {
+    globalThis.fetch = originalFetch;
+    await server.close();
+  }
 });

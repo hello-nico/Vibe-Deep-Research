@@ -33,9 +33,9 @@ function StaleBadge({ observedAt, fetchError }: { observedAt?: string | null; fe
   return (
     <span
       className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] text-warning"
-      title={fetchError ? `本轮抓取失败：${fetchError}` : undefined}
+      title={fetchError ? `这次更新失败：${fetchError}` : undefined}
     >
-      <History className="h-3 w-3" /> 本轮抓取失败 · 显示 {observedAt || "上次"} 的数据
+      <History className="h-3 w-3" /> 这次更新失败 · 显示 {observedAt || "上次"} 的数据
     </span>
   );
 }
@@ -46,7 +46,7 @@ function SpotCard({ g }: { g: GpuSpot }) {
       <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
         <div className="font-mono text-sm font-semibold">{g.gpu}</div>
         <p className="mt-2 flex items-start gap-1.5 text-xs text-destructive">
-          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> 抓取失败：{g.err}
+          <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> 更新失败：{g.err}
         </p>
       </div>
     );
@@ -257,20 +257,20 @@ function GpuRentPanel() {
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>{hasData ? `更新于 ${data!.generated_at}` : "历史 / 现货 / 远期三条腿，都来自零鉴权公开接口"}</span>
+          <span>{hasData ? `更新于 ${data!.generated_at}` : "历史、现货、远期三组数据，均来自免登录的公开接口"}</span>
           {/* 🔴 先给存档、后台刷 ⇒ 用户必须看得出他现在看的是哪一份 */}
           {refreshing && hasData && (
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
-              <Loader2 className="h-3 w-3 animate-spin" /> 刷新中（下面是上次的存档）
+              <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
-          {loading && <span className="text-[11px]">正在取…（这一页还没有存档）</span>}
+          {loading && <span className="text-[11px]">正在加载…</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <button onClick={refresh} disabled={refreshing}
           className="workspace-action">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-          {refreshing ? "抓取中…（远期 123 张合约逐档拉取，约 1 分钟）" : "刷新"}
+          {refreshing ? "更新中…（远期合约较多，约 1 分钟）" : "刷新"}
         </button>
       </div>
 
@@ -281,14 +281,14 @@ function GpuRentPanel() {
       )}
       {data?.errors && data.errors.length > 0 && (
         <div className="mb-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
-          <p className="mb-1 font-medium">本轮有数据源抓取失败（对应区块显示上一次的数据）：</p>
+          <p className="mb-1 font-medium">部分数据源这次没有更新成功（对应区块显示上次的数据）：</p>
           {data.errors.map((e, i) => <p key={i}>· {e}</p>)}
         </div>
       )}
 
       {!hasData && !err ? (
         <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">
-          还没有抓取数据，点上方<b className="text-foreground">「刷新」</b>拉取（约 30 秒）。
+          还没有数据，点上方<b className="text-foreground">「刷新」</b>获取（约 30 秒）。
         </div>
       ) : hasData && (
         <>
@@ -329,7 +329,7 @@ function GpuRentPanel() {
           </p>
           {fw?.err ? (
             <p className="flex items-start gap-1.5 text-xs text-destructive">
-              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> 抓取失败：{fw.err}
+              <AlertCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> 更新失败：{fw.err}
             </p>
           ) : fw?.unavailable ? (
             <p className="text-sm text-muted-foreground">{fw.note}（市场状态，非故障）</p>
@@ -340,7 +340,7 @@ function GpuRentPanel() {
                 <div className="mb-4">
                   <EChart option={curveOption} height={240} />
                   <p className="mt-1 text-center text-[11px] text-muted-foreground/60">
-                    同一把尺子（Ornn 指数月均）：实线 = 已结算月的实际落点（取区间中点），虚线 = 各结算月的市场预期中位
+                    同一口径（Ornn 指数月均）：实线 = 已结算月的实际落点（取区间中点），虚线 = 各结算月的市场预期中位
                   </p>
                 </div>
               )}
@@ -397,7 +397,7 @@ export function Signals() {
 
   return (
     <div>
-      <PageHeader title="产业信号" subtitle="一句话产业信号：零鉴权公开数据直连，逐期添加小栏目" />
+      <PageHeader title="产业信号" subtitle="用公开数据看产业链冷热，栏目会逐步增加" />
 
       <div className="mb-4 flex flex-wrap gap-2">
         {TABS.map(({ key, label, icon: Icon }) => (
@@ -419,7 +419,7 @@ export function Signals() {
       </GlassCard>
 
       <p className="mt-3 text-[11px] text-muted-foreground/60">
-        只呈现公开接口的价格事实与合约报价，不产出「过剩 / 短缺」的判断、不构成任何建议——怎么解读，交给你自己接入的 AI（工具名 query_gpu_rent）。
+        只呈现公开接口的价格事实与合约报价，不产出「过剩 / 短缺」的判断、不构成任何建议——怎么解读，可以问你接入的 AI。
       </p>
       <Disclaimer />
     </div>

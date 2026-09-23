@@ -215,7 +215,7 @@ export function libraryKindFromItem(item: Pick<LibraryDocument, 'title' | 'extra
 export function libraryStatusLabel(item: LibraryDocument): string {
   const status = item.extra.process_status || (item.extra.parse_error ? 'failed' : item.has_parsed ? 'ready' : 'processing');
   if (status === 'failed') return '处理失败';
-  if (status === 'ready') return item.extra.evidence_error ? '正文已解析，证据索引失败' : '可引用';
+  if (status === 'ready') return item.extra.evidence_error ? '正文已读取，暂不能引用' : '可引用';
   return '处理中';
 }
 
@@ -226,14 +226,14 @@ export function libraryNeedsRetry(item: LibraryDocument): boolean {
 export function librarySummary(item: Pick<LibraryDocument, 'has_parsed' | 'extra'>): string {
   const extra = item.extra || {};
   if (extra.parse_error || extra.process_status === 'failed') return '处理失败，可从菜单重试。';
-  if (!item.has_parsed || extra.process_status === 'processing') return '原件已保存，正文尚未就绪。';
+  if (!item.has_parsed || extra.process_status === 'processing') return '原文件已保存，正文还在处理。';
   const cleaned = String(extra.preview || '')
     .replace(/!\[[^\]]*]\([^)]*\)/g, ' ')
     .replace(/\[([^\]]*)]\([^)]*\)/g, '$1')
     .replace(/[#>*_`~]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  if (!cleaned) return extra.evidence_error ? '正文已解析，证据索引失败。' : '正文已解析，可引用。';
+  if (!cleaned) return extra.evidence_error ? '正文已读取，暂不能引用，可从菜单重试处理。' : '正文已读取，可引用。';
   return cleaned.length > 42 ? `${cleaned.slice(0, 42)}…` : cleaned;
 }
 

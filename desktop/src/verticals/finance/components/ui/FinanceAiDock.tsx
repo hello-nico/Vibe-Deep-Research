@@ -114,14 +114,14 @@ export function AssistantModeSelect() {
     if (next === seat.mode || seat.busy) return;
     const snap = seat.sessionId ? sessions.sessionState(seat.sessionId) : null;
     if (snap?.running) {
-      setAssistantSeat({ notice: "当前轮次仍在运行，结束后才能切换模式。" });
+      setAssistantSeat({ notice: "等这次回答结束后再切换。" });
       return;
     }
     if (seat.sessionId) {
       try {
         await sessions.switchAssistantMode(seat.sessionId, next, seat.pageKey);
       } catch (err) {
-        setAssistantSeat({ notice: err instanceof Error ? err.message : "模式切换失败" });
+        setAssistantSeat({ notice: err instanceof Error ? err.message : "模式没切换成功，请重试" });
         return;
       }
     }
@@ -130,7 +130,7 @@ export function AssistantModeSelect() {
   return (
     <AssistantMenu
       label="问助手模式"
-      title={seat.mode === "ask" ? "只回答问题，不会改资料。要更新内容请切到 Agent。" : "可提出资料、对象与关系维护，确认后执行；研究判断请在我的研究议题中更新。"}
+      title={seat.mode === "ask" ? "只看本页和你引用的内容，几秒内回答。" : "会按需查资料、读原文后再回答；发现值得保存的资料，会先问你。"}
       value={seat.mode}
       disabled={seat.busy}
       options={[{ id: "ask", name: "Ask" }, { id: "agent", name: "Agent" }]}
@@ -157,7 +157,7 @@ function AssistantModelSelect({ sessionId }: { sessionId: string }) {
   return (
     <AssistantMenu
       label="问助手模型"
-      title="仅切换当前问助手会话的模型，不影响深度对话"
+      title="只对本页问助手生效"
       value={current}
       disabled={snap.status === "loading" || snap.status === "selecting"}
       options={current || options.length ? options : [{ id: "", name: "选择模型" }]}
@@ -251,7 +251,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
     } catch (err) {
       if (attachGen.current !== gen) return;
       setAssistantSeat({ seated: false, busy: false });
-      setError(err instanceof Error ? err.message : "问助手会话绑定失败");
+      setError(err instanceof Error ? err.message : "问助手没能启动，请重试");
     }
   }, [page, binding, sessions, seat.mode]);
 
@@ -377,7 +377,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
       setMentionQuery(null);
     } catch (err) {
       if (attachGen.current !== gen) return;
-      setError(err instanceof Error ? err.message : "问助手问题未被接收");
+      setError(err instanceof Error ? err.message : "消息没发出去，请重试");
     } finally {
       if (attachGen.current === gen) setSending(false);
     }
@@ -392,9 +392,9 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
         onClick={() => setOpen(true)}
         disabled={!page}
         title={
-          !wired ? "AI 入口没接上（AiPageProvider 未挂载）"
+          !wired ? "问助手暂时不可用，请刷新页面"
             : page ? `问助手 · ${page.title}`
-            : "这一页还没有可聊的内容"
+            : "这一页还没有加载出内容"
         }
         className={cn(
           "ai-chat-trigger inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2",
@@ -424,7 +424,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
           </div>
           {sessionId && binding ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
-              <p>{seat.busy ? "正在绑定问助手会话，完成前不能发送。" : error || "正在打开问助手会话…"}</p>
+              <p>{error || "正在准备，马上就好…"}</p>
             </div>
           )}
           {chips.length > 0 && (
@@ -450,7 +450,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
           {(error || seat.notice) && <p role="alert" className="px-4 text-xs text-destructive">{error || seat.notice}</p>}
           <div className="finance-assistant-composer ai-composer relative border-t border-border/60 p-3">
             {mentionQuery !== null && (
-              <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background shadow-lg" role="listbox" aria-label="本页对象">
+              <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background shadow-lg" role="listbox" aria-label="本页条目">
                 {candidates.length ? candidates.map(item => (
                   <button
                     key={item.id}
@@ -462,7 +462,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
                     <span className="truncate font-medium">{item.label}</span>
                     {(item.hint || item.section) && <span className="truncate text-[11px] text-muted-foreground">{[item.section, item.hint].filter(Boolean).join(" · ")}</span>}
                   </button>
-                )) : <p className="px-3 py-2 text-xs text-muted-foreground">没有可引用的对象</p>}
+                )) : <p className="px-3 py-2 text-xs text-muted-foreground">本页暂无可引用的条目</p>}
               </div>
             )}
             <textarea

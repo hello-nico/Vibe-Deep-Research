@@ -197,7 +197,7 @@ export function useAiChat(key: string, send: AiSend): AiChat {
     setStorageWarning(!saved
       ? "浏览器存储空间不足或不可用，本次聊天未能保存。请先复制重要内容，再刷新或关闭页面。"
       : completeTurns(chat.msgs).length > MAX_PERSISTED
-        ? "此对话仅在浏览器保留最近 20 轮。重要结论请及时存入沉淀或复制备份。"
+        ? "此对话仅在浏览器保留最近 20 轮。重要结论请及时保存为记录或复制备份。"
         : null);
   }, [key, chat]);
 

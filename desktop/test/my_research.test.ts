@@ -406,7 +406,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /setNotice\(\{ slug: '', text: '已重新读取公司列表' \}\)/);
   assert.match(company, /CompanyRefreshConfirm/);
   assert.doesNotMatch(company, /researchRead[^\n]*refresh-api/);
-  assert.match(company, /正在创建公司资料页/);
+  assert.match(company, /正在建立研究页/);
   assert.match(company, /Boolean\(current\?\.hasWiki\) && readerState === 'loading'/);
   assert.doesNotMatch(company, /取消选择不会删除 Wiki/);
   assert.doesNotMatch(company, /从自选开始/);

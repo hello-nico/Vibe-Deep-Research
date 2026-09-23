@@ -59,7 +59,7 @@ export function ConversationWorkspace({ active, split = false, title = "深度�
     </div>
     <div className="conversation-window" data-blocked={blocked || undefined} style={{ display: active ? "flex" : "none" }}>
       <ConversationCitations id="dsh-conversation" aria-label="深度对话" {...{ inert: blocked ? "" : undefined }} />
-      {blocked && <div className="conversation-session-gate" role="status">{gate.message || "正在接上该议题的对话，匹配完成前不能输入。"}</div>}
+      {blocked && <div className="conversation-session-gate" role="status">{gate.message || "正在打开这个议题的对话…"}</div>}
       <div className="conversation-resize conversation-resize-top" hidden={expanded} title="拖动调整高度，双击恢复默认" {...resize("top")} />
       <div className="conversation-resize conversation-resize-left" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("left")} />
       <div className="conversation-resize conversation-resize-right" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("right")} />

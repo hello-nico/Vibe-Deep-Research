@@ -16,7 +16,7 @@ export function FinanceAssistantSurfaceProvider({ children }: { children: ReactN
 /** Registered once in the existing root-scoped shell.overlay slot. */
 export function FinanceAssistantSeat() {
   const surface = useContext(SurfaceContext);
-  if (!surface) throw new Error('助手承载未连接');
+  if (!surface) throw new Error('问助手暂时不可用，请刷新页面');
   return <div ref={surface.setTarget} data-finance-assistant-seat />;
 }
 
@@ -26,7 +26,7 @@ export function useFinanceOverlayTarget() {
 
 export function FinanceAssistantSurface({ children }: { children: ReactNode; close: () => void }) {
   const surface = useContext(SurfaceContext);
-  if (!surface) throw new Error('助手承载未连接');
+  if (!surface) throw new Error('问助手暂时不可用，请刷新页面');
   const visible = children != null;
   const cache = useRef<ReactNode>(null);
   if (visible) cache.current = children;

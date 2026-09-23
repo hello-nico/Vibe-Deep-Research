@@ -73,7 +73,7 @@ export function useArchiveThenRefresh<T>(
       // 🔴 有存档就**留着**，只把失败说出来；一个字都没有时才算真错
       setData((prev) => {
         if (prev === null) setErr(msg(e));
-        else setStaleNote(`刷新没成功（${msg(e)}）——下面仍是上一次的存档`);
+        else setStaleNote(`这次更新没成功（${msg(e)}），下面是上次的内容`);
         return prev;
       });
     } finally {

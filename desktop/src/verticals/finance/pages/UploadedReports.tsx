@@ -237,7 +237,7 @@ export function UploadedReports() {
         void renameLibraryDocument(renameId, renameTitle.trim()).then(() => { setRenameId(''); void load(0, false); }).catch(err => setError(asResearchErrorMessage(err)));
       }}>
         <h2 className="mb-3 font-semibold">修改显示标题</h2>
-        <p className="mb-3 text-xs text-muted-foreground">只改列表名称，不改文件内容、资料身份或历史引用。</p>
+        <p className="mb-3 text-xs text-muted-foreground">只改显示名称，文件内容和历史引用不变。</p>
         <input className="workspace-field h-10 w-full" value={renameTitle} onChange={event => setRenameTitle(event.target.value)} />
         <div className="mt-4 flex justify-end gap-2"><button type="button" className="workspace-action" onClick={() => setRenameId('')}>取消</button><button className="workspace-action workspace-action-primary" disabled={!renameTitle.trim()}>保存</button></div>
       </form>
@@ -245,13 +245,13 @@ export function UploadedReports() {
     {hideId && <div className="library-modal-backdrop" role="dialog" aria-label="从我的资料移除" onClick={() => !hiding && setHideId('')}>
       <div className="library-modal" onClick={event => event.stopPropagation()}>
         <h2 className="mb-3 font-semibold">从我的资料移除</h2>
-        <p className="mb-4 text-sm text-muted-foreground">只从「我的资料」拿掉。原件、解析和旧引用还在；旧对话仍可打开。</p>
+        <p className="mb-4 text-sm text-muted-foreground">只从「我的资料」列表移除。原文件和历史引用会保留，旧对话仍可打开。</p>
         <div className="flex justify-end gap-2">
           <button type="button" className="workspace-action" disabled={hiding} onClick={() => setHideId('')}>取消</button>
           <button type="button" className="workspace-action workspace-action-primary" disabled={hiding} onClick={() => {
             setHiding(true);
             void hideLibraryDocument(hideId)
-              .then(() => { setHideId(''); setNotice('已从我的资料拿掉。原件和旧引用还在。'); return load(0, false); })
+              .then(() => { setHideId(''); setNotice('已从我的资料移除，原文件和历史引用会保留。'); return load(0, false); })
               .catch(err => setError(asResearchErrorMessage(err)))
               .finally(() => setHiding(false));
           }}>{hiding ? '正在移除…' : '从我的资料移除'}</button>

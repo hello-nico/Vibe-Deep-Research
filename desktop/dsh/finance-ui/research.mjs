@@ -85,7 +85,7 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
     res.end();
   } catch {
     if (!res.headersSent) res.writeHead(502, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ detail: '研究服务连接失败，请检查 Stock-Research Backend' }));
+    res.end(JSON.stringify({ detail: '研究服务连接失败，请确认研究后台已启动' }));
   } finally { res.off('close', close); }
 }
 

@@ -47,7 +47,7 @@ test("资料身份与文件类型只认 PDF/TXT/MD", async () => {
     assert.equal(lib.pendingLibraryCites().length, 0);
     assert.equal(lib.boundPreviewText('b', { documentId: 'a', text: '旧正文' }), null);
     assert.equal(lib.boundPreviewText('a', { documentId: 'a', text: '新正文' }), '新正文');
-    assert.equal(lib.librarySummary({ has_parsed: false, extra: { process_status: 'processing' } }), '原件已保存，正文尚未就绪。');
+    assert.equal(lib.librarySummary({ has_parsed: false, extra: { process_status: 'processing' } }), '原文件已保存，正文还在处理。');
     assert.equal(lib.librarySummary({ has_parsed: false, extra: { parse_error: '解析失败' } }), '处理失败，可从菜单重试。');
     assert.equal(lib.librarySummary({ has_parsed: true, extra: { process_status: 'ready', preview: '## 标题\n正文摘要' } }), '标题 正文摘要');
     assert.equal(lib.librarySummary({ has_parsed: true, extra: { process_status: 'ready', preview: 'x'.repeat(50) } }), `${'x'.repeat(42)}…`);
@@ -109,7 +109,7 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.match(library, /library_hidden: true/);
   assert.match(library, /method: 'PATCH'/);
   assert.doesNotMatch(library, /method:\s*'DELETE'/);
-  assert.match(page, /只从「我的资料」拿掉/);
+  assert.match(page, /只从「我的资料」列表移除/);
   assert.doesNotMatch(page, /method:\s*'DELETE'/);
   assert.doesNotMatch(page, /WorkspaceFilter/);
   assert.doesNotMatch(page, /boundPreviewText/);
@@ -129,14 +129,14 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.doesNotMatch(client, /资料已放入输入框/);
   assert.match(reader, /不要伪造 PDF 页码/);
   assert.match(reader, /parsedBodyPath/);
-  assert.match(reader, /不会改读最新正文/);
+  assert.match(reader, /不会改用最新版本代替/);
   assert.match(reader, /hideLibraryDocument/);
   assert.match(reader, /该资料已从我的资料移除，或已无法打开/);
-  assert.match(reader, /只从「我的资料」拿掉/);
+  assert.match(reader, /只从「我的资料」列表移除/);
   assert.match(input, /section: '资料'/);
   assert.match(input, /kind === 'document'/);
   assert.match(input, /rememberMentionLabel/);
-  assert.match(input, /发送时绑定的解析版本已不可用/);
+  assert.match(input, /MENTION_NOTES\.documentStale/);
   assert.match(input, /citedDocument/);
   assert.doesNotMatch(input, /parse_revision_id=\$\{/);
   assert.match(client, /mentionLabel/);

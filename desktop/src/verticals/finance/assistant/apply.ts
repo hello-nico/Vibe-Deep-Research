@@ -114,7 +114,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
     const bindKey = derived?.bindKey || `${plugin}:${input.pageKey}`;
     const workspaceId = deps.getWorkspaceId();
     const workspace = deps.getWorkspace();
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
     const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
@@ -135,9 +135,9 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
     const id = await client.sessions.create({ workspaceId });
     const scope = client.sessions.scope(id);
     const face = scope ? client.sessions.sessionOf(scope) : undefined;
-    if (!face) throw new Error('问助手会话创建失败');
+    if (!face) throw new Error('问助手没能启动，请重试');
     const title = `问助手 · ${input.title}`.slice(0, 80);
-    if (!(await face.rename(title)).ok) throw new Error('问助手绑定失败，请重试');
+    if (!(await face.rename(title)).ok) throw new Error('问助手没能启动，请重试');
     await bindAssistantSession({ session_id: id, plugin, mode: input.mode, target, page_key: bindKey });
     return { id, mode: input.mode };
   };
@@ -145,7 +145,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
   return {
     async startAssistant(input) {
       await deps.waitSession();
-      if (!deps.getWorkspaceId()) throw new Error('研究工作区尚未连接');
+      if (!deps.getWorkspaceId()) throw new Error('研究服务正在连接，请稍后再试');
       const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
       if (assistantStarts.has(key)) return assistantStarts.get(key)!;
       const run = (async (): Promise<StartSessionResult> => {
@@ -153,7 +153,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
         if (input.prompt?.trim()) {
           const scope = client.sessions.scope(id);
           const face = scope ? client.sessions.sessionOf(scope) : undefined;
-          if (!face) throw new Error('问助手会话不可用');
+          if (!face) throw new Error('问助手没能启动，请重试');
           const bound = await bindAssistantPrompt({
             prompt: input.prompt,
             title: input.title,
@@ -176,7 +176,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
             })),
           });
           if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
-            throw new Error('问助手问题未被接收，请检查模型设置后重试');
+            throw new Error('消息没发出去，请检查模型设置后重试');
           }
         }
         return { sessionId: id, status: 'started', mode };
@@ -186,7 +186,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
     },
     async ensureAssistant(input) {
       await deps.waitSession();
-      if (!deps.getWorkspaceId()) throw new Error('研究工作区尚未连接');
+      if (!deps.getWorkspaceId()) throw new Error('研究服务正在连接，请稍后再试');
       const key = `${input.pageKey}:${input.plugin || ''}:${input.target || ''}:${input.fresh ? 'new' : 'reuse'}`;
       if (assistantStarts.has(key)) return assistantStarts.get(key)!;
       const run = (async (): Promise<StartSessionResult> => {

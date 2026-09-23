@@ -341,9 +341,9 @@ export function apply(ctx: Context) {
   });
   async function openSession() {
     const response = await fetch("/finance-host");
-    if (!response.ok) throw new Error(`工作区配置读取失败 (${response.status})`);
+    if (!response.ok) throw new Error(`研究服务暂时连不上（${response.status}），请稍后重试`);
     ({ workspace } = await response.json() as { workspace: string });
-    if (!workspace || typeof workspace !== "string") throw new Error("内部工作区配置缺失");
+    if (!workspace || typeof workspace !== "string") throw new Error("研究服务暂时连不上，请稍后重试");
     const registered = await client.workspaces.create({ path: workspace });
     workspaceId = registered.workspaceId;
     await client.sessions.refresh();
@@ -379,7 +379,7 @@ export function apply(ctx: Context) {
   }
   const research = { async companySymbols() {
     await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
     const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
@@ -391,7 +391,7 @@ export function apply(ctx: Context) {
     });
   }, async start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult> {
     await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     const task = options?.task;
     if (task?.kind === 'report') return startReportTask(question, task);
     const key = company?.symbol;
@@ -481,7 +481,7 @@ export function apply(ctx: Context) {
     };
   }, async restoreTopic(topicId: string, title = "", signal?: AbortSignal) {
     await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
     const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
@@ -499,7 +499,7 @@ export function apply(ctx: Context) {
     return { topicId, sessionId: id, matched: openedTopicId === topicId && openedSessionId === id };
   }, async startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }) {
     await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     if (input.fresh) {
       const id = await client.sessions.create({ workspaceId });
       await bindTopicSession(input.topicId, id, input.title);
@@ -518,17 +518,17 @@ export function apply(ctx: Context) {
     }
   }, async openSession(sessionId: string) {
     await session;
-    if (!workspaceId) throw new Error('研究工作区尚未连接');
+    if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     await client.sessions.refresh();
     const list = client.sessions.list.getSnapshot();
     const hidden = await refreshHiddenChats();
     const item = list.byId[sessionId];
-    if (hidden.status !== 'ready' && !nativeBackground(item)) throw new Error('后台任务身份暂时无法核对，请稍后重试');
+    if (hidden.status !== 'ready' && !nativeBackground(item)) throw new Error('任务记录暂时加载不出来，请稍后重试');
     if (isBackgroundChat(sessionId, item, hidden)) {
       research.openTaskProcess({ sessionId, title: item?.displayTitle || item?.title || '任务过程', kind: hidden.status === 'ready' && hidden.ids.has(sessionId) ? 'report' : 'knowledge' });
       return;
     }
-    if (!item) throw new Error('找不到该执行记录');
+    if (!item) throw new Error('这条执行记录已不存在');
     remember(sessionId);
     await router.navigate('/');
   }, openTaskProcess(task: TaskProcessRef) {
@@ -595,7 +595,7 @@ export function apply(ctx: Context) {
       pending.current = true;
       setCreating(true); setError('');
       try {
-        if (!workspaceId) throw new Error('研究工作区尚未连接');
+        if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
         const topicId = openedTopicId;
         const id = await client.sessions.create({ workspaceId });
         if (topicId) await bindTopicSession(topicId, id, topicId);
@@ -706,8 +706,8 @@ export function apply(ctx: Context) {
       <div className="mb-6 flex items-center justify-between gap-4"><div><h2 className="text-lg font-semibold">继续你的研究</h2><p className="mt-2 text-sm text-muted-foreground">找回之前的问题，接着聊。</p></div>
         <NewConversation openView={openView} /></div></>}
       {error && <p role="alert">{error}</p>}
-      {hidden.status === 'loading' && !compact && <p role="status" className="text-sm text-muted-foreground">正在核对对话列表…</p>}
-      {hidden.status === 'error' && <p role="alert" className="text-sm text-destructive">后台任务身份暂时无法核对，历史对话暂不展示。<button type="button" className="workspace-action workspace-action-compact ml-2" onClick={() => { void refreshHiddenChats(); }}>重试</button></p>}
+      {hidden.status === 'loading' && !compact && <p role="status" className="text-sm text-muted-foreground">正在加载对话…</p>}
+      {hidden.status === 'error' && <p role="alert" className="text-sm text-destructive">历史对话暂时加载不出来。<button type="button" className="workspace-action workspace-action-compact ml-2" onClick={() => { void refreshHiddenChats(); }}>重试</button></p>}
       {readyHidden && ids.length === 0 && <div className="rounded-2xl border border-dashed border-border p-12 text-center"><MessageSquare size={28} className="mx-auto mb-4 text-muted-foreground/50" /><p className="text-sm text-muted-foreground">还没有历史对话，从一个感兴趣的问题开始吧。</p></div>}
       <div className={compact ? 'grid max-h-64 grid-cols-1 gap-2 overflow-y-auto sm:grid-cols-2' : 'space-y-3'}>{ids.map(id => <div key={id} className="group flex items-center rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30 focus-within:border-primary/40"><button className="flex min-w-0 flex-1 items-center gap-4 rounded-xl px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" onClick={() => { void research.openSession(id).then(() => openView('chat')).catch(err => setError(err instanceof Error ? err.message : '无法打开该对话')); }}>
         <span className="rounded-xl bg-primary/10 p-2.5 text-primary"><MessageSquare size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{list.byId[id]?.displayTitle || list.byId[id]?.title || '新对话'}</span><span className="mt-1 block text-xs text-muted-foreground">{list.byId[id]?.running ? '研究进行中' : '继续研究'}{updated(id) > 0 && <span> · {new Date(updated(id)).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}</span></span><ArrowUpRight size={16} className="shrink-0 text-muted-foreground group-hover:text-primary" />
@@ -733,7 +733,7 @@ export function apply(ctx: Context) {
       }, error => { if (active) setState(error instanceof Error ? error : new Error(String(error))); });
       return () => { active = false; };
     }, []);
-    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，未加载选择：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
+    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，自选和研究名单暂时加载不出来：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
     return <FinanceRoot slots={props} research={researchHost} sessionError={sessionError} showDetails={showDetails}>
       <RouterProvider router={router} />
     </FinanceRoot>;

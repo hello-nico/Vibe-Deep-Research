@@ -72,7 +72,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     // 用户取消/切换模式不是连接故障，保留 AbortError 给界面识别。
     init?.signal?.throwIfAborted();
     // fetch 只在网络层失败时抛。这里不能静默成空数据,否则页面把"连不上"渲染成"没有数据"
-    throw new ApiError(`连接不到编排器 API:${e instanceof Error ? e.message : String(e)}`, 0, "network");
+    throw new ApiError(`连不上本机服务，请确认工作台已启动（${e instanceof Error ? e.message : String(e)}）`, 0, "network");
   }
   const text = await res.text();
   let body: unknown = null;
@@ -80,7 +80,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     body = text ? JSON.parse(text) : null;
   } catch {
     // 代理错误页是 HTML,直接 res.json() 会炸在 "Unexpected token <",把真正原因埋掉
-    throw new ApiError(`返回不是 JSON:${text.slice(0, 120)}`, res.status, "bad_response");
+    throw new ApiError('本机服务返回了无法识别的内容，请刷新后重试', res.status, "bad_response");
   }
   if (!res.ok) {
     const b = body as { error?: string; message?: string } | null;
@@ -360,7 +360,7 @@ export function noteKV(note: string | undefined): Record<string, string> {
 }
 
 const notWiredError = (what: string) =>
-  new ApiError(`「${what}」还没接到底座上(不是没有数据,是这条链路还没做)`, 501, "not_wired");
+  new ApiError(`「${what}」暂未接入`, 501, "not_wired");
 
 /**
  * 这一块底座还没接 —— **返回一个被拒绝的 Promise**。

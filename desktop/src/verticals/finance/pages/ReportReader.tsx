@@ -78,7 +78,7 @@ function DocumentReader({ id }: { id: string }) {
     if (format === 'pdf') return;
     if (pinned && (!revision || !hash)) {
       setText('');
-      setError('历史引用缺少解析版本，无法定位原文，不会改读最新正文。');
+      setError('这条旧引用对应的版本已找不到，无法定位原文，不会改用最新版本代替。');
       return;
     }
     const controller = new AbortController();
@@ -96,7 +96,7 @@ function DocumentReader({ id }: { id: string }) {
         if (controller.signal.aborted) return;
         setText('');
         setError(err instanceof Error && err.message === 'version-missing'
-          ? '该解析版本正文不可用，不会改读最新正文。'
+          ? '这个版本的正文已无法读取，不会改用最新版本代替。'
           : '正文暂时无法读取，请稍后重试或打开原件。');
       });
     return () => controller.abort();
@@ -104,7 +104,7 @@ function DocumentReader({ id }: { id: string }) {
   useEffect(() => {
     if (!requestedBlock) return;
     if (!revision || !hash) {
-      setError('历史引用缺少解析版本，无法定位原文，不会改读最新正文。');
+      setError('这条旧引用对应的版本已找不到，无法定位原文，不会改用最新版本代替。');
       return;
     }
     const controller = new AbortController();
@@ -163,7 +163,7 @@ function DocumentReader({ id }: { id: string }) {
     {confirmHide && <div className="library-modal-backdrop" role="dialog" aria-label="从我的资料移除" onClick={() => !hiding && setConfirmHide(false)}>
       <div className="library-modal" onClick={event => event.stopPropagation()}>
         <h2 className="mb-3 font-semibold">从我的资料移除</h2>
-        <p className="mb-4 text-sm text-muted-foreground">只从「我的资料」拿掉。原件、解析和旧引用还在；旧对话仍可打开。</p>
+        <p className="mb-4 text-sm text-muted-foreground">只从「我的资料」列表移除。原文件和历史引用会保留，旧对话仍可打开。</p>
         <div className="flex justify-end gap-2">
           <button type="button" className="workspace-action" disabled={hiding} onClick={() => setConfirmHide(false)}>取消</button>
           <button type="button" className="workspace-action workspace-action-primary" disabled={hiding} onClick={() => {

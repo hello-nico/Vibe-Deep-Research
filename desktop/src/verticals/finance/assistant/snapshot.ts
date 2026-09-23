@@ -58,7 +58,6 @@ export function formatCompanyFromSnapshot(
     row.boards != null ? `  连板：${row.boards} 板` : '',
     `  页面显示：现价 ${row.price ?? '—'}，涨跌幅 ${pct}，成交额 ${amount}${floatCap}`,
     row.industry ? `  行业：${row.industry}` : '',
-    '  说明：以上来自发送时页面快照，不是工具读取结果。',
   ].filter(Boolean).join('\n');
 }
 

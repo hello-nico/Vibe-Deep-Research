@@ -43,3 +43,34 @@ test('旧 serialize 的 parse_revision_id 字段一并收进 chip', async () => 
     assert.match(root.textContent || '', /继续/);
   } finally { await server.close(); }
 });
+
+test('八种 @ 引用连同模型说明一并折叠，用户文字保留', async () => {
+  const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
+  try {
+    const { markResearchMentions, MENTION_NOTES: N } = await server.ssrLoadModule('/src/verticals/finance/lib/researchMentions.ts');
+    const hash = 'e'.repeat(64);
+    const cases: [string, string, string, string?][] = [
+      [`引用资料：年报.pdf \`document:${'a'.repeat(32)}\`${N.documentUnparsed}`, `document:${'a'.repeat(32)}`, '年报.pdf', '（正文还在处理）'],
+      [`引用议题：储能 \`topic:${'b'.repeat(12)}\``, `topic:${'b'.repeat(12)}`, '储能'],
+      [`引用材料：贵州茅台 \`companies/600519-sh@${hash}\`${N.wikiStale}`, `companies/600519-sh@${hash}`, '贵州茅台', '（页面已更新，请重新引用）'],
+      [`引用来源：https://www.cninfo.com.cn/a.pdf \`url:https://www.cninfo.com.cn/a.pdf\`${N.url}`, 'url:https://www.cninfo.com.cn/a.pdf', 'www.cninfo.com.cn'],
+      [`引用公司行情：600519.SH \`company:600519.SH\`${N.company}`, 'company:600519.SH', '600519.SH 行情'],
+      [`引用宽基指数集合 \`market:indices\`${N.indices}`, 'market:indices', '宽基指数集合'],
+      [`引用宽基指数：沪深300 \`market:000300.SH\`${N.index('000300.SH')}`, 'market:000300.SH', '沪深300'],
+      [`引用产业研究 Profile \`profile:sw2:801010:${hash}\`${N.profile}`, `profile:sw2:801010:${hash}`, '产业研究'],
+      [`引用日历日 2026-09-23 \`date:2026-09-23\`${N.date}`, 'date:2026-09-23', '2026-09-23'],
+    ];
+    for (const [serialized, ref, label, status] of cases) {
+      const win = new Window();
+      const root = win.document.createElement('div');
+      root.textContent = `${serialized} 今天怎么看`;
+      win.document.body.append(root);
+      markResearchMentions(root);
+      const chip = root.querySelector('[data-research-mention]');
+      assert.equal(chip?.getAttribute('data-ref'), ref, ref);
+      assert.equal(chip?.textContent, label, ref);
+      assert.doesNotMatch(root.textContent || '', /observe_market|marketBenchmarkId|read_industry_profile|Theme Wiki|asOf|symbol|解析|`/, ref);
+      assert.equal(root.textContent, `${label}${status ?? ''} 今天怎么看`, ref);
+    }
+  } finally { await server.close(); }
+});
