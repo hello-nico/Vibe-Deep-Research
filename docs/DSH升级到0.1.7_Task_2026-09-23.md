@@ -1,6 +1,6 @@
 # DSH 升级到 0.1.7
 
-状态：2026-09-23 用户确认升级 DSH 以获取对研究工作台有利的新特性；本 Task 由 Claude Code 规划，Codex / Cursor 按本文实施并回填 §9。**先做 S1 只读盘点并停下待审**，审过再做 S2 起的改动。不提交、不 push。
+状态：2026-09-23 用户确认升级 DSH 以获取对研究工作台有利的新特性；本 Task 由 Claude Code 规划，Codex / Cursor 按本文实施并回填 §9。S1 已完成并审阅通过（§9.1a），**放行 S2–S4**。不提交、不 push。
 
 权威：[Human Checklist](../human-checklist.md)「DSH 升级（2026-09-23）」；[todo §7](../todo.md)；产品运行时与补丁归属见 [runtime README](../desktop/dsh/runtime/README.md)；前序发现见[深度对话提示词与文案收敛 Task §9.2](深度对话提示词与文案收敛_Task_2026-09-23.md)。
 
@@ -19,7 +19,7 @@
 - 目标版本 **0.1.7-alpha.2**，Vibe runtime 与 Stock 研究插件同步升级、精确锁版本（不用 `^`）。只有 0.1.7 提供特性 1、2；若 S1 发现阻断，按 §8 停止，由用户裁决是否退到 0.1.5-rc.3（放弃特性 1、2）。
 - 13 个补丁逐项按 runtime README 的“移除条件”判断：上游已等价 → 删除；仍需要 → 重做到新版；不能为了安装成功删除失败的补丁（README 既有规则）。
 - 保留产品现有能力与边界：金融布局与导航、五页问助手 Ask / Agent、模型设置入口、研究插件工具与权限、`cordis.patch.yml` 对 bash / PowerShell / 文件工具的关闭、`surfaceContext: false`。不引入桌面壳、终端或多面板。
-- 历史会话（`.local/dsh/sessions`，约 20MB，3 个工作区目录）升级后必须仍可打开、续聊；不迁移、不删除会话数据。
+- 历史会话为**尽力可读**（用户 2026-09-23 决定：不在乎历史会话，只要核心对象数据在）：新版因含研究插件自定义事件而拒绝迁移的旧会话可以打不开，原文件保留、不删除、不改写，不为其打历史迁移补丁；核心对象（公司 / 行业 Wiki、资料、证据、维护提案、议题、研究成果）在 Stock Backend，不受会话文件影响。**升级后新产生的会话必须可重启重读**：`dsh-session` 的 `ignorable` 写入补丁在 0.1.7 上重做。
 - 默认显示模式用 Compact（上游默认）；运行中文案沿用产品“研究中…”（`dsh-client-ui-chat` 文案补丁需覆盖新增的 `message.turnProcess.deepDivingFor` 等键）。
 
 ## 3. 步骤
@@ -36,7 +36,9 @@
 
 ### S2 隔离升级
 
-- 另开 `DSH_HOME` 副本（复制 `.local/dsh`，不动原目录）与独立端口启动，不影响现用工作台。
+- **代码隔离**：两仓各开独立 git worktree（Vibe 与 Stock-Research 各一个，位于仓库外目录），S2–S3 的依赖安装、补丁、构建与改码全部在 worktree 内进行；**不得在主目录执行 `npm ci` / `pnpm install` / 重建 Stock `dist`**——现用工作台与并行的 [T2](界面零件统一_T2_Task_2026-09-23.md) 验收依赖主目录的 `desktop/dsh/runtime/node_modules` 与 Stock `dsh/dist`。
+- 另开 `DSH_HOME` 副本（复制 `.local/dsh`，不动原目录）与独立端口，从 worktree 启动隔离运行，不影响现用工作台。
+- S3 合回主目录须在 T2 提交之后，基于其提交重放（两者都改 `desktop/src/verticals/finance/dsh/client.tsx`）；S4 在主目录执行前确认工作区干净。
 - 按处置表升级两仓依赖与 lockfile，重做保留补丁（`patch-package` 生成，`--error-on-fail` 通过），构建 Stock 插件 `dist` 与产品 UI。
 
 ### S3 适配
@@ -62,7 +64,7 @@ Vibe：`desktop/dsh/runtime/{package.json,package-lock.json,patches/,README.md}`
 - 自动：Vibe `cd desktop && npm run typecheck && node --test test/*.test.ts`；Stock `cd dsh && pnpm run test`（含构建）；`cd desktop/dsh/runtime && npm ci` 补丁全部应用成功；两仓 `git diff --check`。
 - 真实运行（隔离环境与切换后各一轮，截图存放位置写入 §9）：
   1. 深度对话：新问题 → 工具调用 → 最终回答；完成后过程折叠为“用时 X”，展开见分组与单个工具；引用与图表可点；停止与失败时过程保持展开。
-  2. 历史会话：三个工作区目录中各打开一条旧会话并续聊一轮。
+  2. 会话重读：升级后新建一条含研究状态 / 维护 / 议题候选节点的会话，重启 DSH 后能打开、节点正常显示；旧会话仅统计可读 / 不可读数量（不作为通过条件）。
   3. 报告子任务：生成、过程查看、历史重开、中止、成果读回（todo §7 要求的真实子 Agent 路径）。
   4. 议题研究会话、公司研究首问、@ 三类引用、我的资料读取。
   5. 五页问助手 Ask / Agent 各一次；Agent 维护提案的原生选项确认可用。
@@ -86,7 +88,7 @@ Vibe：`desktop/dsh/runtime/{package.json,package-lock.json,patches/,README.md}`
 ## 8. Stop Conditions
 
 - S1 结束：无论结论，停下待审。
-- 旧会话无法读取，或需要改写会话文件才能读：停止，回填差异，不做数据迁移。
+- 升级后**新建**会话（含研究插件事件）重启后无法读取：停止。旧会话打不开不构成停止条件，但须统计数量回填；任何改写旧会话文件的操作仍禁止。
 - 某补丁在新版既无等价实现又无法重做：停止该项，列出影响范围交裁决，不删除了事。
 - 产品依赖的 slot / 注入接口在 0.1.7 被移除且无替代：停止，记录替代候选。
 - 同一问题连续两次修补仍失败：保存现场（版本、日志、截图），停止并回填。
@@ -118,6 +120,7 @@ Vibe：`desktop/dsh/runtime/{package.json,package-lock.json,patches/,README.md}`
 **产品接口核对。** `desktop/dsh/finance-ui/server.mjs:7` 注入 `webServer,llm,agentDefaultModel,sessions,sessionPersistence,agents,subagents`；路由注册、模型选择/流、持久化 inspect、Agent 创建与子 Agent 启动在上游仍有同名服务（`U/packages/host/`、`packages/llm/`、`packages/api/session-controller/`），具体返回结构须 S2 编译/隔离运行核对。`cordis.patch.yml` 对 `system-prompt`、`web-runtime.surfaceContext` 及 bash/PowerShell/文件工具的禁用必须按实际 profile 检查，不以配置文本代替权限验证。
 
 - `desktop/src/verticals/finance/dsh/client.tsx:112-173` 注入 `slots,connection,theme,sessions,workspaces,inputTriggers,uiConversation,conversation,modelDirectories`。上游保留 `inputTriggers.registerSource`（`U/packages/client/ui-input-trigger/src/client/service.ts:55`）、`chatFileMentions.forClosing`（`ui-chat/src/client/contract/slots.ts`）、`uiConversation.events.register`/`binding`（`ui-conversation/src/client/conversation/{event-registry,assembly}.ts`）、`reflect.provide('layout')`（`ui-layout/src/client/index.ts:160`）；产品自供 layout/mention 时需防止与上游插件重复注册。
+- 同一注入面的 `theme.getTheme/setTheme` 与 `theme/change`（`U/packages/client/ui-theme/src/client/index.ts:203,232`）、`modelDirectories.directoryFor(id).load/select`（`ui-model-selection/src/client/{service,directory}.ts`）、`conversation.input.for(scope).insertReference/notify`（`ui-conversation/src/client/contract/input.ts:172-213`）仍有同名入口；`connection.state`、slot 注入/注册的返回结构及产品手写 `Client` 类型还须 S2 对新版实际类型核对，不能以可选字段掩盖缺席服务。
 - `client.tsx:185,583-748` 与 `result-node.tsx:22-29` 使用 `conversation.hero.brand.mark`、`conversation.view`、`conversation.session.header.utilities`、`conversation.input.left/dock`、`shell.overlay`、`conversation.chat.assistant-actions`、`sidebar.settings`，以及 keyed `conversation.chat.node` 的 `finance-research-status/maintenance/topic-candidate/result`；这些 seat 在 `U/packages/client/{ui-conversation,ui-chat,ui-layout,ui-sidebar}/src/client/contract/slots.ts` 仍存在。`root`、`sidebar` 是产品自注册 seat（`NativeDsh.tsx:31-32`），不是上游标准 UI 的替代承诺；owner props/key 匹配须 S2 typecheck 和浏览器验证。
 - `client.tsx:225-568` 与 `assistant/apply.ts:84-155,249` 的 `sessions.refresh/list/create/scope/sessionOf`、`workspaces.create/list/archiveSession` 均仍存在（`U/packages/api/{session-controller,workspace-controller}/src/client`），但 **`sessions.open` 已移除，`list.current`/`subagentsByParent` 已移除**；使用 `retain(id,{source})`/`release()` 与 `subagentAddress(id)`/`refreshProjections(parentId)`。新版 `create()` 只给目录身份，未 retain 前 `scope`、`sessionOf` 为 `undefined`；至少 `client.tsx:410-412,513-514`、`assistant/apply.ts:135-137` 不能照旧立即发送。`SessionSummary.updatedAt` 变为 number；`prompt`/`rename` 返回 `RemoteResult`，要按新版结果处理（`U/packages/api/session-controller/src/client/contract/{sessions,session}.ts`）。
 
@@ -125,11 +128,24 @@ Vibe：`desktop/dsh/runtime/{package.json,package-lock.json,patches/,README.md}`
 
 **持久格式与阻断。** 装机 rc.1 `dsh-session` 格式为 v0，新版 `U/packages/core/session/src/types.ts:89` 写 v4；`session-persistence-jsonl/README.md:82` 有 v0→v4 只读准备，读打开本身不改文件，写打开会发布新代文件。对 `.local/dsh/sessions` 仅作结构扫描：3 个工作区共 **259** 个 `session.jsonl.zstd`，均为 v0，解码失败 0；其中 **16 个会话**含 `stock-research/status`、`maintenance`、`topic-candidate` 或 `page-maintenance-assessment` 事件。`U/packages/session/session-format-v0-to-v1/src/validation.ts:113-123` 和 README:45 明确拒绝 v0 的未知插件事件，**即使有 `ignorable:true` 也拒绝**。因此至少这 16 个不能直接经新版历史读取；其他 243 个未逐条用新版迁移器验证，不声称可续聊。这触发 §8 停止条件，不能在原数据上试写或跳过它们。
 
-**依赖闭包。** Vibe `desktop/dsh/runtime/package.json` 四个直接 DSH 包（`dsh,dsh-base,dsh-web-app,dsh-llm-pi-ai`）及 228 项 overrides、`package-lock.json`、13 个补丁必须一起按目标精确版本重算；现有 overrides 含上游已撤的 `dsh-agent-presets,dsh-code-runtime,dsh-code-runtime-worker-thread,dsh-settings-file,dsh-workflow-worker-thread`，新版还有 `dsh-agent-preset(-registry)`、格式迁移/会话投影包等新增闭包，不能机械替换字符串。Stock `S/dsh/package.json` 的 peer/dev `dsh-tools` 与 `cordis` 同步；本地上游 `U/vendor/{cordis,loader}/package.json` 分别是 **4.0.4 / 1.0.5**，现装为 4.0.2 / 1.0.3。Stock 插件的安装闭包与 lockfile 所属位置需 S2 定位并精确锁定，避免第二份运行时。
+**依赖闭包。** Vibe `desktop/dsh/runtime/package.json` 四个直接 DSH 包（`dsh,dsh-base,dsh-web-app,dsh-llm-pi-ai`）及 228 项 overrides、`package-lock.json`、13 个补丁必须一起按目标精确版本重算；现有 overrides 含上游已撤的 `dsh-agent-presets,dsh-code-runtime,dsh-code-runtime-worker-thread,dsh-settings-file,dsh-workflow-worker-thread`，新版还有 `dsh-agent-preset(-registry)`、格式迁移/会话投影包等新增闭包，不能机械替换字符串。Stock `S/dsh/package.json` 的 peer/dev `dsh-tools` 与 `cordis`、`S/dsh/pnpm-lock.yaml`（当前锁 rc.1 / 4.0.2）须同步；本地上游 `U/vendor/{cordis,loader}/package.json` 分别是 **4.0.4 / 1.0.5**，现装为 4.0.2 / 1.0.3。S2 须精确锁定两仓闭包，避免第二份运行时。
 
 **只读对话视图（供产品对象模型 T3）。** 上游 `ui-subagent/src/client/sidebar-chat/index.tsx:109-151` 已示范 `sessions.retain(address,{source,signal})` → `SessionProvider` → `conversation.content` 的 embedded 对话，可复用正式会话、历史及结束后内容并替代 `retainSubagent` 引用管理。`ui-conversation/src/client/skeleton/ConversationContent.tsx:140-187` 的 embedded **仍渲染 composer seat**；`ui-subagent/src/client/SubagentReadOnlyComposer.tsx` 只是说明型只读替换，并非“完全无输入区”配置。T3 可复用上游对话 body，但需产品注册无输入 composer 替换，核对只读权限、释放、中止、历史重开与过程展示后，才能替换 `TaskProcessPanel/TaskTranscript/taskTrajectory` 的展示部分；现阶段不能删除这些组件。
 
 **S1 结论：当前不可直接升级。** 明确阻断为 v0 研究事件冷读失败及新版 append 丢 marker；接口改造和 `link:` 解析是待验证风险。按 §8 停在此处待审。用户需裁决的是历史事件兼容方案及若 0.1.7 无法在不改写旧会话前提下满足验收时，是否改目标版本/范围；本盘点不替用户选择，也不启动 S2。
+
+### 9.1a 审阅结论（2026-09-23，Claude Code）
+
+- 盘点通过。阻断项“v0 研究事件被新版历史迁移拒绝”经核实为上游有意设计（`U/.agents/notes/implemented/architecture/2026-08-31-alpha-historical-unknown-event-refusal.md`：跨格式迁移无法验证外部事件内的序号类引用，照抄可能留下错位引用、丢弃会静默丢数据，故拒绝且不改原文件；同版本读取仍按 `2026-08-30-retain-ignorable-external-session-events.md` 允许带 `ignorable` 的外部信息事件）。
+- 用户决定历史会话不作保证（见 §2），因此**不做历史迁移补丁、不做 S1b**；`dsh-session` 的 `ignorable` 写入补丁按表重做，保证新会话可重读。
+- 盘点结论其余部分（11 个补丁重做、会话接口 `retain/release` 与 `create` 后需 retain 才能发送等适配、只读对话视图需产品注册无输入 composer）按原表进入 S2–S3。**放行 S2。**
+- 长期方向（不在本 Task）：研究插件在会话中只存对 Backend 对象（维护提案、议题候选、研究成果）的引用，展示时回读 Backend，逐步减少对自定义会话事件的依赖。
+
+### 9.1b T2 新增补丁（2026-09-23，主目录）
+
+T2 验收新增第 14 个补丁 `@deepseek-ai+dsh-client-ui-agent-preset+0.1.2-rc.1.patch`：会话列表订阅先握住全局 `list` store，不再在通知回调里回查 inactive conversation isolate 的 `scope.sessions`。S1 盘点时此补丁还不存在，Codex 的 0.1.7 隔离环境也没有它。
+
+**Codex（S2 隔离环境）：** 到个股或行业「图文报告」页硬刷新，看控制台是否仍刷 `cannot get required service "sessions" in inactive context`。上游已修好则标记删除；仍在则按新版重做，并补进补丁处置表。漏掉的话升级后会复发。移除条件见 runtime README 该行。
 
 ### 9.2 S2–S4 升级与切换（待执行）
 
