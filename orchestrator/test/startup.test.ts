@@ -8,7 +8,18 @@ import path from "node:path";
 import { test } from "node:test";
 import { fileURLToPath } from "node:url";
 
-import { assertPortAvailable, createShutdownMonitor, parseStartupArgs, startupMissingFiles, waitUntilReady } from "../src/startup.ts";
+import { spawn } from "node:child_process";
+
+import {
+  assertPortAvailable,
+  createShutdownMonitor,
+  isRepoOwnedCommand,
+  parseStartupArgs,
+  portIsFree,
+  reclaimPort,
+  startupMissingFiles,
+  waitUntilReady,
+} from "../src/startup.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 
@@ -41,10 +52,11 @@ test("各平台安装入口不把 npm 审计网络当成首次启动阻塞", () 
   }
 });
 
-test("启动参数只接受帮助与禁止自动打开浏览器", () => {
-  assert.deepEqual(parseStartupArgs([]), { openBrowser: true, help: false });
-  assert.deepEqual(parseStartupArgs(["--no-open"]), { openBrowser: false, help: false });
-  assert.deepEqual(parseStartupArgs(["-h"]), { openBrowser: true, help: true });
+test("启动参数只接受帮助、禁止自动打开浏览器与强制回收端口", () => {
+  assert.deepEqual(parseStartupArgs([]), { openBrowser: true, reclaimAny: false, help: false });
+  assert.deepEqual(parseStartupArgs(["--no-open"]), { openBrowser: false, reclaimAny: false, help: false });
+  assert.deepEqual(parseStartupArgs(["--reclaim-any"]), { openBrowser: true, reclaimAny: true, help: false });
+  assert.deepEqual(parseStartupArgs(["-h"]), { openBrowser: true, reclaimAny: false, help: true });
   assert.throws(() => parseStartupArgs(["--port", "9000"]), /未知参数/);
 });
 
@@ -74,6 +86,110 @@ test("端口预检会拒绝已经被占用的固定端口", async () => {
   assert.ok(address && typeof address === "object");
   await assert.rejects(assertPortAvailable(address.port), /已被占用/);
   await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+});
+
+test("进程归属只看命令行里是否带本仓库路径", () => {
+  assert.equal(isRepoOwnedCommand(`node ${REPO}/orchestrator/src/api.ts`, REPO), true);
+  assert.equal(isRepoOwnedCommand(`node ${REPO}/desktop/node_modules/vite/bin/vite.js`, REPO), true);
+  assert.equal(isRepoOwnedCommand("/usr/bin/python3 -m http.server 8765", REPO), false);
+  assert.equal(isRepoOwnedCommand("", REPO), false);
+});
+
+test("端口回收默认只结束本仓库上一轮留下的进程", async () => {
+  const killed: Array<{ pid: number; signal: string }> = [];
+  const logs: string[] = [];
+  let listening = true;
+  await reclaimPort(8765, REPO, {
+    find: async () => [{ pid: 4242, command: `node ${REPO}/orchestrator/src/api.ts` }],
+    free: async () => !listening,
+    kill: (pid, signal) => { killed.push({ pid, signal }); listening = false; },
+    sleep: async () => {},
+    log: (message) => logs.push(message),
+  });
+  assert.deepEqual(killed, [{ pid: 4242, signal: "SIGTERM" }]);
+  assert.match(logs.join("\n"), /端口 8765 已被上一轮运行占用/);
+});
+
+test("端口被无关进程占用时默认报错，--reclaim-any 才结束", async () => {
+  const foreign = [{ pid: 777, command: "/usr/bin/python3 -m http.server 8765" }];
+  let killed = 0;
+  await assert.rejects(
+    reclaimPort(8765, REPO, { find: async () => foreign, free: async () => false, kill: () => { killed += 1; } }),
+    /被其他程序的进程占用/,
+  );
+  assert.equal(killed, 0);
+
+  let listening = true;
+  await reclaimPort(8765, REPO, {
+    allowForeign: true,
+    find: async () => foreign,
+    free: async () => !listening,
+    kill: () => { killed += 1; listening = false; },
+  });
+  assert.equal(killed, 1);
+});
+
+test("占用进程不退时升级信号，端口仍不释放则明确失败", async () => {
+  const signals: string[] = [];
+  let listening = true;
+  await reclaimPort(5930, REPO, {
+    graceMs: 0,
+    hardKillMs: 0,
+    find: async () => [{ pid: 99, command: `vite ${REPO}/desktop` }],
+    free: async () => !listening,
+    kill: (_pid, signal) => { signals.push(signal); if (signal === "SIGKILL") listening = false; },
+  });
+  assert.deepEqual(signals, ["SIGTERM", "SIGKILL"]);
+
+  await assert.rejects(
+    reclaimPort(5930, REPO, {
+      graceMs: 0,
+      hardKillMs: 0,
+      find: async () => [{ pid: 99, command: `vite ${REPO}/desktop` }],
+      free: async () => false,
+      kill: () => {},
+    }),
+    /端口仍未释放/,
+  );
+});
+
+test("查不到占用进程时不假装成功", async () => {
+  await assert.rejects(
+    reclaimPort(8765, REPO, { find: async () => [], free: async () => false }),
+    /无法定位占用进程/,
+  );
+});
+
+async function reservePort(): Promise<number> {
+  const server = net.createServer();
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  assert.ok(address && typeof address === "object");
+  const { port } = address;
+  await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+  return port;
+}
+
+test("预检会真的结束本仓库遗留的监听进程并回收端口", async () => {
+  const port = await reservePort();
+  // 命令行里带上仓库路径，模拟上一轮 scripts/start 留下的 api / vite 进程。
+  const blocker = spawn(process.execPath, ["-e", `// ${REPO}\nrequire("node:net").createServer().listen(${port}, "127.0.0.1");`], { stdio: "ignore" });
+  const exited = new Promise<void>((resolve) => blocker.once("exit", () => resolve()));
+  try {
+    const busyDeadline = Date.now() + 5_000;
+    while (await portIsFree(port)) {
+      if (Date.now() > busyDeadline) throw new Error("遗留监听进程没有起来");
+      await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+
+    const logs: string[] = [];
+    await reclaimPort(port, REPO, { log: (message) => logs.push(message) });
+    assert.match(logs.join("\n"), new RegExp(`端口 ${port} 已被上一轮运行占用`));
+    assert.equal(await portIsFree(port), true);
+    await exited;
+  } finally {
+    if (blocker.exitCode === null && blocker.signalCode === null) blocker.kill("SIGKILL");
+  }
 });
 
 test("就绪检查会重试暂时失败的探针", async () => {

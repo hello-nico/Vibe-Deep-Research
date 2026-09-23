@@ -1,5 +1,6 @@
 ﻿$ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
+$reclaimAny = $args -contains "--reclaim-any"
 # Node 运行时预检:版本不够或构建未启用 TypeScript 支持时给出指引,而不是 ERR_UNKNOWN_FILE_EXTENSION(#38)
 & node (Join-Path $root "scripts\check-node.mjs")
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -34,7 +35,45 @@ function Stop-ProcessTree($Process) {
     & taskkill.exe /PID $rootId /T /F *> $null
   }
 }
+function Reset-ProductPort([int]$Port) {
+  $connections = @(Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)
+  if ($connections.Count -eq 0) { return }
+  $owners = @()
+  foreach ($connection in $connections) {
+    $ownerId = [int]$connection.OwningProcess
+    if ($ownerId -le 0) { continue }
+    $info = Get-CimInstance Win32_Process -Filter "ProcessId = $ownerId" -ErrorAction SilentlyContinue
+    $owners += [pscustomobject]@{ Id = $ownerId; CommandLine = [string]$info.CommandLine }
+  }
+  $owners = @($owners | Sort-Object Id -Unique)
+  # 只有命令行里带本仓库路径的进程才算"上一轮运行留下的"；不认识的一律不动。
+  $normalizedRoot = $root.ToLowerInvariant()
+  $own = @($owners | Where-Object { $_.CommandLine.ToLowerInvariant().Contains($normalizedRoot) })
+  $foreign = @($owners | Where-Object { -not $_.CommandLine.ToLowerInvariant().Contains($normalizedRoot) })
+  if ($foreign.Count -gt 0 -and -not $reclaimAny) {
+    $detail = ($foreign | ForEach-Object { "PID $($_.Id)" }) -join "、"
+    throw "端口 $Port 被其他程序的进程占用（$detail）。请先结束该进程后再启动，或用 --reclaim-any 结束后重试。"
+  }
+  $targets = if ($reclaimAny) { $owners } else { $own }
+  if ($targets.Count -eq 0) {
+    throw "端口 $Port 已被占用，但无法定位占用进程。请先结束占用该端口的进程再启动。"
+  }
+  foreach ($target in $targets) {
+    Write-Host "[start] 端口 $Port 已被上一轮运行占用（PID $($target.Id)），正在结束。"
+    $owner = Get-Process -Id $target.Id -ErrorAction SilentlyContinue
+    if ($owner) { Stop-ProcessTree $owner }
+  }
+  $portDeadline = [DateTime]::UtcNow.AddSeconds(5)
+  while ([DateTime]::UtcNow -lt $portDeadline) {
+    if (-not (Get-NetTCPConnection -LocalPort $Port -State Listen -ErrorAction SilentlyContinue)) { return }
+    Start-Sleep -Milliseconds 100
+  }
+  throw "已结束占用 $Port 的进程，但端口仍未释放，请手动确认后重试。"
+}
 try {
+  # pre-start：先回收上一轮留下的 API / 界面进程，再启动；默认只结束本仓库自己的进程。
+  Reset-ProductPort 8765
+  Reset-ProductPort 5930
   $api = Start-Process -FilePath node -ArgumentList @("orchestrator\src\api.ts", "--port", "8765", "--host", "127.0.0.1") -WorkingDirectory $root -PassThru -NoNewWindow
   # UI 由 Vite 按 VRA_LAN 决定绑定；默认回环，API 的回环绑定不变。
   $ui = Start-Process -FilePath npm.cmd -ArgumentList @("run", "dev", "--prefix", "desktop") -WorkingDirectory $root -PassThru -NoNewWindow

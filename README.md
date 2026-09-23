@@ -46,7 +46,7 @@ scripts/setup
 scripts/start
 ```
 
-默认工作台 `http://127.0.0.1:5930`，本机数据服务 8765，DSH 5941。`scripts/start --no-open` 可不自动打开浏览器。模型在工作台设置中配置；不要复制旧浏览器模型配置或用户全局 CLI 登录态。
+默认工作台 `http://127.0.0.1:5930`，本机数据服务 8765，DSH 5941。`scripts/start --no-open` 可不自动打开浏览器。启动前会先回收上一轮遗留的本仓库进程（8765 / 5930），其他程序占用时明确报错，需用 `--reclaim-any` 才一并结束。模型在工作台设置中配置；不要复制旧浏览器模型配置或用户全局 CLI 登录态。
 
 独立运行本机数据服务：`npm run run --prefix orchestrator`。`scripts/doctor` 检查本机数据服务配置和依赖，不代表模型、Backend 或完整业务已验收。
 
