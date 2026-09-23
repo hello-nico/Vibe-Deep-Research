@@ -141,6 +141,8 @@ export interface ResearchSessions {
     loadOlder(): Promise<void>;
   } | null;
   cancelTask(sessionId: string): Promise<void>;
+  /** Native session.cancel — same interrupt as deep-conversation stop. */
+  cancelSession(sessionId: string): Promise<void>;
   topicSessionMatches(topicId: string): boolean;
   subscribeSession(listener: () => void): () => void;
   /** Fires when the session list snapshot (running state, titles) changes. */

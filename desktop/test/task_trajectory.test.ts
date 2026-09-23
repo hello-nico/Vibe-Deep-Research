@@ -54,6 +54,36 @@ test('过程投影保留工具名、参数、结果、耗时和错误，而不�
   assert.equal(snap.hasMore, true);
 });
 
+test('未识别的轨迹事件不产生步骤', () => {
+  const snap = projectTaskTrajectory({
+    raw: {
+      eventNodes: [
+        { kind: 'turn', seq: 1, content: [{ type: 'text', text: '轮次头' }] },
+        { kind: 'step', seq: 2, blocks: [{ kind: 'text', text: '步骤头' }] },
+        { kind: 'request', seq: 3 },
+        { kind: 'user', seq: 4, content: [{ type: 'text', text: '问题' }] },
+        { kind: 'assistant', seq: 5, blocks: [{ kind: 'text', text: '回答' }] },
+      ],
+    },
+  });
+  assert.deepEqual(snap.steps.map(step => step.kind), ['user', 'assistant']);
+  assert.equal(snap.steps.some(step => step.title === '执行记录'), false);
+});
+
+test('web_search 使用中文工具名', () => {
+  assert.equal(toolLabel('web_search'), '网页搜索');
+  const snap = projectTaskTrajectory({
+    raw: {
+      runningCalls: [{ callId: 'c1', name: 'web_search', argsRaw: '{"queries":["铝"]}', time: 1 }],
+      eventNodes: [
+        { kind: 'tool-result', seq: 1, call: { name: 'web_search', argsRaw: '{"queries":["铝"]}' }, content: [{ type: 'text', text: 'ok' }] },
+      ],
+    },
+  });
+  assert.match(snap.runningCalls[0].name, /网页搜索/);
+  assert.match(snap.steps[0].title, /网页搜索/);
+});
+
 test('同名计算步骤按算子与窗口起止区分标题', () => {
   const snap = projectTaskTrajectory({
     raw: {

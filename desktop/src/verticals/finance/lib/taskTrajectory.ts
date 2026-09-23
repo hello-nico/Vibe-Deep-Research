@@ -1,8 +1,13 @@
 import type { TaskTrajectorySnapshot, TaskTrajectoryStep } from '../dsh/research-session';
+import { userFacingRuntimeError } from './userFacingError.ts';
 
 const TOOL_LABELS: Record<string, string> = {
   today: '当前日期',
   wiki_read: '读取研究页',
+  wiki_list_pages: '列出研究页',
+  wiki_search: '搜索研究页',
+  wiki_relations: '读取研究关系',
+  wiki_schema_graph: '读取关系词表',
   read_research_method: '读取研究方法',
   wiki_report_publish: '发布报告',
   wiki_validate_page_draft: '检查研究页草稿',
@@ -10,15 +15,41 @@ const TOOL_LABELS: Record<string, string> = {
   observe_market: '查看行情',
   observe_radar: '查看资讯',
   read_industry_profile: '读取产业研究',
+  discover_industry_profiles: '发现产业研究',
   calculate_metrics: '计算',
   calculate_market_result: '区间计算',
   generate_market_result: '生成行情成果',
   generate_financial_result: '生成财务成果',
+  source_list_documents: '列出文档',
+  source_get_index: '读取文档目录',
+  source_scan_sections: '扫描文档章节',
+  source_read_blocks: '读取文档原文',
+  source_discover_documents: '发现文档',
   source_ingest_periodic_report: '保存定期报告',
   query_observation: '查询公司数据',
-  wiki_search: '搜索研究页',
+  fetch_company_data: '获取公司数据',
+  wiki_refresh_company_api: '刷新公司资料',
   resolve_refs: '识别引用对象',
+  stage_extraction: '整理摘录',
   search_external: '检索外部资料',
+  stock_search_external: '检索外部资料',
+  web_search: '网页搜索',
+  web_fetch: '读取网页',
+  read_research_result: '读取研究成果',
+  topic_list: '列出研究主题',
+  topic_get: '读取研究主题',
+  topic_route: '路由研究主题',
+  topic_update: '更新研究主题',
+  topic_list_links: '列出主题关联',
+  topic_propose_link: '提出主题关联',
+  topic_attach_radar_card: '关联资讯卡片',
+  read_hard_relations: '读取硬关系',
+  read_research_links: '读取研究链接',
+  read_composition_skill: '读取写作方法',
+  note_list: '列出笔记',
+  note_read: '读取笔记',
+  propose_maintenance: '提出维护',
+  review_maintenance: '核对维护',
 };
 
 const OPERATION_LABELS: Record<string, string> = {
@@ -178,7 +209,9 @@ export function projectTaskTrajectory(input: {
     nodes.push(node.data);
   }
   nodes.sort((left, right) => Number(left.seq) - Number(right.seq));
-  const steps: TaskTrajectoryStep[] = nodes.map((node, index) => stepFromNode(node, index));
+  const steps: TaskTrajectoryStep[] = nodes
+    .map((node, index) => stepFromNode(node, index))
+    .filter((step): step is TaskTrajectoryStep => step != null);
   if (data.partial?.blocks) {
     const partial = assistantText(data.partial.blocks);
     if (partial.text || partial.reasoning) {
@@ -204,7 +237,7 @@ export function sameTaskTrajectory(left: TaskTrajectorySnapshot, right: TaskTraj
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
-function stepFromNode(node: Record<string, unknown>, index: number): TaskTrajectoryStep {
+function stepFromNode(node: Record<string, unknown>, index: number): TaskTrajectoryStep | null {
   const kind = String(node.kind || 'event');
   const id = String(node.seq ?? index);
   const time = typeof node.time === 'number' ? node.time : undefined;
@@ -224,16 +257,18 @@ function stepFromNode(node: Record<string, unknown>, index: number): TaskTraject
   if (kind === 'tool-result') {
     const call = node.call && typeof node.call === 'object' ? node.call as { name?: string; argsRaw?: string } : null;
     const durationMs = typeof node.callTime === 'number' && typeof node.time === 'number' ? node.time - node.callTime : undefined;
+    const raw = contentText(node.content);
+    const failed = Boolean(node.isError);
     return {
       id, kind: 'tool', title: toolStepTitle(call?.name || '', call?.argsRaw),
-      body: contentText(node.content),
+      body: failed ? undefined : raw,
       args: prettyArgs(call?.argsRaw),
-      time, durationMs, failed: Boolean(node.isError),
-      error: node.isError ? (contentText(node.content) || '工具执行失败') : undefined,
+      time, durationMs, failed,
+      error: failed ? userFacingRuntimeError(raw, '这一步没有完成') : undefined,
     };
   }
   if (kind === 'turn-error') {
-    return { id, kind, title: '本轮未完成', body: String(node.message || '').trim(), time, failed: true };
+    return { id, kind, title: '本轮未完成', body: userFacingRuntimeError(node.message, '这一轮没有完成'), time, failed: true };
   }
   if (kind === 'turn-max-tokens') {
     return { id, kind, title: '输出达到上限', body: '本轮因长度上限结束。', time };
@@ -241,5 +276,5 @@ function stepFromNode(node: Record<string, unknown>, index: number): TaskTraject
   if (kind === 'compaction') {
     return { id, kind, title: '已精简早期对话', body: String(node.summary || '').trim(), time };
   }
-  return { id, kind, title: '执行记录', body: contentText(node.content) || contentText(node.blocks), time };
+  return null;
 }

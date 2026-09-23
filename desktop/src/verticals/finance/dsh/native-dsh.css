@@ -2,6 +2,17 @@
    The host registers the configured workspace; this internal path is not a user control. */
 #dsh-conversation button[aria-label="选择工作区"],
 #dsh-conversation button[aria-label="Choose workspace"] { display: none; }
+/* 0.1.7 ui-agent-preset: header AgentPresetLabel is conversation.session.header.actions
+   (id: agent-preset); empty-session AgentPresetSeat is conversation.hero.agentPreset.
+   Hide slot wrappers only — hashed CSS-module class names change on upgrade.
+   Slot anchors carry inline style display:contents, so !important is required. */
+#dsh-conversation [data-slot="conversation.session.header.actions"],
+#dsh-conversation [data-slot="conversation.hero.agentPreset"] { display: none !important; }
+/* 0.1.7 sidebar-right ExpandButton sits in conversation.session.header.corner
+   (data-conversation-header-corner), past 新建对话. Hide for now — do not
+   patch DSH; the right panel itself is unchanged. */
+#dsh-conversation [data-slot="conversation.session.header.corner"],
+#dsh-conversation [data-conversation-header-corner] { display: none; }
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
 #dsh-conversation[data-assistant-seat] {
   border: none;

@@ -1,4 +1,5 @@
 import type { AssistantPlugin } from './binding.ts';
+import { userFacingRuntimeError } from '../lib/userFacingError.ts';
 
 export type AssistantMode = 'ask' | 'agent';
 
@@ -33,6 +34,21 @@ export class AssistantBindingError extends Error {
   constructor(status: number, message: string) { super(message); this.status = status; }
 }
 
+export function isMissingAssistantSession(error: unknown): boolean {
+  if (error instanceof AssistantBindingError) return error.status === 404;
+  if (error && typeof error === 'object' && 'status' in error && Number((error as { status: unknown }).status) === 404) return true;
+  const text = [
+    error instanceof Error ? error.message : '',
+    error && typeof error === 'object' && 'code' in error ? String((error as { code: unknown }).code) : '',
+  ].join(' ');
+  return /session/i.test(text) && /not[- ]found/i.test(text);
+}
+
+export function assistantSessionErrorMessage(error: unknown, fallback = '问助手没能启动，请重试'): string {
+  if (isMissingAssistantSession(error)) return '上次问助手会话已经失效，请再试一次';
+  return userFacingRuntimeError(error, fallback);
+}
+
 export async function bindAssistantSession(input: {
   mode: AssistantMode;
   session_id: string;
@@ -47,7 +63,9 @@ export async function bindAssistantSession(input: {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new AssistantBindingError(response.status, typeof body.detail === 'string' ? body.detail : '问助手没能启动，请重试');
+    throw new AssistantBindingError(response.status, assistantSessionErrorMessage(
+      Object.assign(new Error(typeof body.detail === 'string' ? body.detail : ''), { status: response.status }),
+    ));
   }
   return response.json() as Promise<{
     plugin: AssistantPlugin;

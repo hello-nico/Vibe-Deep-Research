@@ -16,6 +16,7 @@ import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } 
 import { applyAssistant } from "../assistant/apply.ts";
 import { cancelReportRun, loadReportTasks, startReportRun } from "../lib/reportTasks";
 import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
+import { userFacingRuntimeError } from "../lib/userFacingError";
 import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
 import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
 import { hydrateWatch } from "../lib/watchlist";
@@ -96,6 +97,7 @@ interface HistorySession {
   loadOlder?(): Promise<void>;
   rename(title: string): Promise<{ ok: boolean }>;
   prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }>;
+  cancel?(): Promise<{ ok: boolean }>;
   getSnapshot?(): {
     running?: boolean;
     lastAgentError?: string | null;
@@ -569,6 +571,17 @@ export function apply(ctx: Context) {
     return store;
   }, async cancelTask(sessionId: string) {
     await cancelReportRun(sessionId);
+  }, async cancelSession(sessionId: string) {
+    await session;
+    const reference = client.sessions.retain(sessionId, { source: 'controllerOperation' });
+    try {
+      await reference.ready;
+      const face = reference.binding.session;
+      if (!face.cancel) throw new Error('当前会话无法中止');
+      if (!(await face.cancel()).ok) throw new Error('没能停止当前回答');
+    } finally {
+      reference.release();
+    }
   }, topicSessionMatches(topicId: string) {
     return openedTopicId === topicId && !!openedSessionId;
   }, subscribeSession(listener: () => void) {
@@ -721,7 +734,7 @@ export function apply(ctx: Context) {
       {hidden.status === 'loading' && !compact && <p role="status" className="text-sm text-muted-foreground">正在加载对话…</p>}
       {hidden.status === 'error' && <p role="alert" className="text-sm text-destructive">历史对话暂时加载不出来。<button type="button" className="workspace-action workspace-action-compact ml-2" onClick={() => { void refreshHiddenChats(); }}>重试</button></p>}
       {readyHidden && ids.length === 0 && <div className="rounded-2xl border border-dashed border-border p-12 text-center"><MessageSquare size={28} className="mx-auto mb-4 text-muted-foreground/50" /><p className="text-sm text-muted-foreground">还没有历史对话，从一个感兴趣的问题开始吧。</p></div>}
-      <div className={compact ? 'grid max-h-64 gap-2 overflow-y-auto' : 'space-y-3'} style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 24rem), 1fr))' } : undefined}>{ids.map(id => <div key={id} className="group flex min-w-0 items-center rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30 focus-within:border-primary/40"><button className="flex min-w-0 flex-1 items-center gap-4 rounded-xl px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" onClick={() => { void research.openSession(id).then(() => openView('chat')).catch(err => setError(err instanceof Error ? err.message : '无法打开该对话')); }}>
+      <div className={compact ? 'grid max-h-64 gap-2 overflow-y-auto' : 'space-y-3'} style={compact ? { gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 24rem), 1fr))' } : undefined}>{ids.map(id => <div key={id} className="group flex min-w-0 items-center rounded-xl border border-border bg-card shadow-sm transition-colors hover:border-primary/30 hover:bg-muted/30 focus-within:border-primary/40"><button className="flex min-w-0 flex-1 items-center gap-4 rounded-xl px-5 py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-primary/40" onClick={() => { void research.openSession(id).then(() => openView('chat')).catch(err => setError(userFacingRuntimeError(err, '无法打开该对话'))); }}>
         <span className="shrink-0 rounded-xl bg-primary/10 p-2.5 text-primary"><MessageSquare size={18} /></span><span className="min-w-0 flex-1"><span className="block truncate whitespace-nowrap text-sm font-medium">{list.byId[id]?.displayTitle || list.byId[id]?.title || '新对话'}</span><span className="mt-1 block truncate whitespace-nowrap text-xs text-muted-foreground">{list.byId[id]?.running ? '研究进行中' : '继续研究'}{updated(id) > 0 && <span> · {new Date(updated(id)).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}</span></span><ArrowUpRight size={16} className="shrink-0 text-muted-foreground group-hover:text-primary" />
       </button><div className="mr-3 shrink-0 border-l border-border pl-3"><button type="button" disabled={archiving !== null || list.byId[id]?.running} title={list.byId[id]?.running ? '研究结束后可归档' : '归档后从历史列表移除，保留对话内容'} aria-label={`归档 ${list.byId[id]?.displayTitle || list.byId[id]?.title || '新对话'}`} className="inline-flex h-10 w-24 items-center justify-center gap-2 rounded-lg text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => { void archive(id); }}><Archive size={16} />{archiving === id ? '归档中' : '归档'}</button></div></div>)}</div>
     </div></div>;
@@ -740,11 +753,11 @@ export function apply(ctx: Context) {
         if (!active) return;
         setState("ready");
         session ??= openSession();
-        void session.catch(error => { if (active) setSessionError(String(error)); });
+        void session.catch(error => { if (active) setSessionError(userFacingRuntimeError(error, '研究服务暂时连不上，请稍后重试')); });
       }, error => { if (active) setState(error instanceof Error ? error : new Error(String(error))); });
       return () => { active = false; };
     }, []);
-    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，自选和研究名单暂时加载不出来：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
+    if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，自选和研究名单暂时加载不出来。{userFacingRuntimeError(state, '请重新连接')}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
     return <FinanceRoot slots={props} research={researchHost} sessionError={sessionError}>
       <RouterProvider router={router} />
     </FinanceRoot>;

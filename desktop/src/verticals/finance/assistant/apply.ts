@@ -4,8 +4,8 @@ import type { ResearchSessions, StartSessionResult } from '../dsh/research-sessi
 import { bindAssistantPrompt } from './prompt.ts';
 import { assistantBindingForPage, type AssistantPlugin } from './binding.ts';
 import {
-  AssistantBindingError,
   bindAssistantSession,
+  isMissingAssistantSession,
   loadAssistantSessions,
 } from './sessions.ts';
 
@@ -140,9 +140,10 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
       const reusedMode = input.fresh ? input.mode : (bound?.sessions?.[reusable]?.mode || input.mode);
       try {
         await bindAssistantSession({ session_id: reusable, plugin, mode: reusedMode, target, page_key: bindKey });
+        await withSession(reusable, async () => undefined);
         return { id: reusable, mode: reusedMode as 'ask' | 'agent' };
       } catch (error) {
-        if (!(error instanceof AssistantBindingError && error.status === 404 && list.byId[reusable]?.blank)) throw error;
+        if (!isMissingAssistantSession(error)) throw error;
       }
     }
     const id = await client.sessions.create({ workspaceId });

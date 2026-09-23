@@ -1,10 +1,15 @@
 /* Keep source labels in the answer's text flow. The label is the citation;
-   no generated number or detached superscript is used here. */
+   no generated number or detached superscript is used here.
+   #dsh-conversation beats 0.1.7 MarkdownText.module.css, which injects later. */
+#dsh-conversation code:has(button[data-evidence-ref]),
+#dsh-conversation code:has(> a[data-web-citation]),
+#dsh-conversation code:has(> a[data-internal-citation]),
 .conversation-citations code:has(button[data-evidence-ref]),
 .conversation-citations code:has(> a[data-web-citation]),
-.conversation-citations code:has(> a[data-internal-citation]) {
+.conversation-citations code:has(> a[data-internal-citation]),
+.finance-cite-root code:has(button[data-evidence-ref]) {
   display: inline;
-  margin: 0 2px;
+  margin: 0;
   padding: 0;
   border: 0;
   background: transparent;
@@ -13,6 +18,12 @@
   white-space: normal;
 }
 
+#dsh-conversation code:has(button[data-evidence-ref])::before,
+#dsh-conversation code:has(button[data-evidence-ref])::after,
+#dsh-conversation code:has(> a[data-web-citation])::before,
+#dsh-conversation code:has(> a[data-web-citation])::after,
+#dsh-conversation code:has(> a[data-internal-citation])::before,
+#dsh-conversation code:has(> a[data-internal-citation])::after,
 .conversation-citations code:has(button[data-evidence-ref])::before,
 .conversation-citations code:has(button[data-evidence-ref])::after,
 .conversation-citations code:has(> a[data-web-citation])::before,
@@ -22,50 +33,106 @@
   content: none;
 }
 
+#dsh-conversation .finance-citation[data-citation-label],
+#dsh-conversation code button[data-evidence-ref],
+#dsh-conversation a[data-web-citation],
+#dsh-conversation a[data-internal-citation],
 .conversation-citations .finance-citation[data-citation-label],
 .conversation-citations code button[data-evidence-ref],
 .conversation-citations a[data-web-citation],
-.conversation-citations a[data-internal-citation] {
-  display: inline-block;
-  max-width: min(22em, 100%);
-  overflow: hidden;
-  padding: 0 3px;
-  border: 0;
-  border-radius: 4px;
-  background: hsl(var(--muted));
-  color: hsl(var(--primary));
-  font: inherit;
-  font-size: .86em;
-  line-height: 1.4;
-  text-overflow: ellipsis;
+.conversation-citations a[data-internal-citation],
+.finance-cite-root .finance-citation {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   vertical-align: baseline;
+  box-sizing: border-box;
+  height: 20px;
+  max-width: 200px;
+  overflow: hidden;
+  margin: 0 2px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: 6px;
+  background: hsl(var(--muted) / .6);
+  color: hsl(var(--muted-foreground));
+  font: inherit;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 20px;
+  text-overflow: ellipsis;
   white-space: nowrap;
   text-decoration: none;
   cursor: pointer;
 }
 
+#dsh-conversation a[data-web-citation] svg,
+#dsh-conversation code button[data-web-citation] svg,
+.conversation-citations a[data-web-citation] svg,
+.conversation-citations code button[data-web-citation] svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+  margin: 0;
+}
+
+/* 年报 / 研究页等内部依据：去掉 0.1.7 外链地球标，只用主色标签。 */
+#dsh-conversation a[data-internal-citation] svg,
+#dsh-conversation code button[data-evidence-ref]:not([data-web-citation]) svg,
+.conversation-citations a[data-internal-citation] svg,
+.conversation-citations code button[data-evidence-ref]:not([data-web-citation]) svg,
+.conversation-citations .finance-citation[data-citation-label] svg {
+  display: none;
+}
+
+#dsh-conversation code button[data-evidence-ref],
 .conversation-citations code button[data-evidence-ref] {
   appearance: none;
 }
 
-.conversation-citations a[data-web-citation],
-.conversation-citations code button[data-web-citation] {
-  padding: 1px 5px;
-  color: hsl(var(--muted-foreground));
-  font-size: .8em;
+#dsh-conversation a[data-internal-citation],
+#dsh-conversation code button[data-evidence-ref]:not([data-web-citation]),
+#dsh-conversation .finance-citation[data-citation-label],
+.conversation-citations a[data-internal-citation],
+.conversation-citations code button[data-evidence-ref]:not([data-web-citation]),
+.conversation-citations .finance-citation[data-citation-label],
+.finance-cite-root .finance-citation {
+  color: hsl(var(--primary));
+  background: hsl(var(--primary) / .08);
 }
 
-.conversation-citations .finance-citation[data-citation-label]:hover,
-.conversation-citations code button[data-evidence-ref]:hover,
-.conversation-citations a[data-web-citation]:hover,
-.conversation-citations a[data-internal-citation]:hover {
+#dsh-conversation a[data-internal-citation]:hover,
+#dsh-conversation a[data-internal-citation]:focus,
+#dsh-conversation code button[data-evidence-ref]:not([data-web-citation]):hover,
+#dsh-conversation .finance-citation[data-citation-label]:hover,
+.conversation-citations a[data-internal-citation]:hover,
+.conversation-citations code button[data-evidence-ref]:not([data-web-citation]):hover,
+.conversation-citations .finance-citation[data-citation-label]:hover {
   background: hsl(var(--primary) / .12);
+  color: hsl(var(--primary));
+  text-decoration: none;
 }
 
+#dsh-conversation a[data-web-citation]:hover,
+#dsh-conversation a[data-web-citation]:focus,
+#dsh-conversation code button[data-web-citation]:hover,
+.conversation-citations a[data-web-citation]:hover,
+.conversation-citations code button[data-web-citation]:hover {
+  background: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  text-decoration: none;
+}
+
+#dsh-conversation .finance-citation[data-citation-label]:focus-visible,
+#dsh-conversation code button[data-evidence-ref]:focus-visible,
+#dsh-conversation a[data-web-citation]:focus-visible,
+#dsh-conversation a[data-internal-citation]:focus-visible,
 .conversation-citations .finance-citation[data-citation-label]:focus-visible,
 .conversation-citations code button[data-evidence-ref]:focus-visible,
 .conversation-citations a[data-web-citation]:focus-visible,
 .conversation-citations a[data-internal-citation]:focus-visible {
   outline: 2px solid hsl(var(--primary));
   outline-offset: 2px;
+  box-shadow: none;
+  text-decoration: none;
 }

@@ -104,7 +104,7 @@ function StepRow({ step, compactUser = false }: { step: TaskTrajectoryStep; comp
   return (
     <li className="finance-assistant-turn is-process">
       <button type="button" className="flex w-full items-start justify-between gap-2 text-left" disabled={!expandable} aria-expanded={open} onClick={() => expandable && setOpen(value => !value)}>
-        <span className="min-w-0">{step.title || '执行记录'}</span>
+        <span className="min-w-0">{step.title}</span>
         {meta && <span className="shrink-0 text-[11px]">{meta}</span>}
       </button>
       {resultIds.length > 0 && <ResultEmbeds ids={resultIds} />}
@@ -146,16 +146,15 @@ export function TaskTranscript({ sessionId, intro, compactUser = false }: { sess
   const failed = Boolean(snap.failed || live?.lastAgentError || live?.promptError);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const hasEvents = snap.steps.length > 0 || snap.runningCalls.length > 0;
-  const status = hasEvents
-    ? (running ? '执行中' : failed ? '未完成' : snap.openState === 'error' ? '执行记录读取失败' : '已结束')
-    : snap.openState === 'error' ? '执行记录读取失败'
-      : snap.openState === 'cold' || snap.openState === 'loading' ? '正在读取执行记录…'
-      : running ? '执行中'
-        : '';
+  const status = running || snap.streaming || snap.openState === 'cold' || snap.openState === 'loading'
+    ? '生成中…'
+    : failed || snap.openState === 'error'
+      ? '未完成'
+      : hasEvents ? '已结束' : '';
   return (
     <div className="min-h-0 flex-1 overflow-auto px-4 py-3">
       {snap.openError && <p className="mb-3 text-sm text-destructive" role="alert">{snap.openError}</p>}
-      {status && <p className="mb-3 text-xs text-muted-foreground" role="status">{status}{snap.streaming ? ' · 生成中' : ''}</p>}
+      {status && <p className="mb-3 text-xs text-muted-foreground" role="status">{status}</p>}
       {snap.hasMore && (
         <button type="button" className="workspace-action workspace-action-compact mb-3" disabled={loadingOlder || snap.loadingOlder} onClick={() => {
           if (!store?.loadOlder || loadingOlder) return;

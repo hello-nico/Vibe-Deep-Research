@@ -1,17 +1,19 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Sparkles, X } from "lucide-react";
+import { ChevronDown, Sparkles, Square, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 import type { AiDockProps } from "../../../../core/ai/AiDock";
 import { useAiWired, useCurrentAiPage, useAiQuestion, usePageAssistantObjects, type PageAssistantObject } from "../../../../core/ai/pageContext";
 import { useResearchSessions } from "../../dsh/research-session";
+import { emptyTaskTrajectory } from "../../lib/taskTrajectory";
 import { TaskTranscript } from "../TaskTranscript";
 import { assistantBindingForPage } from "../../assistant/binding.ts";
 import {
   assistantModeHint,
   assistantIntro,
   assistantSeatSnapshot,
+  assistantSessionErrorMessage,
   setAssistantSeat,
   subscribeAssistantSeat,
   type AssistantMode,
@@ -19,6 +21,7 @@ import {
 
 const noopSubscribe = () => () => {};
 const emptyModelSnapshot = () => null;
+const emptyTrajectorySnapshot = () => emptyTaskTrajectory;
 
 function AssistantMenu({
   label,
@@ -121,7 +124,7 @@ export function AssistantModeSelect() {
       try {
         await sessions.switchAssistantMode(seat.sessionId, next, seat.pageKey);
       } catch (err) {
-        setAssistantSeat({ notice: err instanceof Error ? err.message : "模式没切换成功，请重试" });
+        setAssistantSeat({ notice: assistantSessionErrorMessage(err, "模式没切换成功，请重试") });
         return;
       }
     }
@@ -196,6 +199,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
   const [chips, setChips] = useState<PageAssistantObject[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [sending, setSending] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const openedQuestion = useRef(0);
   const bindKey = useRef("");
   const attachGen = useRef(0);
@@ -251,7 +255,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
     } catch (err) {
       if (attachGen.current !== gen) return;
       setAssistantSeat({ seated: false, busy: false });
-      setError(err instanceof Error ? err.message : "问助手没能启动，请重试");
+      setError(assistantSessionErrorMessage(err));
     }
   }, [page, binding, sessions, seat.mode]);
 
@@ -339,8 +343,39 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
     setMentionQuery(at < 0 ? null : value.slice(at + 1, pos));
   };
 
+  const trajectory = useMemo(() => {
+    if (!sessionId) return null;
+    try { return sessions.trajectory(sessionId); }
+    catch { return null; }
+  }, [sessions, sessionId]);
+  const snap = useSyncExternalStore(
+    trajectory?.subscribe ?? noopSubscribe,
+    trajectory?.getSnapshot ?? emptyTrajectorySnapshot,
+    trajectory?.getSnapshot ?? emptyTrajectorySnapshot,
+  );
+  let live = null as ReturnType<typeof sessions.sessionState>;
+  try { live = sessionId ? sessions.sessionState(sessionId) : null; } catch { live = null; }
+  const running = Boolean(sending || snap.running || live?.running);
+  const hasDraft = Boolean(draft.trim());
+  const showStop = running && !hasDraft;
+
+  const stop = async () => {
+    if (!sessionId || stopping) return;
+    const gen = attachGen.current;
+    setStopping(true);
+    setError("");
+    try {
+      await sessions.cancelSession(sessionId);
+    } catch (err) {
+      if (attachGen.current !== gen) return;
+      setError(assistantSessionErrorMessage(err, "没能停止当前回答"));
+    } finally {
+      if (attachGen.current === gen) setStopping(false);
+    }
+  };
+
   const send = async () => {
-    if (!page || !binding || !sessionId || sending || seat.busy) return;
+    if (!page || !binding || !sessionId || sending || seat.busy || running) return;
     const text = draft.trim();
     if (!text) return;
     const gen = attachGen.current;
@@ -377,7 +412,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
       setMentionQuery(null);
     } catch (err) {
       if (attachGen.current !== gen) return;
-      setError(err instanceof Error ? err.message : "消息没发出去，请重试");
+      setError(assistantSessionErrorMessage(err, "消息没发出去，请重试"));
     } finally {
       if (attachGen.current === gen) setSending(false);
     }
@@ -447,7 +482,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               <p className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap">{activeQuestion.reference.text}</p></details>
             </div>
           )}
-          {(error || seat.notice) && <p role="alert" className="px-4 text-xs text-destructive">{error || seat.notice}</p>}
+          {sessionId && (error || seat.notice) && <p role="alert" className="px-4 text-xs text-destructive">{error || seat.notice}</p>}
           <div className="finance-assistant-composer ai-composer relative border-t border-border/60 p-3">
             {mentionQuery !== null && (
               <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background shadow-lg" role="listbox" aria-label="本页条目">
@@ -468,7 +503,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
             <textarea
               ref={textareaRef}
               value={draft}
-              disabled={!ready || sending}
+              disabled={!ready}
               placeholder={assistantModeHint(seat.mode)}
               aria-label="问助手输入"
               rows={3}
@@ -495,6 +530,9 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
                 }
               }}
             />
+            {running && hasDraft && (
+              <p className="mt-2 text-xs text-muted-foreground">当前回答结束后可发送</p>
+            )}
             <div className="mt-2 flex items-center justify-between gap-2">
               <div className="flex min-w-0 items-center gap-1">
                 <AssistantModeSelect />
@@ -502,11 +540,12 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               </div>
               <button
                 type="button"
-                className="workspace-action workspace-action-compact"
-                disabled={!ready || sending || !draft.trim()}
-                onClick={() => { void send(); }}
+                className="workspace-action workspace-action-compact inline-flex items-center gap-1"
+                aria-label={showStop ? "停止" : "发送"}
+                disabled={!ready || (showStop ? stopping : running || !hasDraft)}
+                onClick={() => { showStop ? void stop() : void send(); }}
               >
-                {sending ? "发送中…" : "发送"}
+                {showStop ? <><Square className="h-3 w-3" />停止</> : "发送"}
               </button>
             </div>
           </div>

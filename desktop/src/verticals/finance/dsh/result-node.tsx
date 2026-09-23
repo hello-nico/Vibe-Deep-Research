@@ -6,6 +6,7 @@ import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { maintenanceDefinition, researchStatusDefinition, resultDefinition, topicCandidateDefinition, type MaintenanceData, type TopicCandidateData } from './result-projection';
 import { adoptCandidate, CANDIDATE_CHANGED, CandidateChoiceNeeded, disposeCandidate, loadCandidate, type TopicCandidate } from '../lib/memory';
 import type { ResearchTopicRouteCandidate } from '../lib/research';
+import { userFacingRuntimeError } from '../lib/userFacingError';
 import { useEffect, useState } from 'react';
 
 interface ResultData { resultId: string }
@@ -75,7 +76,7 @@ function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-cand
       apply(next);
     } catch (err) {
       if (err instanceof CandidateChoiceNeeded) setChoices(err.candidates);
-      else setError(err instanceof Error ? err.message : '操作失败');
+      else setError(userFacingRuntimeError(err, '操作失败'));
     } finally { setBusy(''); }
   };
   return <div className="my-3 rounded-lg border border-[var(--border)] p-3 text-sm">

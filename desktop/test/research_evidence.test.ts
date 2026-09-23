@@ -88,6 +88,21 @@ test('引用只使用完整身份，保留缩写和 Markdown 结构', async () =
   assert.match(render('[原文](https://example.com)'), /href="https:\/\/example.com"/);
 });
 
+test('相对 /evidence 深链与 provider 都算站内依据', async () => {
+  const source = `source:doc:r1:${'a'.repeat(64)}:p1:b1`;
+  const previous = globalThis.window;
+  Object.assign(globalThis, { window: { location: { href: 'http://127.0.0.1:5930/chat', origin: 'http://127.0.0.1:5930' } } });
+  try {
+    const { evidenceDeepLinkRef, inAppEvidenceRef } = await import('../src/verticals/finance/lib/citationMarks.ts');
+    assert.equal(evidenceDeepLinkRef('/evidence?ref=' + encodeURIComponent(source)), source);
+    assert.equal(evidenceDeepLinkRef('http://127.0.0.1:5930/evidence?ref=' + encodeURIComponent(source)), source);
+    assert.equal(inAppEvidenceRef('provider:hithink:query-1'), 'provider:hithink:query-1');
+    assert.equal(evidenceDeepLinkRef('https://example.com/evidence?ref=' + encodeURIComponent(source)), null);
+  } finally {
+    Object.assign(globalThis, { window: previous });
+  }
+});
+
 test('网页定位符只作为引用身份，不进正文', async () => {
   const { webCitationUrl, webCitationView, citationReference, citationTitle } = await import('../src/verticals/finance/lib/citationMarks.ts');
   const href = 'https://www.cnfin.com/hs-lb/detail/20260911/4468987_1.html';

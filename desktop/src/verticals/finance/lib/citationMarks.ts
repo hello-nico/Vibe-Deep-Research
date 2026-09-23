@@ -59,15 +59,27 @@ export function outboundWebUrl(value: string): string | null {
 
 /**
  * 产品证据深链：同源 /evidence?ref=…（由 Stock dsh citationUri 单一 Owner 生成）。
- * 返回其中的不透明引用；非同源、路径不符或引用语法非法返回 null（当普通外链处理）。
+ * 相对路径与绝对同源地址都算；非同源、路径不符或引用语法非法返回 null。
  */
 export function evidenceDeepLinkRef(value: string): string | null {
   if (typeof window === 'undefined') return null;
+  const text = value.trim();
+  if (!text) return null;
   let url: URL;
-  try { url = new URL(value.trim()); } catch { return null; }
+  try { url = new URL(text, window.location.href); } catch { return null; }
   if (url.origin !== window.location.origin || url.pathname !== '/evidence') return null;
   const ref = url.searchParams.get('ref') || '';
   return citationReference(ref) ? ref : null;
+}
+
+/** 文档 / API 类依据：站内点开只出右侧栏，不跟 href 跳页。网页外链不走这里。 */
+export function inAppEvidenceRef(value: string): string | null {
+  return evidenceDeepLinkRef(value) || citationReference(value.trim());
+}
+
+/** 普通主键点击开右侧栏；Cmd/Ctrl/Shift/Alt 或非左键交给浏览器开新窗口。 */
+export function citationClickOpensPanel(event: { button: number; metaKey?: boolean; ctrlKey?: boolean; shiftKey?: boolean; altKey?: boolean }): boolean {
+  return event.button === 0 && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey;
 }
 
 export function webCitationView(value: string, explicitTitle?: string): { title: string; text: string; href: string } | null {

@@ -5,7 +5,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X } from 'lucide-react';
 import { decodeEvidenceLink, loadEvidence, type EvidenceView } from '../lib/evidence';
-import { citationReference, webCitationView } from '../lib/citationMarks';
+import { citationClickOpensPanel, citationReference, inAppEvidenceRef, outboundWebUrl, webCitationView } from '../lib/citationMarks';
 import { useAiQuestion } from '../../../core/ai/pageContext';
 import { documentObject } from '../lib/assistantObjects';
 import { useFinanceOverlayTarget } from './layout/FinanceAssistantSurface';
@@ -28,8 +28,26 @@ export function EvidenceProvider({ children }: { children: ReactNode }) {
       const reference = (event as CustomEvent<string>).detail;
       if (typeof reference === 'string') openEvidence(reference, null);
     };
+    const intercept = (event: MouseEvent) => {
+      if (!citationClickOpensPanel(event)) return;
+      const target = event.target instanceof Element ? event.target : null;
+      const anchor = target?.closest('a[href], a[data-internal-citation]');
+      if (!(anchor instanceof HTMLAnchorElement) || anchor.dataset.webCitation === 'true') return;
+      if (anchor.closest('.finance-evidence-panel, .finance-evidence-preview')) return;
+      const reference = inAppEvidenceRef(anchor.dataset.evidenceRef || '')
+        || decodeEvidenceLink(anchor.getAttribute('href') || '')
+        || inAppEvidenceRef(anchor.getAttribute('href') || '');
+      if (!reference || outboundWebUrl(reference)) return;
+      event.preventDefault();
+      event.stopPropagation();
+      openEvidence(reference, null);
+    };
     window.addEventListener('finance-open-evidence', open);
-    return () => window.removeEventListener('finance-open-evidence', open);
+    document.addEventListener('click', intercept, true);
+    return () => {
+      window.removeEventListener('finance-open-evidence', open);
+      document.removeEventListener('click', intercept, true);
+    };
   }, [openEvidence]);
   useEffect(() => { select(previous => previous?.locationKey === location.key ? previous : null); }, [location.key]);
   const close = () => { select(null); selection?.trigger?.focus(); };

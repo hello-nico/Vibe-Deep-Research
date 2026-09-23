@@ -1,7 +1,7 @@
 import { useEffect, useRef, type HTMLAttributes } from 'react';
 import { EvidenceLink } from './EvidenceCard';
 import { decodeEvidenceLink, loadEvidence } from '../lib/evidence';
-import { citationReference, citationTitle, evidenceDeepLinkRef, webCitationUrl } from '../lib/citationMarks';
+import { citationClickOpensPanel, citationReference, citationTitle, evidenceDeepLinkRef, inAppEvidenceRef, webCitationUrl } from '../lib/citationMarks';
 import { markResearchMentions } from '../lib/researchMentions';
 import './conversation-citations.css';
 
@@ -74,9 +74,8 @@ function hydrateCitationTitles(root: HTMLElement, attempted: Set<string>, resolv
 
 /**
  * Stamp native DSH links/buttons with a readable source label without moving them.
- * External links retain browser navigation; stock-ref links and same-origin
- * /evidence?ref= deep links use the shared evidence panel via the delegated
- * click handler below; direct visits to the deep link open the same panel.
+ * External links retain browser navigation; stock-ref / /evidence?ref= and
+ * provider/source 文档·API 依据由委托点击只开右侧栏，不跳页。直接访问深链仍打开同一面板。
  */
 export function markWebCitations(root: ParentNode): void {
   for (const node of root.querySelectorAll<HTMLAnchorElement>('a[href]')) {
@@ -96,8 +95,7 @@ export function markWebCitations(root: ParentNode): void {
       if (!node.children.length && node.textContent !== label) node.textContent = label;
       node.removeAttribute('title');
       node.setAttribute('aria-label', `查看依据：${label}`);
-      // 保留 href：委托点击处理器会拦截同源深链并在面板打开；未水合/新窗口则整页
-      // 导航到 /evidence?ref= 也能读回同一依据，不依赖 DOM 点击拦截。
+      // 保留 href 供复制 / 新窗口；站内主键点击由委托拦截，只开右侧栏。
       continue;
     }
     const href = webCitationUrl(rawHref);
@@ -170,20 +168,27 @@ export function ConversationCitations({ className = '', ...props }: HTMLAttribut
     const observer = new MutationObserver(stamp);
     observer.observe(node, { subtree: true, childList: true });
     const onClick = (event: MouseEvent) => {
+      if (!citationClickOpensPanel(event)) return;
       const target = event.target instanceof Element ? event.target : null;
       const mention = target?.closest('[data-research-mention]');
       if (mention instanceof HTMLElement && node.contains(mention) && mention.dataset.ref) {
         event.preventDefault();
+        event.stopPropagation();
         window.dispatchEvent(new CustomEvent('finance-open-research-mention', { detail: mention.dataset.ref }));
         return;
       }
-      const anchor = target?.closest('a[data-internal-citation]');
-      if (!(anchor instanceof HTMLAnchorElement) || !node.contains(anchor)) return;
+      const anchor = target?.closest('a[href], a[data-internal-citation]');
+      if (!(anchor instanceof HTMLAnchorElement) || !node.contains(anchor) || anchor.dataset.webCitation === 'true') return;
+      const reference = inAppEvidenceRef(anchor.dataset.evidenceRef || '')
+        || decodeEvidenceLink(anchor.getAttribute('href') || '')
+        || inAppEvidenceRef(anchor.getAttribute('href') || '');
+      if (!reference) return;
       event.preventDefault();
-      window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: anchor.dataset.evidenceRef }));
+      event.stopPropagation();
+      window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: reference }));
     };
-    node.addEventListener('click', onClick);
-    return () => { controller.abort(); observer.disconnect(); node.removeEventListener('click', onClick); };
+    node.addEventListener('click', onClick, true);
+    return () => { controller.abort(); observer.disconnect(); node.removeEventListener('click', onClick, true); };
   }, []);
   return <section {...props} ref={root} className={`conversation-citations ${className}`} />;
 }
