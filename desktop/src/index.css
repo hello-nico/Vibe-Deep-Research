@@ -343,15 +343,15 @@
     white-space: nowrap;
     animation: watch-market-notice 2.4s ease forwards;
   }
-  /* 自选表：数字右齐、动作列收成内容宽，表头与按钮同一条竖线 */
+  /* 自选表：表头与单元格一律左齐；动作列收成内容宽 */
   .watch-table { width: 100%; border-collapse: collapse; font-size: 14px; }
   .watch-table th {
     padding: 8px 10px; border-bottom: 1px solid hsl(var(--border) / .5);
     color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 500; text-align: left;
   }
   .watch-table td { padding: 10px; border-bottom: 1px solid hsl(var(--border) / .3); vertical-align: middle; }
-  .watch-table .watch-col-num { text-align: right; font-variant-numeric: tabular-nums; }
-  .watch-table .watch-col-action { width: 1%; white-space: nowrap; text-align: right; }
+  .watch-table .watch-col-num { text-align: left; font-variant-numeric: tabular-nums; }
+  .watch-table .watch-col-action { width: 1%; white-space: nowrap; text-align: left; }
   .watch-row { transition: background-color .15s; }
   .watch-row:hover, .watch-row.is-open, .watch-row.is-pending { background: hsl(var(--muted) / .35); }
   .watch-row.is-open, .watch-row.is-pending { border-bottom-color: transparent; }

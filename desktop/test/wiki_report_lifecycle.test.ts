@@ -36,6 +36,29 @@ test('图文报告只打开当前版本，不提供历史下拉', async () => {
   } finally { await env.cleanup(); }
 });
 
+test('重新生成立刻卸下旧报告 HTML，改显示生成中', async () => {
+  const env = await boot();
+  try {
+    const current = 'report:' + 'c'.repeat(32);
+    globalThis.fetch = async url => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) return Response.json({ items: [
+        { report_id: current, title: '当前', created_at: '2026-09-23', input_hash: HASH_A, current: true },
+      ] });
+      return Response.json({ report_id: current, html: '<p>OLD_REPORT_HTML</p>', refs: [] });
+    };
+    const sessions = sessionMock({ start() { this.startCalls.push([]); return deferred().promise; } });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '', /OLD_REPORT_HTML/);
+    await env.act(async () => { [...env.container.querySelectorAll('button')].find(button => button.textContent?.includes('重新生成')).click(); });
+    assert.equal(env.container.querySelector('iframe'), null, '旧报告不得继续占着内容区');
+    assert.ok(!env.container.innerHTML.includes('OLD_REPORT_HTML'));
+    assert.ok(env.container.textContent.includes('正在生成图文报告'));
+    assert.equal(sessions.startCalls.length, 1);
+  } finally { await env.cleanup(); }
+});
+
 for (const [status, expected] of [['partial', '部分内容已整理'], ['awaiting_authorization', '你确认后才会显示']]) {
   test(`后台 ${status} 保留真实业务状态，不宣告 Wiki 已发布`, async () => {
     const env = await bootCompany();
@@ -100,6 +123,7 @@ function sessionMock(overrides = {}) {
     trajectory: () => ({ subscribe: () => () => {}, getSnapshot: () => ({ running: false, failed: false, openState: 'open', hasMore: false, loadingOlder: false, runningCalls: [], steps: [], streaming: false }), loadOlder: async () => {} }),
     cancelTask: async () => { this.cancelCalls.push('cancel'); },
     subscribeSessionList: () => () => {},
+    listRunningCompanySymbols: async () => [],
     ...overrides,
   };
 }

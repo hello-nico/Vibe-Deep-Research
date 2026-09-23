@@ -384,7 +384,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /RECENT_LIMIT = 9/);
   assert.match(company, /搜索名称或代码/);
   assert.match(company, /xl:grid-cols-3/);
-  assert.match(company, /DashboardCard/);
+  assert.match(company, /CompanyRosterCard/);
   assert.doesNotMatch(company, /DashboardPanel/);
   assert.match(company, /资料待生成/);
   assert.doesNotMatch(company, /setJoinOpen|加入研究<\//);

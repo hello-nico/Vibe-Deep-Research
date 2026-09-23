@@ -84,6 +84,8 @@ export interface SessionState {
 
 export interface ResearchSessions {
   companySymbols(): Promise<string[]>;
+  /** Running 公司研究 sessions from the same DSH list findCompanySession uses. */
+  listRunningCompanySymbols(): Promise<string[]>;
   start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult>;
   /** Find this company's research session by the shared title convention. */
   findCompanySession(symbol: string): Promise<CompanySessionRef | null>;

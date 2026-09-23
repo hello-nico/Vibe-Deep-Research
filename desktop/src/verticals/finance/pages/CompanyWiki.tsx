@@ -2,11 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
-import { DashboardCard } from '../components/IndustryDashboardCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
-import { aShareQualified, backgroundTaskForSession, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type WikiItem, type WikiPage } from '../lib/research';
+import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
 import { api } from '../lib/api';
@@ -89,6 +88,11 @@ export function CompanyWiki() {
   useEffect(() => sessions.subscribeSessionList(() => setSessionsRev(x => x + 1)), [sessions]);
   const [quoteNames, setQuoteNames] = useState<Record<string, string>>({});
   const [view, setView] = useState<'grid' | 'list'>(() => prefGet(VIEW_KEY) === 'list' ? 'list' : 'grid');
+  const [readyProfiles, setReadyProfiles] = useState<Set<string>>(() => new Set());
+  const [runningSymbols, setRunningSymbols] = useState<Set<string>>(() => new Set());
+  const [reportFlags, setReportFlags] = useState<Record<string, true>>({});
+  const reportAsked = useRef(new Set<string>());
+  const rosterNodes = useRef(new Map<string, Element>());
   const changeView = (next: 'grid' | 'list') => { setView(next); void prefSet(VIEW_KEY, next); };
   const activeSlug = useRef(slug);
   activeSlug.current = slug;
@@ -117,6 +121,28 @@ export function CompanyWiki() {
     void wikiPages('companies', controller.signal).then(setPages).catch(e => { if (!controller.signal.aborted) setWikiError(String(e)); }).finally(() => { if (!controller.signal.aborted) setListLoading(false); });
     return () => controller.abort();
   }, [revision]);
+  useEffect(() => {
+    if (slug) return;
+    const controller = new AbortController();
+    void researchRead<{ items?: { industry_code?: string; status?: string }[] }>('/industries/profiles', { signal: controller.signal })
+      .then(value => {
+        const ready = new Set<string>();
+        for (const item of value.items || []) {
+          if (item.status === 'ready' && item.industry_code) ready.add(item.industry_code.toUpperCase());
+        }
+        setReadyProfiles(ready);
+      })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [slug, revision]);
+  useEffect(() => {
+    if (slug) return;
+    let cancelled = false;
+    void sessions.listRunningCompanySymbols().then(symbols => {
+      if (!cancelled) setRunningSymbols(new Set(symbols));
+    }).catch(() => {});
+    return () => { cancelled = true; };
+  }, [sessions, sessionsRev, slug]);
   const searching = query.trim();
   useEffect(() => {
     const codes = searching ? loadRoster() : loadRoster().slice(0, RECENT_LIMIT);
@@ -133,15 +159,50 @@ export function CompanyWiki() {
     return () => controller.abort();
   }, [rosterRev, revision, searching]);
   const wikiBySlug = new Map((pages ?? []).map(page => [page.slug, page]));
+  const toRow = (symbol: string, company: string | null, wiki?: WikiItem) => ({
+    symbol,
+    slug: company || symbol,
+    title: wiki?.title || quoteNames[symbol] || symbol,
+    hasWiki: Boolean(wiki),
+    aShare: Boolean(company),
+    summary: wiki?.summary,
+  });
   const rows = roster.map(symbol => {
     const company = companySlug(symbol);
-    const wiki = company ? wikiBySlug.get(company) : undefined;
-    return { symbol, slug: company || symbol, title: wiki?.title || quoteNames[symbol] || symbol, hasWiki: Boolean(wiki), aShare: Boolean(company) };
+    return toRow(symbol, company, company ? wikiBySlug.get(company) : undefined);
   });
   const matches = (title: string, code: string, text: string) => `${title} ${code}`.toLowerCase().includes(text.trim().toLowerCase());
   const matched = searching ? rows.filter(row => matches(row.title, row.symbol, searching)) : rows;
   const visible = searching ? matched : matched.slice(0, RECENT_LIMIT);
-  const current = rows.find(row => row.slug === slug) || (slug ? { symbol: symbolFromCompanySlug(slug) || slug, slug, title: wikiBySlug.get(slug)?.title || slug, hasWiki: wikiBySlug.has(slug), aShare: Boolean(symbolFromCompanySlug(slug)) } : undefined);
+  const current = rows.find(row => row.slug === slug) || (slug ? toRow(symbolFromCompanySlug(slug) || slug, symbolFromCompanySlug(slug) ? slug : null, wikiBySlug.get(slug)) : undefined);
+  const visibleSlugs = visible.filter(row => row.hasWiki).map(row => row.slug).join('\0');
+  const attachRoster = (rowSlug: string) => (el: HTMLElement | null) => {
+    if (el) rosterNodes.current.set(rowSlug, el);
+    else rosterNodes.current.delete(rowSlug);
+  };
+  useEffect(() => {
+    if (slug || !visibleSlugs || typeof IntersectionObserver === 'undefined') return;
+    const root = document.getElementById('workspace-main');
+    const io = new IntersectionObserver(entries => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const targetSlug = (entry.target as HTMLElement).dataset.rosterSlug;
+        if (!targetSlug || reportAsked.current.has(targetSlug)) continue;
+        reportAsked.current.add(targetSlug);
+        void researchRead<{ items?: unknown[] }>('/wiki/reports?slug=' + encodeURIComponent(targetSlug))
+          .then(result => {
+            if (Array.isArray(result.items) && result.items.length) {
+              setReportFlags(prev => prev[targetSlug] ? prev : { ...prev, [targetSlug]: true });
+            }
+          })
+          .catch(() => {});
+      }
+    }, { root: root || null, rootMargin: '80px' });
+    const frame = requestAnimationFrame(() => {
+      for (const el of rosterNodes.current.values()) io.observe(el);
+    });
+    return () => { cancelAnimationFrame(frame); io.disconnect(); };
+  }, [slug, visibleSlugs]);
   const switchOptions = rows.map(row => ({ value: row.slug, label: row.title, detail: row.symbol }));
   if (current && !switchOptions.some(option => option.value === current.slug)) switchOptions.unshift({ value: current.slug, label: current.title, detail: current.symbol });
   const pagesReady = pages !== null;
@@ -420,32 +481,135 @@ export function CompanyWiki() {
       <p className="mb-3 text-[11px] text-muted-foreground">{searching ? `匹配 ${visible.length} / ${rows.length}` : `最近 ${visible.length} 家${rows.length > RECENT_LIMIT ? ` · 共 ${rows.length} 家，输入关键字搜索` : ''}`}</p>
       {visible.length === 0 ? <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{rows.length === 0 ? '还没有加入研究的公司。到自选股把公司加进名单。' : '没有匹配的公司，请调整搜索。'}</p></GlassCard>
       : view === 'grid' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map(row => (
-        <DashboardCard
+        <CompanyRosterCard
           key={row.symbol}
-          title={row.title}
-          description={`${row.symbol}${row.hasWiki ? '' : ' · 资料待生成'}`}
-          footer={row.hasWiki ? '打开资料' : '资料待生成'}
-          icon={Building2}
-          onClick={() => setSlug(row.slug)}
+          row={row}
+          industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
+          researching={runningSymbols.has(row.symbol)}
+          hasReport={Boolean(reportFlags[row.slug])}
+          onOpen={() => setSlug(row.slug)}
+          attach={attachRoster(row.slug)}
         />
       ))}</div>
       : <GlassCard className="!p-2 sm:!p-3">
-        <div className="space-y-1">
-          {visible.map(row => <div key={row.symbol} className="flex items-center gap-2 rounded-xl px-2 py-2 hover:bg-muted/40">
-            <button type="button" onClick={() => setSlug(row.slug)} className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1 text-left">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">{row.title}</span>
-                <span className="mt-0.5 block font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</span>
-              </span>
-              <ArrowRight size={14} className="shrink-0 text-muted-foreground/60" />
-            </button>
-            <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={() => void toggleWatch(row.symbol)} aria-label={watched.has(row.symbol) ? '移出自选' : '加入自选'}>
-              <Star size={14} className={watched.has(row.symbol) ? 'fill-current text-primary' : ''} />
-            </button>
-            <button type="button" className="workspace-action workspace-action-compact" onClick={() => void leave(row.symbol)}>移除</button>
-          </div>)}
+        <div className="divide-y divide-border/60">
+          {visible.map(row => <CompanyRosterRow
+            key={row.symbol}
+            row={row}
+            industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
+            researching={runningSymbols.has(row.symbol)}
+            hasReport={Boolean(reportFlags[row.slug])}
+            watched={watched.has(row.symbol)}
+            onOpen={() => setSlug(row.slug)}
+            onWatch={() => void toggleWatch(row.symbol)}
+            onLeave={() => void leave(row.symbol)}
+            attach={attachRoster(row.slug)}
+          />)}
         </div>
       </GlassCard>}
     </> : null}
     <Disclaimer /></div>;
+}
+
+type RosterRow = {
+  symbol: string;
+  slug: string;
+  title: string;
+  hasWiki: boolean;
+  aShare: boolean;
+  summary?: CompanyPageSummary;
+};
+
+function RosterIndustryTag({ summary, ready }: { summary?: CompanyPageSummary; ready: boolean }) {
+  const name = companyIndustryLabel(summary);
+  if (!name) return null;
+  const cls = 'inline-flex h-[22px] shrink-0 items-center rounded-[6px] border border-border bg-transparent px-1.5 text-xs leading-none';
+  const code = summary?.industry_code?.trim();
+  if (ready && code) {
+    return <Link to={`/sectors/profiles/${encodeURIComponent(code)}`} onClick={event => event.stopPropagation()} className={cn(cls, 'hover:border-primary')}>{name}</Link>;
+  }
+  return <span className={cls}>{name}</span>;
+}
+
+function RosterStatusTags({ slug, researching, hasReport }: { slug: string; researching: boolean; hasReport: boolean }) {
+  const tag = 'inline-flex h-[22px] shrink-0 items-center rounded-[6px] px-1.5 text-xs leading-none';
+  return <>
+    {researching && <span className={cn(tag, 'bg-primary/10 text-primary')}>研究中</span>}
+    {hasReport && <Link to={`/research?company=${encodeURIComponent(slug)}&view=report`} onClick={event => event.stopPropagation()} className={cn(tag, 'border border-border hover:border-primary')}>图文报告</Link>}
+  </>;
+}
+
+function RosterOneLiner({ text, lines }: { text?: string | null; lines: 1 | 2 }) {
+  const clipped = clipCompanyOneLiner(text);
+  if (!clipped) return <p className={cn('text-[13px] text-muted-foreground/50', lines === 1 ? 'truncate' : 'line-clamp-2')}>资料待补充</p>;
+  return <p className={cn('text-[13px] text-muted-foreground', lines === 1 ? 'truncate' : 'line-clamp-2')}>{clipped}</p>;
+}
+
+function CompanyRosterRow({
+  row, industryReady, researching, hasReport, watched, onOpen, onWatch, onLeave, attach,
+}: {
+  row: RosterRow;
+  industryReady: boolean;
+  researching: boolean;
+  hasReport: boolean;
+  watched: boolean;
+  onOpen: () => void;
+  onWatch: () => void;
+  onLeave: () => void;
+  attach: (el: HTMLElement | null) => void;
+}) {
+  const asOf = companyAsOfLabel(row.summary?.as_of);
+  return <div ref={attach} data-roster-slug={row.slug} className="flex min-w-0 items-center gap-2 px-2 py-4 hover:bg-muted/40">
+    <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
+      <span className="truncate font-medium">{row.title}</span>
+      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</span>
+    </button>
+    <RosterIndustryTag summary={row.summary} ready={industryReady} />
+    <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
+    <div className="ml-auto flex shrink-0 items-center gap-2">
+      {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}</span>}
+      <ArrowRight size={14} className="text-muted-foreground/60" />
+      <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onWatch} aria-label={watched ? '移出自选' : '加入自选'}>
+        <Star size={14} className={watched ? 'fill-current text-primary' : ''} />
+      </button>
+      <button type="button" className="workspace-action workspace-action-compact" onClick={onLeave}>移除</button>
+    </div>
+  </div>;
+}
+
+function CompanyRosterCard({
+  row, industryReady, researching, hasReport, onOpen, attach,
+}: {
+  row: RosterRow;
+  industryReady: boolean;
+  researching: boolean;
+  hasReport: boolean;
+  onOpen: () => void;
+  attach: (el: HTMLElement | null) => void;
+}) {
+  const asOf = companyAsOfLabel(row.summary?.as_of);
+  return <div ref={attach} data-roster-slug={row.slug} className="min-w-0">
+    <GlassCard glow className="flex h-full min-h-44 flex-col justify-between">
+      <div className="min-w-0">
+        <Building2 size={20} className="mb-4 text-primary" />
+        <button type="button" onClick={onOpen} className="block min-w-0 text-left">
+          <h2 className="truncate text-base font-bold">{row.title}</h2>
+          <p className="mt-1 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</p>
+        </button>
+        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
+          <RosterIndustryTag summary={row.summary} ready={industryReady} />
+          <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
+        </div>
+        <button type="button" onClick={onOpen} className="mt-2 block w-full min-w-0 text-left">
+          <RosterOneLiner text={row.summary?.one_liner} lines={2} />
+        </button>
+      </div>
+      <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/50 pt-3 text-xs">
+        <span className="min-w-0 truncate text-muted-foreground">{asOf ? `资料截至 ${asOf}` : row.hasWiki ? '打开资料' : '资料待生成'}</span>
+        <button type="button" onClick={onOpen} className="inline-flex shrink-0 items-center gap-1 text-primary">
+          {row.hasWiki ? '打开资料' : '资料待生成'}<ArrowRight size={16} />
+        </button>
+      </div>
+    </GlassCard>
+  </div>;
 }

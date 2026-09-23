@@ -153,7 +153,6 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   for (const path of [
     "verticals/finance/pages/IndustryCenter.tsx",
     "verticals/finance/pages/IndustryProfiles.tsx",
-    "verticals/finance/pages/CompanyWiki.tsx",
     "verticals/finance/pages/UploadedReports.tsx",
   ]) {
     assert.match(read(path), /DashboardCard/, path);
@@ -174,7 +173,14 @@ test("行业、个股、我的资料共用行业卡片；资料列表单独用�
   assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /buildWikiPageSnapshot/);
   assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);
   assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
+  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardCard/);
   assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /params.get\('view'\) === 'report'/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /IntersectionObserver/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /\/sectors\/profiles\//);
+  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /to=\{`\/sectors\/\$\{/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /资料待补充/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /研究中/);
+  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /图文报告/);
   assert.match(read("verticals/finance/components/layout/Layout.tsx"), /TaskNotices/);
 });
 

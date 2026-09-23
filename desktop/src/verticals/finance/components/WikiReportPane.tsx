@@ -254,6 +254,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     baselineReport.current = selected?.report_id ?? null;
     requestedAt.current = Date.now();
     setError(''); setStarting(true); setPendingRun(true);
+    setSelected(null); setDetail(null);
     void sessions.start(reportPrompt(page), undefined, {
       navigate: false,
       task: { kind: 'report', slug, inputHash, title: `报告生成 · ${page.spec.title || slug}` },
@@ -264,6 +265,8 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         setError('');
         setPendingRun(false);
         startedSession.current = '';
+        const current = items?.find(item => item.current);
+        if (current) setSelected(current);
         return;
       }
       if (result.sessionId) {
@@ -285,6 +288,8 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       setPendingRun(false);
       startedSession.current = '';
       setError('报告生成未能启动，研究页仍可阅读；可重试。');
+      const current = items?.find(item => item.current);
+      if (current) setSelected(current);
     }).finally(() => { if (epoch === pageEpoch.current) setStarting(false); });
   };
 
@@ -306,6 +311,8 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const waiting = active && !showGenerated && !loadingList && !loadingDetail;
   const canGenerate = items !== null && !generating;
   return <>
+    {actionSlot && generating && createPortal(
+      <button type="button" className="workspace-action" disabled aria-busy="true">正在生成…</button>, actionSlot)}
     {showGenerated && canGenerate && actionSlot && createPortal(
       <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">

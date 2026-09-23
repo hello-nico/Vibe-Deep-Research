@@ -389,6 +389,20 @@ export function apply(ctx: Context) {
         ? /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1] : undefined;
       return symbol ? [symbol] : [];
     });
+  }, async listRunningCompanySymbols() {
+    await session;
+    if (!workspaceId) return [];
+    await client.sessions.refresh();
+    const list = client.sessions.list.getSnapshot();
+    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
+    const symbols = new Set<string>();
+    for (const id of list.ids) {
+      const item = list.byId[id];
+      if (item?.cwd !== workspace || archived.has(id) || !item.running) continue;
+      const symbol = /^公司研究 · (\d{6}) · /.exec(item.title ?? '')?.[1];
+      if (symbol) symbols.add(symbol);
+    }
+    return [...symbols];
   }, async start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult> {
     await session;
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
