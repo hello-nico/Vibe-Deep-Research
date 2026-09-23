@@ -16,32 +16,26 @@ export interface TaskHistoryFace {
     loadingOlder?: boolean;
   };
 }
+interface TaskHistoryBinding { sessionId: string; session: TaskHistoryFace }
 
 export interface TaskHistoryClient {
   sessions: {
     refresh?(): Promise<void>;
-    refreshSubagents?(parentSessionId: string): Promise<void>;
-    subagentAddress?(id: string): { parentSessionId: string } | undefined;
+    refreshProjections?(parentSessionId: string): Promise<void>;
+    subagentAddress?(id: string): { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' } | undefined;
     list: {
       getSnapshot(): {
-        current?: string;
         byId: Record<string, { parentId?: string }>;
-        subagentsByParent?: Record<string, { entries: { id: string; kind: string; mode?: 'one-shot' | 'continuable' }[] }>;
       };
       subscribe(callback: () => void): () => void;
     };
-    binding?(id: string): { session?: TaskHistoryFace } | undefined;
+    binding?(id: string): TaskHistoryBinding | undefined;
     scope?(id: string): object | undefined;
     sessionOf?(ctx: object): TaskHistoryFace | undefined;
-    retainSubagent?(address: {
-      parentSessionId: string;
-      childSessionId: string;
-      mode: 'one-shot' | 'continuable';
-    }): { binding: { session: TaskHistoryFace }; dispose(): void };
-    open?(id: string): void;
+    retain(target: string | { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' }, options: { source: string; signal?: AbortSignal }): { binding: TaskHistoryBinding; ready: Promise<unknown>; release(): void };
   };
   uiConversation?: {
-    binding(source: string): {
+    binding(source: TaskHistoryBinding): {
       activate(target: string): void;
       target(target: string): { getSnapshot(): unknown; subscribe(callback: () => void): () => void };
     };
@@ -71,25 +65,22 @@ export async function ensureTaskHistory(input: {
     parent = reports.sessions?.[sessionId]?.parent_id;
   }
   signal?.throwIfAborted();
-  let dispose = () => {};
-  const release = () => { signal?.removeEventListener('abort', release); dispose(); };
-  let face: TaskHistoryFace | undefined;
+  let target: string | { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' } = sessionId;
   if (parent) {
     parents.set(sessionId, parent);
-    await client.sessions.refreshSubagents?.(parent);
+    await client.sessions.refreshProjections?.(parent);
     signal?.throwIfAborted();
-    const child = client.sessions.list.getSnapshot().subagentsByParent?.[parent]?.entries.find(item => item.id === sessionId && item.kind === 'child');
-    if (!child?.mode || !client.sessions.retainSubagent) throw new Error('执行记录读取失败');
-    const retained = client.sessions.retainSubagent({ parentSessionId: parent, childSessionId: sessionId, mode: child.mode });
-    dispose = retained.dispose;
-    signal?.addEventListener('abort', release, { once: true });
-    face = retained.binding.session;
-  } else {
-    face = historyFaceOf(client, sessionId);
+    const address = client.sessions.subagentAddress?.(sessionId);
+    if (!address || address.parentSessionId !== parent) throw new Error('执行记录读取失败');
+    target = address;
   }
+  const retained = client.sessions.retain(target, { source: 'taskProcess', signal });
+  const release = () => { signal?.removeEventListener('abort', release); retained.release(); };
+  signal?.addEventListener('abort', release, { once: true });
   try {
-    if (typeof face?.open !== 'function') throw new Error('执行记录读取失败');
-    await face.open();
+    const binding = await retained.ready as TaskHistoryBinding;
+    const face = binding.session;
+    if (face.getSnapshot?.().openState === 'error') throw new Error('执行记录读取失败');
     signal?.throwIfAborted();
     return { face, release };
   } catch (error) { release(); throw error; }
@@ -107,6 +98,7 @@ export function createTaskTrajectoryStore(input: {
   let generation = 0;
   let cleanup = () => {};
   let loadError = false;
+  let activeBinding: TaskHistoryBinding | undefined;
   const notify = () => listeners.forEach(listener => listener());
   return {
     subscribe(listener: () => void) {
@@ -119,14 +111,15 @@ export function createTaskTrajectoryStore(input: {
         void ensureHistory(sessionId, controller.signal).then(({ face, release }) => {
           if (mine !== generation) { release(); return; }
           try {
-            const binding = client.uiConversation?.binding(sessionId);
+            activeBinding = client.sessions.binding?.(sessionId);
+            const binding = activeBinding && client.uiConversation?.binding(activeBinding);
             binding?.activate('trajectory');
             binding?.activate('chat');
             const offTarget = binding?.target('trajectory')?.subscribe(notify);
             const offTerminal = binding?.target('chat')?.subscribe(notify);
             const offFace = face.subscribe?.(notify);
             const offList = client.sessions.list.subscribe(notify);
-            cleanup = () => { offTarget?.(); offTerminal?.(); offFace?.(); offList(); release(); };
+            cleanup = () => { offTarget?.(); offTerminal?.(); offFace?.(); offList(); activeBinding = undefined; release(); };
             notify();
           } catch { release(); loadError = true; notify(); }
         }).catch(() => { if (mine === generation) { loadError = true; notify(); } });
@@ -142,7 +135,7 @@ export function createTaskTrajectoryStore(input: {
         return next;
       }
       try {
-        const binding = client.uiConversation?.binding(sessionId);
+        const binding = activeBinding && client.uiConversation?.binding(activeBinding);
         binding?.activate('trajectory');
         binding?.activate('chat');
         return project(sessionId, binding?.target('trajectory')?.getSnapshot(), binding?.target('chat')?.getSnapshot());

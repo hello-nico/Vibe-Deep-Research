@@ -1,6 +1,8 @@
 # 产品 DSH runtime
 
-固定 `@deepseek-ai/dsh-*` 为 `0.1.2-rc.1`，React / ReactDOM 为 `18.3.1`。`package-lock.json` 记录完整安装闭包；运行依赖与用户 `DSH_HOME`、研究工作区分开。
+> 2026-09-23 已切换主目录至 `0.1.7-alpha.2`，保留 11 个新版补丁。主目录自动检查与端口检查记录见 [DSH 升级 Task §9.2a](../../../docs/DSH升级到0.1.7_Task_2026-09-23.md)；本轮未做浏览器或真实流程测试。下表保留升级前 rc.1 的 14 个补丁处置历史。
+
+当前 `@deepseek-ai/dsh-*` 精确锁定 `0.1.7-alpha.2`，React / ReactDOM 为 `18.3.1`；`package-lock.json` 记录完整安装闭包，运行依赖与用户 `DSH_HOME`、研究工作区分开。
 
 通过仓库 `scripts/setup` 执行 `npm ci`，postinstall 自动应用下面补丁，失败即中断。产品插件通过官方 `plugin add link:` 安装到配置的 Web profile；不复制私人配置与凭据，不要求存在相邻 dsh-desktop。
 
@@ -12,7 +14,7 @@
 
 ## 升级与回退规则
 
-每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换，切换验收后打新基线。回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。完整规则见 [Human Checklist](../../../human-checklist.md)「运行时升级规则：先打基线标签」。当前基线：`baseline/dsh-0.1.2-rc.1`。
+每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换，切换后打新基线。回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。完整规则见 [Human Checklist](../../../human-checklist.md)「运行时升级规则：先打基线标签」。旧基线：`baseline/dsh-0.1.2-rc.1`。
 
 ## 补丁归属
 

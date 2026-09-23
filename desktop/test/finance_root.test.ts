@@ -24,7 +24,7 @@ test('外壳组合保持研究上下文，并在同一树内装配助手与原�
         calls.push(name);
         return name === 'shell.overlay'
           ? createElement('div', null, createElement(FinanceAssistantSeat), createElement('span', null, '原生浮层'))
-          : createElement('span', null, '原生详情');
+          : createElement('span', null, '原生右栏');
       },
     };
     function PageProbe() {
@@ -32,19 +32,16 @@ test('外壳组合保持研究上下文，并在同一树内装配助手与原�
       assert.equal(useContext(FinanceSlots), slots);
       return createElement('main', null, '业务页面');
     }
-    const render = (showDetails: boolean) => renderToStaticMarkup(createElement(FinanceRoot, {
-      slots, research, showDetails, sessionError: '会话错误示例',
+    const render = () => renderToStaticMarkup(createElement(FinanceRoot, {
+      slots, research, sessionError: '会话错误示例',
     }, createElement(PageProbe)));
-    const closed = render(false);
-    assert.deepEqual(calls, ['shell.overlay']);
+    const closed = render();
+    assert.deepEqual(calls, ['shell.overlay', 'rightbar']);
     assert.equal((closed.match(/data-finance-assistant-seat/g) ?? []).length, 1);
     assert.match(closed, /业务页面/);
     assert.match(closed, /原生浮层/);
     assert.match(closed, /role="alert"[^>]*>会话错误示例/);
-    assert.doesNotMatch(closed, /原生详情/);
-    calls.length = 0;
-    assert.match(render(true), /原生详情/);
-    assert.deepEqual(calls, ['shell.overlay', 'details']);
+    assert.match(closed, /原生右栏/);
   } finally {
     await server.close();
   }

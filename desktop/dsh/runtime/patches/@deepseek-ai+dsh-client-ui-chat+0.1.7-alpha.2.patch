@@ -1,8 +1,8 @@
 diff --git a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
-index 7bb9256..2c69066 100644
+index 6dc9b07..c8841aa 100644
 --- a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
 +++ b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
-@@ -1074,7 +1074,10 @@ window.__ModuleLoader__.load({
+@@ -1187,7 +1187,10 @@ window.__ModuleLoader__.load({
  			return Math.max(1, Math.ceil(milliseconds / 1e3));
  		}
  		function failureMessage(message, code, t) {
@@ -14,16 +14,36 @@ index 7bb9256..2c69066 100644
  		}
  		function ModelRetryItem({ node, active, t }) {
  			const deadline = (0, react.useMemo)(() => Date.now() + node.delayMs, [node.delayMs, node.seq]);
-@@ -2568,7 +2571,7 @@ window.__ModuleLoader__.load({
+@@ -1481,6 +1484,10 @@ window.__ModuleLoader__.load({
+ 		/** Chat Node kinds that remain independent of a Turn's process disclosure. */
+ 		const TURN_PROCESS_INDEPENDENT_KINDS = new Set([
+ 			"system-prompt",
++			"finance-result",
++			"finance-maintenance",
++			"finance-research-status",
++			"finance-topic-candidate",
+ 			"user",
+ 			"steering",
+ 			"turn-trigger",
+@@ -5249,7 +5256,7 @@ window.__ModuleLoader__.load({
+ 			"message.trigger.plugin": "插件状态更新",
+ 			"message.trigger.explanation": "这条通知触发了本轮回复。",
+ 			"message.turnProcess.worked": "已完成工作",
+-			"message.turnProcess.deepDivingFor": "深度求索中，用时{duration}",
++			"message.turnProcess.deepDivingFor": "研究中，已用时{duration}",
+ 			"message.turnProcess.took": "用时 {duration}",
+ 			"message.turnProcess.failed": "处理失败",
+ 			"view.chat": "对话",
+@@ -5269,7 +5276,7 @@ window.__ModuleLoader__.load({
  			"chat.loadError": "历史加载失败：{message}（{code}）",
  			"chat.loadOlder": "加载更早",
  			"chat.toBottom": "回到底部",
--			"chat.deepDiving": "深度求索中...",
+-			"chat.deepDiving": "深度求索中",
 +			"chat.deepDiving": "研究中…",
  			"chat.turnNavigation.label": "轮次导航",
  			"chat.turnNavigation.jump": "跳转到第 {turn} 轮",
  			"chat.turnNavigation.jumpLoad": "加载并跳转到第 {turn} 轮",
-@@ -2625,6 +2628,8 @@ window.__ModuleLoader__.load({
+@@ -5334,6 +5341,8 @@ window.__ModuleLoader__.load({
  			"message.retry.delay": "重试延迟：",
  			"message.retry.failure": "失败原因：",
  			"message.failure.auth": "API 密钥无效",
@@ -32,7 +52,16 @@ index 7bb9256..2c69066 100644
  			"message.turnError": "本轮运行失败",
  			"message.maxTokens": "已达到输出 token 上限",
  			"message.maxTokens.hint": "回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。",
-@@ -2681,7 +2686,7 @@ window.__ModuleLoader__.load({
+@@ -5403,7 +5412,7 @@ window.__ModuleLoader__.load({
+ 			"message.trigger.plugin": "Plugin status updated",
+ 			"message.trigger.explanation": "This notification triggered this response.",
+ 			"message.turnProcess.worked": "Worked",
+-			"message.turnProcess.deepDivingFor": "Deep diving for {duration}",
++			"message.turnProcess.deepDivingFor": "Researching for {duration}",
+ 			"message.turnProcess.took": "Took {duration}",
+ 			"message.turnProcess.failed": "Failed",
+ 			"view.chat": "Chat",
+@@ -5423,7 +5432,7 @@ window.__ModuleLoader__.load({
  			"chat.loadError": "Failed to load history: {message} ({code})",
  			"chat.loadOlder": "Load earlier",
  			"chat.toBottom": "Back to bottom",
@@ -41,7 +70,7 @@ index 7bb9256..2c69066 100644
  			"chat.turnNavigation.label": "Turn navigation",
  			"chat.turnNavigation.jump": "Jump to turn {turn}",
  			"chat.turnNavigation.jumpLoad": "Load and jump to turn {turn}",
-@@ -2738,6 +2743,8 @@ window.__ModuleLoader__.load({
+@@ -5488,6 +5497,8 @@ window.__ModuleLoader__.load({
  			"message.retry.delay": "Retry delay: ",
  			"message.retry.failure": "Failure reason: ",
  			"message.failure.auth": "API key is invalid",
@@ -50,3 +79,14 @@ index 7bb9256..2c69066 100644
  			"message.turnError": "This turn failed",
  			"message.maxTokens": "Output token limit reached",
  			"message.maxTokens.hint": "The reply was cut off; earlier output is preserved in the conversation. Send \"continue\" to let the model resume.",
+@@ -10363,6 +10374,10 @@ window.__ModuleLoader__.load({
+ 		//#region lib/types/client/conversation-nodes/process-groups.js
+ 		/** Chat-owned segmentation and incremental summaries over materialized Node inputs. */
+ 		const INDEPENDENT = new Set([
++			"finance-result",
++			"finance-maintenance",
++			"finance-research-status",
++			"finance-topic-candidate",
+ 			"user",
+ 			"steering",
+ 			"turn-trigger",

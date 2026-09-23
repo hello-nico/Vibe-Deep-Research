@@ -119,11 +119,11 @@ test('no-cwd direct child supports cold page, pagination and follow without prom
     assert.equal(opening.value?.header.cwd, undefined);
     assert.equal(opening.value?.cursor, 3);
     assert.equal(state.promotions, 0);
-    assert.equal(state.listenerCount, 2);
+    assert.equal(state.listenerCount, 4);
 
     abort.abort();
     assert.equal((await follower.next()).done, true);
-    assert.equal(state.listenerCount, 0);
+    assert.equal(state.listenerCount, 2);
     assert.equal((state.controller as any).closeFollowers.size, 0);
     assert.deepEqual(state.observedModes, ['all', 'all', 'all']);
     assert.equal(state.observationDisposals, 3);

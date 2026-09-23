@@ -10,10 +10,11 @@ test('过程历史加载只打开记录面，不抢回用户当前聊天', async
   const client = {
     sessions: {
       list: { getSnapshot: () => ({ current, byId: {} }), subscribe: () => () => {} },
-      open(id: string) { current = id; switches.push(id); },
       refresh: async () => {},
-      scope: () => ({}),
-      sessionOf: () => ({ open: () => history }),
+      retain: () => {
+        const binding = { sessionId: 'report-task', session: {} };
+        return { binding, ready: history.then(() => binding), release() {} };
+      },
     },
   };
   const pending = ensureTaskHistory({
@@ -35,7 +36,10 @@ test('过程订阅等待历史就绪，并在关闭和迟到加载时释放读�
   let event = () => {};
   const face = { subscribe: () => () => { unsubs++; } };
   const client = {
-    sessions: { list: { subscribe: () => () => { unsubs++; }, getSnapshot: () => ({ byId: {} }) } },
+    sessions: {
+      list: { subscribe: () => () => { unsubs++; }, getSnapshot: () => ({ byId: {} }) },
+      binding: () => ({ sessionId: 'child', session: face }),
+    },
     uiConversation: { binding: () => {
       assert.ok(ready, '不可在异步读取就绪前挂空订阅');
       return { activate() {}, target: () => ({ getSnapshot: () => ({}), subscribe: (listener: () => void) => { event = listener; return () => { unsubs++; }; } }) };

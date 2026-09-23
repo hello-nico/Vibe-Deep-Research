@@ -5,7 +5,7 @@ import { resultDefinition as definition } from '../src/verticals/finance/dsh/res
 // These tests exercise the native event projection, not a copied renderer.
 const id = 'result:' + 'a'.repeat(32);
 const result = (content: unknown[], isError = false, callId = 'call-1', seq = 8) => ({ event: { type: 'tool/result', seq, data: {
-  message: { source: { callId }, content: [{ isError, content }] },
+  message: { source: { callId }, isError, content },
 } } });
 const project = (event: ReturnType<typeof result>) => definition.update({ state: { seq: 3 } } as never, event as never);
 const call = (name: string, callId = 'call-1') => ({ type: 'tool/call', seq: 4, data: { name, callId } });

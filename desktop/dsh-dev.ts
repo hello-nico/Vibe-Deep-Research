@@ -83,8 +83,7 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     // Fixed product composition and permissions live in finance-ui/cordis.patch.yml.
     const overlay = path.join(paths.home, "finance-runtime.patch.yml");
     fs.writeFileSync(overlay, JSON.stringify([{ id: "agent-presets", config: {
-      default: "vibe", includeShippedRoot: false, includeUserRoot: false,
-      roots: [{ path: path.join(repoRoot, "desktop/dsh/presets"), trust: "system" }],
+      default: "vibe",
     } }], null, 2));
     // 环境白名单：只传基础 OS / 代理证书 / DSH 路径 + 研究插件运行时变量，不继承无关变量，
     // 也不透传任何凭据（模型接入与密钥由 DSH 自身配置拥有）。DSH 启动后还会自行加载
@@ -154,7 +153,8 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       }
       void fetch(target + "/", { headers: { cookie } }).then(async response => {
         res.writeHead(response.status, { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store" });
-        res.end(await response.text());
+        // The product lives at origin root; deep SPA routes must load DSH's root assets.
+        res.end((await response.text()).replace('<base href="./">', '<base href="/">'));
       }).catch(() => { res.writeHead(502); res.end("DSH 页面读取失败"); });
     });
   }

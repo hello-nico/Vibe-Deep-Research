@@ -4,18 +4,20 @@ import type { ResearchSessions, StartSessionResult } from '../dsh/research-sessi
 import { bindAssistantPrompt } from './prompt.ts';
 import { assistantBindingForPage, type AssistantPlugin } from './binding.ts';
 import {
+  AssistantBindingError,
   bindAssistantSession,
   loadAssistantSessions,
 } from './sessions.ts';
 
 interface AssistantClient {
+  uiWorkspace: { openSession(id: string): void };
   sessions: {
     refresh(): Promise<void>;
     create(input: { workspaceId: string }): Promise<string>;
-    open(id: string): void;
+    retain(id: string, options: { source: string }): { binding: { session: { rename(title: string): Promise<{ ok: boolean }>; prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }> } }; ready: Promise<unknown>; release(): void };
     list: {
       getSnapshot(): {
-        byId: Record<string, { cwd?: string }>;
+        byId: Record<string, { cwd?: string; blank?: boolean }>;
       };
     };
     scope(id: string): object | undefined;
@@ -78,6 +80,13 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
   const emptyModelSnap = { current: null as { provider: string; model: string } | null, groups: [] as { id: string; name: string; models: { id: string; name: string }[] }[], status: 'idle', error: null as string | null };
   const modelStores = new Map<string, NonNullable<ReturnType<NonNullable<ResearchSessions['assistantModel']>>>>();
   const { client } = deps;
+  const withSession = async <T,>(id: string, use: (face: ReturnType<AssistantClient['sessions']['retain']>['binding']['session']) => Promise<T>): Promise<T> => {
+    const reference = client.sessions.retain(id, { source: 'controllerOperation' });
+    try {
+      await reference.ready;
+      return await use(reference.binding.session);
+    } finally { reference.release(); }
+  };
 
   const insertAssistantRefs = (objects: { source: string; ref: string; label: string; clipboardText: string }[] | undefined, sessionId: string) => {
     if (!objects?.length) return;
@@ -129,15 +138,18 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
       ? pageBind.session_id : undefined;
     if (reusable) {
       const reusedMode = input.fresh ? input.mode : (bound?.sessions?.[reusable]?.mode || input.mode);
-      await bindAssistantSession({ session_id: reusable, plugin, mode: reusedMode, target, page_key: bindKey });
-      return { id: reusable, mode: reusedMode as 'ask' | 'agent' };
+      try {
+        await bindAssistantSession({ session_id: reusable, plugin, mode: reusedMode, target, page_key: bindKey });
+        return { id: reusable, mode: reusedMode as 'ask' | 'agent' };
+      } catch (error) {
+        if (!(error instanceof AssistantBindingError && error.status === 404 && list.byId[reusable]?.blank)) throw error;
+      }
     }
     const id = await client.sessions.create({ workspaceId });
-    const scope = client.sessions.scope(id);
-    const face = scope ? client.sessions.sessionOf(scope) : undefined;
-    if (!face) throw new Error('问助手没能启动，请重试');
     const title = `问助手 · ${input.title}`.slice(0, 80);
-    if (!(await face.rename(title)).ok) throw new Error('问助手没能启动，请重试');
+    await withSession(id, async face => {
+      if (!(await face.rename(title)).ok) throw new Error('问助手没能启动，请重试');
+    });
     await bindAssistantSession({ session_id: id, plugin, mode: input.mode, target, page_key: bindKey });
     return { id, mode: input.mode };
   };
@@ -151,9 +163,6 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
       const run = (async (): Promise<StartSessionResult> => {
         const { id, mode } = await ensureAssistantSession(input);
         if (input.prompt?.trim()) {
-          const scope = client.sessions.scope(id);
-          const face = scope ? client.sessions.sessionOf(scope) : undefined;
-          if (!face) throw new Error('问助手没能启动，请重试');
           const bound = await bindAssistantPrompt({
             prompt: input.prompt,
             title: input.title,
@@ -175,9 +184,11 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
               detail: item.detail,
             })),
           });
-          if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
-            throw new Error('消息没发出去，请检查模型设置后重试');
-          }
+          await withSession(id, async face => {
+            if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
+              throw new Error('消息没发出去，请检查模型设置后重试');
+            }
+          });
         }
         return { sessionId: id, status: 'started', mode };
       })();
@@ -246,7 +257,7 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
     },
     focusAssistantSession(sessionId) {
       if (!deps.getHold()) deps.setHold({ sessionId: deps.currentSessionId(), topicId: deps.getOpened().topicId });
-      client.sessions.open(sessionId);
+      client.uiWorkspace.openSession(sessionId);
       deps.setOpenedSession(sessionId);
       deps.notifySession();
       return () => {

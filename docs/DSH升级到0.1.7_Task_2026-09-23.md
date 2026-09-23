@@ -1,6 +1,6 @@
 # DSH 升级到 0.1.7
 
-状态：2026-09-23 用户确认升级 DSH 以获取对研究工作台有利的新特性；本 Task 由 Claude Code 规划，Codex / Cursor 按本文实施并回填 §9。S1 已完成并审阅通过（§9.1a），**放行 S2–S4**。不提交、不 push。
+状态：2026-09-23 用户确认升级 DSH 以获取对研究工作台有利的新特性；S1 已审阅（§9.1a），S2–S3 隔离验证记录见 §9.2。本轮按用户决定切回主目录，只做自动检查与端口检查；本地提交，不 push。
 
 权威：[Human Checklist](../human-checklist.md)「DSH 升级（2026-09-23）」；[todo §7](../todo.md)；产品运行时与补丁归属见 [runtime README](../desktop/dsh/runtime/README.md)；前序发现见[深度对话提示词与文案收敛 Task §9.2](深度对话提示词与文案收敛_Task_2026-09-23.md)。
 
@@ -147,6 +147,21 @@ T2 验收新增第 14 个补丁 `@deepseek-ai+dsh-client-ui-agent-preset+0.1.2-r
 
 **Codex（S2 隔离环境）：** 到个股或行业「图文报告」页硬刷新，看控制台是否仍刷 `cannot get required service "sessions" in inactive context`。上游已修好则标记删除；仍在则按新版重做，并补进补丁处置表。漏掉的话升级后会复发。移除条件见 runtime README 该行。
 
-### 9.2 S2–S4 升级与切换（待执行）
+### 9.2 S2–S3 隔离执行记录（2026-09-23，合并自隔离 Task）
+
+- Vibe worktree 为 `/Users/apple/.codex/worktrees/dsh-upgrade-s2-s3/Vibe-Deep-Research`，Stock worktree 为 `/private/tmp/dsh-upgrade-stock-s2-s3`。隔离 `DSH_HOME` 副本为 `/private/tmp/dsh-upgrade-home-s2-s3`。Stock 保留获授权的 20 项精确版本年龄例外；临时 `.env` 已删除。
+- 两仓依赖精确锁定 DSH `0.1.7-alpha.2`，Stock `cordis` 锁定 `4.0.4`。隔离 `npm ci` 的 11 个新版补丁全部应用；Vibe build/typecheck 与当时 202 项测试通过，Stock 157 项测试中 155 通过、2 跳过；两仓 `git diff --check` 通过。产品适配 `uiWorkspace.openSession`、会话 retain/ready/release、新版子任务地址与结果/slot props；`dsh-session` 补丁保留新事件的 `ignorable` marker。
+- 隔离环境曾完成议题研究工具调用、过程分组、行情图表与依据入口、停止态、Ask/Agent 答复；新建含研究节点的议题会话经 DSH 重启冷读成功。空助手会话重启后 404 已由按需重建修复。报告子任务曾完成生成、过程、中止、历史重开、成果读回。相关截图保留于 `/private/tmp/dsh-upgrade-{topic-process,topic-coldread,report-process,industry-report-hardrefresh}-20260923.png`。这些属于隔离阶段记录，本轮未重做浏览器或真实流程测试。
+- 五页问助手中，四页 Ask/Agent 曾取得只读回答，行业研究 Ask 已回答、Agent 已启动来源读取。Agent 维护原生确认/取消选项未触发、未实测。用户决定该未验项不阻断升级，切换后在正常使用中观察；不将其写作已通过。
+- 用户决定新版模型设置不重做旧“测试连接”补丁，使用聊天模型选择器，实际发送消息判断连通。隔离阶段真实 AUTH 错误显示已核对，QUOTA/FORBIDDEN 及 403 余额不足仅有目标单测证据。
+- 图文报告页在隔离环境修正深层路由资源路径后硬刷新，未再观测到 `sessions inactive context`。新版 agent-preset 以全局 `ctx.sessions.list` 订阅，不沿用 T2 的旧版补丁；若主目录运行后复现，重新定位 owner。
+
+### 9.2a S3 重放与 S4 自动切换（2026-09-23）
+
+- 主目录基线 Vibe `8e0392f9` 后含公司列表修复提交 `1527780d`；Stock 基线 `361c46a`。升级差异重放后保留了公司列表测试与 Stock 主目录已修的 `dsh/src/background-review.mjs`；Vibe `workspace_visual.test.ts` 手工合并了 T2 与升级断言。Stock 主目录既有未跟踪文件未纳入升级。
+- 用户豁免 Agent 维护选项未验项，并决定不恢复模型“测试连接”；本轮只做依赖安装、构建、typecheck、测试、diff-check、端口检查，不做浏览器或真实流程测试。
+- 现用工作台停机后，将 `.local/dsh` 备份至 `/private/tmp/dsh-upgrade-backup-20260923-s4/dsh`（源与副本均约 26 MB），未读取或打印凭据。主目录 `npm ci` 的 11 个新版补丁全部应用；T2 的旧版 agent-preset 补丁在新版全局 `ctx.sessions.list` 装配下不再适用，已按隔离阶段证据与新版源码移除。
+- Stock `pnpm install --frozen-lockfile`、build、typecheck、159/159 测试通过，`dist` 已在主目录重建。Vibe desktop build、typecheck、212/212 测试通过；orchestrator typecheck 通过，`VRA_PYTHON=.venv/bin/python npm test` 为 126 通过、1 跳过。Vibe 首轮测试的 3 项挂起由夹具仍使用 Stock 主目录旧维护结果结构引起，更新夹具后全量通过；orchestrator 首轮旧版本断言与默认 Python 路径问题已修正/指定环境。两仓 `git diff --check` 通过。
+- `scripts/start --no-open` 在正常本机权限下重启，`lsof` 确认 `127.0.0.1:5930` 与 `127.0.0.1:5941` 均监听。未做浏览器或真实流程测试；端口监听只证明服务启动，不证明完整产品验收。
 
 ### 9.3 E 工具行中文名（待执行）

@@ -1,0 +1,45 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js
+index 6813a29..261eb83 100644
+--- a/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-layout/lib/client.js
+@@ -609,39 +609,9 @@ window.__ModuleLoader__.load({
+ 					subscribe: (listener) => instance.subscribe(listener)
+ 				} } });
+ 				const disposeService = ctx.reflect.provide("layout", layout);
+-				const disposeRegistration = ctx.slots.register({
+-					name: "root",
+-					locale: "common",
+-					children: {
+-						"sidebar": {
+-							kind: "single",
+-							scope: "root"
+-						},
+-						"main": {
+-							kind: "keyed",
+-							scope: "root"
+-						},
+-						"rightbar": {
+-							kind: "single",
+-							scope: "root"
+-						},
+-						"shell.overlay": {
+-							kind: "list",
+-							scope: "root"
+-						},
+-						"shell.leading": {
+-							kind: "single",
+-							scope: "root"
+-						}
+-					},
+-					store
+-				}, AppFrame);
+-				const disposePanels = ctx.slots.subscribe("main", retainMainPanels);
+-				retainMainPanels();
++				// The product supplies the root frame and its slots; keep the layout service.
+ 				return () => {
+ 					layout.dispose();
+-					disposePanels();
+-					disposeRegistration();
+ 					disposePanelInfo();
+ 					disposeService();
+ 				};

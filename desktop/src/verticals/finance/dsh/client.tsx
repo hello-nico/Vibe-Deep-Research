@@ -45,20 +45,20 @@ interface Client {
     archiveSession(id: string): Promise<void>;
     list: { getSnapshot(): { archivedSessionIds: readonly string[] }; subscribe(callback: () => void): () => void };
   };
+  uiWorkspace: { openSession(id: string): void };
   sessions: {
     refresh(): Promise<void>;
-    list: { getSnapshot(): { ids: string[]; current?: string; subagentsByParent?: Record<string, { entries: { id: string; kind: string; mode?: 'one-shot' | 'continuable'; activity?: string }[]; state?: string }>; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: string; parentId?: string; origin?: string }> }; subscribe(callback: () => void): () => void };
+    refreshProjections(id: string): Promise<void>;
+    list: { getSnapshot(): { ids: string[]; projectionsBySession: Record<string, { state: string; values: { subagentCatalog?: { id: string; mode: 'one-shot' | 'continuable' | 'unknown' }[] } }>; byId: Record<string, { cwd?: string; title?: string; displayTitle?: string; running?: boolean; blank?: boolean; updatedAt?: number; parentId?: string; origin?: string }> }; subscribe(callback: () => void): () => void };
     create(input: { workspaceId: string }): Promise<string>;
-    open(id: string): void;
+    retain(id: string | { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' }, options: { source: string; signal?: AbortSignal }): { binding: { sessionId: string; session: HistorySession }; ready: Promise<unknown>; release(): void };
     scope(id: string): Context | undefined;
     sessionOf(ctx: Context): HistorySession | undefined;
-    binding?(id: string): { sessionId: string; session?: HistorySession } | undefined;
-    subagentAddress?(id: string): { parentSessionId: string } | undefined;
-    refreshSubagents?(parentSessionId: string): Promise<void>;
-    retainSubagent?(address: { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' }): { binding: { sessionId: string; session: HistorySession }; dispose(): void };
+    binding?(id: string): { sessionId: string; session: HistorySession } | undefined;
+    subagentAddress?(id: string): { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' } | undefined;
   };
   uiConversation?: {
-    binding(source: string): {
+    binding(source: { sessionId: string; session: HistorySession }): {
       activate(target: string): void;
       target(target: string): { getSnapshot(): unknown; subscribe(callback: () => void): () => void };
     };
@@ -109,7 +109,7 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "inputTriggers", "uiConversation", "conversation", "modelDirectories"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories"];
 
 function openResearchTarget(value: string) {
   const target = researchTarget(value);
@@ -166,14 +166,7 @@ export function apply(ctx: Context) {
     } };
   } });
   const client = ctx as unknown as Client;
-  let detailsOpen = false;
   let disposed = false;
-  const listeners = new Set<() => void>();
-  const setDetails = (open: boolean) => { detailsOpen = open; listeners.forEach(listener => listener()); };
-  ctx.reflect.provide("layout", {
-    toggleSidebar: () => window.dispatchEvent(new Event("vibe-toggle-sidebar")),
-    openDetails: () => setDetails(true), closeDetails: () => setDetails(false),
-  });
   document.body.classList.add("vibe-dsh-host");
   document.title = "Vibe-Finance";
   const icon = document.createElement('link');
@@ -247,7 +240,14 @@ export function apply(ctx: Context) {
       : '资料已经保存；正文未就绪的资料发送前不能按正文阅读。');
     return true;
   };
-  const currentSessionId = () => client.sessions.list.getSnapshot().current || openedSessionId;
+  const currentSessionId = () => openedSessionId;
+  const withSession = async <T,>(id: string, use: (face: HistorySession) => Promise<T>): Promise<T> => {
+    const reference = client.sessions.retain(id, { source: 'controllerOperation' });
+    try {
+      await reference.ready;
+      return await use(reference.binding.session);
+    } finally { reference.release(); }
+  };
   const deliverLibraryCitations = (items: LibraryCite[], preferredSessionId?: string) => {
     return deliverLibraryCiteBatch(queueLibraryCites(items, preferredSessionId), currentSessionId(),
       (item, id) => insertLibraryCitations([item], id));
@@ -274,7 +274,7 @@ export function apply(ctx: Context) {
     openedSessionId = id;
     openedTopicId = topicId;
     if (!assistantHold) storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
-    client.sessions.open(id);
+    client.uiWorkspace.openSession(id);
     if (changed) sessionListeners.forEach(listener => listener());
     flushPendingCites();
   };
@@ -422,12 +422,11 @@ export function apply(ctx: Context) {
         return { sessionId: existing, status: 'running' };
       }
       const id = await client.sessions.create({ workspaceId });
-      const scope = client.sessions.scope(id);
-      const face = scope && client.sessions.sessionOf(scope);
-      if (!face) throw new Error('研究会话创建失败');
-      if (title && !(await face.rename(title)).ok) throw new Error('公司研究绑定失败，请重试');
-      remember(id);
-      if (!(await face.prompt([{ type: 'text', text: question }], 'queue')).ok) throw new Error('研究问题未被接收，请检查模型设置后回到深度对话重试');
+      await withSession(id, async face => {
+        if (title && !(await face.rename(title)).ok) throw new Error('公司研究绑定失败，请重试');
+        remember(id);
+        if (!(await face.prompt([{ type: 'text', text: question }], 'queue')).ok) throw new Error('研究问题未被接收，请检查模型设置后回到深度对话重试');
+      });
       if (go) await router.navigate('/');
       return { sessionId: id, status: 'started' };
     })();
@@ -469,11 +468,11 @@ export function apply(ctx: Context) {
     if (!id || !bound) return null;
     if (bound.parent_id) {
       taskParents.set(id, bound.parent_id);
-      await client.sessions.refreshSubagents?.(bound.parent_id);
-      const catalog = client.sessions.list.getSnapshot().subagentsByParent?.[bound.parent_id];
+      await client.sessions.refreshProjections(bound.parent_id);
+      const catalog = client.sessions.list.getSnapshot().projectionsBySession[bound.parent_id];
       if (catalog?.state === 'error') throw new Error('报告任务状态读取失败');
-      const child = catalog?.entries.find(item => item.id === id && item.kind === 'child');
-      return { sessionId: id, slug, inputHash: bound.input_hash, running: child?.activity === 'running' };
+      const child = catalog?.values.subagentCatalog?.find(item => item.id === id);
+      return { sessionId: id, slug, inputHash: bound.input_hash, running: Boolean(child && list.byId[id]?.running) };
     }
     const scope = client.sessions.scope(id);
     const snap = scope && client.sessions.sessionOf(scope)?.getSnapshot?.();
@@ -524,12 +523,11 @@ export function apply(ctx: Context) {
       remember(openedSessionId, input.topicId);
     }
     const id = openedSessionId;
-    const scope = client.sessions.scope(id);
-    const face = scope && client.sessions.sessionOf(scope);
-    if (!face) throw new Error('议题会话创建失败');
-    if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
-      throw new Error('议题研究未被接收，请检查模型设置后重试');
-    }
+    await withSession(id, async face => {
+      if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
+        throw new Error('议题研究未被接收，请检查模型设置后重试');
+      }
+    });
   }, async openSession(sessionId: string) {
     await session;
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
@@ -730,13 +728,12 @@ export function apply(ctx: Context) {
   }
   client.slots.register<SlotProps>({ name: "root", inject: () => ({ hooks: { connectionState: client.connection.state } }), children: {
     sidebar: { kind: "single", scope: "root" },
-    conversation: { kind: "single", scope: "session-maybe" },
-    details: { kind: "single", scope: "session" },
+    main: { kind: "keyed", scope: "root" },
+    rightbar: { kind: "single", scope: "root" },
     "shell.overlay": { kind: "list", scope: "root" },
   } }, function FinanceFrame(props) {
     const [state, setState] = React.useState<"loading" | "ready" | Error>("loading");
     const [sessionError, setSessionError] = React.useState("");
-    const showDetails = React.useSyncExternalStore(callback => { listeners.add(callback); return () => { listeners.delete(callback); }; }, () => detailsOpen);
     React.useEffect(() => {
       let active = true;
       void ready.then(() => {
@@ -748,7 +745,7 @@ export function apply(ctx: Context) {
       return () => { active = false; };
     }, []);
     if (state !== "ready") return <div role="status" className="p-6">{state === "loading" ? <ResearchLoading title="正在读取工作台数据" sections={["自选", "研究名单", "界面偏好"]} /> : <>连不上本机服务，自选和研究名单暂时加载不出来：{state.message}<button onClick={() => location.reload()}>重新连接</button></>}</div>;
-    return <FinanceRoot slots={props} research={researchHost} sessionError={sessionError} showDetails={showDetails}>
+    return <FinanceRoot slots={props} research={researchHost} sessionError={sessionError}>
       <RouterProvider router={router} />
     </FinanceRoot>;
   });

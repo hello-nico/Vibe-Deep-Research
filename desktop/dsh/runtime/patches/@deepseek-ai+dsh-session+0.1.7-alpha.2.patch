@@ -1,0 +1,47 @@
+diff --git a/node_modules/@deepseek-ai/dsh-session/lib/index.js b/node_modules/@deepseek-ai/dsh-session/lib/index.js
+index 69ccdf0..1c658b5 100644
+--- a/node_modules/@deepseek-ai/dsh-session/lib/index.js
++++ b/node_modules/@deepseek-ai/dsh-session/lib/index.js
+@@ -1325,9 +1325,11 @@ var Session = class Session {
+ 	*/
+ 	append(type, data, ...opts) {
+ 		const surfaceOpts = opts[0];
++		if (surfaceOpts?.ignorable !== void 0 && surfaceOpts.ignorable !== true) throw new Error(`session event "${type}" carries an invalid ignorable marker`);
+ 		const surfaceMetadata = {
+ 			...surfaceOpts?.sourceEventSeqs === void 0 ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
+-			...surfaceOpts?.surfaceOp === void 0 ? {} : { surfaceOp: surfaceOpts.surfaceOp }
++			...surfaceOpts?.surfaceOp === void 0 ? {} : { surfaceOp: surfaceOpts.surfaceOp },
++			...surfaceOpts?.ignorable === void 0 ? {} : { ignorable: true }
+ 		};
+ 		const dataSnapshot = snapshotJsonValue(data);
+ 		if (dataSnapshot === void 0) throw new Error(`session event "${type}" carries non-JSON-serializable data`);
+diff --git a/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts b/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts
+index 0ab9d45..aeb9793 100644
+--- a/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts
++++ b/node_modules/@deepseek-ai/dsh-session/lib/types/index.d.ts
+@@ -242,7 +242,7 @@ export declare class Session {
+      *   append reentered while this acceptance/publication boundary is open also
+      *   rejects before the log changes.
+      */
+-    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T>] : []): SessionEvent<T>;
++    append<T extends SessionEventType>(type: T, data: SessionEventMap[T], ...opts: T extends SurfaceEventType ? [opts: SurfaceIntent<T> & { readonly ignorable?: true }] : [opts?: { readonly ignorable?: true }]): SessionEvent<T>;
+     /** Cached fold of the request-header events — see {@link requestHeader}. */
+     private headerFold;
+     /** Log position (events consumed) the header fold has reached. */
+diff --git a/node_modules/@deepseek-ai/dsh-session/lib/types/index.js b/node_modules/@deepseek-ai/dsh-session/lib/types/index.js
+index 8909274..d10fdd5 100644
+--- a/node_modules/@deepseek-ai/dsh-session/lib/types/index.js
++++ b/node_modules/@deepseek-ai/dsh-session/lib/types/index.js
+@@ -565,9 +565,12 @@ export class Session {
+      */
+     append(type, data, ...opts) {
+         const surfaceOpts = opts[0];
++        if (surfaceOpts?.ignorable !== undefined && surfaceOpts.ignorable !== true)
++            throw new Error(`session event "${type}" carries an invalid ignorable marker`);
+         const surfaceMetadata = {
+             ...surfaceOpts?.sourceEventSeqs === undefined ? {} : { sourceEventSeqs: surfaceOpts.sourceEventSeqs },
+             ...surfaceOpts?.surfaceOp === undefined ? {} : { surfaceOp: surfaceOpts.surfaceOp },
++            ...surfaceOpts?.ignorable === undefined ? {} : { ignorable: true },
+         };
+         const dataSnapshot = snapshotJsonValue(data);
+         if (dataSnapshot === undefined) {

@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { maintenanceDefinition, researchStatusDefinition } from '../src/verticals/finance/dsh/result-projection.ts';
 
 // Exercise the installed product runtime; only the model and Backend are controlled.
@@ -11,7 +12,9 @@ const requireRuntime = createRequire(new URL('../dsh/runtime/package.json', impo
 const runtime = async (name: string) => import(requireRuntime.resolve(`@deepseek-ai/${name}`));
 const { Context } = await runtime('cordis');
 const { LlmAdapter } = await runtime('dsh-llm');
-const stock = new URL('../../../Stock-Research/dsh/dist/', import.meta.url);
+const stock = process.env.VRA_RESEARCH_REPO
+  ? pathToFileURL(path.join(process.env.VRA_RESEARCH_REPO, 'dsh/dist') + path.sep)
+  : new URL('../../../Stock-Research/dsh/dist/', import.meta.url);
 const { runBackgroundReview, listBackgroundTasks } = await import(new URL('background-review.mjs', stock).href);
 const { installResearchTools } = await import(new URL('research-tools.mjs', stock).href);
 const snapshot = {
@@ -19,7 +22,7 @@ const snapshot = {
   accepted_pages: [{ spec: { slug: 'companies/test', research_blocks: [] }, base_input_hash: 'a'.repeat(64) }],
   source_blocks: [{ text: '原文材料', source_ref: 'source:test' }], candidates: [],
 };
-const emptyResult = { noIncrementReason: '无增量', slug: '', baseInputHash: '', content: '', refs: [], rationale: '' };
+const emptyResult = { decision: 'no_increment', noIncrementReason: '无增量' };
 
 test('native spawn isolates requests, tools, completion and cancellation from parent', { timeout: 15000 }, async (t) => {
   const previous = { enabled: process.env.STOCK_RESEARCH_ACCUMULATE, token: process.env.STOCK_RESEARCH_HOOK_TOKEN, home: process.env.DSH_HOME };
@@ -63,8 +66,10 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         });
         if (mode === 'fail') throw new Error('controlled failure');
         yield { type: 'block-start', index: 0, blockType: 'tool-call' };
-        const result = mode === 'draft' ? { noIncrementReason: '', slug: 'companies/test', baseInputHash: 'a'.repeat(64),
-          content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文' } : emptyResult;
+        const result = mode === 'draft' ? { decision: 'update', wikiUpdates: [{
+          slug: 'companies/test', baseInputHash: 'a'.repeat(64), kind: 'operating_model',
+          content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文',
+        }] } : emptyResult;
         yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: result } };
         yield { type: 'finish', reason: 'tool-calls' };
       } else {

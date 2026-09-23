@@ -15,7 +15,7 @@ declare module '@deepseek-ai/dsh-client-ui-chat/client' {
     'finance-research-status': { text: string }; 'finance-topic-candidate': TopicCandidateData;
   }
 }
-function ResultNode({ node }: ChatNodeViewProps<'finance-result'>) {
+function ResultNode({ node }: Pick<ChatNodeViewProps<'finance-result'>, 'node'>) {
   return <ResearchResult key={node.data.resultId} resultId={node.data.resultId} />;
 }
 export function installResultNode(ctx: Context) {
@@ -29,11 +29,11 @@ export function installResultNode(ctx: Context) {
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-result' }, ResultNode));
 }
 
-function ResearchStatusNode({ node }: ChatNodeViewProps<'finance-research-status'>) {
+function ResearchStatusNode({ node }: Pick<ChatNodeViewProps<'finance-research-status'>, 'node'>) {
   return <p className="my-2 text-sm text-[var(--text-secondary)]">{node.data.text}</p>;
 }
 
-function MaintenanceNode({ node }: ChatNodeViewProps<'finance-maintenance'>) {
+function MaintenanceNode({ node }: Pick<ChatNodeViewProps<'finance-maintenance'>, 'node'>) {
   return <details className="my-3 rounded-lg border border-[var(--border)] p-3 text-sm">
     <summary className="cursor-pointer">知识更新草案 · 待核对</summary>
     {node.data.question && <p className="mt-2 break-words">来自研究：{node.data.question}</p>}
@@ -43,7 +43,7 @@ function MaintenanceNode({ node }: ChatNodeViewProps<'finance-maintenance'>) {
   </details>;
 }
 
-function TopicCandidateNode({ node }: ChatNodeViewProps<'finance-topic-candidate'>) {
+function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-candidate'>, 'node'>) {
   const [status, setStatus] = useState(node.data.status || 'open');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');

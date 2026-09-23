@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import path from 'node:path';
 import { buildDailyReviewSnapshot, buildDirectorySnapshot, buildEventsProbabilitySnapshot, buildFeedListSnapshot, buildIndustryProfileSnapshot, buildWikiPageSnapshot, citedWikiVersionFailure, clipPageSnapshot, formatCompanyFromSnapshot } from '../src/verticals/finance/assistant/snapshot.ts';
 import { MARKET_INDEX_IDS, globalIndexObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
 
@@ -205,7 +206,9 @@ test('五页 snapshot builder 与页面组装都不自写【页面快照】', ()
 });
 
 test('研究纪律文件保留 shared-research-principles 标记', () => {
-  const text = readFileSync(new URL('../../../Stock-Research/dsh/resources/research-discipline.md', import.meta.url), 'utf8');
+  const text = readFileSync(process.env.VRA_RESEARCH_REPO
+    ? path.join(process.env.VRA_RESEARCH_REPO, 'dsh/resources/research-discipline.md')
+    : new URL('../../../Stock-Research/dsh/resources/research-discipline.md', import.meta.url), 'utf8');
   assert.match(text, /shared-research-principles:start/);
   assert.match(text, /shared-research-principles:end/);
 });

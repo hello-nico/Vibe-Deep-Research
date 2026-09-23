@@ -1,0 +1,23 @@
+diff --git a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
+index ec08c3b..d807db0 100644
+--- a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
++++ b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
+@@ -1475,7 +1475,7 @@ var SessionHistoryController = class {
+ 				signal,
+ 				projectionMode: withProjections || address.kind === "subagent" ? "all" : "none"
+ 			});
+-			if (observation.header.cwd === void 0) {
++			if (address.kind === "session" && observation.header.cwd === void 0) {
+ 				observation[Symbol.dispose]();
+ 				rejectNotFound(address);
+ 			}
+@@ -2820,7 +2820,8 @@ let SessionController = (() => {
+ 			ctx.plugin(SessionSkillCatalog);
+ 			ctx.plugin(ArchivedSessionGate);
+ 			ctx.on("session/created", (session) => {
+-				ctx.emit("api-session/added", this.listState.summaryFor(session));
++				const { projections: _projections, ...remoteSummary } = this.listState.summaryFor(session);
++				ctx.emit("api-session/added", remoteSummary);
+ 			});
+ 			ctx.on("session/disposed", (session) => {
+ 				ctx.emit("api-session/removed", session.id);

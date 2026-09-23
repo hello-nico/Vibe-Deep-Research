@@ -150,6 +150,25 @@ test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，�
   }
 });
 
+test('空问助手会话未落盘时，新绑定移除无效旧记录', () => {
+  const previous = process.env.DSH_HOME;
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-assistant-empty-'));
+  process.env.DSH_HOME = home;
+  try {
+    const binding = { plugin: 'market', mode: 'ask', page_key: 'market:daily-review' };
+    bindAssistantSession({ ...binding, session_id: 'session-old' }, { sessionExists: () => true });
+    bindAssistantSession({ ...binding, session_id: 'session-new' }, { sessionExists: id => id === 'session-new' });
+    const store = loadAssistantSessions();
+    assert.equal(store.pages['market:daily-review'].session_id, 'session-new');
+    assert.equal(store.sessions['session-old'], undefined);
+    assert.ok(store.sessions['session-new']);
+  } finally {
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test('产业页面生成的 Profile 身份可经宿主绑定、读回和切换模式', () => {
   const previous = process.env.DSH_HOME;
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-profile-binding-'));
@@ -450,7 +469,8 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(client, /research\.openSession/);
   assert.match(client, /ensureTaskHistory/);
   const history = readFileSync(new URL("../src/verticals/finance/lib/taskHistory.ts", import.meta.url), "utf8");
-  assert.match(history, /face\?\.open/);
+  assert.match(history, /sessions\.retain\(target/);
+  assert.match(history, /await retained\.ready/);
   assert.doesNotMatch(history, /sessions\.open\(/);
   assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
   const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");

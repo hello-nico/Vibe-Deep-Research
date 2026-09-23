@@ -2,7 +2,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 
 export interface SlotProps {
-  renderSlot(name: string, owner: object): React.ReactNode;
+  renderSlot(name: string, owner: object, options?: { entryKey?: string }): React.ReactNode;
   useConnectionState<T>(selector: (state: string | undefined) => T): T;
 }
 export const FinanceSlots = React.createContext<SlotProps | null>(null);
@@ -28,7 +28,7 @@ export function NativeDshHost() {
   const settings = document.getElementById("dsh-settings");
   const status = document.getElementById("dsh-status");
   return <>
-    {conversation && createPortal(<div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>{slots.renderSlot("conversation", {})}</div>, conversation)}
+    {conversation && createPortal(<div style={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }}>{slots.renderSlot("main", {}, { entryKey: "conversation" })}</div>, conversation)}
     {settings && createPortal(slots.renderSlot("sidebar", {}), settings)}
     {status && createPortal(<ConnectionStatus slots={slots} />, status)}
   </>;

@@ -28,6 +28,11 @@ export function setAssistantSeat(next: Partial<AssistantSeatView>) {
   assistantSeatListeners.forEach(listener => listener());
 }
 
+export class AssistantBindingError extends Error {
+  readonly status: number;
+  constructor(status: number, message: string) { super(message); this.status = status; }
+}
+
 export async function bindAssistantSession(input: {
   mode: AssistantMode;
   session_id: string;
@@ -42,7 +47,7 @@ export async function bindAssistantSession(input: {
   });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(typeof body.detail === 'string' ? body.detail : '问助手没能启动，请重试');
+    throw new AssistantBindingError(response.status, typeof body.detail === 'string' ? body.detail : '问助手没能启动，请重试');
   }
   return response.json() as Promise<{
     plugin: AssistantPlugin;

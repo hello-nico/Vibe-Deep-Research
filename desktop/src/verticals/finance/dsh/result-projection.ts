@@ -31,10 +31,10 @@ export const resultDefinition: ConversationNodeDefinition<State> = {
   start(_context, match) { return { seq: match.event.seq }; },
   update(context, match) {
     if (match.event.type !== 'tool/result') return context.state;
-    const result = match.event.data.message.content[0];
+    const result = match.event.data.message;
     const meta = match.event.data.meta;
     const id = meta && typeof meta === 'object' && !Array.isArray(meta) ? reference(meta.research_result) : undefined;
-    return !result || result.isError ? { seq: match.event.seq } : { seq: match.event.seq, resultId: id ?? resultReference(result.content) };
+    return result.isError ? { seq: match.event.seq } : { seq: match.event.seq, resultId: id ?? resultReference(result.content) };
   },
   buildViewNode(context) {
     if (!context.state?.resultId) return null;
@@ -73,7 +73,7 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
 };
 
 export interface TopicCandidateData {
-  id: string; question: string; reason: string; objects?: string[]; match_topic_id?: string; status?: string;
+  id: string; question: string; reason: string; objects?: string[]; match_topic_id?: string; status?: 'open' | 'failed' | 'ignored' | 'adopted';
 }
 export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidateData> = {
   kind: 'finance-topic-candidate', target: 'chat',

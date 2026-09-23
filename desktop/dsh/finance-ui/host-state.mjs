@@ -400,9 +400,14 @@ export function bindAssistantSession({ session_id, plugin, mode, target, page_ke
   };
   store.sessions[session_id] = record;
   const bindKey = assistantBindKey(record.plugin, record.target, record.page_key);
+  const previousIds = new Set([store.pages[bindKey]?.session_id, record.page_key && store.pages[record.page_key]?.session_id].filter(Boolean));
   if (bindKey !== `${record.plugin}:`) {
     store.pages[bindKey] = { session_id, plugin: record.plugin, mode, target: record.target };
     if (record.page_key) store.pages[record.page_key] = { session_id, plugin: record.plugin, mode, target: record.target };
+  }
+  for (const previousId of previousIds) {
+    if (previousId !== session_id && !exists(previousId)
+      && !Object.values(store.pages).some(page => page.session_id === previousId)) delete store.sessions[previousId];
   }
   writeAssistantStore(store);
   return record;
