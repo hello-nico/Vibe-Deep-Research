@@ -10,6 +10,10 @@
 
 `desktop/dsh-dev.ts` 启动时只为安装位置生成 `DSH_HOME/finance-runtime.patch.yml`，配置产品预设的绝对目录与默认 `vibe` 预设，不读取用户预设。启动使用 `dsh --profile web --patch <finance-runtime.patch.yml> --port <产品配置端口>`；旧阶段命名的 patch 不再加载。DSH profile 和会话仍留在产品专用 DSH_HOME。
 
+## 升级与回退规则
+
+每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换，切换验收后打新基线。回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。完整规则见 [Human Checklist](../../../human-checklist.md)「运行时升级规则：先打基线标签」。当前基线：`baseline/dsh-0.1.2-rc.1`。
+
 ## 补丁归属
 
 这些补丁来自此前 M3 使用的 rc.1 运行环境，显式保留已有行为；不是当前产品修改上游源码的隐式前提。「类型」按实际 diff 区分：bug fix = 修上游缺陷；产品功能 = 上游没有的产品行为；产品配置 = 默认值 / 装配调整；文案 = 界面文字。混合补丁分条列在备注。移除条件在下次升级时逐项验证，不预设上游已修复任何 bug。
