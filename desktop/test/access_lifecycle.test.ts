@@ -82,10 +82,14 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   assert.match(persona, /Describe only capabilities actually available in this session/);
   assert.match(persona, /not a guarantee that/);
   assert.match(persona, /explanations do not require a full research workflow/);
+  // 页面问助手不带研究纪律，产品底线必须由 persona 自带，不能引用模型看不到的文本。
+  assert.match(persona, /Do not give investment actions/);
+  assert.match(persona, /never from memory/);
+  assert.doesNotMatch(persona, /Follow the Stock-Research research\s+discipline/);
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {
-  for (let failAt = 1; failAt <= 15; failAt++) {
+  for (let failAt = 1; failAt <= 16; failAt++) {
     const webServer = fakeWebServer();
     const register = webServer.register.bind(webServer);
     let count = 0;
@@ -98,7 +102,7 @@ test("真实插件的每个注册失败点都回滚，并可重装卸载", () =>
     assert.equal(webServer.routes.size, 0, `registration ${failAt}`);
     webServer.register = register;
     apply(ctx);
-    assert.equal(webServer.routes.size, 15);
+    assert.equal(webServer.routes.size, 16);
     for (const dispose of ctx.effects.splice(0).reverse()) dispose();
     assert.equal(webServer.routes.size, 0);
   }
