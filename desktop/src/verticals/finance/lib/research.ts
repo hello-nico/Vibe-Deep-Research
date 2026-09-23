@@ -4,16 +4,37 @@ export class ResearchError extends Error {
   constructor(public status: number, message: string) { super(message); }
 }
 export async function researchRead<T>(route: string, init?: RequestInit): Promise<T> {
-  const response = await fetch('/finance-research' + route, init);
-  const contentType = response.headers.get('content-type') || '';
-  const raw = await response.text();
-  const looksJson = contentType.includes('json') || raw.trim().startsWith('{') || raw.trim().startsWith('[');
-  let value: unknown = raw;
-  if (looksJson) {
-    try { value = JSON.parse(raw); } catch { value = raw; }
+  const canRetry = !init?.method || init.method.toUpperCase() === 'GET';
+  for (let attempt = 0; ; attempt++) {
+    const response = await fetch('/finance-research' + route, init);
+    const contentType = response.headers.get('content-type') || '';
+    const raw = await response.text();
+    const looksJson = contentType.includes('json') || raw.trim().startsWith('{') || raw.trim().startsWith('[');
+    let value: unknown = raw;
+    if (looksJson) {
+      try { value = JSON.parse(raw); } catch { value = raw; }
+    }
+    if (response.ok) return value as T;
+    const detail = value && typeof value === 'object' && 'detail' in value ? value.detail : null;
+    const retryable = response.status === 503 && detail && typeof detail === 'object'
+      && 'retryable' in detail && detail.retryable === true;
+    if (canRetry && retryable && attempt < 3) {
+      const retryAfter = response.headers.get('retry-after');
+      const seconds = retryAfter == null ? NaN : Number(retryAfter);
+      const serverDelay = Number.isFinite(seconds) && seconds >= 0
+        ? seconds * 1000 : retryAfter ? Date.parse(retryAfter) - Date.now() : NaN;
+      const delay = Math.min(5000, Math.max(0, Number.isFinite(serverDelay) ? serverDelay : 500 * 2 ** attempt));
+      await new Promise<void>((resolve, reject) => {
+        if (init?.signal?.aborted) { reject(init.signal.reason); return; }
+        const timer = setTimeout(() => { init?.signal?.removeEventListener('abort', onAbort); resolve(); }, delay);
+        const onAbort = () => { clearTimeout(timer); reject(init?.signal?.reason); };
+        init?.signal?.addEventListener('abort', onAbort, { once: true });
+      });
+      continue;
+    }
+    const message = canRetry && retryable ? '资料仍在更新，请稍后重试' : researchErrorMessage(response.status, value);
+    throw new ResearchError(response.status, message);
   }
-  if (!response.ok) throw new ResearchError(response.status, researchErrorMessage(response.status, value && typeof value === 'object' ? value : null));
-  return value as T;
 }
 export interface WikiItem { slug: string; title: string; input_hash?: string }
 export interface WikiBlock { kind: string; content?: Record<string, unknown> | string; refs: string[]; reviewed_as_of?: string }

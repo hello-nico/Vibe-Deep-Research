@@ -31,17 +31,18 @@ export function IndustryCenter() {
   const [report, setReport] = useState(false);
   const [draftToken, setDraftToken] = useState("");
   const [revision, setRevision] = useState(0);
+  const [reload, setReload] = useState(0);
   useEffect(() => { setWikiPage(null); setDraftToken(""); setMarkdown(""); }, [key]);
   useEffect(() => {
     const controller = new AbortController(); setError("");
     void researchRead<{ items: NbsIndustry[]; wiki_status?: string }>("/wiki/industries/nbs", { signal: controller.signal })
       .then(value => { setItems(value.items); setStatus(value.wiki_status || ""); })
-      .catch(e => { if (!controller.signal.aborted) setError(String(e)); });
+      .catch(e => { if (!controller.signal.aborted) setError(e instanceof Error ? e.message : String(e)); });
     void researchRead<{ items: unknown[] }>("/industries/profiles", { signal: controller.signal })
       .then(value => { if (!controller.signal.aborted) setProfileCount(value.items.length); })
       .catch(() => {});
     return () => controller.abort();
-  }, []);
+  }, [reload]);
   const selected = key
     ? items?.find(item => item.short_name === key || item.slug === `industries/nbs-${key}` || item.slug.endsWith(`/${key}`))
     : undefined;
@@ -98,7 +99,7 @@ export function IndustryCenter() {
       search={selected ? undefined : <WorkspaceSearch className="mb-0" placeholder="搜索行业名称" value={query} onChange={setQuery} />}
       actions={selected ? undefined : profilesLink} />
     {selected && <div className="workspace-toolbar justify-between"><div className="flex min-w-0 flex-wrap items-center gap-3"><Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link><WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />{selected.published && <WikiViewTabs report={report} onChange={setReport} />}</div><div className="flex flex-wrap items-start gap-2">{selected.published && <IndustryRefreshConfirm key={selected.slug} slug={selected.slug} version={wikiPage?.input_hash} title={selected.official_name} onUpdated={() => setRevision(value => value + 1)} />}{profilesLink}</div></div>}
-    {error && <p role="alert">{error}</p>}
+    {error && <p role="alert">{error}<button type="button" className="workspace-action ml-2" onClick={() => setReload(value => value + 1)}>重试</button></p>}
     {status === "unavailable" && <p role="status" className="mb-4 text-sm text-muted-foreground">行业资料暂时无法读取，请稍后重试。</p>}
     {!items && !error && (key
       ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7"><WikiLoading slug={`industries/${key}`} /></GlassCard>
