@@ -58,7 +58,7 @@ Owner：[我的研究独立 Topic 对话 Task](docs/我的研究独立Topic对�
 
 ## 7. DSH 版本同步与 UI 机制参考
 
-Owner：产品运行时见 [runtime 说明](desktop/dsh/runtime/README.md)，Stock-Research 研究插件需共同对齐；尚无独立升级 Task。本次记录待办，不执行升级。
+Owner：[DSH 升级到 0.1.7 Task](docs/DSH升级到0.1.7_Task_2026-09-23.md)（2026-09-23 立项，先只读盘点待审）；产品运行时见 [runtime 说明](desktop/dsh/runtime/README.md)，Stock-Research 研究插件共同对齐。
 
 - 已核对基线：产品固定 `0.1.2-rc.1`；参考源码 `/Users/apple/ts/src/deepseek-harness` 为 `0.1.6-alpha.2`，HEAD `ddefc45fbc`（2026-09-17）。这是 2026-09-21 核对的本地版本，不代表远端最新发布；实施前重新核对上游发布、变更和目标版本。
 - 升级前盘点两仓依赖闭包、lockfile、现有 patch、会话持久格式与 UI 接口变化，形成有界升级 Task。逐项判断补丁保留、适配或由正式接口替代，不能删除失败补丁换取安装成功；明确历史会话验证与回退方案。

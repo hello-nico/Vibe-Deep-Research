@@ -24,7 +24,8 @@
 | 模块 | 源码 / 契约与 Task |
 |---|---|
 | 产品页面与 DSH UI 插件 | `desktop/src/verticals/finance/`、`desktop/dsh/finance-ui/`；[M6 边界](docs/架构边界与UI组合方案_M6_2026-09-09.md)；用户可见文案见[界面文案收敛 Task](docs/界面文案收敛_Task_2026-09-23.md)、[深度对话提示词与文案收敛 Task](docs/深度对话提示词与文案收敛_Task_2026-09-23.md) |
-| DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts`；[运行时说明](desktop/dsh/runtime/README.md) |
+| 产品对象模型与交互 | [v1 设计稿](docs/产品对象模型与交互_v1_2026-09-23.md)：对象为主、助手即入口、统一动作与界面零件；待审阅后拆 Task |
+| DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts`；[运行时说明](desktop/dsh/runtime/README.md)；升级见 [DSH 升级到 0.1.7 Task](docs/DSH升级到0.1.7_Task_2026-09-23.md) |
 | 本机数据服务与 Client 存储 | `orchestrator/src/api.ts`、`service.ts`、`client_store.ts`；[M8.5 Task](docs/Client选择与研究数据归属_Task_M8.5_2026-09-14.md) |
 | 研究知识与发布 | Stock-Research 仓库的 Backend 与 DSH 插件；[M8 Task](docs/我的研究与行业入口_Task_M8_2026-09-10.md) |
 | 研究记忆与按需维护 | [M9.3 Task](docs/研究记忆与按需维护_Task_M9.3_2026-09-16.md)：画像、研究连续性、四类 Wiki 后台维护与 Topic 候选；已实施，真实模型与浏览器待验收 |
