@@ -559,21 +559,26 @@ function CompanyRosterRow({
   attach: (el: HTMLElement | null) => void;
 }) {
   const asOf = companyAsOfLabel(row.summary?.as_of);
-  return <div ref={attach} data-roster-slug={row.slug} className="flex min-w-0 items-center gap-2 px-2 py-4 hover:bg-muted/40">
-    <button type="button" onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-2 overflow-hidden text-left">
-      <span className="truncate font-medium">{row.title}</span>
-      <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</span>
-    </button>
-    <RosterIndustryTag summary={row.summary} ready={industryReady} />
-    <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
-    <div className="ml-auto flex shrink-0 items-center gap-2">
-      {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}</span>}
-      <ArrowRight size={14} className="text-muted-foreground/60" />
-      <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onWatch} aria-label={watched ? '移出自选' : '加入自选'}>
-        <Star size={14} className={watched ? 'fill-current text-primary' : ''} />
+  return <div ref={attach} data-roster-slug={row.slug} className="px-2 py-4 hover:bg-muted/40">
+    <div className="flex min-w-0 items-center gap-2">
+      <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-2 overflow-hidden text-left">
+        <span className="truncate font-medium">{row.title}</span>
+        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</span>
       </button>
-      <button type="button" className="workspace-action workspace-action-compact" onClick={onLeave}>移除</button>
+      <RosterIndustryTag summary={row.summary} ready={industryReady} />
+      <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
+      <div className="ml-auto flex shrink-0 items-center gap-2">
+        {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}</span>}
+        <ArrowRight size={14} className="text-muted-foreground/60" />
+        <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onWatch} aria-label={watched ? '移出自选' : '加入自选'}>
+          <Star size={14} className={watched ? 'fill-current text-primary' : ''} />
+        </button>
+        <button type="button" className="workspace-action workspace-action-compact" onClick={onLeave}>移除</button>
+      </div>
     </div>
+    <button type="button" onClick={onOpen} className="mt-1 block w-full min-w-0 text-left">
+      <RosterOneLiner text={row.summary?.one_liner} lines={1} />
+    </button>
   </div>;
 }
 
