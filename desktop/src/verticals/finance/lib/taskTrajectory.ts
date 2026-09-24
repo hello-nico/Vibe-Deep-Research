@@ -101,12 +101,6 @@ export function visibleUserPrompt(body: string): string {
   return (match?.[1] ?? body ?? '').trim();
 }
 
-export function visibleProcessPrompt(body: string): string {
-  const visible = visibleUserPrompt(body);
-  if (/为 Wiki 页 .+ 生成一份交互图文报告/.test(visible)) return '按当前研究页生成图文报告';
-  return visible;
-}
-
 export function askNoteTitle(question: string): string {
   return `问助手 · ${(question || '').trim().slice(0, 40)}`;
 }
@@ -124,49 +118,6 @@ export function askNoteContent(input: { question: string; answer: string; pageNa
     '---',
     `来源：${input.pageName}${when ? ` · ${when}` : ''}`,
   ].join('\n');
-}
-
-/** 每一轮已结束的最终 assistant 步骤 → 保存所需内容；配对问题取最近一次 user 步骤。 */
-export function assistantTurnSaves(steps: TaskTrajectoryStep[], running = false): Map<string, { question: string; answer: string; finishedAt?: number }> {
-  const saves = new Map<string, { question: string; answer: string; finishedAt?: number }>();
-  let question = '';
-  steps.forEach((step, index) => {
-    if (step.kind === 'user') {
-      question = visibleUserPrompt(step.body || '');
-      return;
-    }
-    if (step.kind !== 'assistant') return;
-    // The last step of a still-running turn is only the latest output, not the turn's answer.
-    const turnFinal = index === steps.length - 1 ? !running : steps[index + 1]?.kind === 'user';
-    if (turnFinal && question && step.body && !step.streaming && !step.failed) {
-      saves.set(step.id, { question, answer: step.body, finishedAt: step.time });
-    }
-  });
-  return saves;
-}
-
-export function extractResultIds(text: string): string[] {
-  return [...new Set(String(text || '').match(/result:[0-9a-f]{32}/g) || [])];
-}
-
-export function extractBoundSources(body: string): { label: string; url?: string; version?: string; fetchedAt?: string }[] {
-  const section = (body || '').split('用户问题：')[0] || '';
-  if (!/本轮已绑定的 URL 依据|本轮 URL 依据/.test(section)) return [];
-  const items: { label: string; url?: string; version?: string; fetchedAt?: string }[] = [];
-  for (const block of section.split(/\n- /).slice(1)) {
-    const label = block.split('\n')[0]?.replace(/`[^`]+`/g, '').trim();
-    const url = /URL：(\S+)/.exec(block)?.[1];
-    const versionRaw = /内容版本：(\S+)/.exec(block)?.[1];
-    const fetchedAt = /读取时点：(\S+)/.exec(block)?.[1];
-    if (!label) continue;
-    items.push({
-      label,
-      url,
-      version: versionRaw && versionRaw !== '不可用' ? versionRaw : undefined,
-      fetchedAt,
-    });
-  }
-  return items;
 }
 
 export const emptyTaskTrajectory: TaskTrajectorySnapshot = {

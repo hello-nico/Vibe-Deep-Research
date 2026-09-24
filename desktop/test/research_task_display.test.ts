@@ -23,9 +23,6 @@ test('company_data 成果不渲染卡片且缺字段不抛错', () => {
   assert.equal(embeddableChartResult('company_data'), false);
   assert.deepEqual(listOrEmpty(undefined), []);
   assert.doesNotThrow(() => listOrEmpty(undefined).map(item => item));
-  const transcript = readFileSync(new URL('../src/verticals/finance/components/TaskTranscript.tsx', import.meta.url), 'utf8');
-  assert.match(transcript, /mod\.ResultEmbed/);
-  assert.match(transcript, /mod\.ResultEmbedBoundary/);
   const card = readFileSync(new URL('../src/verticals/finance/components/ResearchResult.tsx', import.meta.url), 'utf8');
   assert.match(card, /embeddableChartResult\(value\.payload\.kind\)/);
   assert.match(card, /listOrEmpty\(payload\?\.missing\)/);
@@ -38,8 +35,6 @@ test('错误边界兜底只影响这一张成果', () => {
   assert.match(card, /getDerivedStateFromError/);
   assert.match(card, /RESULT_EMBED_FALLBACK/);
   assert.equal(RESULT_EMBED_FALLBACK, '这份成果暂时无法显示');
-  const transcript = readFileSync(new URL('../src/verticals/finance/components/TaskTranscript.tsx', import.meta.url), 'utf8');
-  assert.match(transcript, /<mods\.Boundary key=\{id\}><mods\.Embed resultId=\{id\} \/><\/mods\.Boundary>/);
 });
 
 test('公司名取不到时先用研究页标题，再回退代码', () => {

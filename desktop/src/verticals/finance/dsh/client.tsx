@@ -7,6 +7,7 @@ import { researchObjectSource, researchTarget } from './research-input';
 import { readableTitleDecision, type TitleEventEntry } from './research-title';
 import { installTriggerMenuFit } from './trigger-menu-fit';
 import { installPanelConversation } from './panel-conversation';
+import { selectSidePanel, type FinanceSidePanel } from './side-panel';
 import { hydrateObjectLabels, objectLabel, openRegisteredObject, resolveObjectLabels } from '../lib/objectRegistry';
 import { backgroundTaskForSession, loadBackgroundTasks } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
@@ -63,6 +64,7 @@ interface Client {
     sessionOf(ctx: Context): HistorySession | undefined;
     binding?(id: string): { sessionId: string; session: HistorySession } | undefined;
     subagentAddress?(id: string): { parentSessionId: string; childSessionId: string; mode: 'one-shot' | 'continuable' } | undefined;
+    retainInfo(id: string): { getSnapshot(): { retainedBy: { mainView?: number } }; subscribe(callback: () => void): () => void };
   };
   uiConversation?: {
     binding(source: { sessionId: string; session: HistorySession }): {
@@ -125,7 +127,7 @@ function openResearchTarget(value: string) { openRegisteredObject(value); }
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
   installResultNode(ctx);
-  installPanelConversation(ctx);
+  installPanelConversation(ctx, () => sidePanel);
   ctx.effect(() => ctx.inputTriggers.registerSource(researchObjectSource));
   ctx.provide('chatFileMentions', { forClosing() {
     const citation = createCitationMention(reference => window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: reference })));
@@ -204,7 +206,6 @@ export function apply(ctx: Context) {
   const reportStarts = new Map<string, Promise<StartSessionResult>>();
   let openedSessionId = "";
   let openedTopicId = "";
-  let assistantHold: { sessionId: string; topicId: string } | null = null;
   const insertLibraryCitations = (items: LibraryCite[], sessionId: string) => {
     const scope = sessionId ? client.sessions.scope(sessionId) : undefined;
     const input = scope && client.conversation?.input.for(scope);
@@ -296,14 +297,28 @@ export function apply(ctx: Context) {
     return () => window.removeEventListener(LIBRARY_CITE_EVENT, onCite);
   });
   const sessionListeners = new Set<() => void>();
-  let taskProcess: TaskProcessRef | null = null;
-  const taskProcessListeners = new Set<() => void>();
+  let sidePanel: FinanceSidePanel | null = null;
+  const sidePanelListeners = new Set<() => void>();
+  let unwatchMain: (() => void) | undefined;
+  const setSidePanel = (next: FinanceSidePanel | null) => {
+    unwatchMain?.();
+    unwatchMain = undefined;
+    const selected = selectSidePanel(sidePanel, next, openedSessionId);
+    const panelSessionId = selected && 'sessionId' in selected ? selected.sessionId : '';
+    const main = panelSessionId ? client.sessions.retainInfo(panelSessionId) : null;
+    sidePanel = main?.getSnapshot().retainedBy.mainView ? null : selected;
+    if (sidePanel && main) unwatchMain = main.subscribe(() => {
+      if (main.getSnapshot().retainedBy.mainView) setSidePanel(null);
+    });
+    sidePanelListeners.forEach(listener => listener());
+  };
   const remember = (id: string, topicId = "") => {
     const changed = openedSessionId !== id || openedTopicId !== topicId;
     openedSessionId = id;
     openedTopicId = topicId;
-    if (!assistantHold) storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
+    storageSet(`vibe-dsh-session:vibe:${workspaceId}`, id);
     client.uiWorkspace.openSession(id);
+    if (sidePanel && 'sessionId' in sidePanel && sidePanel.sessionId === id) setSidePanel(null);
     if (changed) sessionListeners.forEach(listener => listener());
     flushPendingCites();
   };
@@ -574,27 +589,25 @@ export function apply(ctx: Context) {
     if (!reusable) watchReadableTitle(id);
     await bindTopicSession(topicId, id, title || topicBind?.title || topicId);
     signal?.throwIfAborted();
-    remember(id, topicId);
-    return { topicId, sessionId: id, matched: openedTopicId === topicId && openedSessionId === id };
-  }, async startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }) {
+    return { topicId, sessionId: id };
+  }, async startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }) {
     await session;
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
+    let id: string;
     if (input.fresh) {
-      const id = await client.sessions.create({ workspaceId });
+      id = await client.sessions.create({ workspaceId });
       watchReadableTitle(id);
       await bindTopicSession(input.topicId, id, input.title);
-      remember(id, input.topicId);
-    } else if (openedTopicId !== input.topicId || !openedSessionId) {
-      await research.restoreTopic(input.topicId, input.title);
     } else {
-      remember(openedSessionId, input.topicId);
+      id = (await research.restoreTopic(input.topicId, input.title)).sessionId;
     }
-    const id = openedSessionId;
+    input.onSessionReady?.(id);
     await withSession(id, async face => {
       if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
         throw new Error('议题研究未被接收，请检查模型设置后重试');
       }
     });
+    return id;
   }, async openSession(sessionId: string) {
     await session;
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
@@ -613,16 +626,25 @@ export function apply(ctx: Context) {
   }, openTaskProcess(task: TaskProcessRef) {
     if (task.parentSessionId) taskParents.set(task.sessionId, task.parentSessionId);
     if (task.parentSessionId && task.settlementSessionId) taskParents.set(task.settlementSessionId, task.parentSessionId);
-    taskProcess = task;
-    taskProcessListeners.forEach(listener => listener());
+    setSidePanel({ kind: 'task', task });
   }, closeTaskProcess() {
-    taskProcess = null;
-    taskProcessListeners.forEach(listener => listener());
+    if (sidePanel?.kind === 'task') setSidePanel(null);
   }, getTaskProcess() {
-    return taskProcess;
+    return sidePanel?.kind === 'task' ? sidePanel.task : null;
   }, subscribeTaskProcess(listener: () => void) {
-    taskProcessListeners.add(listener);
-    return () => { taskProcessListeners.delete(listener); };
+    sidePanelListeners.add(listener);
+    return () => { sidePanelListeners.delete(listener); };
+  }, openTopicPanel(topic: Extract<FinanceSidePanel, { kind: 'topic' }>) {
+    setSidePanel(topic);
+  }, openAssistantPanel(sessionId: string, pageName = '问助手') {
+    setSidePanel({ kind: 'assistant', sessionId, pageName });
+  }, closeSidePanel() {
+    setSidePanel(null);
+  }, getSidePanel() {
+    return sidePanel;
+  }, subscribeSidePanel(listener: () => void) {
+    sidePanelListeners.add(listener);
+    return () => { sidePanelListeners.delete(listener); };
   }, trajectory(sessionId: string) {
     const existing = trajectoryStores.get(sessionId);
     if (existing) return existing;
@@ -652,8 +674,6 @@ export function apply(ctx: Context) {
     } finally {
       reference.release();
     }
-  }, topicSessionMatches(topicId: string) {
-    return openedTopicId === topicId && !!openedSessionId;
   }, subscribeSession(listener: () => void) {
     sessionListeners.add(listener);
     return () => { sessionListeners.delete(listener); };
@@ -667,13 +687,7 @@ export function apply(ctx: Context) {
     waitSession: () => session ?? Promise.resolve(),
     getWorkspaceId: () => workspaceId,
     getWorkspace: () => workspace,
-    remember,
-    currentSessionId,
-    getOpened: () => ({ sessionId: openedSessionId, topicId: openedTopicId }),
-    setOpenedSession: (id) => { openedSessionId = id; },
-    notifySession: () => sessionListeners.forEach(listener => listener()),
-    getHold: () => assistantHold,
-    setHold: (next) => { assistantHold = next; },
+    openAssistantPanel: id => research.openAssistantPanel(id),
   });
   client.slots.inject('conversation.view', () => client.slots.register<{ openView(view: string, focus?: string): void }>({
     name: 'conversation.view', id: 'finance-history', order: 30, label: () => '历史对话',

@@ -19,7 +19,8 @@ test('外壳组合保持研究上下文，并在同一树内装配助手与原�
     const { FinanceSlots } = await server.ssrLoadModule('/src/verticals/finance/dsh/NativeDsh.tsx');
     const { useResearchSessions } = await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx');
     const calls: string[] = [];
-    const research = { start: async () => { throw new Error('渲染不能启动研究'); } };
+    const research = { start: async () => { throw new Error('渲染不能启动研究'); },
+      getSidePanel: () => null, subscribeSidePanel: () => () => {} };
     const slots = {
       renderSlot(name: string) {
         calls.push(name);

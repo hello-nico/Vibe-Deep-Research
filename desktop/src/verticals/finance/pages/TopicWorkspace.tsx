@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, Check, ChevronLeft, FileText, Plus, RefreshCw, RotateCcw } from "lucide-react";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
@@ -14,7 +14,7 @@ import {
   type ResearchProposal, type ResearchTopic, type WikiDraft,
 } from "../lib/research";
 import { useResearchSessions } from "../dsh/research-session";
-import { useTopicSessionGate } from "../dsh/topic-session-gate";
+import { topicOpeningQuestions } from "../dsh/side-panel";
 import { useAiPage } from "../../../core/ai/pageContext";
 
 function DraftPreview({ draft }: { draft: WikiDraft }) {
@@ -34,7 +34,6 @@ export function TopicWorkspace() {
 function TopicContent({ topicHex }: { topicHex: string }) {
   const topicId = topicIdFromHex(topicHex);
   const research = useResearchSessions();
-  const gate = useTopicSessionGate();
   const [topic, setTopic] = useState<ResearchTopic | null>(null);
   const [report, setReport] = useState(false);
   const [links, setLinks] = useState<ResearchLink[]>([]);
@@ -90,31 +89,6 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     void load(controller.signal).catch(e => { if (!controller.signal.aborted) setError(String(e)); });
     return () => controller.abort();
   }, [topicId]);
-  useLayoutEffect(() => {
-    let cancelled = false;
-    const controller = new AbortController();
-    const sync = () => {
-      if (research.topicSessionMatches(topicId)) {
-        gate.setGate({ blocking: false, message: "" });
-        return;
-      }
-      gate.setGate({ blocking: true, message: "正在打开这个议题的对话…" });
-      void research.restoreTopic(topicId, undefined, controller.signal).then(match => {
-        if (cancelled) return;
-        if (match.matched) gate.setGate({ blocking: false, message: "" });
-        else gate.setGate({ blocking: true, message: "这个议题的对话没能打开，请刷新后重试。" });
-      }).catch(e => {
-        if (!cancelled) gate.setGate({ blocking: true, message: e instanceof Error ? e.message : String(e) });
-      });
-    };
-    sync();
-    const unsubscribe = research.subscribeSession(sync);
-    return () => {
-      cancelled = true;
-      controller.abort();
-      unsubscribe();
-    };
-  }, [topicId]);
   // 只写用户能读懂的一句话和议题标签；工作步骤由 Stock 的 my_research 角色提示负责。
   const prompt = (fresh = false) =>
     `${fresh ? "在新对话里继续研究这个议题" : "继续研究这个议题"}：引用议题：${topic?.title || topicId} \`${topicId}\``;
@@ -125,7 +99,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         const restored = await setTopicPool(topicId, "restore");
         setTopic(current => current ? { ...current, ...restored, pool_state: "active" } : current);
       }
-      await research.startTopic({ topicId, title: topic?.title || topicId, prompt: prompt(fresh), fresh });
+      await research.startTopic({ topicId, title: topic?.title || topicId, prompt: prompt(fresh), fresh,
+        onSessionReady: sessionId => research.openTopicPanel({ kind: 'topic', sessionId, topicId, title: topic?.title || topicId,
+          judgment: topic?.judgment?.text || '尚未形成判断', questions: topicOpeningQuestions(topic?.next_questions), fresh }) });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(""); }
   };
@@ -209,9 +185,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     <div className="object-toolbar">
       <div className="object-toolbar-group">{topic && <WikiViewTabs report={report} onChange={setReport} />}</div>
       <div className="object-toolbar-group object-toolbar-actions">
-      <button type="button" className="workspace-action workspace-action-primary" disabled={!!busy || gate.blocking} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
+      <button type="button" className="workspace-action workspace-action-primary" disabled={!!busy} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
       <WorkspaceMoreMenu actions={[
-        { id: 'new', label: busy === 'new' ? '正在新开会话…' : '新会话', icon: <Plus size={14} />, disabled: !!busy || gate.blocking, onSelect: () => void start(true) },
+        { id: 'new', label: busy === 'new' ? '正在新开会话…' : '新会话', icon: <Plus size={14} />, disabled: !!busy, onSelect: () => void start(true) },
         { id: 'refresh', label: busy === 'refresh' ? '正在刷新材料…' : '刷新材料', icon: <RefreshCw size={14} />, disabled: !!busy, onSelect: () => void refresh() },
         ...(topic ? [{ id: 'pool', label: busy === 'archive' || busy === 'restore' ? '处理中…' : topic.pool_state === 'archived' ? '恢复研究' : '归档议题', icon: topic.pool_state === 'archived' ? <RotateCcw size={14} /> : <Archive size={14} />, disabled: !!busy, onSelect: () => void changePool(topic.pool_state === 'archived' ? 'restore' : 'archive') }] : []),
       ]} />

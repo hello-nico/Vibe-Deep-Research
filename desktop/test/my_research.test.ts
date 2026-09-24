@@ -475,11 +475,11 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.doesNotMatch(history, /sessions\.open\(/);
   assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
   const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");
-  const transcript = readFileSync(new URL("../src/verticals/finance/components/TaskTranscript.tsx", import.meta.url), "utf8");
+  const nativePanel = readFileSync(new URL("../src/verticals/finance/dsh/panel-conversation.tsx", import.meta.url), "utf8");
   assert.match(processPanel, /finance\.panel\.conversation/);
   assert.doesNotMatch(processPanel, /TaskTranscript/);
-  assert.match(transcript, /调用参数/);
-  assert.match(transcript, /finance-assistant-transcript/);
+  assert.match(nativePanel, /conversation\.content/);
+  assert.match(nativePanel, /conversation\.chat\.turnTail/);
   assert.doesNotMatch(processPanel, /react-router-dom/);
   assert.doesNotMatch(processPanel, /openSession/);
   // 重开时沿用旧步骤且保持引用稳定的逻辑在 stableTaskTrajectory（task_trajectory.test.ts 有行为测试）。
@@ -513,19 +513,18 @@ test("后台任务列表把超时运行映射为中断，不读 DSH 原始日志
   assert.doesNotMatch(JSON.stringify(items), /session\.jsonl/);
 });
 
-test("议题工作区先恢复会话、审阅草案正文，并用 source_id 读 Wiki 材料", () => {
+test("议题工作区用独立会话面板、审阅草案正文，并用 source_id 读 Wiki 材料", () => {
   const source = readFileSync(new URL("../src/verticals/finance/pages/TopicWorkspace.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("../src/verticals/finance/dsh/client.tsx", import.meta.url), "utf8");
   const workspace = readFileSync(new URL("../src/verticals/finance/components/layout/ConversationWorkspace.tsx", import.meta.url), "utf8");
-  assert.match(source, /restoreTopic/);
-  assert.match(source, /topicSessionMatches/);
+  assert.match(source, /onSessionReady: sessionId => research\.openTopicPanel/);
+  assert.doesNotMatch(source, /topicSessionMatches|topic-session-gate/);
   assert.match(source, /source_id=\$\{encodeURIComponent\(topicId\)\}/);
   assert.match(source, /\/wiki\/page-drafts\/\$\{encodeURIComponent\(token\)\}/);
   assert.match(source, /reviewedToken !== item\.draft_token/);
   assert.doesNotMatch(source, /to=\{\`\/my-reports\`\}/);
   assert.match(client, /async restoreTopic/);
-  assert.match(workspace, /data-blocked=\{blocked/);
-  assert.match(workspace, /conversation-session-gate/);
+  assert.doesNotMatch(workspace, /data-blocked|conversation-session-gate|data-split/);
   assert.match(workspace, /<PageHeader title=\{title\} subtitle=\{subtitle\} \/>/);
   assert.doesNotMatch(workspace, /actions=\{expandButton/);
   assert.match(source, /className="topic-panel"/);
@@ -542,9 +541,8 @@ test("议题工作区先恢复会话、审阅草案正文，并用 source_id 读
   assert.doesNotMatch(workspace, /hidden=\{active && expanded\}/);
   assert.match(css, /--conversation-expand-ease/);
   assert.match(css, /\.conversation-heading-slot:not\(\[hidden\]\), \.conversation-footer-slot/);
-  assert.match(css, /\[data-expanded="true"\]\[data-split="true"\] \{ grid-template-columns: minmax\(0, 0fr\)/);
+  assert.doesNotMatch(css, /\[data-split="true"\]/);
   assert.doesNotMatch(css, /\[data-expanded="true"\] \.conversation-heading \{ display: none/);
-  assert.doesNotMatch(css, /\[data-expanded="true"\]\[data-split="true"\] \{ display: flex/);
 });
 
 test("开发代理把宿主绑定和发布入口转到 DSH", () => {

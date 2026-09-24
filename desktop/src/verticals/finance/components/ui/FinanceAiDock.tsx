@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
+import { useContext } from 'react';
 import { ChevronDown, Sparkles, Square, X } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -7,11 +8,10 @@ import type { AiDockProps } from "../../../../core/ai/AiDock";
 import { useAiWired, useCurrentAiPage, useAiQuestion, usePageAssistantObjects, type PageAssistantObject } from "../../../../core/ai/pageContext";
 import { useResearchSessions } from "../../dsh/research-session";
 import { emptyTaskTrajectory } from "../../lib/taskTrajectory";
-import { TaskTranscript } from "../TaskTranscript";
+import { FinanceSlots } from '../../dsh/NativeDsh';
 import { assistantBindingForPage } from "../../assistant/binding.ts";
 import {
   assistantModeHint,
-  assistantIntro,
   assistantSeatSnapshot,
   assistantSessionErrorMessage,
   setAssistantSeat,
@@ -172,8 +172,11 @@ function AssistantModelSelect({ sessionId }: { sessionId: string }) {
   );
 }
 
-function AssistantTranscript({ sessionId, intro, pageName }: { sessionId: string; intro: string; pageName: string }) {
-  return <TaskTranscript sessionId={sessionId} intro={intro} saveTurns={{ pageName }} />;
+function AssistantTranscript({ sessionId }: { sessionId: string }) {
+  const slots = useContext(FinanceSlots);
+  return <div className="finance-assistant-transcript min-h-0 flex-1">
+    {slots?.renderSlot('finance.panel.conversation', { sessionId, assistant: true })}
+  </div>;
 }
 
 function mentionStart(text: string, caret: number): number {
@@ -185,14 +188,19 @@ function mentionStart(text: string, caret: number): number {
   return at;
 }
 
-export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">) {
+export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockProps, "renderPanel"> & { showTrigger?: boolean }) {
   const wired = useAiWired();
-  const page = useCurrentAiPage();
+  const currentPage = useCurrentAiPage();
   const sessions = useResearchSessions();
+  const panel = useSyncExternalStore(sessions.subscribeSidePanel, sessions.getSidePanel, sessions.getSidePanel);
+  const open = panel?.kind === 'assistant';
+  const [heldPage, setHeldPage] = useState(currentPage);
+  const page = open ? heldPage || currentPage : currentPage;
   const { question, objects, uncitate, clearQuestion } = useAiQuestion();
-  const registry = usePageAssistantObjects();
+  const currentRegistry = usePageAssistantObjects();
+  const heldRegistry = useRef(currentRegistry);
+  const registry = open ? heldRegistry.current : currentRegistry;
   const seat = useSyncExternalStore(subscribeAssistantSeat, assistantSeatSnapshot, assistantSeatSnapshot);
-  const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [sessionId, setSessionId] = useState("");
   const [draft, setDraft] = useState("");
@@ -203,6 +211,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
   const openedQuestion = useRef(0);
   const bindKey = useRef("");
   const attachGen = useRef(0);
+  const wasOpen = useRef(open);
   const wantFresh = useRef(false);
   const composing = useRef(false);
   const chipsByBind = useRef(new Map<string, PageAssistantObject[]>());
@@ -225,13 +234,29 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
     setAssistantSeat({ seated: false, busy: false });
   }, []);
 
+  useEffect(() => {
+    if (wasOpen.current && !open) {
+      attachGen.current += 1;
+      setAssistantSeat({ seated: false, busy: false });
+      setSending(false);
+      setStopping(false);
+    }
+    wasOpen.current = open;
+  }, [open]);
+
   const close = useCallback(() => {
     attachGen.current += 1;
     setAssistantSeat({ seated: false, busy: false });
-    setOpen(false);
+    sessions.closeSidePanel();
     setError("");
     setMentionQuery(null);
-  }, []);
+  }, [sessions]);
+
+  const openPanel = useCallback(() => {
+    setHeldPage(currentPage);
+    heldRegistry.current = currentRegistry;
+    sessions.openAssistantPanel(sessionId, currentPage?.title);
+  }, [currentPage, currentRegistry, sessions, sessionId]);
 
   const attach = useCallback(async (fresh = false) => {
     if (!page || !binding) return;
@@ -249,9 +274,11 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
         fresh,
       });
       if (attachGen.current !== gen) return;
+      if (sessions.getSidePanel()?.kind !== 'assistant') return;
       bindKey.current = expected;
       setAssistantSeat({ seated: false, sessionId: result.sessionId, mode: result.mode || "ask", pageKey: expected, busy: false });
       setSessionId(result.sessionId);
+      sessions.openAssistantPanel(result.sessionId, page.title);
     } catch (err) {
       if (attachGen.current !== gen) return;
       setAssistantSeat({ seated: false, busy: false });
@@ -280,9 +307,9 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
   useEffect(() => {
     if (question && question.sequence > openedQuestion.current && question.pageKey === page?.key) {
       openedQuestion.current = question.sequence;
-      setOpen(true);
+      openPanel();
     }
-  }, [question, page?.key]);
+  }, [question, currentPage?.key, openPanel]);
 
   useEffect(() => {
     if (!open) return;
@@ -423,25 +450,25 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
 
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        disabled={!page}
+      {showTrigger && <button
+        onClick={openPanel}
+        disabled={!currentPage}
         title={
           !wired ? "问助手暂时不可用，请刷新页面"
-            : page ? `问助手 · ${page.title}`
+            : currentPage ? `问助手 · ${currentPage.title}`
             : "这一页还没有加载出内容"
         }
         className={cn(
           "ai-chat-trigger inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2",
           "text-sm font-medium shadow-glow backdrop-blur transition-all",
-          page
+          currentPage
             ? "bg-primary/20 text-primary ring-1 ring-primary/40 hover:bg-primary/30 hover:ring-primary/60"
             : "cursor-not-allowed bg-muted/40 text-muted-foreground/60 ring-1 ring-border",
         )}
       >
         <Sparkles className="h-4 w-4" />
         问助手
-      </button>
+      </button>}
 
       {page && renderPanel(
         open ? <>
@@ -457,7 +484,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               </button>
             </div>
           </div>
-          {sessionId && binding ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} pageName={page.title} /> : (
+          {sessionId && binding ? <AssistantTranscript sessionId={sessionId} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
               <p>{error || "正在准备，马上就好…"}</p>
             </div>

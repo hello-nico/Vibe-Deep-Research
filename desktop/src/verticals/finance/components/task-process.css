@@ -7,6 +7,18 @@
 .task-process-native [data-conversation-content] { min-height: 0; flex: 1; }
 .task-process-native [data-conversation-scroll] { min-height: 0; }
 .task-process-native [data-composer-seat] { display: none; }
+.finance-topic-native, .finance-assistant-transcript { display: flex; flex-direction: column; overflow: hidden; }
+.finance-topic-chat, .finance-assistant-native, .finance-panel-chat { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; }
+.finance-topic-chat [data-conversation-content], .finance-assistant-native [data-conversation-content], .finance-panel-chat [data-conversation-content] { min-height: 0; flex: 1; }
+.finance-topic-chat [data-conversation-scroll], .finance-assistant-native [data-conversation-scroll] { min-height: 0; }
+.finance-assistant-native [data-composer-seat] { display: none; }
+.finance-topic-chat [data-slot="conversation.input.dock"] { display: none; }
+.finance-topic-opening { padding: 1rem; border-bottom: 1px solid hsl(var(--border)); }
+.finance-topic-opening h3 { font-size: .875rem; font-weight: 600; }
+.finance-topic-opening p { margin-top: .5rem; font-size: .8125rem; color: hsl(var(--muted-foreground)); }
+.finance-topic-questions { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .75rem; }
+.finance-topic-questions button { padding: .35rem .6rem; border: 1px solid hsl(var(--border)); border-radius: .6rem; font-size: .75rem; text-align: left; }
+.finance-topic-questions button:hover { background: hsl(var(--muted)); }
 .task-process-panel nav .workspace-action[aria-current="step"] {
   background: hsl(var(--primary) / .15);
   border-color: hsl(var(--primary) / .3);

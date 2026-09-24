@@ -1,17 +1,16 @@
 import { useSyncExternalStore, type ReactNode } from 'react';
 import { FinanceSlots, type SlotProps } from '../../dsh/NativeDsh';
 import { ResearchSessionContext, type ResearchSessions } from '../../dsh/research-session';
-import { TopicSessionGateProvider } from '../../dsh/topic-session-gate';
 import { FinanceAssistantSurfaceProvider } from './FinanceAssistantSurface';
 import { TaskProcessPanel } from '../TaskProcessPanel';
+import { TopicConversationPanel } from '../TopicConversationPanel';
 import { ObjectPreviewLayer } from '../ObjectPreview';
 
-function TaskProcessSeat({ research }: { research: ResearchSessions }) {
-  const subscribe = research.subscribeTaskProcess || ((listener: () => void) => { void listener; return () => {}; });
-  const read = research.getTaskProcess || (() => null);
-  const task = useSyncExternalStore(subscribe, read, read);
-  if (!task) return null;
-  return <TaskProcessPanel key={task.sessionId} task={task} onClose={() => research.closeTaskProcess()} />;
+function SidePanelSeat({ research }: { research: ResearchSessions }) {
+  const panel = useSyncExternalStore(research.subscribeSidePanel, research.getSidePanel, research.getSidePanel);
+  if (panel?.kind === 'task') return <TaskProcessPanel key={panel.task.sessionId} task={panel.task} onClose={research.closeSidePanel} />;
+  if (panel?.kind === 'topic') return <TopicConversationPanel key={panel.sessionId} topic={panel} onClose={research.closeSidePanel} />;
+  return null;
 }
 
 /** Root presentation only; startup and native Session lifecycle stay in the DSH entry. */
@@ -24,8 +23,8 @@ export function FinanceRoot({ slots, research, sessionError, children }: {
   return <FinanceSlots.Provider value={slots}>
     <FinanceAssistantSurfaceProvider>
       <ResearchSessionContext.Provider value={research}>
-      <TopicSessionGateProvider>{children}</TopicSessionGateProvider>
-      <TaskProcessSeat research={research} />
+      {children}
+      <SidePanelSeat research={research} />
       <ObjectPreviewLayer />
     </ResearchSessionContext.Provider>
       {sessionError && <div role="alert" className="fixed bottom-4 right-4 z-50 rounded border bg-background p-4">{sessionError}</div>}

@@ -62,13 +62,7 @@ export interface AssistantHostDeps {
   waitSession: () => Promise<void>;
   getWorkspaceId: () => string;
   getWorkspace: () => string;
-  remember: (id: string, topicId?: string) => void;
-  currentSessionId: () => string;
-  getOpened: () => { sessionId: string; topicId: string };
-  setOpenedSession: (id: string) => void;
-  notifySession: () => void;
-  getHold: () => { sessionId: string; topicId: string } | null;
-  setHold: (next: { sessionId: string; topicId: string } | null) => void;
+  openAssistantPanel: (sessionId: string) => void;
 }
 
 type AssistantMethods = Pick<ResearchSessions,
@@ -257,15 +251,8 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
       return wrapped;
     },
     focusAssistantSession(sessionId) {
-      if (!deps.getHold()) deps.setHold({ sessionId: deps.currentSessionId(), topicId: deps.getOpened().topicId });
-      client.uiWorkspace.openSession(sessionId);
-      deps.setOpenedSession(sessionId);
-      deps.notifySession();
-      return () => {
-        const hold = deps.getHold();
-        deps.setHold(null);
-        if (hold?.sessionId) deps.remember(hold.sessionId, hold.topicId);
-      };
+      deps.openAssistantPanel(sessionId);
+      return () => {};
     },
   };
 }

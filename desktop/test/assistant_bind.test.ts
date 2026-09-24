@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { extractBoundSources, extractResultIds, visibleUserPrompt } from '../src/verticals/finance/lib/taskTrajectory.ts';
+import { visibleUserPrompt } from '../src/verticals/finance/lib/taskTrajectory.ts';
 import { outboundWebUrl } from '../src/verticals/finance/lib/citationMarks.ts';
 
 test('用户可见问题剥离本轮绑定包装，成果身份可回读', () => {
@@ -20,15 +20,6 @@ test('用户可见问题剥离本轮绑定包装，成果身份可回读', () =>
     '这条消息影响哪些公司',
   ].join('\n');
   assert.equal(visibleUserPrompt(wrapped), '这条消息影响哪些公司');
-  assert.deepEqual(extractBoundSources(wrapped), [{
-    label: '华为云全面攻向智能体',
-    url: 'https://zhidx.com/p/595147.html',
-    version: 'abcdef0123456789',
-    fetchedAt: '2026-09-18T10:00:00+08:00',
-  }]);
-  assert.deepEqual(extractResultIds('已生成 result:0123456789abcdef0123456789abcdef 供对照'), [
-    'result:0123456789abcdef0123456789abcdef',
-  ]);
 });
 
 test('网页引用打开原文，不走依据面板', () => {

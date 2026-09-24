@@ -1,11 +1,11 @@
 import { createContext, useContext } from 'react';
 import type { CompanySnapshotQuote } from '../../../core/ai/pageContext';
 import type { ResearchTaskStatus } from '../lib/reportTasks';
+import type { FinanceSidePanel } from './side-panel';
 
 export interface TopicSessionMatch {
   topicId: string;
   sessionId: string;
-  matched: boolean;
 }
 
 export interface CompanySessionRef {
@@ -102,7 +102,7 @@ export interface ResearchSessions {
   sessionState(sessionId: string): SessionState | null;
   taskRunning(sessionId: string): boolean;
   restoreTopic(topicId: string, title?: string, signal?: AbortSignal): Promise<TopicSessionMatch>;
-  startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean }): Promise<void>;
+  startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }): Promise<string>;
   startAssistant(input: {
     pageKey: string;
     title: string;
@@ -143,6 +143,11 @@ export interface ResearchSessions {
   closeTaskProcess(): void;
   getTaskProcess(): TaskProcessRef | null;
   subscribeTaskProcess(listener: () => void): () => void;
+  openTopicPanel(topic: Extract<FinanceSidePanel, { kind: 'topic' }>): void;
+  openAssistantPanel(sessionId: string, pageName?: string): void;
+  closeSidePanel(): void;
+  getSidePanel(): FinanceSidePanel | null;
+  subscribeSidePanel(listener: () => void): () => void;
   trajectory(sessionId: string): {
     subscribe(listener: () => void): () => void;
     getSnapshot(): TaskTrajectorySnapshot;
@@ -151,7 +156,6 @@ export interface ResearchSessions {
   cancelTask(sessionId: string): Promise<void>;
   /** Native session.cancel — same interrupt as deep-conversation stop. */
   cancelSession(sessionId: string): Promise<void>;
-  topicSessionMatches(topicId: string): boolean;
   subscribeSession(listener: () => void): () => void;
   /** Fires when the session list snapshot (running state, titles) changes. */
   subscribeSessionList(listener: () => void): () => void;

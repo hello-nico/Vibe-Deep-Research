@@ -71,14 +71,14 @@ test("左上角使用本地产品标记，不增加外部请求或原作者品�
 });
 test("非首页顶栏只放问助手入口，不再并排投研助手身份字", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /pathname !== "\/" && pathname !== "\/watchlist" && !pathname.startsWith\("\/my-research\/topics\/"\) && <FinanceAiDock/);
+  assert.match(layout, /<FinanceAiDock showTrigger=\{pathname !== "\/" && pathname !== "\/watchlist" && !pathname.startsWith\("\/my-research\/topics\/"\)\}/);
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /fixed right-5 top-4/);
   assert.match(read("core/ai/AiDock.tsx"), /renderPanel\(/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /createPortal/);
   assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /createPortal/);
-  assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /data-open=\{open\}/);
+  assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /data-open="true"/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /\.finance-assistant-panel\[data-open="true"\]/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-width: 36rem/);
   // 问助手、查看依据、任务过程共用同一右侧面板定位、让位规则与拖拽宽度，不各写一套。
@@ -108,11 +108,10 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /queryPageObjects|usePageAssistantObjects/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /draftsByBind/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /question\?\.pageKey !== page\?\.key/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /TaskTranscript/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /finance\.panel\.conversation/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /cancelSession/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /当前回答结束后可发送/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /生成中…/);
-  assert.doesNotMatch(read("verticals/finance/components/TaskTranscript.tsx"), /执行中 · 生成中/);
+  assert.match(read("verticals/finance/dsh/panel-conversation.tsx"), /conversation\.chat\.turnTail/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.session\.header\.actions/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.hero\.agentPreset/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.session\.header\.corner/);
@@ -127,15 +126,8 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/ConversationCitations.tsx"), /addEventListener\('click', onClick, true\)/);
   assert.match(read("verticals/finance/components/ConversationCitations.tsx"), /if \(!citationClickOpensPanel\(event\)\) return;/);
   assert.match(read("verticals/finance/components/conversation-citations.css"), /display: none/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /AssistantMarkdown|KnowledgeText/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /import\(['"]\.\/ResearchResult['"]\)/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /outboundWebUrl/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /target="_blank"/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /noopener noreferrer/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /finance-assistant-turn is-user/);
-  assert.match(read("verticals/finance/components/TaskTranscript.tsx"), /finance-assistant-user-bubble/);
+  assert.match(read("verticals/finance/dsh/panel-conversation.tsx"), /SaveNoteButton/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /user \? "你"/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantIntro/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantModeHint\(seat\.mode\)/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /createPortal/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /truncate=\{false\}/);

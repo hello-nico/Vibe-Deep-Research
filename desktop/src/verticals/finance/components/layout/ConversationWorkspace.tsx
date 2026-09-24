@@ -1,13 +1,10 @@
 import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
-import { useTopicSessionGate } from "../../dsh/topic-session-gate";
 import { ConversationCitations } from '../ConversationCitations';
 
 /** Finance owns the window geometry; the DSH portal seat stays mounted. */
-export function ConversationWorkspace({ active, split = false, title = "深度对话", subtitle = "查阅资料、核对证据，深入探讨你的研究问题", children }: { active: boolean; split?: boolean; title?: string; subtitle?: string; children: ReactNode }) {
-  const gate = useTopicSessionGate();
-  const blocked = active && split && gate.blocking;
+export function ConversationWorkspace({ active, title = "深度对话", subtitle = "查阅资料、核对证据，深入探讨你的研究问题", children }: { active: boolean; title?: string; subtitle?: string; children: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const [inset, setInset] = useState(34);
   const [headingHeight, setHeadingHeight] = useState<number>();
@@ -46,7 +43,7 @@ export function ConversationWorkspace({ active, split = false, title = "深度�
     onLostPointerCapture() { drag.current = undefined; },
     onDoubleClick() { setInset(34); setHeadingHeight(undefined); },
   });
-  return <div ref={root} className={active ? "conversation-workspace" : "workspace-content"} data-expanded={active && expanded} data-split={active && split} style={active ? { "--conversation-inset": `${inset}px` } as CSSProperties : undefined}>
+  return <div ref={root} className={active ? "conversation-workspace" : "workspace-content"} data-expanded={active && expanded} style={active ? { "--conversation-inset": `${inset}px` } as CSSProperties : undefined}>
     <div hidden={!active} className="conversation-heading-slot" aria-hidden={expanded || undefined} {...{ inert: expanded ? "" : undefined }}>
       <div className="conversation-heading" ref={heading} style={{ height: headingHeight }}>
         <PageHeader title={title} subtitle={subtitle} />
@@ -57,9 +54,8 @@ export function ConversationWorkspace({ active, split = false, title = "深度�
         {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "还原窗口" : "展开窗口"}
       </button>
     </div>
-    <div className="conversation-window" data-blocked={blocked || undefined} style={{ display: active ? "flex" : "none" }}>
-      <ConversationCitations id="dsh-conversation" aria-label="深度对话" {...{ inert: blocked ? "" : undefined }} />
-      {blocked && <div className="conversation-session-gate" role="status">{gate.message || "正在打开这个议题的对话…"}</div>}
+    <div className="conversation-window" style={{ display: active ? "flex" : "none" }}>
+      <ConversationCitations id="dsh-conversation" aria-label="深度对话" />
       <div className="conversation-resize conversation-resize-top" hidden={expanded} title="拖动调整高度，双击恢复默认" {...resize("top")} />
       <div className="conversation-resize conversation-resize-left" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("left")} />
       <div className="conversation-resize conversation-resize-right" hidden={expanded} title="拖动调整宽度，双击恢复默认" {...resize("right")} />

@@ -6,6 +6,18 @@ import { createServer } from 'vite';
 import { createServer as httpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 
+function panelStore() {
+  let panel: { kind: 'assistant'; sessionId: string; pageName: string } | null = null;
+  const listeners = new Set<() => void>();
+  const notify = () => listeners.forEach(listener => listener());
+  return {
+    getSidePanel: () => panel,
+    subscribeSidePanel: (listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
+    openAssistantPanel: (sessionId: string, pageName = '问助手') => { panel = { kind: 'assistant', sessionId, pageName }; notify(); },
+    closeSidePanel: () => { panel = null; notify(); },
+  };
+}
+
 test('问助手自有输入绑定会话；卸载忽略迟到绑定，不搬深度对话节点', async () => {
   const win = new Window();
   const previous = { window: globalThis.window, document: globalThis.document, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
@@ -27,6 +39,7 @@ test('问助手自有输入绑定会话；卸载忽略迟到绑定，不搬深�
     let focused = 0, calls = 0;
     let pending: Promise<unknown> | undefined;
     const sessions = {
+      ...panelStore(),
       ensureAssistant: async () => { calls++; return pending || { sessionId: 'assistant', mode: 'ask' }; },
       startAssistant: async () => ({ sessionId: 'assistant', status: 'started', mode: 'ask' }),
       focusAssistantSession: () => { focused++; return () => {}; },
@@ -86,6 +99,7 @@ test('运行中发送按钮切换为停止，有草稿时提示结束后再发',
     runningCalls: [] as { id: string; name: string }[], steps: [] as { id: string; kind: string }[], streaming: false,
   };
   const sessions = {
+    ...panelStore(),
     ensureAssistant: async () => ({ sessionId: 'assistant', mode: 'ask' }),
     startAssistant: async () => ({ sessionId: 'assistant', status: 'started', mode: 'ask' }),
     cancelSession: async () => { cancelled++; },

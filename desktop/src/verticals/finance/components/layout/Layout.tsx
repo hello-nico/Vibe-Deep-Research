@@ -13,7 +13,6 @@ import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
 import { prefGet, prefSet } from "@/lib/prefs";
 import { NativeDshHost } from "../../dsh/NativeDsh";
-import { useTopicSessionGate } from "../../dsh/topic-session-gate";
 import { TaskNotices } from "../ui/TaskNotices";
 import { WikiDrawer } from '../WikiDrawer';
 
@@ -54,10 +53,6 @@ export function Layout() {
   }, []);
   const { pathname } = useLocation();
   const navigation = useNavigation();
-  const topicGate = useTopicSessionGate();
-  useEffect(() => {
-    if (!pathname.startsWith("/my-research/topics/")) topicGate.setGate({ blocking: false, message: "" });
-  }, [pathname]);
   useDarkMode();
   const navRef = useRef<HTMLElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -259,10 +254,10 @@ export function Layout() {
               <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
               <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
             </div>
-            {pathname !== "/" && pathname !== "/watchlist" && !pathname.startsWith("/my-research/topics/") && <FinanceAiDock renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />}
+            <FinanceAiDock showTrigger={pathname !== "/" && pathname !== "/watchlist" && !pathname.startsWith("/my-research/topics/")} renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />
           </header>
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
-            <ConversationWorkspace active={pathname === "/" || pathname.startsWith("/my-research/topics/")} split={pathname.startsWith("/my-research/topics/")} title={pathname.startsWith("/my-research/topics/") ? "议题研究" : "深度对话"} subtitle={pathname.startsWith("/my-research/topics/") ? "围绕当前议题读取材料、确认关联并形成可发布草案" : "查阅资料、核对证据，深入探讨你的研究问题"}>
+            <ConversationWorkspace active={pathname === "/"}>
               <div key={pathname} className="workspace-page-enter">
                 {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
                 <Outlet />
