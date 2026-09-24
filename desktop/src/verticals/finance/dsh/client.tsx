@@ -4,7 +4,9 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
+import { readableTitleDecision, type TitleEventEntry } from './research-title';
 import { installTriggerMenuFit } from './trigger-menu-fit';
+import { installPanelConversation } from './panel-conversation';
 import { hydrateObjectLabels, objectLabel, openRegisteredObject, resolveObjectLabels } from '../lib/objectRegistry';
 import { backgroundTaskForSession, loadBackgroundTasks } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
@@ -102,6 +104,7 @@ interface HistorySession {
   rename(title: string): Promise<{ ok: boolean }>;
   prompt(content: { type: 'text'; text: string }[], mode: 'queue'): Promise<{ ok: boolean }>;
   cancel?(): Promise<{ ok: boolean }>;
+  eventSource?: { getSnapshot(): { entries: readonly TitleEventEntry[] }; subscribe(listener: () => void): () => void };
   getSnapshot?(): {
     running?: boolean;
     lastAgentError?: string | null;
@@ -122,6 +125,7 @@ function openResearchTarget(value: string) { openRegisteredObject(value); }
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
   installResultNode(ctx);
+  installPanelConversation(ctx);
   ctx.effect(() => ctx.inputTriggers.registerSource(researchObjectSource));
   ctx.provide('chatFileMentions', { forClosing() {
     const citation = createCitationMention(reference => window.dispatchEvent(new CustomEvent('finance-open-evidence', { detail: reference })));
@@ -235,6 +239,44 @@ export function apply(ctx: Context) {
       return await use(reference.binding.session);
     } finally { reference.release(); }
   };
+  const titleWatches = new Set<() => void>();
+  ctx.effect(() => () => { for (const stop of [...titleWatches]) stop(); });
+  const watchReadableTitle = (id: string) => {
+    const reference = client.sessions.retain(id, { source: 'controllerOperation' });
+    let active = true;
+    let unsubscribe = () => {};
+    const timer = window.setTimeout(() => stop(), 5 * 60_000);
+    const stop = () => {
+      if (!active) return;
+      active = false;
+      window.clearTimeout(timer);
+      unsubscribe();
+      reference.release();
+      titleWatches.delete(stop);
+    };
+    titleWatches.add(stop);
+    void reference.ready.then(() => {
+      if (!active) return;
+      const face = reference.binding.session;
+      const source = face.eventSource;
+      if (!source) { stop(); return; }
+      let renaming = false;
+      const check = () => {
+        if (!active || renaming) return;
+        const decision = readableTitleDecision(source.getSnapshot().entries);
+        if (decision.status === 'skip') { stop(); return; }
+        if (decision.status !== 'rename') return;
+        renaming = true;
+        void Promise.resolve().then(async () => {
+          const latest = readableTitleDecision(source.getSnapshot().entries);
+          if (latest.status === 'rename' && latest.eventSeq === decision.eventSeq)
+            await face.rename(latest.title);
+        }).catch(() => {}).finally(stop);
+      };
+      unsubscribe = source.subscribe(check);
+      check();
+    }).catch(stop);
+  };
   const deliverLibraryCitations = (items: LibraryCite[], preferredSessionId?: string) => {
     return deliverLibraryCiteBatch(queueLibraryCites(items, preferredSessionId), currentSessionId(),
       (item, id) => insertLibraryCitations([item], id));
@@ -343,6 +385,7 @@ export function apply(ctx: Context) {
     const fallback = list.ids.find(id => list.byId[id]?.cwd === workspace && !archived.has(id) && !isBackgroundChat(id, list.byId[id], hidden));
     const id = existing ?? fallback ?? await client.sessions.create({ workspaceId: registered.workspaceId });
     if (disposed) return;
+    if (!existing && !fallback) watchReadableTitle(id);
     remember(id);
   }
   // 报告任务走宿主 spawn；绑定写在子 Agent 创建窗口，早于 followup 首请求。
@@ -528,6 +571,7 @@ export function apply(ctx: Context) {
       ? topicBind.active_session_id : undefined;
     signal?.throwIfAborted();
     const id = reusable ?? await client.sessions.create({ workspaceId });
+    if (!reusable) watchReadableTitle(id);
     await bindTopicSession(topicId, id, title || topicBind?.title || topicId);
     signal?.throwIfAborted();
     remember(id, topicId);
@@ -537,6 +581,7 @@ export function apply(ctx: Context) {
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     if (input.fresh) {
       const id = await client.sessions.create({ workspaceId });
+      watchReadableTitle(id);
       await bindTopicSession(input.topicId, id, input.title);
       remember(id, input.topicId);
     } else if (openedTopicId !== input.topicId || !openedSessionId) {
@@ -648,6 +693,7 @@ export function apply(ctx: Context) {
         if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
         const topicId = openedTopicId;
         const id = await client.sessions.create({ workspaceId });
+        watchReadableTitle(id);
         if (topicId) await bindTopicSession(topicId, id, topicId);
         openView?.('chat');
         remember(id, topicId);
@@ -768,6 +814,7 @@ export function apply(ctx: Context) {
     sidebar: { kind: "single", scope: "root" },
     main: { kind: "keyed", scope: "root" },
     rightbar: { kind: "single", scope: "root" },
+    "finance.panel.conversation": { kind: "single", scope: "root" },
     "shell.overlay": { kind: "list", scope: "root" },
   } }, function FinanceFrame(props) {
     const [state, setState] = React.useState<"loading" | "ready" | Error>("loading");

@@ -3,6 +3,17 @@
   color: hsl(var(--foreground));
 }
 
+.task-process-native { display: flex; flex-direction: column; overflow: hidden; }
+.task-process-native [data-conversation-content] { min-height: 0; flex: 1; }
+.task-process-native [data-conversation-scroll] { min-height: 0; }
+.task-process-native [data-composer-seat] { display: none; }
+.task-process-panel nav .workspace-action[aria-current="step"] {
+  background: hsl(var(--primary) / .15);
+  border-color: hsl(var(--primary) / .3);
+  color: hsl(var(--primary));
+  font-weight: 500;
+}
+
 .task-process-step {
   border: 1px solid hsl(var(--border) / 0.7);
   border-radius: 0.75rem;

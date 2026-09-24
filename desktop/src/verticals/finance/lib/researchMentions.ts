@@ -92,6 +92,28 @@ function findMentions(text: string): Found[] {
   return found.filter((item, i) => i === 0 || item.index >= found[i - 1]!.index + found[i - 1]!.length);
 }
 
+/** Plain-text version of the same @ folding used for user message bubbles. */
+export function foldResearchMentionsText(text: string): string {
+  const found = findMentions(text);
+  let cursor = 0;
+  let result = '';
+  for (const item of found) {
+    result += text.slice(cursor, item.index) + item.label;
+    cursor = item.index + item.length;
+  }
+  return result + text.slice(cursor);
+}
+
+export function readableResearchTitle(text: string): string | null {
+  const first = findMentions(text)[0];
+  if (!first) return null;
+  let question = foldResearchMentionsText(text.slice(0, first.index) + text.slice(first.index + first.length))
+    .replace(/\s+/g, ' ').trim();
+  if (question.startsWith(first.label)) question = question.slice(first.label.length).replace(/^[\s：:，,·]+/, '');
+  const title = [first.label, question].filter(Boolean).join(' · ');
+  return Array.from(title).slice(0, 30).join('');
+}
+
 function skipParent(node: Node): boolean {
   const parent = node.parentElement;
   if (!parent) return true;

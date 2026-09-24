@@ -11,7 +11,7 @@ function TaskProcessSeat({ research }: { research: ResearchSessions }) {
   const read = research.getTaskProcess || (() => null);
   const task = useSyncExternalStore(subscribe, read, read);
   if (!task) return null;
-  return <TaskProcessPanel task={task} onClose={() => research.closeTaskProcess()} />;
+  return <TaskProcessPanel key={task.sessionId} task={task} onClose={() => research.closeTaskProcess()} />;
 }
 
 /** Root presentation only; startup and native Session lifecycle stay in the DSH entry. */

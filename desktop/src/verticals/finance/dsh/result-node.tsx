@@ -31,14 +31,14 @@ export function installResultNode(ctx: Context) {
 }
 
 function ResearchStatusNode({ node }: Pick<ChatNodeViewProps<'finance-research-status'>, 'node'>) {
-  return <p className="my-2 text-sm text-[var(--text-secondary)]">{node.data.text}</p>;
+  return <p className="my-2 text-sm text-muted-foreground">{node.data.text}</p>;
 }
 
 function MaintenanceNode({ node }: Pick<ChatNodeViewProps<'finance-maintenance'>, 'node'>) {
-  return <details className="my-3 rounded-lg border border-[var(--border)] p-3 text-sm">
+  return <details className="my-3 rounded-xl border border-border bg-card p-3 text-sm">
     <summary className="cursor-pointer">知识更新草案 · 待核对</summary>
     {node.data.question && <p className="mt-2 break-words">来自研究：{node.data.question}</p>}
-    <p className="my-2 text-[var(--text-secondary)]">{node.data.rationale}</p>
+    <p className="my-2 text-muted-foreground">{node.data.rationale}</p>
     <div className="whitespace-pre-wrap break-words">{node.data.content}</div>
     {node.data.draftToken && <WikiDraftPublish draftToken={node.data.draftToken} />}
   </details>;
@@ -79,9 +79,9 @@ function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-cand
       else setError(userFacingRuntimeError(err, '操作失败'));
     } finally { setBusy(''); }
   };
-  return <div className="my-3 rounded-lg border border-[var(--border)] p-3 text-sm">
+  return <div className="my-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5 text-sm">
     <p className="font-medium">建议持续研究：{question}</p>
-    <p className="mt-2 text-[var(--text-secondary)]">{node.data.reason}</p>
+    <p className="mt-2 leading-6 text-muted-foreground">{node.data.reason}</p>
     {node.data.match_topic_id && <p className="mt-1 text-xs">可复用已有议题</p>}
     {editing && status === 'open' && <textarea className="workspace-field mt-2 min-h-16 w-full" value={question} onChange={event => setQuestion(event.target.value)} />}
     {choices.length > 0 && <div className="mt-3 space-y-2">

@@ -476,7 +476,8 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.doesNotMatch(client, /bindReportTask\(id, task.slug/);
   const processPanel = readFileSync(new URL("../src/verticals/finance/components/TaskProcessPanel.tsx", import.meta.url), "utf8");
   const transcript = readFileSync(new URL("../src/verticals/finance/components/TaskTranscript.tsx", import.meta.url), "utf8");
-  assert.match(processPanel, /TaskTranscript/);
+  assert.match(processPanel, /finance\.panel\.conversation/);
+  assert.doesNotMatch(processPanel, /TaskTranscript/);
   assert.match(transcript, /调用参数/);
   assert.match(transcript, /finance-assistant-transcript/);
   assert.doesNotMatch(processPanel, /react-router-dom/);

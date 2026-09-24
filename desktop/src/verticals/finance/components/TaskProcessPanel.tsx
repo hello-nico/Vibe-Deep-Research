@@ -1,21 +1,19 @@
-import { useEffect, useSyncExternalStore } from 'react';
+import { useContext, useEffect, useState, useSyncExternalStore } from 'react';
 import { X } from 'lucide-react';
 import { useResearchSessions, type TaskProcessRef } from '../dsh/research-session';
-import { TaskTranscript, useTaskTrajectory } from './TaskTranscript';
-import { emptyTaskTrajectory } from '../lib/taskTrajectory';
+import { FinanceSlots } from '../dsh/NativeDsh';
+import { defaultTaskPanelStage } from '../dsh/task-panel-target';
 import './task-process.css';
 import { SidePanelResizeHandle } from './layout/SidePanelResize';
 import { openRegisteredObject, registeredObject } from '../lib/objectRegistry';
 
-const noopSubscribe = () => () => {};
-const emptySnapshot = () => emptyTaskTrajectory;
-
 export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onClose: () => void }) {
   const sessions = useResearchSessions();
-  const store = useTaskTrajectory(task.sessionId);
-  const snapshot = useSyncExternalStore(store?.subscribe ?? noopSubscribe, store?.getSnapshot ?? emptySnapshot);
-  const live = sessions.sessionState(task.sessionId);
-  const running = Boolean(snapshot.running || live?.running);
+  const slots = useContext(FinanceSlots);
+  const [stage, setStage] = useState(() => defaultTaskPanelStage(task, id => sessions.taskRunning(id)));
+  useSyncExternalStore(sessions.subscribeSessionList, () => `${sessions.taskRunning(task.sessionId)}:${task.settlementSessionId ? sessions.taskRunning(task.settlementSessionId) : false}`);
+  const selectedId = stage === 'settlement' && task.settlementSessionId ? task.settlementSessionId : task.sessionId;
+  const running = sessions.taskRunning(selectedId);
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') onClose(); };
     window.addEventListener('keydown', onKey);
@@ -31,19 +29,16 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
         </div>
         <button type="button" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground" aria-label="关闭过程" onClick={onClose}><X size={16} /></button>
       </header>
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        {task.kind === 'research' && <p className="border-b border-border px-4 py-2 text-xs font-medium">第一阶段 · 公司研究</p>}
-        <TaskTranscript sessionId={task.sessionId} compactUser
-          intro={task.kind === 'report' ? '生成开始后，过程和回答会按发生顺序出现在这里。' : task.kind === 'research'
-            ? '研究过程和回答会按发生顺序出现在这里。' : '整理开始后，过程和回答会按发生顺序出现在这里。'} />
-        {task.kind === 'research' && <>
-          <p className="border-y border-border px-4 py-2 text-xs font-medium">第二阶段 · 知识整理</p>
-          {task.settlementSessionId ? <TaskTranscript sessionId={task.settlementSessionId} compactUser intro="整理过程会按发生顺序出现在这里。" />
-            : <p className="px-4 py-3 text-xs text-muted-foreground">{task.status === 'researching' ? '研究结束后开始整理。' : '本次没有需要展示的整理过程。'}</p>}
-        </>}
+      {task.kind === 'research' && <nav className="flex gap-2 border-b border-border px-4 py-2" aria-label="任务阶段">
+        <button type="button" className="workspace-action workspace-action-compact" aria-current={stage === 'research' ? 'step' : undefined} onClick={() => setStage('research')}>公司研究</button>
+        <button type="button" className="workspace-action workspace-action-compact" aria-current={stage === 'settlement' ? 'step' : undefined} disabled={!task.settlementSessionId} onClick={() => setStage('settlement')}>知识整理</button>
+        {!task.settlementSessionId && <span className="self-center text-xs text-muted-foreground">{task.status === 'researching' ? '研究结束后开始整理。' : '本次没有需要展示的整理过程。'}</span>}
+      </nav>}
+      <div className="task-process-native min-h-0 flex-1">
+        {slots?.renderSlot('finance.panel.conversation', { sessionId: selectedId, parentSessionId: task.parentSessionId })}
       </div>
       <footer className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-        {(task.kind === 'report' || task.kind === 'research') && running && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { void sessions.cancelTask(task.sessionId).catch(() => {}); }}>中止</button>}
+        {running && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { void (task.kind !== 'knowledge' && selectedId === task.sessionId ? sessions.cancelTask(selectedId) : sessions.cancelSession(selectedId)).catch(() => {}); }}>中止</button>}
         {task.resultRef && (registeredObject(task.resultRef)?.href || registeredObject(task.resultRef)?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { onClose(); openRegisteredObject(task.resultRef!); }}>打开成果</button>}
       </footer>
     </aside>
