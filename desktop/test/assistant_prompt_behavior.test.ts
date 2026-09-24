@@ -10,8 +10,17 @@ const bundle = await build({
   entryPoints: [new URL('../src/verticals/finance/assistant/prompt.ts', import.meta.url).pathname],
   bundle: true, format: 'esm', platform: 'node', write: false,
 });
-const { bindAssistantPrompt } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
+const { bindAssistantPrompt, assistantUserMessage } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 const common = { prompt: '解释引用', title: '测试页面', mode: 'ask', pageSnapshot: '' };
+
+test('本轮页面内容仅供工具读取，用户消息只保留原话和引用', async () => {
+  const context = await bindAssistantPrompt({ ...common, pageSnapshot: '页面数据', objects: [] });
+  const message = assistantUserMessage('  解释引用  ', ['引用材料：甲 `companies/a`']);
+  assert.match(context, /页面数据/);
+  assert.doesNotMatch(context, /用户问题/);
+  assert.equal(message, '解释引用\n\n引用材料：甲 `companies/a`');
+  assert.doesNotMatch(message, /【页面快照】|页面数据|引用读取结果/);
+});
 
 test('宽基集合不因全球行情加入而扩张，全球指数仍能单独读取', async () => {
   const marketIndices = [

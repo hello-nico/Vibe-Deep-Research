@@ -1,4 +1,5 @@
 import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { X } from 'lucide-react';
 import type { Context } from '@deepseek-ai/cordis';
 import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/client';
 import type { PropsRenderFactories, PropsRuntime, SessionProviderComponent } from '@deepseek-ai/dsh-client-ui-slots';
@@ -8,6 +9,7 @@ import { taskPanelTarget } from './task-panel-target';
 import type { FinanceSidePanel } from './side-panel';
 import { SaveNoteButton } from '../components/ui/SaveNoteButton';
 import { assistantTurnNote } from './assistant-turn-note';
+import { ConversationCitations } from '../components/ConversationCitations';
 
 function FixedChatView({ renderSlot }: ConversationViewsProps) {
   return <>{renderSlot('conversation.session', { view: 'chat' })}</>;
@@ -22,7 +24,18 @@ function PanelChat({ sessionId, topic, assistant, useSession, useConversation, u
   const settling = blank && session.openState === 'loading' && summaryBlank !== true;
   const hasAssistant = useChat(value => value.nodes.values().some(node => node.kind === 'assistant-step'));
   const showTopicOpening = Boolean(topic?.fresh && !hasAssistant && !settling);
-  return <div className={`conversation-citations ${topic ? 'finance-topic-chat' : assistant ? 'finance-assistant-native' : 'finance-panel-chat'}`}>
+  const [introClosed, setIntroClosed] = useState(false);
+  return <ConversationCitations className={topic ? 'finance-topic-chat' : assistant ? 'finance-assistant-native' : 'finance-panel-chat'}>
+    {assistant && blank && !settling && !introClosed && <div className="finance-assistant-intro">
+      <button type="button" className="finance-assistant-intro-close" aria-label="关闭说明" onClick={() => setIntroClosed(true)}><X size={14} /></button>
+      <h3>问问这个页面</h3>
+      <p>助手会结合本页正在显示的内容回答。想针对某一条提问，在输入框里输入 @ 选中它。</p>
+      <ul>
+        <li><strong>Ask 即答</strong>只用本页和你 @ 的条目，几秒内回答。</li>
+        <li><strong>Agent 深查</strong>信息不够时会去读研究页、原文和网页，稍慢一些。</li>
+      </ul>
+      <p className="finance-assistant-intro-note">值得留下的回答，可以点回答下方的「保存为记录」。</p>
+    </div>}
     {showTopicOpening && topic && <div className="finance-topic-opening">
       <h3>{topic.title}</h3>
       <p>{topic.judgment}</p>
@@ -34,7 +47,7 @@ function PanelChat({ sessionId, topic, assistant, useSession, useConversation, u
     {renderFactorySlot('conversation.content', {
       variant: 'embedded', phase: topic || assistant ? 'active' : settling ? 'settling' : blank ? 'hero' : 'active', hero: !topic && !assistant && blank && !settling,
     }, { slots: { views: FixedChatView } })}
-  </div>;
+  </ConversationCitations>;
 }
 
 type PanelSeatProps = {

@@ -57,6 +57,10 @@ export function feedPageContext(input: {
       staleNote: input.staleNote,
       depNote: input.depNote,
     }),
+    snapshotVersion: JSON.stringify(rows.map(row => row.url)),
+    snapshotForSend: (mode: 'ask' | 'agent', selected: PageAssistantObject[]) => buildFeedListSnapshot({
+      ...input, mode, selectedUrls: selected.length ? selected.filter(item => item.kind === 'url').map(item => item.url || item.id.replace(/^url:/, '')) : undefined,
+    }),
     suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
     objects: feedObjects(input.kind, rows),
   };
@@ -103,6 +107,10 @@ export function investmentNewsPageContext(input: {
       refreshing: input.refreshing,
       err: input.err,
       staleNote: input.staleNote,
+    }),
+    snapshotVersion: JSON.stringify(items.map(row => row.url)),
+    snapshotForSend: (mode: 'ask' | 'agent', selected: PageAssistantObject[]) => buildInvestmentNewsSnapshot({
+      ...input, mode, selectedUrls: selected.length ? selected.filter(item => item.kind === 'url').map(item => item.url || item.id.replace(/^url:/, '')) : undefined,
     }),
     suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
     objects: investmentNewsObjects(items),

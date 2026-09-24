@@ -84,6 +84,16 @@ export async function loadAssistantSessions() {
   }>;
 }
 
+export async function stageAssistantPageContext(input: { session_id: string; page_name: string; content: string }) {
+  const response = await fetch('/finance-assistant-page-context', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(typeof body.detail === 'string' ? body.detail : '页面上下文暂存失败，请重试');
+  }
+}
+
 export function assistantModeHint(mode: AssistantMode): string {
   return mode === 'agent'
     ? 'Agent 深查：页面信息不够时会自己查资料、读原文，稍慢一些'

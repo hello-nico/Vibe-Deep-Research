@@ -323,13 +323,16 @@ export function buildFeedListSnapshot(input: {
   err?: string | null;
   staleNote?: string | null;
   depNote?: string | null;
+  mode?: 'ask' | 'agent';
+  selectedUrls?: readonly string[];
 }): string {
   const label = input.kind === 'news' ? '公开新闻' : 'A股公告';
   const rows = input.watchCount ? input.rows : [];
+  const selected = input.selectedUrls ? new Set(input.selectedUrls) : null;
+  const shown = selected ? rows.filter(row => row.url && selected.has(row.url)) : rows.slice(0, 20);
   return clipPageSnapshot([
-    `当前栏目：${label}；关注 ${input.watchCount} 只，当前展示 ${rows.length} 条。`,
-    // 每条自带公司代码：不带代码时模型只能靠公司名反查身份（wiki_search 兜底），列表本身已有确定归属。
-    ...rows.map(row => `- ${row.when} ${row.name}${row.code ? `（${row.code}）` : ''}：${row.title}${row.url ? `（${row.url}）` : ''}`),
+    `当前栏目：${label}；关注 ${input.watchCount} 只；${selected ? `本栏共 ${rows.length} 条，其余未提供。` : `共 ${rows.length} 条，以下最近 ${shown.length} 条。`}`,
+    ...shown.map(row => `- ${row.when} ${row.name}${row.code ? `（${row.code}）` : ''}：${row.title}${input.mode === 'agent' && row.url ? `（${row.url}）` : ''}`),
     '说明：以上为发送时列表快照；链接正文在 @ 后由宿主读取，不在此重复。',
     !input.watchCount ? '当前没有关注股票。' : '',
     input.loading ? '正在加载，资料尚未取齐。' : '',
@@ -352,14 +355,18 @@ export function buildInvestmentNewsSnapshot(input: {
   refreshing?: boolean;
   err?: string | null;
   staleNote?: string | null;
+  mode?: 'ask' | 'agent';
+  selectedUrls?: readonly string[];
 }): string {
   const track = input.industryName ?? '未选择赛道';
   const items = input.items;
+  const selected = input.selectedUrls ? new Set(input.selectedUrls) : null;
+  const shown = selected ? items.filter(row => selected.has(row.url)) : items.slice(0, 20);
   return clipPageSnapshot([
-    `当前栏目：Investment News；当前赛道：${track}；本页展示 ${items.length} 条。`,
+    `当前栏目：Investment News；当前赛道：${track}；${selected ? `本栏共 ${items.length} 条，其余未提供。` : `共 ${items.length} 条，以下最近 ${shown.length} 条。`}`,
     input.tracks.length ? `赛道：${input.tracks.map(t => `${t.name} ${t.count}`).join('、')}。` : '',
     input.generatedAt ? `公开源 ${input.sourceCount ?? 0} 个·近 ${input.recentDays ?? 0} 天·更新于 ${input.generatedAt}` : '尚未抓取资讯。',
-    ...items.map(row => `- ${row.time} ${row.source}：${row.title}（${row.url}）`),
+    ...shown.map(row => `- ${row.time} ${row.source}：${row.title}${input.mode === 'agent' && row.url ? `（${row.url}）` : ''}`),
     '说明：以上为发送时列表快照；链接正文在 @ 后由宿主读取。',
     input.loading ? '正在加载，资料尚未取齐。' : '',
     input.refreshing ? '正在刷新，以下仍为当前已展示的快照，不代表刷新后的最新结果。' : '',

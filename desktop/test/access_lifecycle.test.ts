@@ -26,6 +26,7 @@ function pluginCtx(webServer: ReturnType<typeof fakeWebServer>) {
   const effects: Array<() => void> = [];
   return {
     webServer,
+    tools: { register: () => () => {} },
     agentDefaultModel: { currentSelection: () => null },
     llm: { async *stream() {} },
     effect(factory: () => () => void) { effects.push(factory()); },
@@ -73,7 +74,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   const server = readFileSync(new URL("../dsh/finance-ui/server.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(server, /installStageModel|stage-model/);
   // sessionPersistence 服务 reportTasksWithLineage（报告任务血缘，M9.5），不属 M9.9。
-  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents"\]/);
+  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools"\]/);
   const patch = readFileSync(new URL("../dsh/finance-ui/cordis.patch.yml", import.meta.url), "utf8");
   assert.match(patch, /surfaceContext:\s*false/);
   assert.match(patch, /includeRuntimeContext:\s*false/);
@@ -89,7 +90,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {
-  for (let failAt = 1; failAt <= 16; failAt++) {
+  for (let failAt = 1; failAt <= 17; failAt++) {
     const webServer = fakeWebServer();
     const register = webServer.register.bind(webServer);
     let count = 0;
@@ -102,7 +103,7 @@ test("真实插件的每个注册失败点都回滚，并可重装卸载", () =>
     assert.equal(webServer.routes.size, 0, `registration ${failAt}`);
     webServer.register = register;
     apply(ctx);
-    assert.equal(webServer.routes.size, 16);
+    assert.equal(webServer.routes.size, 17);
     for (const dispose of ctx.effects.splice(0).reverse()) dispose();
     assert.equal(webServer.routes.size, 0);
   }

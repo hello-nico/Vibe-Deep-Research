@@ -416,7 +416,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
         plugin: binding.plugin,
         target: binding.target,
         prompt: text,
-        pageSnapshot: page.context,
+        pageSnapshot: page.snapshotForSend?.(seat.mode || 'ask', chips) ?? page.context,
         marketIndices: page.marketIndices,
         companyQuotes: page.companyQuotes,
         objects: chips.map(item => ({

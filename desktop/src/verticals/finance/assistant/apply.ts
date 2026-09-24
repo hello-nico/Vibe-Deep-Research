@@ -1,12 +1,14 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { CompanySnapshotQuote } from '../../../core/ai/pageContext.tsx';
 import type { ResearchSessions, StartSessionResult } from '../dsh/research-session.tsx';
-import { bindAssistantPrompt } from './prompt.ts';
+import { assistantUserMessage, bindAssistantPrompt } from './prompt.ts';
+import { researchObjectSource } from '../dsh/research-input.ts';
 import { assistantBindingForPage, type AssistantPlugin } from './binding.ts';
 import {
   bindAssistantSession,
   isMissingAssistantSession,
   loadAssistantSessions,
+  stageAssistantPageContext,
 } from './sessions.ts';
 
 interface AssistantClient {
@@ -179,8 +181,13 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
               detail: item.detail,
             })),
           });
+          const references = await Promise.all((input.objects || []).map(item =>
+            researchObjectSource.codec!.serialize(item.id, AbortSignal.timeout(15_000))));
+          const message = assistantUserMessage(input.prompt, references);
+          // Stage while the session is retained: the host only accepts page context for a live session.
           await withSession(id, async face => {
-            if (!(await face.prompt([{ type: 'text', text: bound }], 'queue')).ok) {
+            await stageAssistantPageContext({ session_id: id, page_name: input.title, content: bound });
+            if (!(await face.prompt([{ type: 'text', text: message }], 'queue')).ok) {
               throw new Error('消息没发出去，请检查模型设置后重试');
             }
           });

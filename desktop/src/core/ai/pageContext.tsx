@@ -30,6 +30,9 @@ export interface AiPage {
   title: string;
   /** 发送时固定的页面快照正文（结构化列表，含来源与取数时点） */
   context: string;
+  /** 发送时按模式和已选对象生成快照；页面负责自身的数据边界。 */
+  snapshotForSend?: (mode: 'ask' | 'agent', objects: AssistantObjectRef[]) => string;
+  snapshotVersion?: string;
   /** 大盘页 @ 指数时从快照取显示值的结构化索引行 */
   marketIndices?: { id: string; name: string; price: number | null; change_pct: number | null; asOf?: string; source?: string; fetched_at?: string }[];
   /** 大盘页 @ 连板/成交额个股时从快照取显示值 */
@@ -194,6 +197,8 @@ export function useAiPage(page: AiPage | null): void {
   const key = page?.key ?? "";
   const title = page?.title ?? "";
   const context = page?.context ?? "";
+  const snapshotForSend = page?.snapshotForSend;
+  const snapshotVersion = page?.snapshotVersion ?? "";
   const marketIndices = page?.marketIndices;
   const companyQuotes = page?.companyQuotes;
   const marketSig = marketIndices ? JSON.stringify(marketIndices) : "";
@@ -205,7 +210,7 @@ export function useAiPage(page: AiPage | null): void {
     if (!set) return;
     const next: AiPage | null = has
       ? {
-        key, title, context,
+        key, title, context, snapshotForSend,
         marketIndices: marketIndices?.length ? marketIndices : undefined,
         companyQuotes: companyQuotes?.length ? companyQuotes : undefined,
         suggestions: sig ? sig.split("\u0000") : [],
@@ -216,7 +221,7 @@ export function useAiPage(page: AiPage | null): void {
     return () => {
       set((prev) => (prev === mine.current ? null : prev));
     };
-  }, [set, has, key, title, context, marketSig, quoteSig, sig]);
+  }, [set, has, key, title, context, snapshotVersion, marketSig, quoteSig, sig]);
 }
 
 /** 当前页已加载对象进入问助手 `@` 范围；卸载或换批次时注销，不抓正文。 */

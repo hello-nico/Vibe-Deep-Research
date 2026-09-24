@@ -328,7 +328,7 @@ export async function bindAssistantPrompt(input: {
       '以下 @ 对象已在发送时读取，直接使用，不要重复读取同一对象；需要更多信息可以补读，但补读是另一份结果，不覆盖、不混用本轮内容。',
       bound.join('\n'),
     ]) : '',
-    formatSnapshotSection('身份与问题', [
+    formatSnapshotSection('页面身份', [
       input.objects.length && !bound.length
         ? `本轮引用身份（发送时钉住）：\n${input.objects.map(identityLine).join('\n')}`
         : input.objects.length
@@ -336,7 +336,10 @@ export async function bindAssistantPrompt(input: {
           : '',
       `当前页面：${input.title}`,
       `模式：${input.mode === 'agent' ? 'Agent（可按需检索补充）' : 'Ask（即答：只用上述上下文）'}`,
-      `用户问题：\n${input.prompt.trim()}`,
     ]),
   ].filter(Boolean).join('\n\n');
+}
+
+export function assistantUserMessage(prompt: string, references: string[]): string {
+  return [prompt.trim(), ...references].filter(Boolean).join('\n\n');
 }

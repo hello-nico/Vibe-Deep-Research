@@ -2,6 +2,7 @@ import type { TaskTrajectorySnapshot, TaskTrajectoryStep } from '../dsh/research
 import { userFacingRuntimeError } from './userFacingError.ts';
 
 const TOOL_LABELS: Record<string, string> = {
+  read_page_context: '读取页面上下文',
   today: '当前日期',
   wiki_read: '读取研究页',
   wiki_list_pages: '列出研究页',

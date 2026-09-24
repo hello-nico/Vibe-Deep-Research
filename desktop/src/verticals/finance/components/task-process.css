@@ -88,3 +88,12 @@
   color: hsl(var(--destructive));
   font-size: 0.8125rem;
 }
+
+.finance-assistant-intro { position: relative; margin: 20px 20px 0; padding: 18px 20px; border: 1px solid hsl(var(--border) / 0.7); border-radius: 14px; background: hsl(var(--muted) / 0.45); color: hsl(var(--muted-foreground)); font-size: 13px; line-height: 1.7; }
+.finance-assistant-intro h3 { margin-bottom: 4px; font-size: 15px; font-weight: 600; color: hsl(var(--foreground)); }
+.finance-assistant-intro ul { display: grid; gap: 8px; margin: 14px 0; padding-top: 14px; border-top: 1px solid hsl(var(--border) / 0.6); }
+.finance-assistant-intro li { display: flex; align-items: baseline; gap: 8px; }
+.finance-assistant-intro strong { flex: none; padding: 0 7px; border-radius: 6px; background: hsl(var(--primary) / 0.1); font-size: 12px; font-weight: 600; line-height: 20px; color: hsl(var(--primary)); }
+.finance-assistant-intro-close { position: absolute; top: 12px; right: 12px; display: grid; place-items: center; width: 24px; height: 24px; border-radius: 6px; color: hsl(var(--muted-foreground)); }
+.finance-assistant-intro-close:hover { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.finance-assistant-intro-note { font-size: 12px; }

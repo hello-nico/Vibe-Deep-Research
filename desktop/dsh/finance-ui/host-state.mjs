@@ -10,6 +10,77 @@ const INPUT_HASH = /^[a-f0-9]{64}$/;
 // Page keys and Wiki targets share the same ASCII/CJK identity alphabet.
 const PAGE_KEY = /^[A-Za-z0-9._一-鿿:/-]{1,180}$/;
 const ASSISTANT_MODE = /^(ask|agent)$/;
+const assistantPageContexts = new Map();
+const pageContextTools = new Map();
+
+export function ensureAssistantPageContextTool(ctx, sessionId) {
+  const agent = liveAgent(ctx, sessionId);
+  if (!agent?.ctx?.tools?.register) return false;
+  if (pageContextTools.get(sessionId)?.agent !== agent) {
+    pageContextTools.get(sessionId)?.dispose();
+    pageContextTools.set(sessionId, { agent, dispose: agent.ctx.tools.register(pageContextTool()) });
+  }
+  return true;
+}
+
+function nextAssistantTurn(session) {
+  const turns = (session?.snapshotEvents?.() || []).filter(event => event.type === 'turn/start');
+  const last = turns.at(-1);
+  const events = session?.snapshotEvents?.() || [];
+  if (last && !events.some(event => event.type === 'turn/end' && event.data?.turn === last.data?.turn))
+    throw Object.assign(new Error('当前回答尚未结束，请稍后发送'), { status: 409 });
+  return (last?.data?.turn || 0) + 1;
+}
+
+export function stageAssistantPageContext(ctx, input) {
+  const { session_id: sessionId, page_name: pageName, content } = input || {};
+  if (!SESSION_ID.test(sessionId || '') || !loadAssistantSessions().sessions[sessionId])
+    throw Object.assign(new Error('问助手会话不存在'), { status: 404 });
+  if (typeof pageName !== 'string' || !pageName.trim() || pageName.length > 200
+    || typeof content !== 'string' || !content.trim() || content.length > 120_000)
+    throw Object.assign(new Error('页面上下文无效'), { status: 422 });
+  const session = ctx.sessions?.get?.(sessionId);
+  if (!session) throw Object.assign(new Error('问助手会话尚未就绪'), { status: 404 });
+  if (!ensureAssistantPageContextTool(ctx, sessionId))
+    throw Object.assign(new Error('问助手工具暂不可用'), { status: 503 });
+  const turn = nextAssistantTurn(session);
+  const turns = assistantPageContexts.get(sessionId) || new Map();
+  turns.set(turn, Object.freeze({ status: 'ready', page_name: pageName.trim(), fetched_at: new Date().toISOString(), content }));
+  while (turns.size > 8) turns.delete(turns.keys().next().value);
+  assistantPageContexts.set(sessionId, turns);
+  return { turn };
+}
+
+export function readAssistantPageContext(sessionId, turn) {
+  return assistantPageContexts.get(sessionId)?.get(turn)
+    || { status: 'missing', message: '本轮没有页面上下文' };
+}
+
+function currentAssistantTurn(session) {
+  const events = session?.snapshotEvents?.() || [];
+  const last = events.findLast(event => event.type === 'turn/start');
+  if (!last || events.some(event => event.type === 'turn/end' && event.data?.turn === last.data?.turn)) return 0;
+  return last.data?.turn || 0;
+}
+
+function pageContextTool() {
+  return {
+    name: 'read_page_context',
+    description: 'Read the page snapshot and @ references pinned at send time for the current page-assistant turn. Call before answering.',
+    parameters: { type: 'object', additionalProperties: false, properties: {} },
+    output: {
+      schema: { type: 'object', additionalProperties: true, properties: { status: { type: 'string' } }, required: ['status'] },
+      render(_args, value) { return [{ type: 'text', text: JSON.stringify(value) }]; },
+    },
+    isConcurrencySafe: () => true,
+    execute(_args, exec) {
+      const session = exec?.agent?.session;
+      const sessionId = session?.id;
+      if (!sessionId || !loadAssistantSessions().sessions[sessionId]) return { status: 'missing', message: '本轮没有页面上下文' };
+      return readAssistantPageContext(sessionId, currentAssistantTurn(session));
+    },
+  };
+}
 
 function researchDir() {
   const home = (process.env.DSH_HOME || '').trim() || path.join(os.tmpdir(), 'vibe-dsh-home');
@@ -628,6 +699,11 @@ export function installHostState(ctx, track = disposer => disposer) {
   runtimeLifetimes.delete(ctx);
   lifetimeFor(ctx);
   return [
+    track(() => {
+      for (const { dispose } of pageContextTools.values()) dispose();
+      pageContextTools.clear();
+      assistantPageContexts.clear();
+    }),
     track(() => { void disposeReportRuntime(); }),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-background-tasks', async handler(req, res) {
       try {
@@ -689,12 +765,22 @@ export function installHostState(ctx, track = disposer => disposer) {
         if (req.method === 'GET') { send(res, 200, loadAssistantSessions()); return; }
         if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
         const body = await readBody(req);
-        send(res, 200, bindAssistantSession(body, {
+        const bound = bindAssistantSession(body, {
           sessionExists: sessionId => liveSessionExists(ctx, sessionId) || persistedSessionExists(sessionId),
           isRunning: sessionId => sessionRunning(ctx, sessionId),
-        }));
+        });
+        ensureAssistantPageContextTool(ctx, body.session_id);
+        send(res, 200, bound);
       } catch (error) {
         send(res, error.status || 500, { detail: error.message || 'assistant session bind failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-assistant-page-context', async handler(req, res) {
+      try {
+        if (req.method !== 'POST') { res.writeHead(405); res.end(); return; }
+        send(res, 200, stageAssistantPageContext(ctx, await readBody(req, 150_000)));
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || '页面上下文暂存失败' });
       }
     } })),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-note-digest', async handler(req, res) {

@@ -63,6 +63,38 @@ test('Investment News 空态与刷新中不冒充已有最新条目', () => {
   assert.match(stale.context, /不代表刷新后的最新结果/);
   assert.equal(stale.objects[0]?.label, newsSnapshot.items[0]?.title);
 });
+test('资讯三栏发送快照按 @ 与 Ask/Agent 裁剪，最多最近 20 条', () => {
+  const rows = Array.from({ length: 25 }, (_, i) => ({ code: '000001', name: '测试公司', when: `2026-09-${String(25 - i).padStart(2, '0')}`, title: `标题${i}`, url: `https://example.com/${i}` }));
+  for (const kind of ['news', 'filings'] as const) {
+    const page = feedPageContext({ ...snapshot, kind, rows });
+    const picked = page.objects[3]!;
+    for (const mode of ['ask', 'agent'] as const) {
+      const selected = page.snapshotForSend(mode, [picked]);
+      assert.match(selected, /本栏共 25 条，其余未提供/);
+      assert.match(selected, /标题3/);
+      assert.doesNotMatch(selected, /标题2|标题4/);
+      assert.equal(selected.includes(picked.url!), mode === 'agent');
+      const whole = page.snapshotForSend(mode, []);
+      assert.match(whole, /共 25 条，以下最近 20 条/);
+      assert.match(whole, /标题19/);
+      assert.doesNotMatch(whole, /标题20/);
+      assert.equal(whole.includes('https://example.com/0'), mode === 'agent');
+    }
+  }
+  const items = rows.map(row => ({ time: row.when, source: '公开源', title: row.title, url: row.url }));
+  const news = investmentNewsPageContext({ ...newsSnapshot, items });
+  for (const mode of ['ask', 'agent'] as const) {
+    const selected = news.snapshotForSend(mode, [news.objects[3]!]);
+    assert.match(selected, /本栏共 25 条，其余未提供/);
+    assert.match(selected, /标题3/);
+    assert.doesNotMatch(selected, /标题2|标题4/);
+    assert.equal(selected.includes('https://example.com/3'), mode === 'agent');
+    const whole = news.snapshotForSend(mode, []);
+    assert.match(whole, /共 25 条，以下最近 20 条/);
+    assert.doesNotMatch(whole, /标题20/);
+    assert.equal(whole.includes('https://example.com/0'), mode === 'agent');
+  }
+});
 test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不换会话键', () => {
   assert.deepEqual(assistantBindingForPage('daily-review'), { plugin: 'market', target: '', bindKey: 'market:daily-review' });
   assert.equal(assistantBindingForPage('intel:investment-news:ai')?.plugin, 'intel');
