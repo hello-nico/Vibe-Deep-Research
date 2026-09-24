@@ -37,3 +37,20 @@ test('settled failures expose a Chinese summary and keep the raw error in detail
   assert.equal(model.rawError, 'fetch failed');
   assert.equal(model.elapsed, '1.5 秒');
 });
+
+test('tool row counts isolated cards and leaves passed content unmarked', () => {
+  const block = (payload: object) => ({
+    kind: 'tool-result', call: { name: 'search_external', argsRaw: '{}' },
+    time: 2000, content: [{ type: 'text', text: JSON.stringify(payload) }], isError: false,
+  }) as never;
+  const isolated = financeToolRowModel('search_external', block({ results: [
+    { title: '甲', screen: { status: 'isolated' } },
+    { title: '乙', screen: { status: 'passed' } },
+    { title: '丙', screen: { status: 'isolated' } },
+  ] }));
+  assert.match(isolated.title, /已隔离 2 条可疑内容/);
+  assert.match(isolated.result, /未提供给模型/);
+  const passed = financeToolRowModel('fetch_source_url', block({ text: '普通正文', screen: { status: 'passed' } }));
+  assert.doesNotMatch(passed.title, /已隔离/);
+  assert.doesNotMatch(passed.result, /已隔离/);
+});
