@@ -574,8 +574,8 @@ async function emotionOf(pre: { zt_pool?: Envelope; zb_pool?: Envelope; yzt_pool
   };
 }
 
-async function turnoverTopOf(): Promise<TurnoverTop> {
-  const e = await env("em_turnover_rank");
+async function turnoverTopOf(pre?: Envelope): Promise<TurnoverTop> {
+  const e = pre ?? await env("em_turnover_rank");
   // note:`中际旭创(300308)·通信设备;成交额榜第 1 名(全市场 5904 只)`
   const NOTE = /^(.+?)\((\d{6})\)·([^;]*)/;
   // 榜单端点只给 价格 / 涨跌 / 成交额 / 名次 —— **总市值要另外取一次批量行情**。

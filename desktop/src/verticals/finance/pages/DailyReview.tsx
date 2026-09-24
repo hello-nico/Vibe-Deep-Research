@@ -11,6 +11,7 @@ import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type 
 import { cn } from "@/lib/utils";
 import { marketRequest } from "@/lib/marketRequest";
 import { CompanyNamePeek } from "../components/CompanyPeek";
+import { dailyReviewBlockStatus, dailyReviewBlockTime, dailyReviewEmptyStatus } from "./dailyReviewStatus.ts";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
 // 对中国用户最不易看错（非国际绿涨惯例，是有意选择，勿改）。
@@ -70,7 +71,7 @@ export function DailyReview() {
     if (fetchingRef.current) return;
     fetchingRef.current = true;
     setIdxDone(false); setIdxErr(false); setOvDone(false); setEmoDone(false); setToDone(false);
-    setEmotion(null); setTurnover(null); setOverview(null); setPageMeta(null);
+    // 刷新中保留已显示的数据，等新结果或明确的失败状态到达。
     const indexTask = marketRequest(api.indices(refresh)).then(setIndices).catch(() => { setIndices([]); setIdxErr(true); }).finally(() => setIdxDone(true));
     setGlobalDone(false);
     setGlobalErr(null);
@@ -78,7 +79,6 @@ export function DailyReview() {
     const globalTask = marketRequest(api.globalIndices(refresh)).then(setGlobalIdx)
       .catch((e) => setGlobalErr(e instanceof Error ? e.message : "全球指数获取失败"))
       .finally(() => setGlobalDone(true));
-    const turnoverTask = marketRequest(api.turnoverTop()).then(setTurnover).catch(() => {}).finally(() => setToDone(true));
 
     /**
      * 🔴 情绪 / 板块资金 / 涨停梯队 **只取一次**:向 Core 要一屏(`/page/review`),
@@ -86,17 +86,23 @@ export function DailyReview() {
      *    而且 **BFF 注入了业务日、页面这边没有**,同一屏的状态与数字可能是不同两天的。
      */
     setPageErr(null);
-    const pageTask = marketRequest(localService.page("review", { refresh }));
+    const pageTask = marketRequest(localService.page("review", { refresh })).then(meta => {
+      // 新一屏已到达时一起撤下旧一屏，避免新时间标签短暂贴在旧榜单上。
+      setPageMeta(meta); setOverview(null); setEmotion(null); setTurnover(null);
+      return meta;
+    });
     const block = (meta: PageResult, id: string) => meta.blocks.find((b) => b.id === id)?.envelope as never;
+    const turnoverTask = pageTask.then(meta => api.turnoverTop(block(meta, "turnover")))
+      .then(setTurnover).catch(() => {}).finally(() => setToDone(true));
     const overviewTask = pageTask
       .then(async (meta) => {
         const overview = await api.marketOverview({ sentiment: block(meta, "sentiment"), board_flow: block(meta, "board_flow"), zt_pool: block(meta, "zt_pool") });
         return { meta, overview };
       })
-      .then(({ meta, overview }) => { setPageMeta(meta); setOverview(overview); })
+      .then(({ overview }) => { setOverview(overview); })
       // 🔴 不吞:取不到这一屏 = 业务日与缺口保护都没了,必须让用户看见,
       //    否则页面会拿着旧数据继续显示得像正常一样
-      .catch((e) => { setPageMeta(null); setPageErr(e instanceof Error ? e.message : String(e)); })
+      .catch((e) => { setPageErr(e instanceof Error ? e.message : String(e)); })
       .finally(() => setOvDone(true));
     // 短线情绪与上面同一屏、同一业务日:涨停 / 炸板 / 昨日涨停三个池都取自 /page/review
     const emotionTask = pageTask
@@ -107,9 +113,14 @@ export function DailyReview() {
   };
 
   // 数据块占位：请求没回来 = 加载中；回来了但为空 = 数据源暂不可用（别让用户干等）
-  const pending = (done: boolean) => (
+  const pageBlock = (id: string) => pageMeta?.blocks.find(b => b.id === id);
+  const fallback = (id: string) => {
+    const message = dailyReviewBlockStatus(pageBlock(id));
+    return message && <p role="status" className="mb-2 text-xs text-amber-700 dark:text-amber-300">{message}</p>;
+  };
+  const pending = (done: boolean, id?: string) => (
     <p className="py-4 text-center text-sm text-muted-foreground/60">
-      {done ? "暂无数据：可能是非交易时段或数据源暂时不可用，可以点「大盘指数」旁的刷新重试" : "加载中…"}
+      {done ? dailyReviewEmptyStatus(id ? pageBlock(id) : undefined, pageErr) : "加载中…"}
     </p>
   );
 
@@ -314,10 +325,11 @@ export function DailyReview() {
       )}
 
       {/* 4. 市场情绪 */}
-      <SectionHead icon={Gauge} title="市场情绪" updated={sentiment?.date} />
+      <SectionHead icon={Gauge} title="市场情绪" updated={dailyReviewBlockTime(pageBlock("sentiment"), sentiment?.fetched_at)} />
+      {fallback("sentiment")}
       <GlassCard className="mb-6">
         {!sentiment?.breadth ? (
-          pending(ovDone)
+          pending(ovDone, "sentiment")
         ) : (
           <>
             <div className="grid gap-3 sm:grid-cols-2">
@@ -345,10 +357,11 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4b. 短线情绪（连板梯队 / 打板情绪，聚合口径零个股名） */}
-      <SectionHead icon={Flame} title="短线情绪" hint="连板股 · 打板情绪 · 客观公开榜单" updated={emotion?.date} />
+      <SectionHead icon={Flame} title="短线情绪" hint="连板股 · 打板情绪 · 客观公开榜单" updated={dailyReviewBlockTime(pageBlock("zt_pool"), emotion?.fetched_at)} />
+      {fallback("zt_pool")}
       <GlassCard className="mb-6">
         {!emotion || emotion.zt_count === undefined ? (
-          pending(emoDone)
+          pending(emoDone, "zt_pool")
         ) : (
           <>
             {/* 关键计数 */}
@@ -418,10 +431,11 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4c. 全市场成交额 TOP20（客观公开榜单） */}
-      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="公开榜单" updated={turnover?.updated} />
+      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="公开榜单" updated={dailyReviewBlockTime(pageBlock("turnover"), turnover?.updated)} />
+      {fallback("turnover")}
       <GlassCard className="mb-6">
         {!turnover || turnover.stocks.length === 0 ? (
-          pending(toDone)
+          pending(toDone, "turnover")
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -453,10 +467,11 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 5. 板块资金趋势榜（行业） */}
-      <SectionHead icon={TrendingUp} title="板块资金趋势榜" hint="行业 · 按今日净流入排序" updated={overview?.updated} />
+      <SectionHead icon={TrendingUp} title="板块资金趋势榜" hint="行业 · 按今日净流入排序" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} />
+      {fallback("board_flow")}
       <GlassCard className="mb-6">
         {sectors.length === 0 ? (
-          pending(ovDone)
+          pending(ovDone, "board_flow")
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
@@ -484,7 +499,8 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 6. 资金轮动 */}
-      <SectionHead icon={ArrowDownUp} title="资金轮动" hint="板块级净流入 / 流出" updated={overview?.updated} />
+      <SectionHead icon={ArrowDownUp} title="资金轮动" hint="板块级净流入 / 流出" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} />
+      {fallback("board_flow")}
       <div className="mb-2 grid gap-4 md:grid-cols-2">
         {[
           // 🔴 判据是**净额的正负**，不是"在列表的哪一头"。
@@ -497,7 +513,7 @@ export function DailyReview() {
           <GlassCard key={col.title}>
             <h4 className={cn("mb-3 flex items-center gap-1.5 text-sm font-semibold", col.color)}><col.icon className="h-4 w-4" /> {col.title}</h4>
             {col.rows.length === 0 ? (
-              pending(ovDone)
+              sectors.length > 0 ? <p className="text-sm text-muted-foreground">本次没有{col.title === "流入 Top" ? "净流入" : "净流出"}板块</p> : pending(ovDone, "board_flow")
             ) : (
               <div className="space-y-1.5">
                 {col.rows.map((s, i) => (

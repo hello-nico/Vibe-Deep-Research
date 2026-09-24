@@ -8,7 +8,8 @@ import { fileURLToPath } from "node:url";
 
 import "../src/finance/register.ts";
 import { currentPlugin } from "../src/plugin.ts";
-import { ServiceError, assertArgs, blockStatusFromEnvelope, pageQuery, type ServiceContext } from "../src/service.ts";
+import { ServiceError, assertArgs, blockStatusFromEnvelope, fetchPageEndpoint, pageQuery, type ServiceContext } from "../src/service.ts";
+import { readSnapshot, snapshotKey, writeSnapshot } from "../src/snapshot.ts";
 import type { EndpointDef } from "../src/registry.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
@@ -95,6 +96,40 @@ test("未知查询名当场报错,并列出可用的", async () => {
     () => pageQuery(ctx(), { query: "nosuch" }),
     (e: unknown) => e instanceof ServiceError && e.code === "unknown_query" && /可用:/.test(e.message),
   );
+});
+
+test("页面真取失败按同端点同参数回退成功快照，且失败不覆盖快照", async t => {
+  const service = ctx();
+  t.after(() => fs.rmSync(service.dataRoot, { recursive: true, force: true }));
+  const runner = path.join(service.dataRoot, "failed-fetch.sh");
+  const failed = { status: "failed", evidence: [], errors: [{ error: "push2.eastmoney.com HTTP 502" }] };
+  fs.writeFileSync(runner, `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(failed)}'\n`, { mode: 0o700 });
+  service.python = runner;
+  const endpoint = "em_turnover_rank";
+  const key = snapshotKey(endpoint, "", {});
+  const saved = writeSnapshot(service.dataRoot, key, { endpoint, symbol: "" }, {
+    envelope: { status: "ok", evidence: [{ field: "turnover_amount" }] }, exit_code: 0,
+    out_dir: "", duration_ms: 1, stderr_tail: "", cached: false, fetched_at: "ignored",
+  }, () => true);
+  assert.ok(saved);
+  const fallback = await fetchPageEndpoint(service, { endpoint, refresh: true });
+  assert.equal(fallback.cached, true);
+  assert.equal(fallback.fetched_at, saved.fetched_at);
+  assert.match(fallback.fallback_reason || "", /东方财富接口 HTTP 502/);
+  assert.equal(fallback.envelope.status, "ok");
+  assert.deepEqual(readSnapshot(service.dataRoot, key), saved);
+  fs.writeFileSync(runner, `#!/bin/sh\nprintf '%s\\n' '${JSON.stringify(failed)}'\nexit 3\n`, { mode: 0o700 });
+  const nonzero = await fetchPageEndpoint(service, { endpoint, refresh: true });
+  assert.equal(nonzero.fetched_at, saved.fetched_at, "进程失败也只回退同一成功快照");
+  const otherParams = await fetchPageEndpoint(service, { endpoint, args: { top_n: 10 }, refresh: true });
+  assert.equal(otherParams.envelope.status, "failed");
+  assert.equal(otherParams.fallback_reason, undefined);
+  writeSnapshot(service.dataRoot, snapshotKey(endpoint, "", { top_n: 20 }), { endpoint, symbol: "" }, saved.payload, () => true);
+  const page = await pageQuery(service, { query: "today", refresh: true });
+  const turnover = page.blocks.find(block => block.id === "turnover");
+  assert.equal(turnover?.status, "stale_fallback");
+  assert.match(turnover?.error || "", /HTTP 502/);
+  assert.equal(turnover?.cached, true);
 });
 
 test("🔴 块状态跟着信封走:信封 failed / partial 不许被记成 ok(它曾一律记 ok —— 一个证据 0 条、带 traceback 的块在界面上显示成正常,而按 status 做的缺口保护永远不触发)", () => {

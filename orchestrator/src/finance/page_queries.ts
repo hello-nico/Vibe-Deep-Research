@@ -74,6 +74,7 @@ export const FINANCE_PAGE_QUERIES: Record<string, PageQueryDef> = {
       //    所以盘中打开时它是**今天的进行时**,与本页其余几块的业务日期不是同一天。
       //    如实写在 note 里,别让人以为整页都是同一天(这正是 mixed_ages 要提醒的那类问题)。
       { id: "board_flow", title: "板块资金流(行业)", note: "主力净额从大到小;全市场口径。⚠️ 此源只给当日:盘中看到的是今天的进行时,不是复盘那一天", endpoint: "em_board_fund_flow", args: BOARD_FLOW_ARGS },
+      { id: "turnover", title: "全市场成交额榜", note: "沪深京 A 股按成交额排序的客观榜单", endpoint: "em_turnover_rank" },
       // ⚠️ 要的是**市场级日榜** `em_daily_dragon_tiger`(symbol_kind=none);
       //    `em_dragon_tiger` 是**单只主体**的上榜记录,需要 symbol,放在这一页会永远缺 symbol 报错。
       //    (我先前正是拿错了那个,把它当成"这一页不该有龙虎榜"给删了 —— 删错了。)

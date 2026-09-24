@@ -53,12 +53,25 @@ function WikiSections({ markdown, blocks, company = false, report = false }: { m
     const Icon = icons[section.title] || BookOpen;
     const content = section.lines.join('\n').trim();
     const facts = factItems(blockDict(blocks.find(block => block.kind === FACT_SECTIONS[section.title])?.content));
-    if (report) return <section key={index}><h2>{section.title || '研究概览'}</h2>{company && section.title === '资料时间线' ? <SourceTimeline content={blockDict(blocks.find(block => block.kind === 'source_timeline')?.content)} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="text-sm text-muted-foreground">资料待补充</p>}</section>;
+    const missing = company && section.title === '经营' ? requiredMetrics(blocks) : [];
+    if (report) return <section key={index}><h2>{section.title || '研究概览'}</h2>{company && section.title === '资料时间线' ? <SourceTimeline content={blockDict(blocks.find(block => block.kind === 'source_timeline')?.content)} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <SectionGap missing={missing} />}</section>;
     return <GlassCard glow key={index} className="!p-6">
       <header className="mb-4 flex items-center gap-3 border-b border-border/60 pb-4"><span className="rounded-xl bg-primary/10 p-2.5 text-primary"><Icon size={20} /></span><h3 className="text-base font-semibold">{section.title || '研究概览'}</h3></header>
-      {company && section.title === '资料时间线' ? <SourceTimeline content={blockDict(blocks.find(block => block.kind === 'source_timeline')?.content)} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <p className="py-2 text-sm text-muted-foreground">资料待补充</p>}
+      {company && section.title === '资料时间线' ? <SourceTimeline content={blockDict(blocks.find(block => block.kind === 'source_timeline')?.content)} /> : facts.length ? <FactList items={facts} /> : content ? <KnowledgeText markdown={content} /> : <SectionGap missing={missing} card />}
     </GlassCard>;
   })}</div>;
+}
+function requiredMetrics(blocks: WikiPage['spec']['blocks']): string[] {
+  const metrics = blockDict(blocks.find(block => block.kind === 'operating_facts')?.content)?.required_metrics;
+  return Array.isArray(metrics) ? metrics.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : [];
+}
+// Operating facts only come from company research reading the reports; say what is missing and how it gets filled.
+function SectionGap({ missing, card = false }: { missing: string[]; card?: boolean }) {
+  if (!missing.length) return <p className={cn('text-sm text-muted-foreground', card && 'py-2')}>资料待补充</p>;
+  return <div className={cn('text-sm text-muted-foreground', card && 'py-2')}>
+    <p>还没有从年报中读出的经营数据。发起公司研究后，会从定期报告里补齐以下项目：</p>
+    <ul className="mt-3 flex flex-wrap gap-2">{missing.map(item => <li key={item} className="rounded-md border border-border/70 px-2 py-0.5 text-xs">{item}</li>)}</ul>
+  </div>;
 }
 function FactList({ items }: { items: Record<string, unknown>[] }) {
   return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 dark:prose-invert"><ul>{items.map((item, index) => {

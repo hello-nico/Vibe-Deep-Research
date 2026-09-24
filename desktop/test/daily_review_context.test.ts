@@ -4,6 +4,7 @@ import test from "node:test";
 import vm from "node:vm";
 import ts from "typescript";
 import { marketRequest } from "../src/verticals/finance/lib/marketRequest.ts";
+import { dailyReviewBlockStatus, dailyReviewBlockTime, dailyReviewEmptyStatus } from "../src/verticals/finance/pages/dailyReviewStatus.ts";
 
 test("全球指数失败进入可见状态与 AI 摘要，不静默消失", async () => {
   const text = fs.readFileSync(new URL("../src/verticals/finance/pages/DailyReview.tsx", import.meta.url), "utf8");
@@ -37,7 +38,7 @@ test("全球指数失败进入可见状态与 AI 摘要，不静默消失", asyn
     setPageErr: noop, setPageMeta: (v: unknown) => { pageMeta = v; }, setOverview: noop, setOvDone: noop,
   }) as () => Promise<void>;
   const first = load();
-  assert.equal(pageMeta, null, "刷新开始必须撤下旧业务日，不能等新请求返回才清理");
+  assert.deepEqual(pageMeta, { business_date: "2026-09-03" }, "刷新中保留旧业务日与榜单，待本次结果返回再替换");
   await load();
   assert.equal(requests, 1, "前一轮尚未结束时重复刷新不能叠加请求");
   releasePage({ blocks: [] });
@@ -50,6 +51,24 @@ test("全球指数失败进入可见状态与 AI 摘要，不静默消失", asyn
   assert.match(text, /dailyReviewQuoteObjects/);
   assert.doesNotMatch(text, /dataSummary/);
   assert.doesNotMatch(text, /\{globalIdx\.length > 0 &&\s*\(/, "面板不再以有数据为显示前提；状态标签仍可以检查数据是否为空");
+});
+
+test("大盘数据块正常、回退、无数据三态使用本块时间与实际原因", () => {
+  const page = fs.readFileSync(new URL("../src/verticals/finance/pages/DailyReview.tsx", import.meta.url), "utf8");
+  assert.match(page, /updated=\{dailyReviewBlockTime\(pageBlock\("turnover"\), turnover\?\.updated\)\}/);
+  assert.match(page, /updated=\{dailyReviewBlockTime\(pageBlock\("board_flow"\), overview\?\.sectors_fetched_at\)\}/);
+  assert.doesNotMatch(page, /updated=\{overview\?\.updated\}/);
+  const now = new Date(2026, 8, 24, 21, 30);
+  const block = { id: "board_flow", title: "板块资金", note: null, status: "stale_fallback" as const,
+    fetched_at: new Date(2026, 8, 24, 14, 31).toISOString(), error: "东方财富接口 HTTP 502", envelope: {} };
+  assert.equal(dailyReviewBlockStatus(block, now), "这次没取到（东方财富接口 HTTP 502），下面是 14:31 的内容");
+  assert.equal(dailyReviewBlockStatus({ ...block, fetched_at: new Date(2026, 8, 23, 14, 31).toISOString() }, now),
+    "这次没取到（东方财富接口 HTTP 502），下面是 2026-09-23 14:31 的内容");
+  assert.equal(dailyReviewBlockStatus({ ...block, status: "ok" }, now), null);
+  assert.equal(dailyReviewBlockTime(block, "错误的情绪时间"), block.fetched_at);
+  assert.equal(dailyReviewBlockTime({ ...block, status: "failed" }, "错误的情绪时间"), null);
+  assert.equal(dailyReviewEmptyStatus({ ...block, status: "failed" }), "东方财富接口 HTTP 502");
+  assert.equal(dailyReviewEmptyStatus(undefined, "本机服务连接失败"), "本机服务连接失败");
 });
 
 test("盘面各块完成态决定 dataReady，不再依赖本页复盘按钮", () => {

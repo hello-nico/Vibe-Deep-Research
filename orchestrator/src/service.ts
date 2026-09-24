@@ -149,6 +149,8 @@ export interface FetchResult {
   cached: boolean;
   /** 这份数据是什么时候取到的。**界面必须显示它** —— 拿旧数据不说是旧的等于骗人 */
   fetched_at: string;
+  /** 页面查询专用：真取失败后使用同端点同参数的上次成功快照。 */
+  fallback_reason?: string;
 }
 
 /**
@@ -375,7 +377,7 @@ export interface PageBlockResult {
    *    而调用方按 status 做的"缺口保护"永远不会触发 —— **看着在保护,其实一条都匹配不上**。
    *  missing = 取数调用本身失败(抛异常);failed / partial = 取数器跑了但自报没取全。
    */
-  status: "ok" | "partial" | "failed" | "missing";
+  status: "ok" | "partial" | "failed" | "missing" | "stale_fallback";
   /** 取不到时说清是什么问题(界面要显示,不能只留空白) */
   error?: string;
   fetched_at?: string; cached?: boolean;
@@ -434,6 +436,38 @@ function pickUserArgs(b: { userArgs?: readonly string[] }, given: Record<string,
 export function blockStatusFromEnvelope(envelope: unknown): PageBlockResult["status"] {
   const es = (envelope as { status?: unknown } | null)?.status;
   return es === "ok" ? "ok" : es === "partial" ? "partial" : "failed";
+}
+
+function pageFailureReason(ep: EndpointDef, failed: FetchResult | Error): string {
+  const source = ep.source === "eastmoney" ? "东方财富接口" : `${ep.title ?? ep.id}接口`;
+  const first = failed instanceof Error ? failed.message
+    : (failed.envelope.errors as Array<{ error?: string } | string> | undefined)?.[0];
+  const raw = typeof first === "string" ? first : first?.error;
+  const http = /\bHTTP\s*(\d{3})\b/i.exec(raw || "");
+  return http ? `${source} HTTP ${http[1]}` : `${source}：${redact(raw || "本次取数失败", 160)}`;
+}
+
+/** 页面查询才允许旧快照回退；研究、MCP 与体检仍按各自一致性要求取数。 */
+export async function fetchPageEndpoint(ctx: ServiceContext, req: Parameters<typeof fetchEndpoint>[1]): Promise<FetchResult> {
+  const ep = endpointDef(ctx, req.endpoint);
+  const needSymbol = ep.symbol_kind !== "none" || ep.module === "legacy";
+  const symbol = needSymbol ? assertSymbol(req.symbol, ep.symbol_kind === "none" ? "cn6" : ep.symbol_kind) : "";
+  const args = assertArgs(ep, req.args);
+  let failed: FetchResult | Error;
+  try {
+    const result = await fetchEndpoint(ctx, req);
+    if (result.exit_code === 0 && blockStatusFromEnvelope(result.envelope) !== "failed") return result;
+    failed = result;
+  } catch (error) {
+    if (req.signal?.aborted) throw error;
+    failed = error instanceof Error ? error : new Error(String(error));
+  }
+  const hit = readSnapshot<FetchResult>(ctx.dataRoot, snapshotKey(ep.id, symbol, args));
+  if (hit?.payload?.exit_code === 0 && blockStatusFromEnvelope(hit.payload.envelope) !== "failed") {
+    return { ...hit.payload, cached: true, fetched_at: hit.fetched_at, fallback_reason: pageFailureReason(ep, failed) };
+  }
+  if (failed instanceof Error) throw failed;
+  return failed;
 }
 
 /**
@@ -510,7 +544,7 @@ export async function pageQuery(
          */
         if (b.injectContext && ctxUnavailable)
           throw new ServiceError("context_unavailable", ctxDef?.unavailable ?? "拿不到这一屏的上下文");
-        const r = await fetchEndpoint(ctx, {
+        const r = await fetchPageEndpoint(ctx, {
           endpoint: b.endpoint,
           ...(b.symbol ?? req.symbol ? { symbol: b.symbol ?? req.symbol } : {}),
           // 只有声明了 injectContext 的块才吃上下文参数 —— 不吃的端点会被参数校验当场拒
@@ -522,8 +556,8 @@ export async function pageQuery(
           signal: req.signal,
         });
         const userArgs = b.userArgs?.length ? { user_args: b.userArgs, applied_args: { ...(b.args ?? {}), ...used } } : {};
-        const st = blockStatusFromEnvelope(r.envelope);
-        return { id: b.id, title: b.title, ...(b.note ? { note: b.note } : {}), ...(b.collapsed ? { collapsed: true } : {}), ...userArgs, status: st, fetched_at: r.fetched_at, cached: r.cached, envelope: r.envelope };
+        const st = r.fallback_reason ? "stale_fallback" : blockStatusFromEnvelope(r.envelope);
+        return { id: b.id, title: b.title, ...(b.note ? { note: b.note } : {}), ...(b.collapsed ? { collapsed: true } : {}), ...userArgs, status: st, ...(st === "failed" || r.fallback_reason ? { error: r.fallback_reason ?? pageFailureReason(endpointDef(ctx, b.endpoint), r) } : {}), fetched_at: r.fetched_at, cached: r.cached, envelope: r.envelope };
       } catch (e) {
         // 一块取不到不该让整屏空白 —— 但也**不能装作没事**:如实标出来
         return { id: b.id, title: b.title, ...(b.note ? { note: b.note } : {}), status: "missing", error: e instanceof Error ? e.message : String(e) };

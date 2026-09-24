@@ -14,12 +14,20 @@ export interface SourceBlock {
   block_id: string; page: number; text: string; truncated?: boolean;
 }
 interface Resolution { ref: string; status: string; kind: string; data: Record<string, unknown> }
+export class PendingEvidenceError extends Error {}
+export function evidenceFailure(error: unknown): { message: string; retryable: boolean } {
+  if (error instanceof PendingEvidenceError) return { message: error.message, retryable: false };
+  if (error instanceof DOMException && ['TimeoutError', 'NetworkError'].includes(error.name)) return { message: '这条依据暂时无法读取，请稍后重试。', retryable: true };
+  if (error instanceof TypeError) return { message: '这条依据暂时无法读取，请稍后重试。', retryable: true };
+  return { message: error instanceof Error ? error.message : '依据读取失败。', retryable: false };
+}
 export async function resolveEvidence(ref: string, signal: AbortSignal): Promise<Resolution> {
   const response = await researchRead<{ results: Resolution[] }>('/wiki/refs/resolve', {
     method: 'POST', signal, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refs: [ref] }),
   });
   const result = response.results.find(item => item.ref === ref);
-  if (!result || result.status !== 'resolved') throw new Error(ref.startsWith('provider:') ? '这条引用未找到唯一对应的历史数据，暂不能核对原数值。' : '这条依据暂时无法读取，请稍后重试。');
+  if (result?.status === 'pending' && ref.startsWith('lookup:')) throw new PendingEvidenceError('这一项目前是缺口，还没有取到数据，暂无可核对的依据');
+  if (!result || result.status !== 'resolved') throw new Error(ref.startsWith('provider:') ? '这条引用未找到唯一对应的历史数据，暂不能核对原数值。' : `这条依据未能解析${result?.status ? `（${result.status}）` : ''}，暂无可核对的来源。`);
   return result;
 }
 export function pinnedBlockPath(block: Pick<SourceBlock, 'document_id' | 'parse_revision_id' | 'parsed_content_sha256' | 'block_id'>) {

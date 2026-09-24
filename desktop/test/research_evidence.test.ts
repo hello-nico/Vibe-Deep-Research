@@ -41,7 +41,7 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
   const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
   const originalFetch = globalThis.fetch;
   try {
-    const { decodeEvidenceLink, pinnedBlockPath, readPinnedBlock, loadEvidence } = await server.ssrLoadModule('/src/verticals/finance/lib/evidence.ts');
+    const { decodeEvidenceLink, pinnedBlockPath, readPinnedBlock, loadEvidence, evidenceFailure } = await server.ssrLoadModule('/src/verticals/finance/lib/evidence.ts');
     const { createCitationMention } = await import('../src/verticals/finance/lib/citationMarks.ts');
     const opened: string[] = [];
     const mention = createCitationMention((reference: string) => opened.push(reference));
@@ -68,6 +68,13 @@ test('证据引用保留 block 冒号、固定修订且拒绝损坏的身份', a
     assert.deepEqual(claim.related, ['evidence:abc123:x:r1:p2:b3']);
     globalThis.fetch = async () => new Response(JSON.stringify({ results: [{ ref: 'claim:a', status: 'missing' }] }));
     await assert.rejects(loadEvidence('claim:a', new AbortController().signal));
+    globalThis.fetch = async () => new Response(JSON.stringify({ results: [{ ref: 'lookup:cash', status: 'pending', kind: 'lookup', data: { lookup_id: 'cash' } }] }));
+    await assert.rejects(loadEvidence('lookup:cash', new AbortController().signal), (error: Error) => {
+      assert.deepEqual(evidenceFailure(error), { message: '这一项目前是缺口，还没有取到数据，暂无可核对的依据', retryable: false });
+      return true;
+    });
+    assert.deepEqual(evidenceFailure(new TypeError('fetch failed')), { message: '这条依据暂时无法读取，请稍后重试。', retryable: true });
+    assert.deepEqual(evidenceFailure(new Error('原文版本核对失败')), { message: '原文版本核对失败', retryable: false });
   } finally { globalThis.fetch = originalFetch; await server.close(); }
 });
 

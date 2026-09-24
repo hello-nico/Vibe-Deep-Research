@@ -188,8 +188,9 @@ export interface PageBlock {
    *    **永远不匹配**的缺口保护(那时后端只产出 "ok" | "missing"),
    *    看着在保护用户,其实一条都没拦住,而 tsc 全绿。
    */
-  status: "ok" | "partial" | "failed" | "missing";
+  status: "ok" | "partial" | "failed" | "missing" | "stale_fallback";
   fetched_at: string | null;
+  error?: string;
   cached?: boolean;
   envelope: { status?: string; evidence?: unknown[]; extra?: Record<string, unknown>; degraded?: string } & Record<string, unknown>;
 }

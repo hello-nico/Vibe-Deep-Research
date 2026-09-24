@@ -4,7 +4,7 @@ import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { X } from 'lucide-react';
-import { decodeEvidenceLink, loadEvidence, type EvidenceView } from '../lib/evidence';
+import { decodeEvidenceLink, evidenceFailure, loadEvidence, type EvidenceView } from '../lib/evidence';
 import { citationClickOpensPanel, citationReference, inAppEvidenceRef, outboundWebUrl, webCitationView } from '../lib/citationMarks';
 import { useAiQuestion } from '../../../core/ai/pageContext';
 import { documentObject } from '../lib/assistantObjects';
@@ -142,6 +142,7 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
   const initialWeb = snapshot ? null : webCitationView(reference);
   const [view, setView] = useState<EvidenceView | null>(snapshot ? { title: '数据来源', text: snapshot, related: [] } : initialWeb ? { title: initialWeb.title, text: initialWeb.text, related: [], href: initialWeb.href } : null);
   const [error, setError] = useState('');
+  const [retryable, setRetryable] = useState(false);
   const [retry, setRetry] = useState(0);
   const [selected, select] = useState(reference);
   const [related, setRelated] = useState<string[]>([]);
@@ -156,7 +157,7 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
     if (snapshot) { setView({ title: '数据来源', text: snapshot, related: [] }); setError(''); setRelated([]); setDisplayedRef(''); return; }
     const web = webCitationView(selected);
     if (web) { setView({ title: web.title, text: web.text, related: [], href: web.href }); setError(''); setRelated([]); setDisplayedRef(''); return; }
-    const controller = new AbortController(); setView(null); setError('');
+    const controller = new AbortController(); setView(null); setError(''); setRetryable(false);
     void loadEvidence(selected, controller.signal).then(async result => {
       if (controller.signal.aborted) return;
       if (result.related.length) {
@@ -167,7 +168,7 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
         result = await loadEvidence(shown, controller.signal);
       } else setDisplayedRef(selected);
       if (!controller.signal.aborted) setView(result);
-    }).catch(() => { if (!controller.signal.aborted) setError('这条依据暂时无法读取，请稍后重试。'); });
+    }).catch(error => { if (!controller.signal.aborted) { const failure = evidenceFailure(error); setError(failure.message); setRetryable(failure.retryable); } });
     return () => controller.abort();
   }, [selected, snapshot, retry]);
   const block = view?.block;
@@ -183,7 +184,7 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
     <SidePanelResizeHandle />
     <header className="flex items-center justify-between border-b p-5"><h2 className="font-semibold">查看依据</h2><button ref={closer} aria-label="关闭依据" onClick={close}><X size={18} /></button></header>
     <div className="min-h-0 flex-1 overflow-auto p-5">
-      {error ? <div><p role="alert">{error}</p><button className="workspace-action workspace-action-compact mt-4" onClick={() => setRetry(value => value + 1)}>重新读取</button></div> : !view ? <p role="status">正在读取依据…</p> : <>
+      {error ? <div><p role="alert">{error}</p>{retryable && <button className="workspace-action workspace-action-compact mt-4" onClick={() => setRetry(value => value + 1)}>重新读取</button>}</div> : !view ? <p role="status">正在读取依据…</p> : <>
         <h3 className="font-medium">{view.title}</h3>{view.page && <p className="mt-2 text-sm text-muted-foreground">第 {view.page} 页</p>}
         <div className="prose prose-sm mt-5 max-w-none break-words overflow-x-auto dark:prose-invert"><ReactMarkdown remarkPlugins={[remarkGfm]}>{view.text}</ReactMarkdown></div>
         {block?.truncated && <p className="mt-3 text-sm text-muted-foreground">片段较长，完整内容请阅读原文。</p>}
