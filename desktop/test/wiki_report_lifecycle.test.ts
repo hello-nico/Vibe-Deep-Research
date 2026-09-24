@@ -36,6 +36,27 @@ test('图文报告只打开当前版本，不提供历史下拉', async () => {
   } finally { await env.cleanup(); }
 });
 
+test('议题报告显示旧版本并沿用报告面板', async () => {
+  const env = await boot();
+  try {
+    const id = 'report:' + 'd'.repeat(32);
+    globalThis.fetch = async url => {
+      const u = String(url);
+      if (u.includes('/wiki/reports?')) return Response.json({ items: [
+        { report_id: id, title: '议题报告', created_at: '2026-09-23', input_hash: HASH_A, current: false },
+      ] });
+      return Response.json({ report_id: id, html: '<p>议题正文</p>', refs: [] });
+    };
+    const topicPage = page('topic:24ff5def6bf2', HASH_B);
+    topicPage.spec.type = 'topic';
+    await env.render(createElement(env.Provider, { value: sessionMock() },
+      createElement(env.pane.WikiReportPane, { page: topicPage })));
+    assert.match(env.container.textContent, /报告对应旧版本/);
+    assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '', /议题正文/);
+    assert.match(env.container.textContent, /重新生成/);
+  } finally { await env.cleanup(); }
+});
+
 test('重新生成立刻卸下旧报告 HTML，改显示生成中', async () => {
   const env = await boot();
   try {

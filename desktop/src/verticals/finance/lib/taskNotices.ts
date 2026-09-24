@@ -2,7 +2,7 @@ export const TASK_TRACK_KEY = 'vr-task-tracks';
 export const TASK_NOTICE_MAX = 3;
 export const TASK_TRACK_TTL_MS = 2 * 60 * 60 * 1000;
 
-export type TaskObject = { slug: string; title: string; kind: 'company' | 'industry'; path: string };
+export type TaskObject = { slug: string; title: string; kind: 'company' | 'industry' | 'topic'; path: string };
 export type TrackedTask = {
   id: string;
   kind: 'report' | 'refresh' | 'research';
@@ -12,7 +12,7 @@ export type TrackedTask = {
   startedAt: number;
   baseline?: string;
   phase?: 'check' | 'write';
-  page?: 'company' | 'industry';
+  page?: 'company' | 'industry' | 'topic';
 };
 export type NoticeVariant = 'report-success' | 'report-fail' | 'refresh-wrote' | 'refresh-pending' | 'refresh-fail' | 'research-pending' | 'research-no-increment' | 'research-invalid' | 'research-fail';
 export type TaskNotice = {
@@ -53,7 +53,7 @@ function isTrackRecord(value: unknown): value is TrackedTask {
     && typeof item.object.slug === 'string'
     && typeof item.object.title === 'string'
     && typeof item.object.path === 'string'
-    && (item.object.kind === 'company' || item.object.kind === 'industry');
+    && (item.object.kind === 'company' || item.object.kind === 'industry' || item.object.kind === 'topic');
 }
 
 export function pruneTracks(tracks: TrackedTask[], now = Date.now()): TrackedTask[] {

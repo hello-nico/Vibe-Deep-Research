@@ -5,13 +5,17 @@ import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { GlassCard } from "../components/ui/GlassCard";
 import { ResearchResult } from '../components/ResearchResult';
 import { Disclaimer } from "../components/ui/Disclaimer";
-import { KnowledgeText, ReferenceButtons, WikiReader, WikiViewTabs } from "../components/ResearchKnowledge";
-import { ObjectReport } from "../components/ObjectReport";
+import { KnowledgeText, ReferenceButtons, WikiReader } from "../components/ResearchKnowledge";
+import { WikiReportPane } from "../components/WikiReportPane";
+import { TopicWall } from '../components/topic-wall/TopicWall';
+import { BasisChanges } from '../components/topic-wall/BasisChanges';
+import { objectLabel, resolveObjectLabels } from '../lib/objectRegistry';
+import { BookOpen, Building2, Factory, Layers3 } from 'lucide-react';
 import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
 import { getNote, type Note } from "../lib/notes";
 import {
-  publishWikiDraft, researchRead, setTopicPool, topicIdFromHex, topicPath, type ResearchLink,
-  type ResearchProposal, type ResearchTopic, type WikiDraft,
+  publishWikiDraft, researchRead, setTopicPool, topicBasisChanges, topicIdFromHex, topicPath, topicWall, type ResearchLink,
+  type ResearchProposal, type ResearchTopic, type TopicBasisChanges, type TopicWall as TopicWallData, type WikiDraft,
 } from "../lib/research";
 import { useResearchSessions } from "../dsh/research-session";
 import { topicOpeningQuestions } from "../dsh/side-panel";
@@ -35,12 +39,21 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const topicId = topicIdFromHex(topicHex);
   const research = useResearchSessions();
   const [topic, setTopic] = useState<ResearchTopic | null>(null);
-  const [report, setReport] = useState(false);
+  const [reportHash, setReportHash] = useState('');
+  const [wall, setWall] = useState<TopicWallData | null>(null);
+  const [basis, setBasis] = useState<TopicBasisChanges | null>(null);
+  const [wallError, setWallError] = useState('');
   const [links, setLinks] = useState<ResearchLink[]>([]);
   const [pages, setPages] = useState<ResearchLink[]>([]);
   const [proposals, setProposals] = useState<ResearchProposal[]>([]);
   const [drafts, setDrafts] = useState<{ draft_token: string; titles?: string[]; slugs?: string[]; published?: boolean }[]>([]);
   const [search, setSearch] = useSearchParams();
+  const view = search.get('view') === 'wall' ? 'wall' : search.get('view') === 'report' ? 'report' : 'research';
+  const setView = (nextView: 'research' | 'wall' | 'report') => setSearch(previous => {
+    const next = new URLSearchParams(previous);
+    if (nextView === 'research') next.delete('view'); else next.set('view', nextView);
+    return next;
+  }, { replace: true });
   const selected = search.get("material") || "";
   const setSelected = (material: string) => setSearch(previous => {
     const next = new URLSearchParams(previous);
@@ -80,15 +93,33 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       researchRead<ResearchTopic>(topicPath(topicId), { signal }).then(setTopic),
       researchRead<{ items: ResearchLink[] }>(`/wiki/research-links?target_id=${encodeURIComponent(topicId)}`, { signal }).then(value => setLinks(value.items)),
       researchRead<{ items: ResearchLink[] }>(`/wiki/research-links?source_id=${encodeURIComponent(topicId)}`, { signal }).then(value => setPages(value.items)),
-      researchRead<{ items: ResearchProposal[] }>(`/wiki/research-links/proposals?target_id=${encodeURIComponent(topicId)}`, { signal }).then(value => setProposals(value.items)),
+      researchRead<{ items: ResearchProposal[] }>(`/wiki/research-links/proposals?topic_id=${encodeURIComponent(topicId)}`, { signal }).then(value => setProposals(value.items)),
       researchRead<{ items: typeof drafts }>(`/wiki/page-drafts/pending?topic_id=${encodeURIComponent(topicId)}`, { signal }).then(value => setDrafts(value.items)),
     ]);
+  };
+  const loadWall = async (signal?: AbortSignal) => {
+    setWallError('');
+    const [nextWall, nextBasis] = await Promise.allSettled([topicWall(topicId, signal), topicBasisChanges(topicId, signal)]);
+    if (signal?.aborted) return;
+    if (nextWall.status === 'fulfilled') setWall(nextWall.value);
+    else { setWall(null); setWallError(String(nextWall.reason)); }
+    setBasis(nextBasis.status === 'fulfilled' ? nextBasis.value : null);
   };
   useEffect(() => {
     const controller = new AbortController();
     void load(controller.signal).catch(e => { if (!controller.signal.aborted) setError(String(e)); });
+    void loadWall(controller.signal);
     return () => controller.abort();
   }, [topicId]);
+  useEffect(() => {
+    if (view !== 'report') return;
+    const controller = new AbortController();
+    setReportHash('');
+    void researchRead<{ topic: ResearchTopic; input_hash: string }>(`${topicPath(topicId)}/snapshot`, { signal: controller.signal })
+      .then(snapshot => { if (!controller.signal.aborted) { setTopic(snapshot.topic); setReportHash(snapshot.input_hash); } })
+      .catch(e => { if (!controller.signal.aborted) setError(String(e)); });
+    return () => controller.abort();
+  }, [topicId, view]);
   // 只写用户能读懂的一句话和议题标签；工作步骤由 Stock 的 my_research 角色提示负责。
   const prompt = (fresh = false) =>
     `${fresh ? "在新对话里继续研究这个议题" : "继续研究这个议题"}：引用议题：${topic?.title || topicId} \`${topicId}\``;
@@ -105,6 +136,18 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(""); }
   };
+  const continueWith = async (text: string) => {
+    setBusy('continue'); setError('');
+    try {
+      if (topic?.pool_state === 'archived') {
+        const restored = await setTopicPool(topicId, 'restore');
+        setTopic(current => current ? { ...current, ...restored, pool_state: 'active' } : current);
+      }
+      await research.startTopic({ topicId, title: topic?.title || topicId, prompt: `${text}\n引用议题：${topic?.title || topicId} \`${topicId}\``,
+        onSessionReady: sessionId => research.openTopicPanel({ kind: 'topic', sessionId, topicId, title: topic?.title || topicId,
+          judgment: topic?.judgment?.text || '尚未形成判断', questions: topicOpeningQuestions(topic?.next_questions), fresh: false }) });
+    } catch (cause) { setError(String(cause)); } finally { setBusy(''); }
+  };
   const changePool = async (action: "archive" | "restore") => {
     setBusy(action); setError("");
     try {
@@ -115,11 +158,11 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   };
   const refresh = async () => {
     setBusy("refresh");
-    try { await load(); }
+    try { await Promise.all([load(), loadWall()]); }
     catch (e) { setError(e instanceof Error ? e.message : String(e)); }
     finally { setBusy(""); }
   };
-  const decide = async (proposal: ResearchProposal, action: "confirm" | "reject") => {
+  const decide = async (proposal: ResearchProposal, action: "confirm" | "reject"): Promise<boolean> => {
     setBusy(proposal.proposal_id); setError("");
     try {
       await researchRead(`/wiki/research-links/${action}`, {
@@ -127,8 +170,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proposal_id: proposal.proposal_id, source_id: proposal.source_id || proposal.note_id, target_id: proposal.target_id }),
       });
-      await load();
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+      await Promise.all([load(), loadWall()]);
+      return true;
+    } catch (e) { setError(e instanceof Error ? e.message : String(e)); return false; }
     finally { setBusy(""); }
   };
   const reviewDraft = async (token: string) => {
@@ -168,14 +212,10 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   const wikiPages = pages.filter(item => /^(themes|comparisons|industries|companies)\//.test(item.target_id));
   const selectedNote = selected.startsWith("note:") ? noteMap[selected.slice(5)] : undefined;
   const pendingDrafts = drafts.filter(item => !item.published);
-  const reportBody = topic && <ObjectReport title={topic.title} asOf={topic.last_touched_at}>
-      {topic.user_claim?.text && <section><h2>研究问题</h2><KnowledgeText markdown={topic.user_claim.text} /></section>}
-      <section><h2>当前判断</h2><KnowledgeText markdown={topic.judgment?.text || '尚未形成判断，继续结合材料核实。'} /></section>
-      {!!topic.next_questions?.length && <section><h2>继续核实</h2><ul>{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul></section>}
-      {!!topic.observation?.gaps?.length && <section><h2>资料缺口</h2><ul>{topic.observation.gaps.map(gap => <li key={gap}>{gap}</li>)}</ul></section>}
-      {[...new Set(links.map(item => item.source_id).filter((id): id is string => !!id?.startsWith('result:')))].map(id => <ResearchResult key={id} resultId={id} presentation="report" />)}
-      <ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} />
-    </ObjectReport>;
+  const wallCount = wall?.edges.length || 0;
+  const changedSlugs = new Set((basis?.pages || []).filter(page => page.status === 'changed' && page.slug).map(page => page.slug!));
+  const reportPage = topic && reportHash ? { input_hash: reportHash, markdown: topic.markdown || '', published: true,
+    spec: { slug: topicId, title: topic.title, type: 'topic', as_of: topic.last_touched_at || '', blocks: [] } } : null;
   return <div className="topic-panel">
     <header className="topic-head">
       <Link className="topic-back" to="/my-research"><ChevronLeft size={14} />全部议题</Link>
@@ -183,7 +223,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       {topic?.pool_state === "archived" && <p className="text-xs text-muted-foreground">已归档。恢复后可以继续研究。</p>}
     </header>
     <div className="object-toolbar">
-      <div className="object-toolbar-group">{topic && <WikiViewTabs report={report} onChange={setReport} />}</div>
+      <div className="object-toolbar-group">{topic && <div role="tablist" aria-label="议题视图" className="flex h-10 items-stretch gap-0.5 rounded-xl border border-border p-[3px]">{([['research', '研究页'], ['wall', '证据墙'], ['report', '图文报告']] as const).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={view === id} className={`rounded-[9px] px-3.5 text-[13px] ${view === id ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`} onClick={() => setView(id)}>{label}</button>)}</div>}</div>
       <div className="object-toolbar-group object-toolbar-actions">
       <button type="button" className="workspace-action workspace-action-primary" disabled={!!busy} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
       <WorkspaceMoreMenu actions={[
@@ -195,19 +235,28 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {!topic && !error && <ResearchLoading title="正在读取议题" sections={["当前判断", "关联材料"]} />}
-    {topic && report && reportBody}
-    {topic && !report && busy === 'refresh' && <ResearchLoading title="正在刷新材料" sections={["读取已关联材料", "核对研究页", "整理待确认关联"]} />}
-    {topic && <div className="space-y-3" hidden={report || busy === 'refresh'}>
+    {view === 'report' && reportPage && <WikiReportPane page={reportPage} active />}
+    {topic && view === 'wall' && (wall ? <TopicWall topic={topic} wall={wall} basis={basis} proposals={proposals} refresh={async () => { await Promise.all([load(), loadWall()]); }} continueResearch={continueWith} openChanges={slug => setSearch(previous => { const next = new URLSearchParams(previous); next.delete('view'); next.set('basis', slug); return next; })} decide={decide} /> : wallError ? <p role="alert" className="text-sm text-destructive">证据墙暂时无法读取：{wallError}</p> : <ResearchLoading title="正在读取证据墙" sections={['对象', '关系']} />)}
+    {topic && view === 'research' && busy === 'refresh' && <ResearchLoading title="正在刷新材料" sections={["读取已关联材料", "核对研究页", "整理待确认关联"]} />}
+    {topic && <div className="topic-research-grid" hidden={view !== 'research' || busy === 'refresh'}>
       <section className="topic-section">
         <h2>当前判断</h2>
         {topic.judgment?.text ? <KnowledgeText markdown={topic.judgment.text} /> : <p className="text-sm text-muted-foreground">从研究对话开始，逐步形成判断。</p>}
         {!!topic.next_questions?.length && <ul className="mt-4 list-disc space-y-1.5 pl-5 text-sm leading-6 text-muted-foreground">{topic.next_questions.map(question => <li key={question}>{question}</li>)}</ul>}
         <details className="mt-4"><summary className="cursor-pointer text-xs text-muted-foreground">查看研究依据</summary><ReferenceButtons refs={[...(topic.observation?.source_refs ?? []), ...(topic.observation?.fact_refs ?? [])]} /></details>
       </section>
+      <BasisChanges basis={basis} selectedSlug={search.get('basis') || ''} continueResearch={() => void continueWith('继续研究这个议题，先看判断之后依据的变化。')} />
+      {wall && <section className="topic-section topic-wall-object-card">
+        <div className="topic-card-head"><h2>墙上对象</h2><button type="button" onClick={() => setView('wall')}>打开证据墙</button></div>
+        {wall.nodes.length ? <div className="topic-object-list">{wall.nodes.slice(0, 10).map(node => <WallObjectRow key={node.ref} node={node} changed={changedSlugs.has(node.ref)} onOpen={() => setView('wall')} />)}</div>
+          : <p className="topic-section-empty">继续研究后，议题涉及的对象会出现在这里。</p>}
+        {wall.nodes.length > 10 && <p className="topic-section-empty mt-2">还有 {wall.nodes.length - 10} 个，在证据墙查看。</p>}
+        <p className="topic-object-stats">{wall.nodes.length} 个对象 · {wallCount} 条连线</p>
+      </section>}
       <section className="topic-section">
         <h2>待确认关联</h2>
-        {proposals.length === 0 && <p className="text-sm text-muted-foreground">还没有提议。开始研究后，助手会建议关联相关的记录或研究成果。</p>}
-        {proposals.map(item => {
+        {proposals.filter(item => !item.hypothesis_id).length === 0 && <p className="text-sm text-muted-foreground">还没有提议。开始研究后，助手会建议关联相关的记录或研究成果。</p>}
+        {proposals.filter(item => !item.hypothesis_id).map(item => {
           const note = noteMap[item.note_id?.replace(/^note:/, "") ?? ''];
           return <div key={item.proposal_id} className="topic-material">
             <p className="text-sm font-medium">{note?.title || (item.source_id?.startsWith('result:') ? '研究成果' : '研究记录')}</p>
@@ -259,6 +308,16 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已被删除或移动，可以到「记录」里查找。</p>}
       </section>}
     </div>}
-    <Disclaimer compact />
+    {view !== 'wall' && <Disclaimer compact />}
   </div>;
+}
+
+const WALL_ICON = { company: Building2, industry: Factory, document: FileText, note: BookOpen } as Record<string, typeof BookOpen>;
+function WallObjectRow({ node, changed, onOpen }: { node: TopicWallData['nodes'][number]; changed: boolean; onOpen: () => void }) {
+  const [, refresh] = useState(0);
+  useEffect(() => { let active = true; void resolveObjectLabels([node.ref]).then(() => { if (active) refresh(value => value + 1); }).catch(() => {}); return () => { active = false; }; }, [node.ref]);
+  const Icon = WALL_ICON[node.kind] || Layers3;
+  return <button type="button" data-object-ref={node.ref} className={`topic-object-row kind-${node.kind}`} onClick={onOpen}>
+    <span className="topic-wall-node-icon"><Icon size={14} /></span><strong>{objectLabel(node.ref)}</strong>{changed && <em>有更新</em>}
+  </button>;
 }

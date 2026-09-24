@@ -23,6 +23,7 @@ import {
   type ResearchTopicRouteResult,
   type ResearchTopicSummary,
 } from "../lib/research";
+import { useConfirm } from "../components/ui/ConfirmDialog";
 import { userFacingRuntimeError } from '../lib/userFacingError';
 import { activeTaskKind, loadReportTasks, reportTaskOutcome, reportTaskTitle, researchDraftStatus, researchSkipSummary, researchTaskStatus, type ReportArtifact, type ReportTaskStore } from "../lib/reportTasks";
 import { normalizeResearchTarget, objectLabel, openRegisteredObject, registeredObject, resolveObjectLabels } from "../lib/objectRegistry";
@@ -55,6 +56,7 @@ const RESEARCH_TABS = [
 ] as const;
 
 export function MyResearch() {
+  const [confirmDialog, confirm] = useConfirm();
   const navigate = useNavigate();
   const researchSessions = useContext(ResearchSessionContext);
   const [params, setParams] = useSearchParams();
@@ -349,7 +351,7 @@ export function MyResearch() {
     finally { setRetryBusy(''); }
   };
   const discardDraft = async (draft: ResearchDraft) => {
-    if (!window.confirm('放弃这条研究草案？放弃后需要重新研究才能生成新草案。')) return;
+    if (!(await confirm({ kicker: '研究草案', title: '放弃这条研究草案？', body: '放弃后需要重新研究才能生成新草案；研究页当前内容不受影响。', confirmLabel: '放弃草案' }))) return;
     setRetryBusy(draft.draft_id); setRetryError('');
     try {
       await discardResearchDraft(draft);
@@ -375,6 +377,7 @@ export function MyResearch() {
   });
   const current = RESEARCH_TABS.find(item => item.value === tab)!;
   return <div>
+    {confirmDialog}
     <PageHeader title="我的研究" subtitle="继续未完成的议题，或回看已归档的问题和记录。" />
     <div className="mb-4">
       <WorkspaceTabs aria-label="研究类型" value={tab} onChange={setTab} options={RESEARCH_TABS} />

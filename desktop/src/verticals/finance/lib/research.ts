@@ -169,7 +169,19 @@ export interface ResearchTopic extends Omit<ResearchTopicSummary, 'user_claim'> 
   markdown?: string;
   revision?: number;
   observation?: { source_refs?: string[]; fact_refs?: string[]; relation_refs?: string[]; gaps?: string[] };
+  judgment?: { state?: string; text?: string; judged_at?: string; basis_refs?: string[] };
 }
+export type TopicWallNode = { ref: string; kind: string; origins: string[] };
+export type TopicWallEdge = { edge_id: string; kind: 'hard' | 'link' | 'hypothesis'; from: string; to: string; label: string; basis: string[]; unverified?: boolean; created_at?: string | null };
+export type TopicWall = { topic_id: string; nodes: TopicWallNode[]; edges: TopicWallEdge[]; sections: { hard: 'ok' | 'unavailable' }; truncated: boolean };
+export type TopicBasisPage = { ref: string; slug: string | null; pinned: string | null; current: string | null; status: 'changed' | 'unchanged' | 'version_unknown' | 'page_missing'; summary: { research: number; data: number; timeline: number } | null };
+export type TopicBasisChanges = { topic_id: string; revision: number; judged_at: string | null; baseline: boolean; pages: TopicBasisPage[]; pinned_refs: number };
+export type WikiPageDiff = { slug: string; from: string; to: string; from_published_at: string; to_published_at: string; summary: { research: number; data: number; timeline: number }; blocks: { kind: string; category: 'research' | 'data' | 'timeline'; change: string; before: unknown; after: unknown; items_changed?: { before: unknown; after: unknown }[]; items_added?: unknown[]; items_removed?: unknown[] }[] };
+export const topicWall = (topicId: string, signal?: AbortSignal) => researchRead<TopicWall>(`${topicPath(topicId)}/wall`, { signal });
+export const topicBasisChanges = (topicId: string, signal?: AbortSignal) => researchRead<TopicBasisChanges>(`${topicPath(topicId)}/basis-changes`, { signal });
+export const wikiPageDiff = (slug: string, from: string, to = 'current') => researchRead<WikiPageDiff>(`/wiki/pages/diff?${new URLSearchParams({ slug, from, to })}`);
+export const createTopicHypothesis = (topicId: string, from: string, to: string, note: string) => researchRead<{ link_id: string }>('/wiki/research-links/hypotheses', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic_id: topicId, from, to, note }) });
+export const withdrawTopicHypothesis = (topicId: string, hypothesisId: string) => researchRead('/wiki/research-links/hypotheses/withdraw', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ topic_id: topicId, hypothesis_id: hypothesisId }) });
 export interface ResearchLink {
   link_id: string;
   note_id?: string;
@@ -203,6 +215,8 @@ export interface ResearchProposal {
   target_id: string;
   reason: string;
   status: string;
+  hypothesis_id?: string;
+  basis?: string[];
 }
 export interface NbsIndustry {
   ordinal: number;

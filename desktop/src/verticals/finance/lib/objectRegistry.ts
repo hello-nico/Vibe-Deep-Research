@@ -67,6 +67,26 @@ export async function loadReadyIndustryProfiles(): Promise<void> {
     }).catch(error => { readyProfiles.clear(); throw error; }).finally(() => { profilesRequest = undefined; });
   await profilesRequest;
 }
+const DOCUMENT_TYPE: Record<string, string> = {
+  annual_report: '年报', semi_annual_report: '半年报', interim_report: '半年报', quarterly_report: '季报',
+  announcement: '公告', research_report: '研报', prospectus: '招股书',
+};
+/** Filings and reports ingested for a company are not in the user library; read their titles one by one. */
+async function resolveIngestedDocuments(refs: readonly string[]): Promise<void> {
+  const ids = [...new Set(refs.map(ref => /^document:([a-f0-9]{32})/.exec(ref)?.[1]).filter((id): id is string => !!id))]
+    .filter(id => !cachedObjectLabel(`document:${id}`)).slice(0, 40);
+  await Promise.allSettled(ids.map(async id => {
+    const doc = await researchRead<{ title?: string; document_type?: string; published_at?: string | null; symbol?: string; reporting_period?: string | null }>(`/documents/${id}`);
+    if (!doc.title) return;
+    // Older ingests kept a placeholder title ("legacy:…"); name them from company, period and type instead.
+    const company = doc.symbol ? cachedObjectLabel(`companies/${doc.symbol.toLowerCase().replace('.', '-')}`) || doc.symbol : '';
+    const title = doc.title.startsWith('legacy:')
+      ? [company, doc.reporting_period, DOCUMENT_TYPE[doc.document_type || ''] || '资料'].filter(Boolean).join(' ')
+      : doc.title;
+    rememberObjectLabel(`document:${id}`, title);
+    facts.set(`document:${id}`, { meta: [DOCUMENT_TYPE[doc.document_type || ''], day(doc.published_at)].filter(Boolean).join(' · ') || undefined });
+  }));
+}
 function wikiEntry(kind: 'company' | 'industry' | 'theme' | 'comparison', prefix: string, backendKind: string, fallback: string, href: (id: string) => string | undefined): Entry {
   return {
     kind,
@@ -98,7 +118,7 @@ const entries: Entry[] = [
     kind: 'document', parse: ref => researchTarget(ref)?.kind === 'document' ? ref : undefined,
     href: ref => { const doc = parseDocumentRef(ref); return doc ? `/my-reports/read/${encodeURIComponent(doc.document_id)}?${documentReadSearch(doc)}` : undefined; },
     label: ref => cachedObjectLabel(ref) || '资料',
-    resolve: () => batch('documents', async () => {
+    resolve: refs => batch('documents', async () => {
       for (let offset = 0; ; offset += 100) {
         const page = await listLibraryDocuments({ offset, limit: 100 });
         for (const item of page.items) {
@@ -110,7 +130,7 @@ const entries: Entry[] = [
         }
         if (offset + 100 >= page.total) return;
       }
-    }),
+    }).then(() => resolveIngestedDocuments(refs)),
   },
   {
     kind: 'topic', parse: ref => researchTarget(ref)?.kind === 'topic' ? ref : undefined,
@@ -172,7 +192,19 @@ export function objectFacts(ref: string): ObjectFacts | undefined {
 export const objectLabel = (ref: string) => registeredObject(ref)?.label || cachedObjectLabel(ref) || '引用';
 export async function resolveObjectLabels(refs: readonly string[]): Promise<void> {
   const missing = new Set(refs.filter(ref => !cachedObjectLabel(ref)).map(ref => registeredObject(ref)?.kind).filter(Boolean));
-  await Promise.all(entries.filter(entry => missing.has(entry.kind)).map(entry => entry.resolve([...refs])));
+  await Promise.all([
+    ...entries.filter(entry => missing.has(entry.kind)).map(entry => entry.resolve([...refs])),
+    resolveNoteLabels(refs),
+  ]);
+}
+
+/** Research notes are not navigable objects here, but walls and lists still need their titles. */
+async function resolveNoteLabels(refs: readonly string[]): Promise<void> {
+  const ids = [...new Set(refs.filter(ref => /^note:/.test(ref) && !cachedObjectLabel(ref)))].slice(0, 40);
+  await Promise.allSettled(ids.map(async ref => {
+    const row = await researchRead<{ title?: string }>(`/notes/${encodeURIComponent(ref.slice(5))}`);
+    if (row.title) rememberObjectLabel(ref, row.title);
+  }));
 }
 
 /**

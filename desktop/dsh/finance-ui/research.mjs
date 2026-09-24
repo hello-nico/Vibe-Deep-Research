@@ -1,6 +1,8 @@
 /** Product read/upload facade. Research validation and persistence stay in Backend. */
 const TOPIC_ID = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}$/i;
 const TOPIC_WALL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/wall$/i;
+const TOPIC_BASIS = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/basis-changes$/i;
+const TOPIC_SNAPSHOT = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/snapshot$/i;
 const TOPIC_POOL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/(?:archive|restore)$/i;
 const WIKI_SLUG = /^\/wiki\/pages\/read$/;
 const NBS_INDUSTRY = /^\/wiki\/industries\/nbs$/;
@@ -14,10 +16,10 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && [
     '/wiki/pages', '/wiki/pages/read', '/wiki/pages/related', '/wiki/research-topics', '/wiki/research-links',
     '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/page-drafts', '/wiki/industries/nbs',
-    '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports',
+    '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports', '/wiki/pages/diff',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
-  if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
+  if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || TOPIC_BASIS.test(pathname) || TOPIC_SNAPSHOT.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
   if (method === 'POST' && DRAFT_ID_DISCARD.test(pathname)) return true;
   if (method === 'PATCH' && /^\/documents\/[a-f0-9]{32}$/.test(pathname)) return true;

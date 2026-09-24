@@ -32,6 +32,7 @@ test("我的研究 facade 允许 Topic 冒号 ID、确认关联与记录接口�
   assert.equal(researchRoute("GET", "/wiki/research-topics/topic%3A24ff5def6bf2"), true);
   assert.equal(researchRoute("GET", "/wiki/research-topics/topic:24ff5def6bf2/wall"), true);
   assert.equal(researchRoute("GET", "/wiki/research-topics/topic%3A24ff5def6bf2/wall"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-topics/topic%3A24ff5def6bf2/snapshot"), true);
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2/wall"), false);
   assert.equal(researchRoute("POST", "/wiki/research-topics/route"), true);
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2"), true);
@@ -535,7 +536,8 @@ test("议题工作区用独立会话面板、审阅草案正文，并用 source_
   assert.doesNotMatch(workspace, /actions=\{expandButton/);
   assert.match(source, /className="topic-panel"/);
   assert.match(source, /workspace-action workspace-action-primary/);
-  assert.match(source, /<WikiViewTabs report=\{report\} onChange=\{setReport\}/);
+  assert.match(source, /role="tablist" aria-label="议题视图"/);
+  assert.match(source, /\['research', '研究页'\], \['wall', '证据墙'\], \['report', '图文报告'\]/);
   assert.match(source, /<WorkspaceMoreMenu actions=/);
   assert.doesNotMatch(source, /<PageHeader/);
   assert.doesNotMatch(source, /xl:grid-cols-\[minmax/);

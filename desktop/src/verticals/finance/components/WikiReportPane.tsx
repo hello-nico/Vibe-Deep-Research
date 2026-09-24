@@ -75,8 +75,9 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const inputHash = page.input_hash ?? '';
   const sessions = useContext(ResearchSessionContext);
   const taskActivity = useSlugTaskActivity(slug, sessions, false);
+  const topicReport = page.spec.type === 'topic';
   const blockedReason = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
-    : taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : '';
+    : !topicReport && taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : '';
   const [items, setItems] = useState<ReportMeta[] | null>(null);
   const [selected, setSelected] = useState<ReportMeta | null>(null);
   const [detail, setDetail] = useState<{ reportId: string; html: string; allowed: Set<string> } | null>(null);
@@ -270,7 +271,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     setSelected(null); setDetail(null);
     void (async () => {
       const bindings = await loadReportTasks();
-      if (activeTaskKind(bindings, slug, id => sessions.taskRunning(id)) === 'research')
+      if (!topicReport && activeTaskKind(bindings, slug, id => sessions.taskRunning(id)) === 'research')
         throw new Error('公司研究进行中，完成后可生成图文报告。');
       return sessions.start(reportPrompt(page), undefined, {
         navigate: false,
@@ -294,7 +295,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
           kind: 'report',
           object: {
             slug, title: page.spec.title || slug,
-            kind: page.spec.type === 'industry' ? 'industry' : 'company',
+            kind: page.spec.type === 'topic' ? 'topic' : page.spec.type === 'industry' ? 'industry' : 'company',
             path: objectPathFromLocation(),
           },
           ref: result.sessionId,
@@ -336,7 +337,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     {showGenerated && canGenerate && actionSlot && createPortal(
       <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">
-      {selected && !selected.current && <p role="status" className="wiki-report-stale">研究页在这份报告生成后有更新，报告可能不含最新内容。{canGenerate ? '可点「重新生成」按当前研究页再出一份。' : ''}</p>}
+      {selected && !selected.current && <p role="status" className="wiki-report-stale">{topicReport ? '报告对应旧版本，议题已有更新。' : '研究页在这份报告生成后有更新，报告可能不含最新内容。'}{canGenerate ? '可点「重新生成」按当前内容再出一份。' : ''}</p>}
       {((canGenerate && !actionSlot) || error) && <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
         {selected?.current && <span className="sr-only">对应当前研究页</span>}
         {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
