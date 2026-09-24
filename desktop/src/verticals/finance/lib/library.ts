@@ -1,5 +1,6 @@
 import { researchRead, ResearchError } from './research';
 import { asResearchErrorMessage, researchUploadSymbol } from './researchSymbol';
+import { cachedObjectLabel, rememberObjectLabel } from './objectLabels';
 
 export const LIBRARY_MAX_BYTES = 32 * 1024 * 1024;
 export const LIBRARY_BATCH_MAX = 10;
@@ -86,18 +87,14 @@ export function documentIdFromRef(value: string): string | null {
   return parseDocumentRef(value)?.document_id ?? null;
 }
 
-const mentionLabels = new Map<string, string>();
-
 export function rememberMentionLabel(ref: string, label: string) {
-  const title = label.replace(/\s+/g, ' ').trim();
-  if (!ref || !title) return;
-  mentionLabels.set(ref, title);
+  rememberObjectLabel(ref, label);
   const id = documentIdFromRef(ref);
-  if (id) mentionLabels.set(id, title);
+  if (id) rememberObjectLabel(id, label);
 }
 
 export function mentionLabel(ref: string, fallback: string) {
-  return mentionLabels.get(ref) || mentionLabels.get(documentIdFromRef(ref) || '') || fallback;
+  return cachedObjectLabel(ref) || cachedObjectLabel(documentIdFromRef(ref) || '') || fallback;
 }
 
 export function documentReadSearch(ref: DocumentRef, from = '/'): string {

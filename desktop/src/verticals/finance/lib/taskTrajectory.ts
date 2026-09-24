@@ -7,7 +7,7 @@ const TOOL_LABELS: Record<string, string> = {
   wiki_list_pages: '列出研究页',
   wiki_search: '搜索研究页',
   wiki_relations: '读取研究关系',
-  wiki_schema_graph: '读取关系词表',
+  wiki_schema_graph: '读取关系类型',
   read_research_method: '读取研究方法',
   wiki_report_publish: '发布报告',
   wiki_validate_page_draft: '检查研究页草稿',
@@ -30,24 +30,24 @@ const TOOL_LABELS: Record<string, string> = {
   fetch_company_data: '获取公司数据',
   wiki_refresh_company_api: '刷新公司资料',
   resolve_refs: '识别引用对象',
-  stage_extraction: '整理摘录',
+  stage_extraction: '暂存事实候选',
   search_external: '检索外部资料',
   stock_search_external: '检索外部资料',
   web_search: '网页搜索',
   web_fetch: '读取网页',
   read_research_result: '读取研究成果',
-  topic_list: '列出研究主题',
-  topic_get: '读取研究主题',
-  topic_route: '路由研究主题',
-  topic_update: '更新研究主题',
-  topic_list_links: '列出主题关联',
-  topic_propose_link: '提出主题关联',
+  topic_list: '列出议题',
+  topic_get: '读取议题',
+  topic_route: '选择议题',
+  topic_update: '更新议题',
+  topic_list_links: '列出议题关联',
+  topic_propose_link: '提出议题关联',
   topic_attach_radar_card: '关联资讯卡片',
-  read_hard_relations: '读取硬关系',
-  read_research_links: '读取研究链接',
+  read_hard_relations: '读取对象关系',
+  read_research_links: '读取研究关联',
   read_composition_skill: '读取写作方法',
-  note_list: '列出笔记',
-  note_read: '读取笔记',
+  note_list: '列出研究记录',
+  note_read: '读取研究记录',
   propose_maintenance: '提出维护',
   review_maintenance: '核对维护',
 };
@@ -59,15 +59,19 @@ const OPERATION_LABELS: Record<string, string> = {
   sensitivity_grid: '敏感性分析', market_window: '区间涨跌',
 };
 
-function toolStepTitle(name: string, argsRaw?: string): string {
+export const FINANCE_TOOL_NAMES = Object.freeze(Object.keys(TOOL_LABELS).filter(name =>
+  !['web_search', 'web_fetch', 'stock_search_external'].includes(name)));
+
+export function toolStepTitle(name: string, argsRaw?: string): string {
   const base = toolLabel(name);
   if (!argsRaw) return base;
+  const safe = (title: string) => /(?:result|claim|evidence|source|document):|\b[a-f0-9]{64}\b|parse[_-]?revision|\br-legacy-[a-f0-9-]+\b/i.test(title) ? base : title;
   try {
     const args = JSON.parse(argsRaw) as Record<string, unknown>;
     if (name === 'calculate_metrics' && typeof args.operation === 'string') {
       const bits = [OPERATION_LABELS[args.operation] || args.operation];
       if (args.window_start && args.window_end) bits.push(`${String(args.window_start)}→${String(args.window_end)}`);
-      return `${base} · ${bits.join(' · ')}`;
+      return safe(`${base} · ${bits.join(' · ')}`);
     }
     if (name === 'calculate_market_result' && Array.isArray(args.windows)) {
       const windows = args.windows
@@ -75,16 +79,16 @@ function toolStepTitle(name: string, argsRaw?: string): string {
           ? `${(item as { window_start?: string }).window_start || '?'}→${(item as { window_end?: string }).window_end || '?'}`
           : '')
         .filter(Boolean);
-      if (windows.length) return `${base} · ${windows.join('；')}`;
+      if (windows.length) return safe(`${base} · ${windows.join('；')}`);
     }
     if (name === 'generate_market_result') {
       const bits = [args.symbol, args.as_of, args.window_start].filter(Boolean).map(String);
-      if (bits.length) return `${base} · ${bits.join(' · ')}`;
+      if (bits.length) return safe(`${base} · ${bits.join(' · ')}`);
     }
-    if (name === 'wiki_read' && typeof args.slug === 'string') return `${base} · ${args.slug}`;
+    if (name === 'wiki_read' && typeof args.slug === 'string') return safe(`${base} · ${args.slug}`);
     if (name === 'observe_market') {
       const bits = [args.marketBenchmarkId, args.symbol, args.as_of || args.asOf].filter(Boolean).map(String);
-      if (bits.length) return `${base} · ${bits.join(' · ')}`;
+      if (bits.length) return safe(`${base} · ${bits.join(' · ')}`);
     }
   } catch { /* keep base label */ }
   return base;

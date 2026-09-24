@@ -5,6 +5,7 @@ import { TaskTranscript, useTaskTrajectory } from './TaskTranscript';
 import { emptyTaskTrajectory } from '../lib/taskTrajectory';
 import './task-process.css';
 import { SidePanelResizeHandle } from './layout/SidePanelResize';
+import { openRegisteredObject, registeredObject } from '../lib/objectRegistry';
 
 const noopSubscribe = () => () => {};
 const emptySnapshot = () => emptyTaskTrajectory;
@@ -43,7 +44,7 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
       </div>
       <footer className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
         {(task.kind === 'report' || task.kind === 'research') && running && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { void sessions.cancelTask(task.sessionId).catch(() => {}); }}>中止</button>}
-        {task.resultHref && <a className="workspace-action workspace-action-compact" href={task.resultHref} onClick={onClose}>打开成果</a>}
+        {task.resultRef && (registeredObject(task.resultRef)?.href || registeredObject(task.resultRef)?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { onClose(); openRegisteredObject(task.resultRef!); }}>打开成果</button>}
       </footer>
     </aside>
   </div>;

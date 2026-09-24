@@ -1,4 +1,4 @@
-import { createBrowserRouter } from "react-router-dom";
+import { createBrowserRouter, Navigate } from "react-router-dom";
 import { RouteErrorPage } from "../../core/components/RouteErrorPage";
 import { Layout } from "@/components/layout/Layout";
 import { Home } from "@/pages/Home";
@@ -26,8 +26,8 @@ export const router = createBrowserRouter([
       { path: "/my-reports/read/:id", lazy: async () => ({ Component: (await import("@/pages/ReportReader")).ReportReader }) },
       { path: "/evidence", lazy: async () => ({ Component: (await import("@/pages/EvidenceDeepLink")).EvidenceDeepLink }) },
       { path: "/my-research", lazy: async () => ({ Component: (await import("@/pages/MyResearch")).MyResearch }) },
-      { path: "/my-research/material", lazy: async () => ({ Component: (await import("@/pages/ResearchMaterial")).ResearchMaterial }) },
       { path: "/my-research/topics/:topicHex", lazy: async () => ({ Component: (await import("@/pages/TopicWorkspace")).TopicWorkspace }) },
+      { path: "/my-research/*", element: <Navigate to="/my-research" replace /> },
       { path: "/settings", element: <ModelSettings /> },
     ],
   },

@@ -25,7 +25,7 @@ import {
 } from "../lib/research";
 import { userFacingRuntimeError } from '../lib/userFacingError';
 import { loadReportTasks, researchSkipSummary, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
-import { normalizeResearchTarget, researchObjectHref } from "../lib/researchObject";
+import { normalizeResearchTarget, openRegisteredObject, registeredObject } from "../lib/objectRegistry";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
@@ -289,7 +289,7 @@ export function MyResearch() {
       {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
       {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
         sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
-        resultHref: target ? researchObjectHref(target) : undefined,
+        resultRef: target,
       })} onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "topics" ? <>
         <form onSubmit={startTopic} className="border-b border-border/30 pb-4">
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
@@ -379,7 +379,8 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
       ? userFacingRuntimeError(rawSummary, '这次任务没有完成') : rawSummary;
     const target = task.targets?.join('、') || '';
     const showSummary = Boolean(summary && summary !== title && summary !== target);
-    const href = researchObjectHref(task.targets?.[0] || '');
+    const targetRef = task.targets?.[0] || '';
+    const object = registeredObject(targetRef);
     const when = [
       TASK_STATUS[task.display_status || ''] || task.display_status || '未知',
       task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '',
@@ -395,7 +396,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
       <div className="flex shrink-0 flex-wrap gap-2">
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
-        {href && <Link className="workspace-action workspace-action-compact" to={href}>打开研究页</Link>}
+        {(object?.href || object?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => openRegisteredObject(targetRef)}>打开研究页</button>}
       </div>
     </div>;
   })}</>;

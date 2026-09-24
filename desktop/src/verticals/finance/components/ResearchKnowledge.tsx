@@ -75,7 +75,7 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;
 }
-export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false, reportActionSlot = null }: {
+export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false, reportActionSlot = null, standalone = false }: {
   slug: string;
   onMarkdown?: (markdown: string) => void;
   onPage?: (page: WikiPage | null) => void;
@@ -87,12 +87,13 @@ export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0
   hideToggle?: boolean;
   /** Page toolbar action group that receives the report's regenerate action. */
   reportActionSlot?: HTMLElement | null;
+  standalone?: boolean;
 }) {
   const [internalReport, setInternalReport] = useState(false);
   const report = reportProp ?? internalReport;
   const setReport = onReportChange ?? setInternalReport;
   const [search, setSearch] = useSearchParams();
-  const restored = search.get('reader');
+  const restored = standalone ? null : search.get('reader');
   const [trail, setTrail] = useState<string[]>(() => restored && restored !== slug ? [slug, restored] : [slug]);
   const [related, setRelated] = useState<{ slug: string; title: string }[]>([]);
   const [linkError, setLinkError] = useState('');
@@ -107,6 +108,7 @@ export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0
   }, [active]);
   const navigate = (next: string[]) => {
     setTrail(next);
+    if (standalone) return;
     setSearch(previous => {
       const params = new URLSearchParams(previous);
       if (next.length > 1) params.set('reader', next[next.length - 1] || slug); else params.delete('reader');

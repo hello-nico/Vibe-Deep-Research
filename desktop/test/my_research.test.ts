@@ -388,7 +388,8 @@ test("沉淀记录宿主入口改走 Backend，不再读产品文件", () => {
 
 test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全文", () => {
   const client = readFileSync(new URL("../src/verticals/finance/dsh/client.tsx", import.meta.url), "utf8");
-  assert.match(client, /Promise\.all\(\[hydrateWatch\(\), hydrateRoster\(\), hydratePrefs\(\)\]\)/);
+  assert.match(client, /Promise\.all\(\[hydrateWatch\(\), hydrateRoster\(\), hydratePrefs\(\), labels\]\)/);
+  assert.match(client, /Promise\.race\(\[hydrateObjectLabels\(\), new Promise<void>\(resolve => setTimeout\(resolve, 2500\)\)\]\)/);
   assert.match(client, /void hydrateNotes\(\)\.catch/);
   assert.doesNotMatch(client, /Promise\.all\(\[hydrateNotes/);
   const source = readFileSync(new URL("../src/verticals/finance/pages/TopicWorkspace.tsx", import.meta.url), "utf8");

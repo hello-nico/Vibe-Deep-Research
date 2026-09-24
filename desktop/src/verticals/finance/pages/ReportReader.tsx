@@ -137,7 +137,7 @@ function DocumentReader({ id }: { id: string }) {
   }
   return <div className="space-y-3">
     <header className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0"><Link replace to={from} className="mb-2 inline-block text-sm text-primary">← {from === '/' ? '返回深度对话' : from.startsWith('/my-research/topics/') ? '返回研究议题' : from.startsWith('/my-research/material') ? '返回研究材料' : from.startsWith('/my-research') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : from.startsWith('/sectors') ? '返回行业研究' : '返回我的资料'}</Link><p className="text-xs text-muted-foreground">{kind} · {libraryKindLabel(format)}</p><h1 className="mt-1 text-lg font-semibold">{title}</h1></div>
+      <div className="min-w-0"><Link replace to={from} className="mb-2 inline-block text-sm text-primary">← {from === '/' ? '返回深度对话' : from.startsWith('/my-research/topics/') ? '返回研究议题' : from.startsWith('/my-research') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : from.startsWith('/sectors') ? '返回行业研究' : '返回我的资料'}</Link><p className="text-xs text-muted-foreground">{kind} · {libraryKindLabel(format)}</p><h1 className="mt-1 text-lg font-semibold">{title}</h1></div>
       <div className="flex flex-wrap items-center gap-2">
         {document?.has_raw && <a className="workspace-action" href={raw} target="_blank" rel="noreferrer">打开 / 下载原件</a>}
         {document && !document.extra?.library_hidden && <button type="button" className="workspace-action" disabled={hiding} onClick={() => setConfirmHide(true)}>{hiding ? '正在移除…' : '从我的资料移除'}</button>}

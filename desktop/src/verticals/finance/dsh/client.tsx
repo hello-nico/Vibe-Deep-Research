@@ -4,18 +4,21 @@ import { RouterProvider } from "react-router-dom";
 import type { Context } from "@deepseek-ai/cordis";
 import { router } from "../router";
 import { researchObjectSource, researchTarget } from './research-input';
-import { backgroundTaskForSession, companySlug, loadBackgroundTasks } from '../lib/research';
+import { installTriggerMenuFit } from './trigger-menu-fit';
+import { hydrateObjectLabels, objectLabel, openRegisteredObject, resolveObjectLabels } from '../lib/objectRegistry';
+import { backgroundTaskForSession, loadBackgroundTasks } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
-import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentReadSearch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, mentionLabel, parseDocumentRef, pendingLibraryCites, queueLibraryCites, rememberMentionLabel, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
+import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, pendingLibraryCites, queueLibraryCites, rememberMentionLabel, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
 import { SearchPreviews } from './search-previews';
 import { installResultNode } from './result-node';
+import { FinanceToolRow } from './tool-row';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } from "../assistant/sessions.ts";
 import { applyAssistant } from "../assistant/apply.ts";
 import { cancelReportRun, cancelResearchRun, legacyCompanySymbol, loadReportTasks, researchTaskStatus, startReportRun, startResearchRun } from "../lib/reportTasks";
-import { projectTaskTrajectory, stableTaskTrajectory } from "../lib/taskTrajectory";
+import { FINANCE_TOOL_NAMES, projectTaskTrajectory, stableTaskTrajectory } from "../lib/taskTrajectory";
 import { userFacingRuntimeError } from "../lib/userFacingError";
 import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
 import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
@@ -29,6 +32,7 @@ import { FinanceRoot } from '../components/layout/FinanceRoot';
 import { FinanceAssistantSeat } from '../components/layout/FinanceAssistantSurface';
 import "../../../index.css";
 import "./native-dsh.css";
+import "./tool-row.css";
 
 interface Client {
   on(event: "theme/change", callback: () => void): () => void;
@@ -113,36 +117,7 @@ interface HistorySession {
 }
 export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories"];
 
-function openResearchTarget(value: string) {
-  const target = researchTarget(value);
-  if (target?.kind === 'document') {
-    const parsed = parseDocumentRef(target.id);
-    if (!parsed) return;
-    void router.navigate('/my-reports/read/' + encodeURIComponent(parsed.document_id) + '?' + documentReadSearch(parsed));
-    return;
-  }
-  if (target?.kind === 'url') {
-    window.open(target.id, '_blank', 'noopener,noreferrer');
-    return;
-  }
-  if (target?.kind === 'company') {
-    const code = /^\d{6}/.exec(target.id)?.[0];
-    const slug = code ? companySlug(code) : null;
-    if (slug) void router.navigate('/research?company=' + encodeURIComponent(slug));
-    return;
-  }
-  if (target?.kind === 'market') {
-    void router.navigate('/');
-    return;
-  }
-  if (target?.kind === 'profile') {
-    const code = /^profile:sw2:([^:]+):/.exec(target.id)?.[1];
-    if (code) void router.navigate(`/sectors/profiles/${encodeURIComponent(code)}`);
-    return;
-  }
-  if (target?.kind === 'topic') void router.navigate(`/my-research/topics/${target.id.slice(6)}`);
-  else if (target?.kind === 'wiki') void router.navigate('/my-research/material?' + new URLSearchParams({ slug: target.id, from: window.location.pathname + window.location.search }));
-}
+function openResearchTarget(value: string) { openRegisteredObject(value); }
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
@@ -159,15 +134,15 @@ export function apply(ctx: Context) {
         return { ...mention, open: () => { window.open(web, '_blank', 'noopener,noreferrer'); } };
       }
       if (!target) return undefined;
-      if (target.kind === 'document') {
-        const label = mentionLabel(target.id, '打开资料');
-        return { label, title: label, open() { openResearchTarget(target.id); } };
-      }
-      const label = mentionLabel(target.id, target.kind === 'topic' ? '议题' : '研究材料');
-      return { label, title: label, open() { openResearchTarget(target.id); } };
+      void resolveObjectLabels([value]);
+      const label = objectLabel(value);
+      return { label, title: label, open() { openResearchTarget(value); } };
     } };
   } });
   const client = ctx as unknown as Client;
+  for (const name of FINANCE_TOOL_NAMES) {
+    client.slots.inject('tool.call.toolview', () => client.slots.register({ name: 'tool.call.toolview', key: name }, FinanceToolRow));
+  }
   let disposed = false;
   document.body.classList.add("vibe-dsh-host");
   document.title = "Vibe-Finance";
@@ -195,17 +170,27 @@ export function apply(ctx: Context) {
     const ref = (event as CustomEvent<string>).detail;
     if (ref) openResearchTarget(ref);
   };
+  const navigateObject = (event: Event) => {
+    const href = (event as CustomEvent<string>).detail;
+    if (href) void router.navigate(href);
+  };
   window.addEventListener("vibe-theme-change", fromProduct);
   window.addEventListener("finance-open-research-mention", openMention);
+  window.addEventListener('finance-object-navigate', navigateObject);
+  const disposeMenuFit = installTriggerMenuFit();
   ctx.effect(() => () => {
     disposed = true;
     window.removeEventListener("vibe-theme-change", fromProduct);
     window.removeEventListener("finance-open-research-mention", openMention);
+    window.removeEventListener('finance-object-navigate', navigateObject);
+    disposeMenuFit();
     document.body.classList.remove("vibe-dsh-host");
   });
   presentTheme();
   // 自选 / 研究名单 / 偏好走产品本地服务；记录失败不能挡住工作台挂载。
-  const ready = Promise.all([hydrateWatch(), hydrateRoster(), hydratePrefs()]);
+  // 对象名称预热：有上限、不阻塞失败，只为首次渲染的引用标签带上真名。
+  const labels = Promise.race([hydrateObjectLabels(), new Promise<void>(resolve => setTimeout(resolve, 2500))]);
+  const ready = Promise.all([hydrateWatch(), hydrateRoster(), hydratePrefs(), labels]);
   void hydrateNotes().catch(() => {});
   void ready.catch(() => {}); // The mounted frame presents the failure and retry action.
   let session: Promise<void> | undefined;

@@ -14,6 +14,10 @@
 #dsh-conversation [data-slot="conversation.session.header.corner"],
 #dsh-conversation [data-conversation-header-corner] { display: none; }
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
+/* Keep all @ groups within the composer overlay; its listbox scrolls internally. */
+/* Height is fitted at runtime to the room above the composer (dsh/trigger-menu-fit.ts). */
+#dsh-conversation [data-trigger-menu] { min-height: 0; }
+#dsh-conversation [data-trigger-menu] [role="listbox"] { min-height: 0; overflow-y: auto; }
 #dsh-conversation[data-assistant-seat] {
   border: none;
   border-radius: 0;

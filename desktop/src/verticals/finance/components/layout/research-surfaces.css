@@ -31,6 +31,7 @@
   width: min(var(--finance-assistant-width), calc(100vw - 1.5rem));
 }
 .finance-evidence-panel { z-index: 60; }
+.finance-wiki-drawer { z-index: 61; }
 body.finance-side-resizing,
 body.finance-side-resizing * { cursor: col-resize !important; user-select: none; }
 body.finance-side-resizing #workspace-main { transition: none; }

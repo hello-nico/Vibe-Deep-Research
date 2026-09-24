@@ -49,6 +49,7 @@ export interface TaskProcessRef {
   settlementSessionId?: string;
   status?: string;
   resultHref?: string;
+  resultRef?: string;
 }
 
 export interface TaskTrajectoryStep {

@@ -1,8 +1,10 @@
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { researchRead, ResearchError, type ResearchTopicSummary, type WikiItem } from '../lib/research';
-import { decodeEvidenceLink } from '../lib/evidence';
 import { documentIdFromRef, listLibraryDocuments, mentionLabel, parseDocumentRef, documentRef, rememberMentionLabel, type LibraryDocument } from '../lib/library';
 import { MENTION_NOTES } from '../lib/researchMentions';
+import { researchTarget } from '../lib/researchTarget';
+import { objectLabel, openRegisteredObject } from '../lib/objectRegistry';
+export { researchTarget } from '../lib/researchTarget';
 
 const MARKET_INDICES = [
   { id: '000001.SH', name: '上证指数' },
@@ -10,8 +12,6 @@ const MARKET_INDICES = [
   { id: '399001.SZ', name: '深证成指' },
   { id: '399006.SZ', name: '创业板指' },
 ] as const;
-const DATE_CHIP = /^(\d{4}-\d{2}-\d{2})$/;
-const PROFILE_REF = /^profile:sw2:([0-9A-Z.]+):([a-f0-9]{64})$/;
 
 type MentionCandidate = {
   name: string;
@@ -20,31 +20,6 @@ type MentionCandidate = {
   value: string;
   hint?: string;
 };
-
-export function researchTarget(value: string): {
-  kind: 'evidence' | 'wiki' | 'topic' | 'document' | 'url' | 'company' | 'market' | 'profile' | 'date';
-  id: string;
-  parse_revision_id?: string;
-  parsed_content_sha256?: string;
-  input_hash?: string;
-} | null {
-  const evidence = decodeEvidenceLink(value);
-  if (evidence) return { kind: 'evidence', id: evidence };
-  if (/^(claim|evidence|source|provider|lookup):[^\s<>]+$/.test(value)) return { kind: 'evidence', id: value };
-  if (/^topic:[a-f0-9]{12}$/.test(value)) return { kind: 'topic', id: value };
-  if (/^company:\d{6}\.(SH|SZ|BJ)$/.test(value)) return { kind: 'company', id: value.slice('company:'.length) };
-  if (/^market:(indices|\d{6}\.(SH|SZ))$/.test(value)) return { kind: 'market', id: value.slice('market:'.length) };
-  if (PROFILE_REF.test(value)) return { kind: 'profile', id: value };
-  if (/^date:\d{4}-\d{2}-\d{2}$/.test(value)) return { kind: 'date', id: value.slice(5) };
-  if (DATE_CHIP.test(value)) return { kind: 'date', id: value };
-  if (value.startsWith('url:') && /^https?:\/\//.test(value.slice(4))) return { kind: 'url', id: value.slice(4) };
-  if (/^https?:\/\//.test(value)) return { kind: 'url', id: value };
-  const document = parseDocumentRef(value);
-  if (document) return { kind: 'document', id: documentRef(document.document_id, document.parse_revision_id, document.parsed_content_sha256), parse_revision_id: document.parse_revision_id, parsed_content_sha256: document.parsed_content_sha256 };
-  const wiki = /^(companies|industries|themes|comparisons)\/[^/\s?#<>@]+(?:@([a-f0-9]{64}))?$/.exec(value);
-  if (wiki && !value.includes('..')) return { kind: 'wiki', id: value.replace(/@[a-f0-9]{64}$/, ''), ...(wiki[2] ? { input_hash: wiki[2] } : {}) };
-  return null;
-}
 
 function documentHint(item: LibraryDocument): string {
   const kind = item.extra.content_type === 'pdf' ? 'PDF' : item.extra.content_type === 'markdown' ? 'MD' : item.extra.content_type === 'text' ? 'TXT' : '资料';
@@ -154,6 +129,9 @@ export const researchObjectSource: InputTriggerSource = {
     rememberMentionLabel(candidate.value, candidate.name);
     return { insert: { source: '研究对象', ref: candidate.value, label: candidate.name, appearance: 'file', clipboardText: candidate.name } };
   },
+  openReference(_session, reference) {
+    return openRegisteredObject(reference.ref);
+  },
   codec: {
     clipboardText: ref => mentionLabelForClipboard(ref),
     async serialize(ref, signal) {
@@ -201,13 +179,5 @@ export const researchObjectSource: InputTriggerSource = {
 };
 
 function mentionLabelForClipboard(ref: string) {
-  const target = researchTarget(ref);
-  if (target?.kind === 'document') return mentionLabel(ref, '资料');
-  if (target?.kind === 'topic') return mentionLabel(ref, '议题');
-  if (target?.kind === 'wiki') return mentionLabel(ref, '研究材料');
-  if (target?.kind === 'market') return mentionLabel(ref, '大盘');
-  if (target?.kind === 'profile') return mentionLabel(ref, '产业研究');
-  if (target?.kind === 'company') return mentionLabel(ref, '行情');
-  if (target?.kind === 'date') return mentionLabel(ref, '日期');
-  return mentionLabel(ref, '引用');
+  return objectLabel(ref);
 }

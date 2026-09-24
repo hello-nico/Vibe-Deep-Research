@@ -15,6 +15,7 @@ import { prefGet, prefSet } from "@/lib/prefs";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { useTopicSessionGate } from "../../dsh/topic-session-gate";
 import { TaskNotices } from "../ui/TaskNotices";
+import { WikiDrawer } from '../WikiDrawer';
 
 const NAV = [
   { to: "/", icon: MessagesSquare, label: "深度对话" },
@@ -272,6 +273,7 @@ export function Layout() {
         <NativeDshHost />
       </div>
       <TaskNotices />
+      <WikiDrawer />
       </EvidenceProvider>
     </AiPageProvider>
   );

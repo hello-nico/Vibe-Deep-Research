@@ -139,6 +139,6 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.match(input, /MENTION_NOTES\.documentStale/);
   assert.match(input, /citedDocument/);
   assert.doesNotMatch(input, /parse_revision_id=\$\{/);
-  assert.match(client, /mentionLabel/);
-  assert.match(client, /打开资料/);
+  assert.match(client, /objectLabel/);
+  assert.match(client, /openRegisteredObject/);
 });

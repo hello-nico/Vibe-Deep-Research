@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { isBareCompanyCode, normalizeResearchTarget, researchObjectHref, wikiPageTitle } from '../src/verticals/finance/lib/researchObject.ts';
+import { loadFinanceModule } from './load_finance_module.ts';
 import { RESULT_EMBED_FALLBACK, embeddableChartResult, listOrEmpty } from '../src/verticals/finance/lib/researchResultEmbed.ts';
+
+const { isBareCompanyCode, normalizeResearchTarget, researchObjectHref, wikiPageTitle } = await loadFinanceModule<typeof import('../src/verticals/finance/lib/researchObject.ts')>('lib/researchObject.ts');
 
 test('对象链接：公司用完整 slug，行业走行业页，旧代码目标补交易所后缀', () => {
   assert.equal(normalizeResearchTarget('companies/600585-sh'), 'companies/600585-sh');
@@ -51,6 +53,6 @@ test('公司名取不到时先用研究页标题，再回退代码', () => {
   assert.match(wiki, /\/wiki\/pages\/read\?slug=/);
   const mine = readFileSync(new URL('../src/verticals/finance/pages/MyResearch.tsx', import.meta.url), 'utf8');
   assert.match(mine, /skipped: '未整理'/);
-  assert.match(mine, /researchObjectHref/);
+  assert.match(mine, /openRegisteredObject/);
   assert.match(mine, /researchSkipSummary/);
 });
