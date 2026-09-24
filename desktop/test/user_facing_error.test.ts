@@ -55,6 +55,20 @@ test('问助手会话错误走同一层映射，不再原样返回英文', () =>
   assert.equal(assistantSessionErrorMessage(new Error('weird_internal_code_XYZ'), '问助手没能启动，请重试'), '问助手没能启动，请重试');
 });
 
+test('同一错误文本只告警一次', () => {
+  const lines: unknown[][] = [];
+  const original = console.warn;
+  console.warn = (...args: unknown[]) => { lines.push(args); };
+  try {
+    const once = `unique-runtime-error-${Date.now()}`;
+    assert.equal(userFacingRuntimeError(once), '这一步没有完成，请重试');
+    assert.equal(userFacingRuntimeError(once), '这一步没有完成，请重试');
+    assert.equal(lines.filter(item => item[0] === '[runtime-error]' && item[1] === once).length, 1);
+  } finally {
+    console.warn = original;
+  }
+});
+
 test('工具失败只上屏中文错误，不把原文再显示一遍', () => {
   const snap = projectTaskTrajectory({
     raw: {

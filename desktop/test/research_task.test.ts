@@ -4,7 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { cancelResearchRun, disposeReportRuntime, loadReportTasks, startReportRun, startResearchRun } from '../dsh/finance-ui/host-state.mjs';
-import { legacyCompanySymbol, researchTaskStatus, RESEARCH_SETTLEMENT_MS, type ReportTaskBinding } from '../src/verticals/finance/lib/reportTasks.ts';
+import { legacyCompanySymbol, researchSkipReasonText, researchSkipSummary, researchTaskStatus, RESEARCH_SETTLEMENT_MS, type ReportTaskBinding } from '../src/verticals/finance/lib/reportTasks.ts';
 
 test('只有旧顶层公司研究标题从深度对话历史移入任务记录', () => {
   assert.equal(legacyCompanySymbol('公司研究 · 600011 · 华能国际'), '600011');
@@ -28,10 +28,16 @@ test('研究与整理状态由同一纯函数判定，含重启宽限和整理�
   assert.equal(researchTaskStatus(completed, false, { display_status: 'running', started_at }, now), 'settling');
   assert.equal(researchTaskStatus(completed, false, { display_status: 'running', started_at }, now + 1), 'interrupted');
   assert.equal(researchTaskStatus({ ...completed, settlement_status: 'running', settlement_updated_at: started_at }, false, null, now), 'settling');
-  for (const status of ['awaiting_authorization', 'no_increment', 'partial', 'failed', 'cancelled', 'interrupted'] as const) {
+  for (const status of ['awaiting_authorization', 'no_increment', 'partial', 'failed', 'cancelled', 'interrupted', 'skipped'] as const) {
     assert.equal(researchTaskStatus(completed, false, { display_status: status }, now), status);
   }
   assert.equal(researchTaskStatus(completed, false, { display_status: 'completed' }, now), 'unconfirmed');
+  assert.equal(researchTaskStatus({ ...completed, settlement_status: 'skipped' }, false, null, now), 'skipped');
+  assert.equal(researchSkipReasonText('no_material'), '没有可整理的新材料');
+  assert.equal(researchSkipReasonText('snapshot_too_large'), '本轮材料过多，未自动整理');
+  assert.equal(researchSkipReasonText('ingest_timeout'), '年报入库未完成');
+  assert.equal(researchSkipSummary('no_material'), '本次没有整理：没有可整理的新材料');
+  assert.equal(researchSkipSummary('unknown'), '本次没有整理');
 });
 
 test('公司任务首请求前绑定研究身份，同公司去重，不把模型失败记成完成', async t => {

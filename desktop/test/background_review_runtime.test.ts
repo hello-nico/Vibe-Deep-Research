@@ -200,9 +200,10 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     assert.equal(parent.inbox.hasPending, false);
     assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'turn/start').length, 6);
 
-    // A renamed tool failure must still suppress maintenance for this question.
+    // 2026-09-24（公司研究任务修复 §2）：本轮出现过的工具失败不再否决整理；
+    // 整理只能引用快照内成功读取的材料，失败的读取不进入依据。
     const failedTurnReady = new Promise<void>(resolve => { mainStarted = resolve; });
-    parent.followup({ content: [{ type: 'text', text: '来源失败时不启动维护' }], source: { kind: 'user' } });
+    parent.followup({ content: [{ type: 'text', text: '来源失败后仍按已读材料维护' }], source: { kind: 'user' } });
     await failedTurnReady;
     for (const [name, args] of [
       ['wiki_read', { slug: 'companies/test' }],
@@ -218,8 +219,9 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     await parent.whenIdle();
     await parent.runMaintenance(async () => {});
     await new Promise(resolve => setImmediate(resolve));
-    assert.equal(requests.length, beforeFailedClose, 'failed renamed tool must prevent a maintenance model call');
-    assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'stock-research/maintenance').length, 1);
+    assert.equal(requests.length, beforeFailedClose + 1, 'a failed tool no longer prevents the maintenance model call');
+    const lastReview = requests.at(-1);
+    assert.doesNotMatch(JSON.stringify(lastReview), /来源请求失败/, 'the failed search result must not enter the settlement snapshot');
     await handle.dispose();
   } finally { await ctx.fiber.dispose(); }
 });

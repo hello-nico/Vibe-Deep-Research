@@ -41,16 +41,21 @@ function AssistantMarkdown({ markdown }: { markdown: string }) {
 }
 
 function ResultEmbeds({ ids }: { ids: string[] }) {
-  const [Result, setResult] = useState<ComponentType<{ resultId: string }> | null>(null);
+  const [mods, setMods] = useState<{
+    Embed: ComponentType<{ resultId: string }>;
+    Boundary: ComponentType<{ children: import('react').ReactNode }>;
+  } | null>(null);
   useEffect(() => {
     if (!ids.length) return;
     let active = true;
-    void import('./ResearchResult').then(mod => { if (active) setResult(() => mod.ResearchResult); });
+    void import('./ResearchResult').then(mod => {
+      if (active) setMods({ Embed: mod.ResultEmbed, Boundary: mod.ResultEmbedBoundary });
+    });
     return () => { active = false; };
   }, [ids.length]);
   if (!ids.length) return null;
-  if (!Result) return <p className="mt-3 text-xs text-muted-foreground">正在载入成果…</p>;
-  return <div className="mt-3 space-y-3">{ids.map(id => <Result key={id} resultId={id} />)}</div>;
+  if (!mods) return <p className="mt-3 text-xs text-muted-foreground">正在载入成果…</p>;
+  return <div className="mt-3 space-y-3">{ids.map(id => <mods.Boundary key={id}><mods.Embed resultId={id} /></mods.Boundary>)}</div>;
 }
 
 function BoundSourceList({ body }: { body?: string }) {

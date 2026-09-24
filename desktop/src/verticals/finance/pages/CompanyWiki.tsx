@@ -6,7 +6,8 @@ import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
 import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
-import { RESEARCH_SETTLEMENT_MS } from '../lib/reportTasks';
+import { RESEARCH_SETTLEMENT_MS, researchSkipSummary } from '../lib/reportTasks';
+import { isBareCompanyCode, wikiPageTitle } from '../lib/researchObject';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
 import { api } from '../lib/api';
@@ -282,6 +283,9 @@ export function CompanyWiki() {
           } else if (display === 'no_increment') {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
               ? { ...prev, phase: 'done', message: '研究已结束，这次没有新增内容。' } : prev);
+          } else if (display === 'skipped') {
+            setGen(prev => prev && prev.sessionId === tracked.sessionId
+              ? { ...prev, phase: 'done', message: researchSkipSummary(record?.settlement_reason || record?.reason) } : prev);
           } else {
             setGen(prev => prev && prev.sessionId === tracked.sessionId
               ? { ...prev, phase: 'failed', message: '结果整理没有完成，详情见任务记录。' } : prev);
@@ -340,13 +344,14 @@ export function CompanyWiki() {
     if (activeSlug.current !== target.slug) return;
     refresh(x => x + 1);
     try {
-      const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${target.title}（${target.symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${target.title} \`${target.slug}\``;
-      const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name: target.title }, {
-        navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${target.title}` },
+      const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
+      const name = isBareCompanyCode(target.title, target.symbol) ? wikiPageTitle(page, target.symbol) : target.title;
+      const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${name}（${target.symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${name} \`${target.slug}\``;
+      const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name }, {
+        navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${name}` },
       });
       if (activeSlug.current !== target.slug) return;
-      const baseline = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
-      setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: baseline?.input_hash });
+      setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: page?.input_hash });
     } catch (e) {
       if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: `研究页已建立，但研究没能开始：${e instanceof Error ? e.message : String(e)}`, pageReady: true });
     }

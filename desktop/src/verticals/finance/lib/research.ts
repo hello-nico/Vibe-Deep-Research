@@ -1,4 +1,4 @@
-import { researchErrorMessage } from './researchSymbol';
+import { companySlug, researchErrorMessage } from './researchSymbol';
 import type { CompanyPageSummary } from './companyRoster';
 
 export class ResearchError extends Error {
@@ -52,7 +52,7 @@ export async function wikiPages(kind: string, signal?: AbortSignal): Promise<Wik
     if (offset + 100 >= page.total) return items;
   }
 }
-export const companySlug = (symbol: string) => /^\d{6}$/.test(symbol) ? `companies/${symbol}-${/^[569]/.test(symbol) ? 'sh' : /^[48]/.test(symbol) ? 'bj' : 'sz'}` : null;
+export { companySlug };
 export const symbolFromCompanySlug = (slug: string) => /^companies\/(\d{6})-(?:sh|sz|bj)$/.exec(slug)?.[1] ?? null;
 export const aShareQualified = (symbol: string) => {
   const match = companySlug(symbol)?.match(/^companies\/(\d{6})-(sh|sz|bj)$/);
@@ -229,6 +229,8 @@ export interface BackgroundTask {
   child_session_id?: string;
   targets?: string[];
   draft_token?: string;
+  settlement_reason?: string;
+  reason?: string;
 }
 
 // 后台沉淀任务记录：DSH 回合结束后由后台评审/落库子会话产生；页面据此区分

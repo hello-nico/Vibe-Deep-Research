@@ -10,6 +10,7 @@ export interface ReportTaskBinding {
   run_status?: 'running' | 'completed' | 'failed' | 'cancelled';
   finished_at?: string;
   settlement_status?: string;
+  settlement_reason?: string;
   settlement_updated_at?: string;
   bound_at?: string;
   parent_id?: string;
@@ -20,12 +21,29 @@ export const RESEARCH_START_GRACE_MS = 15_000;
 export const RESEARCH_SETTLEMENT_MS = 180_000;
 
 export type ResearchTaskStatus = 'researching' | 'settling' | 'awaiting_authorization' | 'no_increment'
-  | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'unconfirmed';
+  | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'unconfirmed' | 'skipped';
 
 export interface ResearchSettlementRecord {
   status?: string;
   display_status?: string;
   started_at?: string;
+  settlement_reason?: string;
+  reason?: string;
+}
+
+export const SETTLEMENT_SKIP_REASONS: Record<string, string> = {
+  no_material: '没有可整理的新材料',
+  snapshot_too_large: '本轮材料过多，未自动整理',
+  ingest_timeout: '年报入库未完成',
+};
+
+export function researchSkipReasonText(reason?: string): string {
+  return (reason && SETTLEMENT_SKIP_REASONS[reason]) || '';
+}
+
+export function researchSkipSummary(reason?: string): string {
+  const text = researchSkipReasonText(reason);
+  return text ? `本次没有整理：${text}` : '本次没有整理';
 }
 
 function within(time: string | undefined, duration: number, now: number): boolean {
@@ -43,7 +61,7 @@ export function researchTaskStatus(binding: ReportTaskBinding, running: boolean,
     return within(started, RESEARCH_SETTLEMENT_MS, now) ? 'settling' : 'interrupted';
   }
   if (result === 'awaiting_authorization' || result === 'no_increment' || result === 'partial'
-    || result === 'failed' || result === 'cancelled' || result === 'interrupted') return result;
+    || result === 'failed' || result === 'cancelled' || result === 'interrupted' || result === 'skipped') return result;
   if (binding.run_status === 'running')
     return within(binding.bound_at, RESEARCH_START_GRACE_MS, now) ? 'researching' : 'interrupted';
   return 'unconfirmed';

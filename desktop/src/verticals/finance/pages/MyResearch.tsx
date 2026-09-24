@@ -23,7 +23,8 @@ import {
   type ResearchTopicRouteResult,
   type ResearchTopicSummary,
 } from "../lib/research";
-import { loadReportTasks, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
+import { loadReportTasks, researchSkipSummary, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
+import { normalizeResearchTarget, researchObjectHref } from "../lib/researchObject";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
@@ -31,9 +32,10 @@ const TASK_STATUS: Record<string, string> = {
   running: "执行中", waiting_ingest: "等待报告入库", interrupted: "已中断", no_increment: "无新增",
   awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消", recorded: "已记录",
   researching: '研究中', settling: '整理中', completed: '研究已结束', unconfirmed: '结果待确认',
+  skipped: '未整理',
 };
 
-type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_token?: string };
+type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_token?: string; settlement_reason?: string; reason?: string };
 
 const RESEARCH_TABS = [
   { value: "topics", label: "议题", icon: BookOpen },
@@ -128,22 +130,29 @@ export function MyResearch() {
           display_status: researchSessions?.taskRunning(id) ? 'running' : bind.run_status === 'completed' ? 'recorded' : bind.run_status || 'recorded',
           started_at: bind.bound_at,
           child_session_id: id,
-          targets: [bind.slug],
+          targets: [normalizeResearchTarget(bind.slug) || bind.slug],
           summary: bind.slug,
         }));
         const researchItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([, bind]) => bind.kind === 'research').map(([id, bind]) => {
           const settlement = settlements.get(id);
           const running = researchSessions?.taskRunning(id);
+          const status = researchTaskStatus(bind, Boolean(running), settlement);
+          const reason = settlement?.settlement_reason || settlement?.reason || bind.settlement_reason;
+          const skipSummary = status === 'skipped' ? researchSkipSummary(reason) : '';
+          const target = normalizeResearchTarget(bind.slug) || bind.slug;
           return { id, kind: 'research', title: bind.title || `公司研究 · ${bind.symbol || bind.slug.replace(/^companies\//, '')}`,
-            display_status: researchTaskStatus(bind, Boolean(running), settlement),
+            display_status: status,
             started_at: bind.bound_at, finished_at: settlement?.finished_at || bind.finished_at,
             parent_session_id: reports.host_session_id, child_session_id: id,
             settlement_session_id: settlement?.child_session_id || settlement?.id,
-            targets: [bind.slug], summary: settlement?.summary || '' };
+            targets: [target], settlement_reason: reason, summary: skipSummary || settlement?.summary || '' };
         });
-        const legacyItems: TaskRow[] = legacy.map(item => ({ id: item.sessionId, kind: 'research', title: item.title,
-          display_status: item.running ? 'researching' : 'recorded', started_at: item.updatedAt,
-          child_session_id: item.sessionId, targets: [`companies/${item.symbol}`] }));
+        const legacyItems: TaskRow[] = legacy.map(item => {
+          const target = normalizeResearchTarget(`companies/${item.symbol}`) || `companies/${item.symbol}`;
+          return { id: item.sessionId, kind: 'research', title: item.title,
+            display_status: item.running ? 'researching' : 'recorded', started_at: item.updatedAt,
+            child_session_id: item.sessionId, targets: [target] };
+        });
         const items = [...reportItems, ...researchItems, ...legacyItems,
           ...background.filter(item => !item.source_session_id || !reports.sessions?.[item.source_session_id]).map(item => ({ ...item, kind: item.kind || 'knowledge' }))];
         items.sort((a, b) => String(b.started_at || '').localeCompare(String(a.started_at || '')));
@@ -279,7 +288,7 @@ export function MyResearch() {
       {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
       {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
         sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
-        resultHref: target ? `/research?company=${encodeURIComponent(target.replace(/^companies\//, ""))}` : undefined,
+        resultHref: target ? researchObjectHref(target) : undefined,
       })} onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "topics" ? <>
         <form onSubmit={startTopic} className="border-b border-border/30 pb-4">
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
@@ -366,6 +375,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
     const summary = task.summary || task.question || '';
     const target = task.targets?.join('、') || '';
     const showSummary = Boolean(summary && summary !== title && summary !== target);
+    const href = researchObjectHref(task.targets?.[0] || '');
     const when = [
       TASK_STATUS[task.display_status || ''] || task.display_status || '未知',
       task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '',
@@ -381,7 +391,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
       <div className="flex shrink-0 flex-wrap gap-2">
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
-        {task.targets?.[0] && <Link className="workspace-action workspace-action-compact" to={`/research?company=${encodeURIComponent(task.targets[0].replace(/^companies\//, ''))}`}>打开研究页</Link>}
+        {href && <Link className="workspace-action workspace-action-compact" to={href}>打开研究页</Link>}
       </div>
     </div>;
   })}</>;

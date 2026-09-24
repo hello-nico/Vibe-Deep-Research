@@ -37,3 +37,6 @@ export function researchErrorMessage(status: number, value: unknown): string {
   if (status === 415) return "仅支持 PDF、TXT 或 Markdown";
   return "资料没有保存成功，请稍后重试";
 }
+
+/** 6 位 A 股代码 → 公司研究页 slug；交易所按代码首位判定。 */
+export const companySlug = (symbol: string) => /^\d{6}$/.test(symbol) ? `companies/${symbol}-${/^[569]/.test(symbol) ? 'sh' : /^[48]/.test(symbol) ? 'bj' : 'sz'}` : null;

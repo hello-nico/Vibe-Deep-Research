@@ -15,6 +15,8 @@ function hasChinese(text: string): boolean {
   return /[\u4e00-\u9fff]/.test(text);
 }
 
+const warned = new Set<string>();
+
 function classifyRuntimeError(error: unknown, fallback: string): { text: string; warn: boolean } {
   if (error instanceof Error && error.name === 'TimeoutError') return { text: '请求超时，请重试', warn: true };
   if (error instanceof Error && error.name === 'AbortError') return { text: '已停止', warn: true };
@@ -32,6 +34,12 @@ function classifyRuntimeError(error: unknown, fallback: string): { text: string;
 
 export function userFacingRuntimeError(error: unknown, fallback = '这一步没有完成，请重试'): string {
   const mapped = classifyRuntimeError(error, fallback);
-  if (mapped.warn) console.warn('[runtime-error]', error);
+  if (mapped.warn) {
+    const key = stripPrefix(rawText(error)) || mapped.text;
+    if (!warned.has(key)) {
+      warned.add(key);
+      console.warn('[runtime-error]', error);
+    }
+  }
   return mapped.text;
 }
