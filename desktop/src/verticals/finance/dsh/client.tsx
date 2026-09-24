@@ -15,7 +15,7 @@ import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } from "../assistant/sessions.ts";
 import { applyAssistant } from "../assistant/apply.ts";
 import { cancelReportRun, cancelResearchRun, legacyCompanySymbol, loadReportTasks, researchTaskStatus, startReportRun, startResearchRun } from "../lib/reportTasks";
-import { projectTaskTrajectory, sameTaskTrajectory } from "../lib/taskTrajectory";
+import { projectTaskTrajectory, stableTaskTrajectory } from "../lib/taskTrajectory";
 import { userFacingRuntimeError } from "../lib/userFacingError";
 import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
 import type { StartSessionOptions, StartSessionResult, SessionState, TaskProcessRef, TaskTrajectorySnapshot, ResearchSessions } from "./research-session";
@@ -332,12 +332,9 @@ export function apply(ctx: Context) {
       terminal,
     });
     const prev = lastTrajectory.get(sessionId);
-    if (prev && sameTaskTrajectory(prev, next)) return prev;
-    if (prev?.steps.length && !next.steps.length && (next.openState === 'cold' || next.openState === 'loading')) {
-      return { ...prev, openState: next.openState, running: next.running || prev.running, streaming: next.streaming || prev.streaming };
-    }
-    lastTrajectory.set(sessionId, next);
-    return next;
+    const stable = stableTaskTrajectory(prev, next);
+    if (stable !== prev) lastTrajectory.set(sessionId, stable);
+    return stable;
   };
   const loadTaskHistory = (sessionId: string, signal?: AbortSignal) => ensureTaskHistory({
     client, sessionId, signal, parents: taskParents, loadReportTasks,

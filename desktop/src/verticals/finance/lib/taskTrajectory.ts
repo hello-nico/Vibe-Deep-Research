@@ -237,6 +237,19 @@ export function sameTaskTrajectory(left: TaskTrajectorySnapshot, right: TaskTraj
   return JSON.stringify(left) === JSON.stringify(right);
 }
 
+/**
+ * Choose the snapshot to publish for a store read. useSyncExternalStore requires the same
+ * object while content is unchanged, so an equal projection returns `prev` itself. While a
+ * reopened history is still cold/loading, keep the earlier steps instead of flashing empty.
+ */
+export function stableTaskTrajectory(prev: TaskTrajectorySnapshot | undefined, next: TaskTrajectorySnapshot): TaskTrajectorySnapshot {
+  if (!prev) return next;
+  const candidate = prev.steps.length && !next.steps.length && (next.openState === 'cold' || next.openState === 'loading')
+    ? { ...prev, openState: next.openState, running: next.running || prev.running, streaming: next.streaming || prev.streaming }
+    : next;
+  return sameTaskTrajectory(prev, candidate) ? prev : candidate;
+}
+
 function stepFromNode(node: Record<string, unknown>, index: number): TaskTrajectoryStep | null {
   const kind = String(node.kind || 'event');
   const id = String(node.seq ?? index);

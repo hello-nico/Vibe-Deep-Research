@@ -480,7 +480,8 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(transcript, /finance-assistant-transcript/);
   assert.doesNotMatch(processPanel, /react-router-dom/);
   assert.doesNotMatch(processPanel, /openSession/);
-  assert.match(client, /prev\?\.steps\.length && !next.steps.length/);
+  // 重开时沿用旧步骤且保持引用稳定的逻辑在 stableTaskTrajectory（task_trajectory.test.ts 有行为测试）。
+  assert.match(client, /stableTaskTrajectory\(prev, next\)/);
   const host = readFileSync(new URL("../dsh/finance-ui/host-state.mjs", import.meta.url), "utf8");
   assert.match(host, /unwrapCreatedAgent/);
   assert.match(host, /watchReportRun/);

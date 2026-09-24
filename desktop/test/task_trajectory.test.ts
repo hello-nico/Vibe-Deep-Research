@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { projectTaskTrajectory, toolLabel, visibleProcessPrompt } from '../src/verticals/finance/lib/taskTrajectory.ts';
+import { projectTaskTrajectory, stableTaskTrajectory, toolLabel, visibleProcessPrompt } from '../src/verticals/finance/lib/taskTrajectory.ts';
 
 test('模型请求前的失败由原生 Chat 终态节点回读，且不会重复展示', () => {
   const error = { kind: 'turn-error', seq: 10, time: 50, message: '未配置模型' };
@@ -102,4 +102,15 @@ test('同名计算步骤按算子与窗口起止区分标题', () => {
   assert.match(snap.steps[0].title, /计算 · 区间涨跌/);
   assert.match(snap.steps[0].title, /2026-06-01→2026-09-15/);
   assert.notEqual(snap.steps[0].title, snap.steps[1].title);
+});
+
+test('重新打开过程面板：加载中的空投影沿用旧步骤且反复读取返回同一对象', () => {
+  const loaded = projectTaskTrajectory({ openState: 'ready', raw: { eventNodes: [{ kind: 'user', seq: 1, content: '研究' }] } });
+  const cold = projectTaskTrajectory({ openState: 'cold', raw: undefined });
+  const first = stableTaskTrajectory(loaded, cold);
+  assert.equal(first.steps.length, 1);
+  assert.equal(first.openState, 'cold');
+  // useSyncExternalStore 要求内容未变时返回同一引用，否则无限重渲染（React #185）。
+  assert.equal(stableTaskTrajectory(first, projectTaskTrajectory({ openState: 'cold', raw: undefined })), first);
+  assert.equal(stableTaskTrajectory(loaded, projectTaskTrajectory({ openState: 'ready', raw: { eventNodes: [{ kind: 'user', seq: 1, content: '研究' }] } })), loaded);
 });
