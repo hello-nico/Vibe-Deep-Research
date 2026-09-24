@@ -28,6 +28,7 @@ export function researchRoute(method, pathname) {
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
     '/wiki/research-candidates', '/notes',
     '/research-results/market/preview',
+    '/wiki/objects/status', // read-only batch status (T4-a); POST only for the slug list body
   ].includes(pathname)) return true;
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;

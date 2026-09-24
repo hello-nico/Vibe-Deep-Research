@@ -287,6 +287,8 @@ function sessionRunning(ctx, sessionId) {
   return false;
 }
 
+const SESSION_LOG = /^session(?:\.v\d+)?\.jsonl(?:\.zstd)?$/;
+
 export function persistedSessionExists(sessionId) {
   const home = (process.env.DSH_HOME || '').trim();
   if (!home || !SESSION_ID.test(sessionId || '')) return false;
@@ -294,10 +296,12 @@ export function persistedSessionExists(sessionId) {
   let entries;
   try { entries = fs.readdirSync(root, { withFileTypes: true }); }
   catch (error) { if (error.code === 'ENOENT') return false; throw error; }
-  return entries.some(entry => entry.isDirectory() && (
-    fs.existsSync(path.join(root, entry.name, sessionId, 'session.jsonl.zstd'))
-    || fs.existsSync(path.join(root, entry.name, sessionId, 'session.jsonl'))
-  ));
+  // DSH 0.1.7 writes session.v4.jsonl.zstd; earlier formats wrote session.jsonl(.zstd).
+  return entries.some(entry => {
+    if (!entry.isDirectory()) return false;
+    try { return fs.readdirSync(path.join(root, entry.name, sessionId)).some(name => SESSION_LOG.test(name)); }
+    catch (error) { if (error.code === 'ENOENT' || error.code === 'ENOTDIR') return false; throw error; }
+  });
 }
 
 function liveSessionExists(ctx, sessionId) {

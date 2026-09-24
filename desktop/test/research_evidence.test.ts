@@ -9,6 +9,8 @@ test('company API refresh has one bounded POST facade', () => {
   assert.equal(researchRoute('POST', '/wiki/pages/refresh-api'), true);
   assert.equal(researchRoute('GET', '/wiki/pages/refresh-api'), false);
   assert.equal(researchRoute('POST', '/wiki/pages/publish'), false);
+  assert.equal(researchRoute('POST', '/wiki/objects/status'), true);
+  assert.equal(researchRoute('POST', '/wiki/page-drafts/draft-000000000000000000000000/discard'), false);
 });
 import { EventEmitter } from 'node:events';
 

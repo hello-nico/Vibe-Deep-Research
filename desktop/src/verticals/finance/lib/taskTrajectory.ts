@@ -40,6 +40,8 @@ const TOOL_LABELS: Record<string, string> = {
   topic_get: '读取议题',
   topic_route: '选择议题',
   topic_update: '更新议题',
+  topic_basis_changes: '查看依据变化',
+  wiki_page_diff: '读取研究页变化',
   topic_list_links: '列出议题关联',
   topic_propose_link: '提出议题关联',
   topic_attach_radar_card: '关联资讯卡片',

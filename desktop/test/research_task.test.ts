@@ -87,3 +87,26 @@ test('公司任务首请求前绑定研究身份，同公司去重，不把模�
   assert.equal(loadReportTasks().sessions[first.session_id].run_status, 'failed');
   assert.throws(() => cancelResearchRun(first.session_id), /没有可中止/);
 });
+
+test('会话存在判断识别 DSH 0.1.7 的 session.v4 文件，不把锁文件当会话', async () => {
+  const { persistedSessionExists } = await import('../dsh/finance-ui/host-state.mjs');
+  const fs = await import('node:fs');
+  const os = await import('node:os');
+  const path = await import('node:path');
+  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'dsh-home-'));
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = home;
+  try {
+    const dir = (id: string) => { const d = path.join(home, 'sessions', 'ws', id); fs.mkdirSync(d, { recursive: true }); return d; };
+    const ids = ['session-00000000-0000-4000-8000-000000000001', 'session-00000000-0000-4000-8000-000000000002', 'session-00000000-0000-4000-8000-000000000003', 'session-00000000-0000-4000-8000-000000000004'];
+    fs.writeFileSync(path.join(dir(ids[0]!), 'session.v4.jsonl.zstd'), '');
+    fs.writeFileSync(path.join(dir(ids[1]!), 'session.jsonl.zstd'), '');
+    fs.writeFileSync(path.join(dir(ids[2]!), 'session.jsonl'), '');
+    fs.writeFileSync(path.join(dir(ids[3]!), 'session.lock'), '');
+    assert.deepEqual(ids.map(id => persistedSessionExists(id)), [true, true, true, false]);
+    assert.equal(persistedSessionExists('session-00000000-0000-4000-8000-000000000009'), false);
+  } finally {
+    if (previous === undefined) delete process.env.DSH_HOME; else process.env.DSH_HOME = previous;
+    fs.rmSync(home, { recursive: true, force: true });
+  }
+});

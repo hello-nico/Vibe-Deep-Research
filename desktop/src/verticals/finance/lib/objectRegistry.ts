@@ -1,4 +1,5 @@
-import { documentReadSearch, listLibraryDocuments, parseDocumentRef } from './library';
+import { documentReadSearch, libraryKindLabel, libraryStatusLabel, listLibraryDocuments, parseDocumentRef } from './library';
+import { companyIndustryLabel } from './companyRoster';
 import { cachedObjectLabel, rememberObjectLabel } from './objectLabels';
 import { researchRead, wikiPages, type ResearchTopicSummary } from './research';
 import { companySlug } from './researchSymbol';
@@ -19,6 +20,12 @@ export function normalizeResearchTarget(target: string): string | undefined {
   const code = text.replace(/^companies\//, '').replace(/\.(SH|SZ|BJ)$/i, '');
   return companySlug(code) || (text.startsWith('companies/') ? text : undefined);
 }
+
+/** Hover-preview facts gathered from the same list reads that supply names; memory only. */
+export type ObjectFacts = { meta?: string; summary?: string; asOf?: string };
+const facts = new Map<string, ObjectFacts>();
+const TOPIC_STATE: Record<string, string> = { gathering: '收集中', provisional: '初步判断', blocked: '受阻' };
+const day = (value?: string | null) => (value ? String(value).slice(0, 10) : undefined);
 
 const fiveMinutes = 5 * 60_000;
 const batches = new Map<string, { until: number; promise: Promise<void> }>();
@@ -41,7 +48,12 @@ function wikiEntry(kind: 'company' | 'industry' | 'theme' | 'comparison', prefix
     label: ref => cachedObjectLabel(ref) || fallback,
     resolve: () => batch(`wiki:${backendKind}`, async () => {
       const pages = await wikiPages(backendKind);
-      for (const page of pages) rememberObjectLabel(page.slug, page.title);
+      for (const page of pages) {
+        rememberObjectLabel(page.slug, page.title);
+        const code = /^companies\/(\d{6})-/.exec(page.slug)?.[1];
+        const meta = [code, companyIndustryLabel(page.summary)].filter(Boolean).join(' · ');
+        facts.set(page.slug, { meta: meta || undefined, summary: page.summary?.one_liner || undefined, asOf: day(page.summary?.as_of) });
+      }
     }),
   };
 }
@@ -58,7 +70,13 @@ const entries: Entry[] = [
     resolve: () => batch('documents', async () => {
       for (let offset = 0; ; offset += 100) {
         const page = await listLibraryDocuments({ offset, limit: 100 });
-        for (const item of page.items) rememberObjectLabel(`document:${item.document_id}`, item.title || '未命名资料');
+        for (const item of page.items) {
+          rememberObjectLabel(`document:${item.document_id}`, item.title || '未命名资料');
+          facts.set(`document:${item.document_id}`, {
+            meta: [libraryKindLabel(item.extra?.content_type), day(item.created_at), libraryStatusLabel(item)].filter(Boolean).join(' · '),
+            summary: item.extra?.preview || undefined,
+          });
+        }
         if (offset + 100 >= page.total) return;
       }
     }),
@@ -71,7 +89,14 @@ const entries: Entry[] = [
       await Promise.all((['active', 'archived'] as const).map(async pool => {
         for (let offset = 0; ; offset += 100) {
           const page = await researchRead<{ items: ResearchTopicSummary[]; total?: number }>(`/wiki/research-topics?pool=${pool}&limit=100&offset=${offset}`);
-          for (const item of page.items) rememberObjectLabel(item.topic_id, item.title);
+          for (const item of page.items) {
+            rememberObjectLabel(item.topic_id, item.title);
+            const state = TOPIC_STATE[item.judgment?.state || ''];
+            facts.set(item.topic_id, {
+              meta: [state, item.last_touched_at && `更新于 ${day(item.last_touched_at)}`].filter(Boolean).join(' · ') || undefined,
+              summary: item.judgment?.text || item.user_claim || undefined,
+            });
+          }
           if (page.items.length < 100 || (page.total != null && offset + 100 >= page.total)) break;
         }
       }));
@@ -101,6 +126,13 @@ export function registeredObject(ref: string): RegisteredObject | undefined {
   return undefined;
 }
 export const objectHref = (ref: string) => registeredObject(ref)?.href;
+/** Cached preview facts for a registered object; keyed by its identity without version suffix. */
+export function objectFacts(ref: string): ObjectFacts | undefined {
+  const object = registeredObject(ref);
+  if (!object) return undefined;
+  const key = object.kind === 'document' ? /^document:[a-f0-9]{32}/.exec(ref)?.[0] || ref : object.id;
+  return facts.get(key);
+}
 export const objectLabel = (ref: string) => registeredObject(ref)?.label || cachedObjectLabel(ref) || '引用';
 export async function resolveObjectLabels(refs: readonly string[]): Promise<void> {
   const missing = new Set(refs.filter(ref => !cachedObjectLabel(ref)).map(ref => registeredObject(ref)?.kind).filter(Boolean));

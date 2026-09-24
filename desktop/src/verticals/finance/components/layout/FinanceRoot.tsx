@@ -4,6 +4,7 @@ import { ResearchSessionContext, type ResearchSessions } from '../../dsh/researc
 import { TopicSessionGateProvider } from '../../dsh/topic-session-gate';
 import { FinanceAssistantSurfaceProvider } from './FinanceAssistantSurface';
 import { TaskProcessPanel } from '../TaskProcessPanel';
+import { ObjectPreviewLayer } from '../ObjectPreview';
 
 function TaskProcessSeat({ research }: { research: ResearchSessions }) {
   const subscribe = research.subscribeTaskProcess || ((listener: () => void) => { void listener; return () => {}; });
@@ -25,6 +26,7 @@ export function FinanceRoot({ slots, research, sessionError, children }: {
       <ResearchSessionContext.Provider value={research}>
       <TopicSessionGateProvider>{children}</TopicSessionGateProvider>
       <TaskProcessSeat research={research} />
+      <ObjectPreviewLayer />
     </ResearchSessionContext.Provider>
       {sessionError && <div role="alert" className="fixed bottom-4 right-4 z-50 rounded border bg-background p-4">{sessionError}</div>}
       {slots.renderSlot('shell.overlay', {})}
