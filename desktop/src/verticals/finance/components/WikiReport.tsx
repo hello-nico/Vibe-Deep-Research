@@ -7,6 +7,7 @@ import { remarkCitationMarks } from '../lib/citationMarks';
 import { EvidenceLink } from './EvidenceCard';
 import { symbolFromCompanySlug, type WikiBlock, type WikiPage } from '../lib/research';
 import { factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
+import { objectLabel, openRegisteredObject, registeredObject } from '../lib/objectRegistry';
 import './wiki-report.css';
 
 // 下面四类底稿的阅读顺序同时写在 Stock 的 wiki_report 角色提示中（reportTaskPrompt），生成任务按它组织；改动阅读顺序时两处同步。
@@ -15,7 +16,13 @@ export function KnowledgeText({ markdown }: { markdown: string }) {
   const body = markdown.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
   return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 prose-headings:tracking-tight prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border/60 prose-h2:pb-3 prose-table:text-xs dark:prose-invert overflow-x-auto"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCitationMarks]} urlTransform={url => decodeEvidenceLink(url) ? url : defaultUrlTransform(url)} components={{ a: ({ href, children }) => {
     const reference = decodeEvidenceLink(href || '');
-    return reference ? <EvidenceLink reference={reference}>{children}</EvidenceLink> : <a href={href}>{children}</a>;
+    if (reference) return <EvidenceLink reference={reference}>{children}</EvidenceLink>;
+    const target = href?.replace(/^\//, '');
+    const object = target && registeredObject(target);
+    if (object) return object.href || object.drawer
+      ? <button type="button" className="finance-citation" onClick={() => openRegisteredObject(target)}>{objectLabel(target)}</button>
+      : <span>{objectLabel(target)}</span>;
+    return <a href={href}>{children}</a>;
   } }}>{body}</ReactMarkdown></div>;
 }
 
@@ -257,7 +264,7 @@ function ResearchSections({ page }: { page: WikiPage }) {
   })}</>;
 }
 
-function CompanyReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (slug: string) => void }) {
+function CompanyReport({ page }: { page: WikiPage }) {
   return <Shell page={page} lead={<CompanyLead page={page} />}>
     <ResearchSections page={page} />
     {(['operating_facts', 'financial_facts', 'valuation_facts'] as const).map(kind => {
@@ -273,23 +280,24 @@ function CompanyReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (slu
     <Section title="资料时间线" refs={blockOf(page, 'source_timeline')?.refs}><SourceTimeline content={contentDict(page, 'source_timeline') ?? undefined} /></Section>
     {!isPending(blockOf(page, 'attention')) && <Section title="关注点" refs={blockOf(page, 'attention')?.refs}><Prose content={blockOf(page, 'attention')?.content} /></Section>}
     <Gaps block={blockOf(page, 'gaps')} />
-    <IndustryMembers page={page} onOpenSlug={onOpenSlug} linkType="related_to" title="相关页面" />
+    <IndustryMembers page={page} linkType="related_to" title="相关页面" />
   </Shell>;
 }
 
-function IndustryMembers({ page, onOpenSlug, linkType, title }: { page: WikiPage; onOpenSlug?: (slug: string) => void; linkType: string; title: string }) {
+function IndustryMembers({ page, linkType, title }: { page: WikiPage; linkType: string; title: string }) {
   const links = (page.spec.links ?? []).filter(link => link.type === linkType);
   if (!links.length) return null;
   return <Section title={title}>
     <ul className="wr-members">{links.map(link => {
       const symbol = symbolFromCompanySlug(link.to);
-      const label = symbol ? `${symbol}.${link.to.endsWith('sh') ? 'SH' : link.to.endsWith('bj') ? 'BJ' : 'SZ'}` : link.to;
-      return <li key={link.to}>{onOpenSlug ? <button type="button" onClick={() => onOpenSlug(link.to)}>{label}</button> : <span>{label}</span>}</li>;
+      const label = symbol ? `${symbol}.${link.to.endsWith('sh') ? 'SH' : link.to.endsWith('bj') ? 'BJ' : 'SZ'}` : objectLabel(link.to);
+      const object = registeredObject(link.to);
+      return <li key={link.to}>{object?.href || object?.drawer ? <button type="button" onClick={() => openRegisteredObject(link.to)}>{label}</button> : <span>{label}</span>}</li>;
     })}</ul>
   </Section>;
 }
 
-function IndustryReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (slug: string) => void }) {
+function IndustryReport({ page }: { page: WikiPage }) {
   const identity = contentDict(page, 'identity');
   const coverage = dict(identity?.coverage);
   return <Shell page={page} lead={<>
@@ -301,7 +309,7 @@ function IndustryReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (sl
     ].filter(Boolean).join(' · ')}</p>}
   </>}>
     {blockOf(page, 'scope') && <Section title="范围" refs={blockOf(page, 'scope')?.refs}><Prose content={blockOf(page, 'scope')?.content} /></Section>}
-    <IndustryMembers page={page} onOpenSlug={onOpenSlug} linkType="contains" title="成员公司" />
+    <IndustryMembers page={page} linkType="contains" title="成员公司" />
     {(['operating_model', 'industry_structure', 'relation_summary', 'attention'] as const).map(kind => {
       const block = blockOf(page, kind);
       if (!block || isPending(block)) return null;
@@ -391,10 +399,10 @@ function ComparisonReport({ page }: { page: WikiPage }) {
 }
 
 /** Type-specific deterministic base report; generated HTML versions layer on top later. */
-export function WikiReport({ page, onOpenSlug }: { page: WikiPage; onOpenSlug?: (slug: string) => void }) {
+export function WikiReport({ page }: { page: WikiPage }) {
   switch (page.spec.type) {
-    case 'company': return <CompanyReport page={page} onOpenSlug={onOpenSlug} />;
-    case 'industry': return <IndustryReport page={page} onOpenSlug={onOpenSlug} />;
+    case 'company': return <CompanyReport page={page} />;
+    case 'industry': return <IndustryReport page={page} />;
     case 'theme': return <ThemeReport page={page} />;
     case 'comparison': return <ComparisonReport page={page} />;
     default: return null;

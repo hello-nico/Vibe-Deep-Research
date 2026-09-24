@@ -29,12 +29,43 @@ const day = (value?: string | null) => (value ? String(value).slice(0, 10) : und
 
 const fiveMinutes = 5 * 60_000;
 const batches = new Map<string, { until: number; promise: Promise<void> }>();
+const readableWiki = new Map<string, { until: number; slugs: Set<string> }>();
+const readyProfiles = new Map<string, string>();
+let profilesUntil = 0;
+let profilesRequest: Promise<void> | undefined;
 function batch(key: string, read: () => Promise<void>): Promise<void> {
   const previous = batches.get(key);
   if (previous && previous.until > Date.now()) return previous.promise;
   const promise = read().catch(() => { batches.delete(key); });
   batches.set(key, { until: Date.now() + fiveMinutes, promise });
   return promise;
+}
+/** /wiki/pages lists only pages with a readable spec; /related also includes unfinished links. */
+export async function readableRelatedWikiRefs(refs: readonly string[]): Promise<Set<string>> {
+  const kinds = [...new Set(refs.map(ref => /^(companies|industries|themes|comparisons)\//.exec(ref)?.[1]).filter((kind): kind is string => !!kind))];
+  await Promise.all(kinds.map(async kind => {
+    const cached = readableWiki.get(kind);
+    if (cached && cached.until > Date.now()) return;
+    const pages = await wikiPages(kind);
+    readableWiki.set(kind, { until: Date.now() + fiveMinutes, slugs: new Set(pages.map(page => page.slug)) });
+    for (const page of pages) rememberObjectLabel(page.slug, page.title);
+  }));
+  return new Set(refs.filter(ref => {
+    const kind = /^(companies|industries|themes|comparisons)\//.exec(ref)?.[1];
+    return kind && readableWiki.get(kind)?.slugs.has(ref);
+  }));
+}
+
+/** A legacy SW industry link is navigable only when its current profile is ready. */
+export async function loadReadyIndustryProfiles(): Promise<void> {
+  if (profilesUntil > Date.now()) return;
+  if (!profilesRequest) profilesRequest = researchRead<{ items: { industry_code: string; industry_name?: string; status: string }[] }>('/industries/profiles')
+    .then(value => {
+      readyProfiles.clear();
+      for (const item of value.items) if (item.status === 'ready') readyProfiles.set(item.industry_code.toUpperCase(), item.industry_name || '产业研究');
+      profilesUntil = Date.now() + fiveMinutes;
+    }).catch(error => { readyProfiles.clear(); throw error; }).finally(() => { profilesRequest = undefined; });
+  await profilesRequest;
 }
 function wikiEntry(kind: 'company' | 'industry' | 'theme' | 'comparison', prefix: string, backendKind: string, fallback: string, href: (id: string) => string | undefined): Entry {
   return {
@@ -119,6 +150,11 @@ const entries: Entry[] = [
 ];
 
 export function registeredObject(ref: string): RegisteredObject | undefined {
+  const legacyIndustry = /^industries\/(\d{6})-si$/i.exec(ref);
+  if (legacyIndustry) {
+    const code = `${legacyIndustry[1]}.SI`;
+    return { kind: 'profile', ref, id: code, label: '产业研究', href: readyProfiles.has(code) ? `/sectors/profiles/${encodeURIComponent(code)}` : undefined };
+  }
   for (const entry of entries) {
     const id = entry.parse(ref);
     if (id) return { kind: entry.kind, ref, id, href: entry.href(id), label: entry.label(ref), drawer: entry.kind === 'theme' || entry.kind === 'comparison' };

@@ -26,6 +26,6 @@ export function WikiDrawer() {
     <header className="flex shrink-0 items-center justify-between border-b p-5"><h2 className="font-semibold">{objectLabel(slug)}</h2>
       <button ref={closeButton} type="button" aria-label="关闭研究材料" onClick={() => setSlug('')}><X size={18} /></button>
     </header>
-    <div className="min-h-0 flex-1 overflow-auto p-5"><WikiReader key={slug} slug={slug} revision={revision} hideToggle standalone /></div>
+    <div className="min-h-0 flex-1 overflow-auto p-5"><WikiReader key={slug} slug={slug} revision={revision} hideToggle /></div>
   </aside>;
 }

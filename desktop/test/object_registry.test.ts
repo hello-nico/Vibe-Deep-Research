@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { loadFinanceModule } from './load_finance_module.ts';
 
-const { objectHref, objectLabel, registeredObject, resolveObjectLabels, rememberObjectLabel } = await loadFinanceModule<typeof import('../src/verticals/finance/lib/objectRegistry.ts') & { rememberObjectLabel: (ref: string, label: string) => void }>('lib/objectRegistry.ts');
+const { objectHref, objectLabel, registeredObject, resolveObjectLabels, rememberObjectLabel, loadReadyIndustryProfiles, readableRelatedWikiRefs } = await loadFinanceModule<typeof import('../src/verticals/finance/lib/objectRegistry.ts') & { rememberObjectLabel: (ref: string, label: string) => void }>('lib/objectRegistry.ts');
 
 test('对象登记层给出主页、版本查询和抽屉', () => {
   assert.equal(objectHref('companies/600309'), '/research?company=companies%2F600309-sh');
@@ -48,4 +48,40 @@ test('研究材料页面已下线，旧路径由通配路由重定向', () => {
   const source = readFileSync(new URL('../src/verticals/finance/router.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /path: "\/my-research\/material"/);
   assert.match(source, /path: "\/my-research\/\*", element: <Navigate to="\/my-research" replace \/>/);
+});
+
+test('申万旧页仅在产业研究已就绪时映射到主页', async () => {
+  const original = globalThis.fetch;
+  assert.equal(objectHref('industries/801161-si'), undefined);
+  assert.equal(objectLabel('industries/801161-si'), '产业研究');
+  globalThis.fetch = async () => new Response(JSON.stringify({ items: [
+    { industry_code: '801161.SI', industry_name: '电力', status: 'ready' },
+    { industry_code: '801162.SI', industry_name: '电网', status: 'building' },
+  ] }), { status: 200, headers: { 'content-type': 'application/json' } });
+  try {
+    await loadReadyIndustryProfiles();
+    assert.equal(objectHref('industries/801161-si'), '/sectors/profiles/801161.SI');
+    assert.equal(objectHref('industries/801162-si'), undefined);
+  } finally { globalThis.fetch = original; }
+});
+
+test('相关材料仅保留 Backend 可读页清单中的 slug', async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async input => {
+    const url = String(input);
+    assert.match(url, /kind=themes/);
+    return new Response(JSON.stringify({ items: [{ slug: 'themes/readable', title: '可读主题' }], total: 1 }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  try {
+    const readable = await readableRelatedWikiRefs(['themes/readable', 'themes/unreadable']);
+    assert.deepEqual([...readable], ['themes/readable']);
+  } finally { globalThis.fetch = original; }
+});
+
+test('阅读器不保留站内材料栈，链接由对象登记层跳转', () => {
+  const source = readFileSync(new URL('../src/verticals/finance/components/ResearchKnowledge.tsx', import.meta.url), 'utf8');
+  assert.doesNotMatch(source, /setTrail|useSearchParams|params\.set\('reader'\)|返回上一份材料/);
+  assert.match(source, /openRegisteredObject\(item\.slug\)/);
+  const report = readFileSync(new URL('../src/verticals/finance/components/WikiReport.tsx', import.meta.url), 'utf8');
+  assert.match(report, /openRegisteredObject\(link\.to\)/);
 });

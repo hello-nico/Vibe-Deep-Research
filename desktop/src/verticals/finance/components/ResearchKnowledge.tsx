@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { useSearchParams } from 'react-router-dom';
 import { Building2, ChartNoAxesCombined, Landmark, Scale, ScanEye, BookOpen } from 'lucide-react';
 import { GlassCard } from './ui/GlassCard';
 import { EvidenceLink } from './EvidenceCard';
@@ -10,6 +9,7 @@ import { ObjectReport } from './ObjectReport';
 import { KnowledgeText, SourceTimeline } from './WikiReport';
 import { WikiReportPane } from './WikiReportPane';
 import { cn } from '@/lib/utils';
+import { loadReadyIndustryProfiles, objectLabel, openRegisteredObject, readableRelatedWikiRefs, registeredObject } from '../lib/objectRegistry';
 
 export { WikiLoading, wikiLoadingSections } from './WikiLoading';
 export { KnowledgeText } from './WikiReport';
@@ -75,7 +75,7 @@ export function ReferenceButtons({ refs }: { refs: string[] }) {
     {!readable.length && <p className="text-sm text-muted-foreground">尚无可回读依据。</p>}
   </section>;
 }
-export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false, reportActionSlot = null, standalone = false }: {
+export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0, renderLoading = value => <WikiLoading slug={value} />, report: reportProp, onReportChange, hideToggle = false, reportActionSlot = null }: {
   slug: string;
   onMarkdown?: (markdown: string) => void;
   onPage?: (page: WikiPage | null) => void;
@@ -87,43 +87,38 @@ export function WikiReader({ slug, onMarkdown, onPage, onLoadState, revision = 0
   hideToggle?: boolean;
   /** Page toolbar action group that receives the report's regenerate action. */
   reportActionSlot?: HTMLElement | null;
-  standalone?: boolean;
 }) {
   const [internalReport, setInternalReport] = useState(false);
   const report = reportProp ?? internalReport;
   const setReport = onReportChange ?? setInternalReport;
-  const [search, setSearch] = useSearchParams();
-  const restored = standalone ? null : search.get('reader');
-  const [trail, setTrail] = useState<string[]>(() => restored && restored !== slug ? [slug, restored] : [slug]);
   const [related, setRelated] = useState<{ slug: string; title: string }[]>([]);
   const [linkError, setLinkError] = useState('');
-  useEffect(() => { setTrail(restored && restored !== slug ? [slug, restored] : [slug]); }, [slug]);
-  const active = trail[trail.length - 1] || slug;
+  const [, setProfileVersion] = useState(0);
+  useEffect(() => {
+    let active = true;
+    void loadReadyIndustryProfiles().then(() => { if (active) setProfileVersion(value => value + 1); }).catch(() => {});
+    return () => { active = false; };
+  }, [slug]);
   useEffect(() => {
     const controller = new AbortController();
     setRelated([]); setLinkError('');
-    void researchRead<{ items: typeof related }>(`/wiki/pages/related?slug=${encodeURIComponent(active)}`, { signal: controller.signal })
-      .then(value => setRelated(value.items)).catch(e => { if (!controller.signal.aborted) setLinkError(e instanceof ResearchError ? e.message : '相关材料暂时无法读取'); });
+    void researchRead<{ items: typeof related }>(`/wiki/pages/related?slug=${encodeURIComponent(slug)}`, { signal: controller.signal })
+      .then(async value => {
+        const readable = await readableRelatedWikiRefs(value.items.map(item => item.slug));
+        if (!controller.signal.aborted) setRelated(value.items.filter(item => readable.has(item.slug)));
+      }).catch(e => { if (!controller.signal.aborted) setLinkError(e instanceof ResearchError ? e.message : '相关材料暂时无法核对'); });
     return () => controller.abort();
-  }, [active]);
-  const navigate = (next: string[]) => {
-    setTrail(next);
-    if (standalone) return;
-    setSearch(previous => {
-      const params = new URLSearchParams(previous);
-      if (next.length > 1) params.set('reader', next[next.length - 1] || slug); else params.delete('reader');
-      return params;
-    }, { replace: true });
-  };
-  const open = (next: string) => {
-    const existing = trail.indexOf(next);
-    navigate(existing >= 0 ? trail.slice(0, existing + 1) : [...trail.slice(-31), next]);
-  };
+  }, [slug]);
   return <div>
     {!hideToggle && <div className="mb-4"><WikiViewTabs report={report} onChange={setReport} /></div>}
-    {trail.length > 1 && <button type="button" className="workspace-action mb-4" onClick={() => navigate(trail.slice(0, -1))}>返回上一份材料</button>}
-    <WikiBody key={active} slug={active} report={report} revision={active === slug ? revision : 0} renderLoading={renderLoading} onMarkdown={onMarkdown} onPage={active === slug ? onPage : undefined} onLoadState={onLoadState} reportActionSlot={active === slug ? reportActionSlot : null} />
-    {!report && !!related.length && <GlassCard className="mt-4"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="flex flex-wrap gap-2">{related.map(item => <button key={item.slug} className="workspace-action" onClick={() => open(item.slug)}>{item.title}</button>)}</div></GlassCard>}
+    <WikiBody key={slug} slug={slug} report={report} revision={revision} renderLoading={renderLoading} onMarkdown={onMarkdown} onPage={onPage} onLoadState={onLoadState} reportActionSlot={reportActionSlot} />
+    {!report && !!related.length && <GlassCard className="mx-auto mt-4 max-w-4xl"><h3 className="mb-3 text-sm font-semibold">相关研究材料</h3><div className="finance-cite-root flex flex-wrap gap-2">{related.map(item => {
+      const object = registeredObject(item.slug);
+      const label = objectLabel(item.slug);
+      return object?.href || object?.drawer
+        ? <button key={item.slug} type="button" className="finance-citation" onClick={() => openRegisteredObject(item.slug)}>{label}</button>
+        : <span key={item.slug} className="finance-citation !cursor-default">{label}</span>;
+    })}</div></GlassCard>}
     {linkError && <p role="status" className="mt-3 text-sm text-muted-foreground">{linkError}</p>}
   </div>;
 }
