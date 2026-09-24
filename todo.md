@@ -22,6 +22,8 @@
 
 ## 4. 随时可插入：问助手回答存入沉淀
 
+2026-09-24 Vibe A（保存按钮）与 Stock B（Agent 读取）均已实施并通过各自自动检查，执行证据见 [Task §9](docs/问助手回答存入沉淀_Task_2026-09-23.md)；待用户验收，验收后本节移出。
+
 2026-09-23 用户确认（[Task](docs/问助手回答存入沉淀_Task_2026-09-23.md)，现有零件已具备）：
 - 存储沿用 Backend 研究记录（notes，分类 `ask`），不写 Client SQLite（AGENTS.md：Client SQLite 只存选择与偏好；Agent 工具在 Stock 插件，天然读 Backend）。
 - 问助手回答下加「保存为记录」（复用 `SaveNoteButton` 现有文案），保存问题、回答、本轮引用与页面来源。

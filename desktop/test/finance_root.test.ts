@@ -10,6 +10,7 @@ test('外壳组合保持研究上下文，并在同一树内装配助手与原�
   const server = await createServer({
     configFile: false, esbuild: { jsx: 'automatic' },
     root: fileURLToPath(new URL('../', import.meta.url)),
+    resolve: { alias: [{ find: '@', replacement: fileURLToPath(new URL('../src/verticals/finance', import.meta.url)) }] },
     server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom',
   });
   try {

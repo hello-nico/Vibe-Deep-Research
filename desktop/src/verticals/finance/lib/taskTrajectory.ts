@@ -101,6 +101,44 @@ export function visibleProcessPrompt(body: string): string {
   return visible;
 }
 
+export function askNoteTitle(question: string): string {
+  return `问助手 · ${(question || '').trim().slice(0, 40)}`;
+}
+
+export function askNoteContent(input: { question: string; answer: string; pageName: string; finishedAt?: number }): string {
+  const when = input.finishedAt
+    ? new Date(input.finishedAt).toLocaleString('zh-CN', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+    : '';
+  return [
+    '## 问题',
+    (input.question || '').trim(),
+    '## 回答',
+    input.answer || '',
+    '',
+    '---',
+    `来源：${input.pageName}${when ? ` · ${when}` : ''}`,
+  ].join('\n');
+}
+
+/** 每一轮已结束的最终 assistant 步骤 → 保存所需内容；配对问题取最近一次 user 步骤。 */
+export function assistantTurnSaves(steps: TaskTrajectoryStep[], running = false): Map<string, { question: string; answer: string; finishedAt?: number }> {
+  const saves = new Map<string, { question: string; answer: string; finishedAt?: number }>();
+  let question = '';
+  steps.forEach((step, index) => {
+    if (step.kind === 'user') {
+      question = visibleUserPrompt(step.body || '');
+      return;
+    }
+    if (step.kind !== 'assistant') return;
+    // The last step of a still-running turn is only the latest output, not the turn's answer.
+    const turnFinal = index === steps.length - 1 ? !running : steps[index + 1]?.kind === 'user';
+    if (turnFinal && question && step.body && !step.streaming && !step.failed) {
+      saves.set(step.id, { question, answer: step.body, finishedAt: step.time });
+    }
+  });
+  return saves;
+}
+
 export function extractResultIds(text: string): string[] {
   return [...new Set(String(text || '').match(/result:[0-9a-f]{32}/g) || [])];
 }

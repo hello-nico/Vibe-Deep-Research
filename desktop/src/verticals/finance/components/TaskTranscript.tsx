@@ -2,9 +2,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ComponentType 
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useResearchSessions, type TaskTrajectoryStep } from '../dsh/research-session';
-import { durationLabel, emptyTaskTrajectory, extractBoundSources, extractResultIds, visibleProcessPrompt, visibleUserPrompt } from '../lib/taskTrajectory';
+import { durationLabel, emptyTaskTrajectory, askNoteContent, askNoteTitle, assistantTurnSaves, extractBoundSources, extractResultIds, visibleProcessPrompt, visibleUserPrompt } from '../lib/taskTrajectory';
 import { decodeEvidenceLink } from '../lib/evidence';
 import { outboundWebUrl, remarkCitationMarks } from '../lib/citationMarks';
+import { SaveNoteButton } from './ui/SaveNoteButton';
 
 const noopSubscribe = () => () => {};
 const emptySnapshot = () => emptyTaskTrajectory;
@@ -73,7 +74,9 @@ function BoundSourceList({ body }: { body?: string }) {
   );
 }
 
-function StepRow({ step, compactUser = false }: { step: TaskTrajectoryStep; compactUser?: boolean }) {
+type TurnSave = { question: string; answer: string; finishedAt?: number };
+
+function StepRow({ step, compactUser = false, save, pageName }: { step: TaskTrajectoryStep; compactUser?: boolean; save?: TurnSave; pageName?: string }) {
   const user = step.kind === 'user';
   const assistant = step.kind === 'assistant';
   const visible = user ? (compactUser ? visibleProcessPrompt(step.body || '') : visibleUserPrompt(step.body || '')) : step.body;
@@ -101,6 +104,15 @@ function StepRow({ step, compactUser = false }: { step: TaskTrajectoryStep; comp
         {visible && <AssistantMarkdown markdown={visible} />}
         {step.streaming && !visible && <p className="text-xs text-muted-foreground">正在生成…</p>}
         {resultIds.length > 0 && <ResultEmbeds ids={resultIds} />}
+        {save && pageName && (
+          <div className="mt-2">
+            <SaveNoteButton
+              kind="问助手"
+              title={askNoteTitle(save.question)}
+              content={askNoteContent({ question: save.question, answer: save.answer, pageName, finishedAt: save.finishedAt })}
+            />
+          </div>
+        )}
       </li>
     );
   }
@@ -138,7 +150,7 @@ export function useTaskTrajectory(sessionId?: string) {
   return store;
 }
 
-export function TaskTranscript({ sessionId, intro, compactUser = false }: { sessionId: string; intro?: string; compactUser?: boolean }) {
+export function TaskTranscript({ sessionId, intro, compactUser = false, saveTurns }: { sessionId: string; intro?: string; compactUser?: boolean; saveTurns?: { pageName: string } }) {
   const sessions = useResearchSessions();
   const store = useMemo(() => {
     try { return sessions.trajectory(sessionId); }
@@ -151,6 +163,10 @@ export function TaskTranscript({ sessionId, intro, compactUser = false }: { sess
   const failed = Boolean(snap.failed || live?.lastAgentError || live?.promptError);
   const [loadingOlder, setLoadingOlder] = useState(false);
   const hasEvents = snap.steps.length > 0 || snap.runningCalls.length > 0;
+  const turnSaves = useMemo(
+    () => (saveTurns ? assistantTurnSaves(snap.steps, snap.running || snap.streaming) : null),
+    [saveTurns, snap.steps, snap.running, snap.streaming],
+  );
   const status = running || snap.streaming || snap.openState === 'cold' || snap.openState === 'loading'
     ? '生成中…'
     : failed || snap.openState === 'error'
@@ -180,7 +196,17 @@ export function TaskTranscript({ sessionId, intro, compactUser = false }: { sess
       {!hasEvents && intro && !running && snap.openState === 'open' && (
         <p className="finance-assistant-turn is-assistant">{intro}</p>
       )}
-      <ol className="finance-assistant-transcript">{snap.steps.map(step => <StepRow key={step.id} step={step} compactUser={compactUser} />)}</ol>
+      <ol className="finance-assistant-transcript">
+        {snap.steps.map(step => (
+          <StepRow
+            key={step.id}
+            step={step}
+            compactUser={compactUser}
+            save={turnSaves?.get(step.id)}
+            pageName={saveTurns?.pageName}
+          />
+        ))}
+      </ol>
     </div>
   );
 }

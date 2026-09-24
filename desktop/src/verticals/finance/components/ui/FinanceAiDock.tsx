@@ -172,8 +172,8 @@ function AssistantModelSelect({ sessionId }: { sessionId: string }) {
   );
 }
 
-function AssistantTranscript({ sessionId, intro }: { sessionId: string; intro: string }) {
-  return <TaskTranscript sessionId={sessionId} intro={intro} />;
+function AssistantTranscript({ sessionId, intro, pageName }: { sessionId: string; intro: string; pageName: string }) {
+  return <TaskTranscript sessionId={sessionId} intro={intro} saveTurns={{ pageName }} />;
 }
 
 function mentionStart(text: string, caret: number): number {
@@ -457,7 +457,7 @@ export function FinanceAiDock({ renderPanel }: Pick<AiDockProps, "renderPanel">)
               </button>
             </div>
           </div>
-          {sessionId && binding ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} /> : (
+          {sessionId && binding ? <AssistantTranscript sessionId={sessionId} intro={assistantIntro(binding.plugin, page.key)} pageName={page.title} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
               <p>{error || "正在准备，马上就好…"}</p>
             </div>
