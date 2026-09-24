@@ -51,3 +51,4 @@
 - Task 引用上层权威，不复制全文；不超过 200 行，必须有 Out of Scope 和 Stop Conditions。
 - 确认的决策先记录再用于实施。Execute、Review、Smoke 使用同一 Task，不另造状态文档。
 - 更新事实的现有 Owner；不创建平行协调记录，不使用 `.ai-dev-workflow/current.md`。
+- 协作方式、Task 模板、并行与合并、审阅要点见 [开发工作流范式](docs/开发工作流范式.md)。
