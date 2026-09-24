@@ -10,19 +10,18 @@
 @media (min-width: 768px) {
   :root { --finance-assistant-inline: 2rem; }
 }
+/* 问助手、查看依据、任务过程是同一种右侧面板：同一位置、同一宽度，主内容按同一规则让位。 */
 @media (min-width: 1100px) {
-  body.vibe-dsh-host:has(.finance-assistant-panel[data-open="true"]) #workspace-main {
+  body.vibe-dsh-host:has(.finance-assistant-panel[data-open="true"], .finance-side-panel) #workspace-main {
     margin-right: calc(var(--finance-assistant-width) + var(--finance-assistant-inline));
   }
-  body.vibe-dsh-host:has(.finance-assistant-panel[data-open="true"]) .workspace-content {
+  body.vibe-dsh-host:has(.finance-assistant-panel[data-open="true"], .finance-side-panel) .workspace-content {
     max-width: none;
     padding-right: var(--finance-assistant-inline);
   }
-  body.vibe-dsh-host:has(.finance-evidence-panel, .finance-task-process) #workspace-main {
-    margin-right: 29.5rem;
-  }
 }
-.finance-assistant-panel {
+.finance-assistant-panel,
+.finance-side-panel {
   position: fixed;
   top: var(--finance-assistant-top);
   right: var(--finance-assistant-inline);
@@ -30,6 +29,38 @@
   z-index: 50;
   display: flex;
   width: min(var(--finance-assistant-width), calc(100vw - 1.5rem));
+}
+.finance-evidence-panel { z-index: 60; }
+body.finance-side-resizing,
+body.finance-side-resizing * { cursor: col-resize !important; user-select: none; }
+body.finance-side-resizing #workspace-main { transition: none; }
+.finance-side-resize {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -5px;
+  z-index: 1;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+}
+.finance-side-resize::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 3px;
+  width: 4px;
+  height: 2.5rem;
+  border-radius: 999px;
+  background: hsl(var(--border));
+  opacity: 0;
+  transform: translateY(-50%);
+  transition: opacity 160ms ease;
+}
+.finance-side-resize:hover::after,
+body.finance-side-resizing .finance-side-resize::after { opacity: 1; background: hsl(var(--primary) / .5); }
+@media (max-width: 1099px) { .finance-side-resize { display: none; } }
+.finance-assistant-panel {
   transform-origin: right center;
   opacity: 0;
   transform: translateX(1.25rem);

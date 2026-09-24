@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import './research-surfaces.css';
+import { SidePanelResizeHandle, useSidePanelWidth } from './SidePanelResize';
 
 const SurfaceContext = createContext<{
   target: HTMLDivElement | null;
@@ -10,6 +11,7 @@ const SurfaceContext = createContext<{
 /** Only the mount location lives here; dialogue state stays with its owner. */
 export function FinanceAssistantSurfaceProvider({ children }: { children: ReactNode }) {
   const [target, setTarget] = useState<HTMLDivElement | null>(null);
+  useSidePanelWidth();
   return <SurfaceContext.Provider value={{ target, setTarget }}>{children}</SurfaceContext.Provider>;
 }
 
@@ -55,6 +57,7 @@ export function FinanceAssistantSurface({ children }: { children: ReactNode; clo
   if (!surface.target || !shown || cache.current == null) return null;
   return createPortal(
     <div className="finance-assistant-panel" data-open={open} aria-hidden={!open || undefined} {...{ inert: open ? undefined : "" }}>
+      <SidePanelResizeHandle />
       <aside aria-label="页面助手" className="ai-surface relative flex h-full w-full flex-col rounded-2xl overflow-hidden border shadow-lg">
         {cache.current}
       </aside>

@@ -4,6 +4,7 @@ import { useResearchSessions, type TaskProcessRef } from '../dsh/research-sessio
 import { TaskTranscript, useTaskTrajectory } from './TaskTranscript';
 import { emptyTaskTrajectory } from '../lib/taskTrajectory';
 import './task-process.css';
+import { SidePanelResizeHandle } from './layout/SidePanelResize';
 
 const noopSubscribe = () => () => {};
 const emptySnapshot = () => emptyTaskTrajectory;
@@ -19,7 +20,8 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
-  return <div className="finance-task-process fixed bottom-3 right-3 top-[76px] z-50 flex w-[min(36rem,calc(100vw-1.5rem))]">
+  return <div className="finance-task-process finance-side-panel">
+    <SidePanelResizeHandle />
     <aside role="dialog" aria-label="任务过程" className="task-process-panel relative flex w-full flex-col overflow-hidden rounded-2xl border bg-background shadow-lg">
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">

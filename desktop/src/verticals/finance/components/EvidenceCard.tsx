@@ -9,6 +9,7 @@ import { citationClickOpensPanel, citationReference, inAppEvidenceRef, outboundW
 import { useAiQuestion } from '../../../core/ai/pageContext';
 import { documentObject } from '../lib/assistantObjects';
 import { useFinanceOverlayTarget } from './layout/FinanceAssistantSurface';
+import { SidePanelResizeHandle } from './layout/SidePanelResize';
 
 type OpenEvidence = (reference: string, trigger: HTMLButtonElement | null, snapshot?: string) => void;
 const EvidenceContext = createContext<OpenEvidence | null>(null);
@@ -178,7 +179,8 @@ function EvidenceCard({ reference, close, snapshot }: { reference: string; close
     ? { ref: opaqueRef, page: String(block?.page ?? 1), from: location.pathname + location.search }
     : block ? { revision: block.parse_revision_id, hash: block.parsed_content_sha256, block: block.block_id, page: String(block.page), from: location.pathname + location.search } : {};
   const readPath = block && readQuery ? `/my-reports/read/${encodeURIComponent(block.document_id)}?` + new URLSearchParams(readQuery) : '';
-  const content = <aside role="dialog" aria-label="查看依据" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }} className="finance-evidence-panel fixed bottom-3 right-3 top-[76px] z-[60] flex w-[min(28rem,calc(100vw-1.5rem))] flex-col rounded-2xl border border-border bg-card shadow-xl">
+  const content = <aside role="dialog" aria-label="查看依据" onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); close(); } }} className="finance-evidence-panel finance-side-panel flex-col rounded-2xl border border-border bg-card shadow-xl">
+    <SidePanelResizeHandle />
     <header className="flex items-center justify-between border-b p-5"><h2 className="font-semibold">查看依据</h2><button ref={closer} aria-label="关闭依据" onClick={close}><X size={18} /></button></header>
     <div className="min-h-0 flex-1 overflow-auto p-5">
       {error ? <div><p role="alert">{error}</p><button className="workspace-action workspace-action-compact mt-4" onClick={() => setRetry(value => value + 1)}>重新读取</button></div> : !view ? <p role="status">正在读取依据…</p> : <>

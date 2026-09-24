@@ -81,6 +81,13 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/layout/FinanceAssistantSurface.tsx"), /data-open=\{open\}/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /\.finance-assistant-panel\[data-open="true"\]/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-width: 36rem/);
+  // 问助手、查看依据、任务过程共用同一右侧面板定位、让位规则与拖拽宽度，不各写一套。
+  assert.match(read("verticals/finance/components/EvidenceCard.tsx"), /finance-evidence-panel finance-side-panel/);
+  assert.match(read("verticals/finance/components/TaskProcessPanel.tsx"), /finance-task-process finance-side-panel/);
+  for (const file of ["components/EvidenceCard.tsx", "components/TaskProcessPanel.tsx", "components/layout/FinanceAssistantSurface.tsx"]) {
+    assert.match(read(`verticals/finance/${file}`), /<SidePanelResizeHandle \/>/);
+    assert.doesNotMatch(read(`verticals/finance/${file}`), /top-\[76px\]|29\.5rem/);
+  }
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 4rem/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /margin-right: calc\(var\(--finance-assistant-width\) \+ var\(--finance-assistant-inline\)\)/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--conversation-expand-ease|cubic-bezier\(\.22, 1, \.36, 1\)/);
