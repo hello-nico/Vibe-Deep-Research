@@ -14,13 +14,15 @@ import { loadReadyIndustryProfiles, objectLabel, openRegisteredObject, readableR
 export { WikiLoading, wikiLoadingSections } from './WikiLoading';
 export { KnowledgeText } from './WikiReport';
 
-export function WikiViewTabs({ report, onChange }: { report: boolean; onChange: (report: boolean) => void }) {
+export function WikiViewTabs({ report, onChange, reportStale = false }: { report: boolean; onChange: (report: boolean) => void; reportStale?: boolean }) {
   return <div role="tablist" aria-label="资料视图" className="flex h-10 w-fit shrink-0 items-stretch gap-0.5 rounded-xl border border-border p-[3px]">
     {([[false, '研究页'], [true, '图文报告']] as const).map(([id, label]) => (
-      <button key={label} type="button" role="tab" aria-label={label} aria-selected={report === id}
-        className={cn('rounded-[9px] px-3.5 text-[13px] transition-colors', report === id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}
+      <button key={label} type="button" role="tab" aria-label={id && reportStale ? `${label}（已过期）` : label} aria-selected={report === id}
+        title={id && reportStale ? '研究页在报告生成后有更新，可重新生成' : undefined}
+        className={cn('relative rounded-[9px] px-3.5 text-[13px] transition-colors', report === id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}
         onClick={() => onChange(id)}>
         {label}
+        {id && reportStale && <span aria-hidden="true" className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-primary" />}
       </button>
     ))}
   </div>;

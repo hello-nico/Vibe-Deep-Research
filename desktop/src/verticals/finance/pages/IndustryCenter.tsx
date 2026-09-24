@@ -8,6 +8,7 @@ import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { DashboardCard } from "../components/IndustryDashboardCard";
 import { WorkspaceSelect } from "../components/ui/WorkspaceSelect";
 import { WorkspaceSearch } from "../components/ui/WorkspaceSearch";
+import { statusBadges } from '../lib/objectStatus';
 import { ObjectStatusBadges, useObjectStatusRows } from "../components/ui/ObjectStatusBadges";
 import { WikiLoading, WikiReader, WikiViewTabs } from "../components/ResearchKnowledge";
 import { industryIcon } from "../lib/industryIcons";
@@ -114,8 +115,8 @@ export function IndustryCenter() {
       <div className="object-toolbar-group">
         <Link className="workspace-action" to="/sectors"><ChevronLeft />全部行业</Link>
         <WorkspaceSelect aria-label="切换行业" className="max-w-full" value={selected.short_name} onChange={next => navigate(`/sectors/${encodeURIComponent(next)}`)} searchPlaceholder="搜索行业" emptyText="没有匹配的行业" options={(items ?? []).map(item => ({ value: item.short_name, label: item.official_name }))} />
-        <ObjectStatusBadges slug={selected.slug} row={objectStatuses.get(selected.slug)} />
-        {selected.published && <WikiViewTabs report={report} onChange={setReport} />}
+        <ObjectStatusBadges slug={selected.slug} row={objectStatuses.get(selected.slug)} badges={statusBadges(objectStatuses.get(selected.slug)).filter(badge => badge !== '报告已过期')} />
+        {selected.published && <WikiViewTabs report={report} onChange={setReport} reportStale={Boolean(objectStatuses.get(selected.slug)?.report?.stale)} />}
       </div>
       <div className="object-toolbar-group object-toolbar-actions">
         {selected.published && <span className={report ? "hidden" : "contents"}><IndustryRefreshConfirm key={selected.slug} slug={selected.slug} version={wikiPage?.input_hash} title={selected.official_name} onUpdated={() => setRevision(value => value + 1)} onStateChange={setRefreshView} /></span>}

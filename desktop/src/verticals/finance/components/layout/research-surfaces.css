@@ -5,7 +5,8 @@
 :root {
   --finance-assistant-width: 36rem;
   --finance-assistant-inline: 1rem;
-  --finance-assistant-top: 4rem;
+  /* 顶栏 4rem + 与左侧内容卡片同样的呼吸间距，避免圆角顶到顶栏分隔线。 */
+  --finance-assistant-top: 5rem;
 }
 @media (min-width: 768px) {
   :root { --finance-assistant-inline: 2rem; }
@@ -76,13 +77,10 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
 .finance-assistant-composer {
   z-index: 10;
   flex-shrink: 0;
-  background: #fff0e3;
+  background: hsl(var(--background));
 }
 .finance-assistant-composer textarea:focus {
   border-color: hsl(var(--primary) / .45);
-}
-.dark .finance-assistant-composer {
-  background: #1a1b1f;
 }
 .finance-assistant-mentions {
   overscroll-behavior: contain;
@@ -111,12 +109,8 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
   overflow: hidden;
   border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
-  background: #fff7f0;
+  background: hsl(var(--card));
   box-shadow: 0 12px 28px hsl(var(--foreground) / .08);
-}
-.dark .finance-assistant-menu {
-  background: #1a1b1f;
-  border-color: #484046;
 }
 .finance-assistant-menu [role="option"] {
   display: block;
@@ -128,11 +122,8 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
   font-size: 0.8125rem;
   text-align: left;
 }
-.finance-assistant-menu [role="option"]:hover,
-.finance-assistant-menu [role="option"].is-current {
-  background: hsl(var(--primary) / .12);
-  color: hsl(var(--primary));
-}
+.finance-assistant-menu [role="option"]:hover { background: hsl(var(--muted) / .6); }
+.finance-assistant-menu [role="option"].is-current { color: hsl(var(--primary)); font-weight: 500; }
 .finance-assistant-transcript {
   display: flex;
   flex-direction: column;

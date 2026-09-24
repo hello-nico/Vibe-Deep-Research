@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
 import {
-  Activity, ChevronDown, ChevronsLeft, ChevronsRight, FileText, MessagesSquare, LayoutGrid, Microscope, Menu, X, Newspaper, NotebookPen, Radar, Rss, Star, Thermometer, TrendingUp,
+  Activity, ChevronsLeft, ChevronsRight, FileText, MessagesSquare, LayoutGrid, Microscope, Menu, X, NotebookPen, Radar, Star, Thermometer,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { BrandMark } from "@/components/ui/BrandMark";
@@ -29,22 +29,6 @@ const NAV = [
   { to: "/my-reports", icon: FileText, label: "我的资料" },
   { to: "/my-research", icon: NotebookPen, label: "我的研究" },
 ];
-
-// 资讯雷达的小栏目（缩进子项，顺序即页内 Tab 顺序）。
-const INTEL_LINKS = [
-  { to: "/intel/investment-news", icon: Rss, label: "Investment News" },
-  { to: "/intel/news", icon: Newspaper, label: "公开新闻" },
-  { to: "/intel/filings", icon: FileText, label: "A股公告" },
-  { to: "/intel/events", icon: TrendingUp, label: "事件概率" },
-];
-
-// 带子栏目的导航组：父项右侧小三角展开/收起，展开状态按组记忆。
-// 🔴 存储键**带版本号**：默认值从"展开"改成"收起"时，老键里存着的 "open"
-//    会让已经用过的人照旧全展开 —— 那不是 bug（它在记住你的选择），但新默认就等于没生效。
-//    换个键 = 旧记忆不再适用，所有人重新从收起开始；之后手动展开的仍然会被记住。
-const NAV_GROUPS: Record<string, { storageKey: string; links: typeof INTEL_LINKS }> = {
-  "/intel": { storageKey: "vr-intel-open2", links: INTEL_LINKS },
-};
 
 export function Layout() {
   useEffect(() => {
@@ -77,18 +61,6 @@ export function Layout() {
     requestAnimationFrame(() => menuRef.current?.focus());
   };
   const [collapsed, setCollapsed] = useState(() => prefGet("vr-sidebar") === "collapsed");
-  // 各导航组子栏目的展开状态（默认展开；按组记住用户的选择）
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(Object.entries(NAV_GROUPS).map(([path, g]) => [path, prefGet(g.storageKey as "vr-intel-open2") === "open"])));
-
-  const toggleGroup = (path: string) => {
-    setOpenGroups((prev) => {
-      const next = { ...prev, [path]: !prev[path] };
-      void prefSet(NAV_GROUPS[path]!.storageKey as "vr-intel-open2", next[path] ? "open" : "closed");
-      return next;
-    });
-  };
-
   useEffect(() => {
     void prefSet("vr-sidebar", collapsed ? "collapsed" : "expanded");
   }, [collapsed]);
@@ -167,14 +139,13 @@ export function Layout() {
       observer.disconnect();
       window.removeEventListener("resize", place);
     };
-  }, [pathname, compact, openGroups, mobileOpen]);
+  }, [pathname, compact, mobileOpen]);
   useEffect(() => {
     if (!navIndicator.shown || navIndicator.animate) return;
     setNavIndicator(prev => prev.shown && !prev.animate ? { ...prev, animate: true } : prev);
   }, [navIndicator.shown, navIndicator.animate]);
   const currentTitle = NAV.find(n => n.to === pathname)?.label
     ?? (pathname === '/research' || pathname.startsWith('/research/') ? '个股研究' : undefined)
-    ?? Object.values(NAV_GROUPS).flatMap(g => g.links).find(n => n.to === pathname)?.label
     ?? (pathname.startsWith('/sectors/profiles') || pathname.startsWith('/signals') ? '产业研究' : undefined)
     ?? (pathname.startsWith('/my-reports/read/') ? '资料阅读' : undefined)
     ?? NAV.find(n => n.to !== '/' && n.to !== '/sectors' && pathname.startsWith(n.to + '/'))?.label
@@ -212,11 +183,10 @@ export function Layout() {
             <div className="space-y-0.5">
             {NAV.map(({ to, icon: Icon, label }) => {
               const active = pathname === to
+                || (to === "/intel" && pathname.startsWith("/intel/"))
                 || (to === "/sectors" && (pathname === "/sectors" || (/^\/sectors\//.test(pathname) && !pathname.startsWith("/sectors/profiles"))))
                 || (to === "/sectors/profiles" && (pathname.startsWith("/sectors/profiles") || pathname.startsWith("/signals")))
                 || (to === "/my-research" && pathname.startsWith("/my-research"));
-              const group = NAV_GROUPS[to];
-              const groupOpen = group ? !!openGroups[to] : false;
               return <div key={to}>
                 <div className="flex items-center">
                   <Link to={to} aria-label={label} aria-current={active ? "page" : undefined} title={compact ? label : undefined}
@@ -226,21 +196,7 @@ export function Layout() {
                       active ? "font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>
                     <Icon className="h-4 w-4 shrink-0" />{!compact && <span>{label}</span>}{to === '/my-research' && pendingNavCount ? <span className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] text-primary" aria-label={`${pendingNavCount} 项待处理`}>{pendingNavCount}</span> : null}
                   </Link>
-                  {group && !compact && <button type="button" aria-label={`${groupOpen ? "收起" : "展开"}${label}子栏目`}
-                    aria-expanded={groupOpen} onClick={() => toggleGroup(to)}
-                    className="rounded p-2 text-muted-foreground hover:bg-muted/60">
-                    <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", !groupOpen && "-rotate-90")} />
-                  </button>}
                 </div>
-                {group && (groupOpen || compact) && <div className={cn("mt-1 space-y-0.5", !compact && "ml-5 border-l border-border pl-2")}>
-                  {group.links.map(({ to: st, icon: SIcon, label: slabel }) => <Link key={st} to={st}
-                    aria-label={slabel} title={compact ? slabel : undefined} aria-current={pathname === st ? "page" : undefined}
-                    onClick={() => { if (mobile) { setMobileOpen(false); requestAnimationFrame(() => mainRef.current?.focus()); } }}
-                    className={cn("workspace-nav-link relative z-[1] flex items-center text-xs text-muted-foreground hover:bg-muted/40 hover:text-foreground",
-                      compact ? "justify-center p-2" : "gap-2 px-2 py-1.5")}>
-                    <SIcon className="h-3.5 w-3.5 shrink-0" />{!compact && slabel}
-                  </Link>)}
-                </div>}
               </div>;
             })}
             <div className={cn(

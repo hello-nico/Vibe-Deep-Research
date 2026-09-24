@@ -12,6 +12,10 @@
 .finance-topic-chat [data-conversation-content], .finance-assistant-native [data-conversation-content], .finance-panel-chat [data-conversation-content] { min-height: 0; flex: 1; }
 .finance-topic-chat [data-conversation-scroll], .finance-assistant-native [data-conversation-scroll] { min-height: 0; }
 .finance-assistant-native [data-composer-seat] { display: none; }
+/* 「保存为记录」挂在 DSH 回答操作行（assistant-actions）里，和复制 / 反馈同一行。 */
+.finance-assistant-native .finance-turn-save { display: inline-flex; }
+.finance-assistant-native .finance-turn-save .workspace-action { height: 1.75rem; padding: 0 .5rem; border-color: transparent; background: transparent; color: hsl(var(--muted-foreground)); font-size: .75rem; }
+.finance-assistant-native .finance-turn-save .workspace-action:hover:not(:disabled) { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
 .finance-topic-chat [data-slot="conversation.input.dock"] { display: none; }
 .finance-topic-opening { padding: 1rem; border-bottom: 1px solid hsl(var(--border)); }
 .finance-topic-opening h3 { font-size: .875rem; font-weight: 600; }

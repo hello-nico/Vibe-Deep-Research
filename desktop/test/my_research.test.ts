@@ -485,7 +485,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(processPanel, /finance\.panel\.conversation/);
   assert.doesNotMatch(processPanel, /TaskTranscript/);
   assert.match(nativePanel, /conversation\.content/);
-  assert.match(nativePanel, /conversation\.chat\.turnTail/);
+  assert.match(nativePanel, /conversation\.chat\.assistant-actions/);
   assert.doesNotMatch(processPanel, /react-router-dom/);
   assert.doesNotMatch(processPanel, /openSession/);
   // 重开时沿用旧步骤且保持引用稳定的逻辑在 stableTaskTrajectory（task_trajectory.test.ts 有行为测试）。

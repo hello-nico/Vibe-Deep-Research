@@ -81,6 +81,16 @@
 
 /* 生成版操作条：贴合报告内页签，不另起一层工具栏。 */
 .wiki-report-shell { min-width: 0; }
+.wiki-report-stale {
+  margin: 0 0 .75rem;
+  padding: .55rem .85rem;
+  border: 1px solid hsl(var(--primary) / .25);
+  border-radius: .75rem;
+  background: hsl(var(--primary) / .06);
+  color: hsl(var(--foreground));
+  font-size: 13px;
+  line-height: 1.6;
+}
 .wiki-report-chrome {
   display: flex;
   flex-wrap: wrap;

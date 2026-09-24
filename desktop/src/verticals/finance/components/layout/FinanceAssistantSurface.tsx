@@ -33,7 +33,7 @@ export function FinanceAssistantSurface({ children }: { children: ReactNode; clo
   return createPortal(
     <div className="finance-assistant-panel" data-open="true">
       <SidePanelResizeHandle />
-      <aside aria-label="页面助手" className="ai-surface relative flex h-full w-full flex-col rounded-2xl overflow-hidden border shadow-lg">
+      <aside aria-label="页面助手" className="relative flex h-full w-full flex-col overflow-hidden rounded-2xl border bg-background shadow-lg">
         {children}
       </aside>
     </div>,

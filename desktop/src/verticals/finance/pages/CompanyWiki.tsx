@@ -23,6 +23,7 @@ import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X 
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { CompanyRefreshConfirm, type RefreshViewState } from '../components/CompanyRefreshConfirm';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
+import { statusBadges } from '../lib/objectStatus';
 import { ObjectStatusBadges, useObjectStatusRows } from '../components/ui/ObjectStatusBadges';
 import type { StatusRow } from '../lib/objectStatus';
 import { trackTask } from '../lib/taskNotices';
@@ -459,8 +460,8 @@ export function CompanyWiki() {
           emptyText="名单里没有匹配的公司"
           options={switchOptions}
         />
-        <ObjectStatusBadges slug={slug} row={objectStatuses.get(slug)} />
-        {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} />}
+        <ObjectStatusBadges slug={slug} row={objectStatuses.get(slug)} badges={statusBadges(objectStatuses.get(slug)).filter(badge => badge !== '报告已过期')} />
+        {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} reportStale={Boolean(objectStatuses.get(slug)?.report?.stale)} />}
       </div>
       <div className="object-toolbar-group object-toolbar-actions">
         {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}

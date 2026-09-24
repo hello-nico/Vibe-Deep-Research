@@ -18,9 +18,9 @@ import { cn } from "@/lib/utils";
 import { feedPageContext, investmentNewsPageContext, type FeedRow } from '@/lib/feedPageContext';
 import { buildEventsProbabilitySnapshot } from '../assistant/snapshot.ts';
 
-// 顺序即侧栏子栏目顺序（Layout 的 INTEL_LINKS 与此一致）
+// 页内分段顺序；侧栏只有一级入口「资讯雷达」（2026-09-24 取消二级菜单）
 const TABS = [
-  { key: "investment-news", label: "Investment News", icon: Rss, integrated: true, desc: "12 个赛道的全球公开资讯" },
+  { key: "investment-news", label: "投资资讯", icon: Rss, integrated: true, desc: "12 个赛道的全球公开资讯" },
   { key: "news", label: "公开新闻", icon: Newspaper, integrated: false, desc: "汇总关注列表里各个股的近期新闻（公开源）" },
   { key: "filings", label: "A股公告", icon: FileText, integrated: false, desc: "汇总关注列表里各个股的近期公告（东财公开披露）" },
   { key: "events", label: "事件概率", icon: TrendingUp, integrated: true, desc: "全球宏观预期概率 —— 预测市场的公开定价（Polymarket / Kalshi），只读、免登录" },
@@ -453,7 +453,7 @@ function IntelOverviewContext({ tab, label }: { tab: string; label: string }) {
 }
 
 export function Intel() {
-  // 当前 Tab 由路由驱动（/intel/:tab），与侧栏子栏目联动；不认识的参数回落到第一个
+  // 当前分段由路由驱动（/intel/:tab）；不认识的参数回落到第一个
   const { tab: tabParam } = useParams();
   const navigate = useNavigate();
   const tab = TABS.some((t) => t.key === tabParam) ? tabParam! : TABS[0]!.key;
@@ -496,7 +496,7 @@ export function Intel() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground">{cur.desc}</p>
-            <div className="mt-4 rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">该数据源规划中——可先用右侧「Investment News」看 12 赛道公开资讯，或用「A 股公告 / 公开新闻」看关注股动态。</div>
+            <div className="mt-4 rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">该数据源规划中——可先用「投资资讯」看 12 赛道公开资讯，或用「A 股公告 / 公开新闻」看关注股动态。</div>
           </>
         )}
       </GlassCard>

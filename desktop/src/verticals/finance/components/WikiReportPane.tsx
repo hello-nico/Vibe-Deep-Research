@@ -25,6 +25,12 @@ interface ReportDetail extends ReportMeta {
   allowed_refs?: string[];
 }
 
+/** The report to show: the one for the current page version, else the newest older one (shown with a stale notice). */
+function shownReport(list: readonly ReportMeta[] | null | undefined): ReportMeta | undefined {
+  if (!list?.length) return undefined;
+  return list.find(item => item.current) ?? [...list].sort((a, b) => b.created_at.localeCompare(a.created_at))[0];
+}
+
 const REPORT_REF = /^(claim|evidence|source|provider|lookup):[^\s"'<>&]{1,400}$/;
 const TASK_POLL_MS = 4_000;
 
@@ -128,7 +134,8 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         const current = list.find(item => item.current);
         existingCurrent.current = current?.report_id ?? null;
         setItems(list);
-        if (current) setSelected(current);
+        const shown = shownReport(list);
+        if (shown) setSelected(shown);
         setListSeed(value => value + 1);
       })
       .catch(() => {
@@ -299,16 +306,16 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       setPendingRun(false);
       startedSession.current = '';
       setError(e instanceof Error ? e.message : '报告生成未能启动，研究页仍可阅读；可重试。');
-      const current = items?.find(item => item.current);
-      if (current) setSelected(current);
+      const shown = shownReport(items);
+      if (shown) setSelected(shown);
     }).finally(() => { if (epoch === pageEpoch.current) setStarting(false); });
   };
 
-  // First open of a version with no artifact and no prior task starts one
-  // generation. A finished binding is a previous attempt — retry is explicit.
+  // First open of a page with no report at all starts one generation. An older
+  // report is kept and shown with a stale notice; regenerating it is the user's call.
   useEffect(() => {
     if (!active || autoTried || items === null || !taskReady || starting || task?.running || blockedReason) return;
-    if (items.some(item => item.current)) return;
+    if (items.length) return;
     setAutoTried(true);
     if (task) return;
     generate();
@@ -329,6 +336,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     {showGenerated && canGenerate && actionSlot && createPortal(
       <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">
+      {selected && !selected.current && <p role="status" className="wiki-report-stale">研究页在这份报告生成后有更新，报告可能不含最新内容。{canGenerate ? '可点「重新生成」按当前研究页再出一份。' : ''}</p>}
       {((canGenerate && !actionSlot) || error) && <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
         {selected?.current && <span className="sr-only">对应当前研究页</span>}
         {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}

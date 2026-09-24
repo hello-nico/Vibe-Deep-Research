@@ -3,12 +3,15 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
-test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
+test("V2 保留原侧栏顺序与真实 AI 入口；资讯雷达只做一级入口，来源在页内分段", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("const INTEL_LINKS")).replace(/^\s*\/\/.*$/gm, "");
+  const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("export function Layout")).replace(/^\s*\/\/.*$/gm, "");
   assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "行业研究", "产业研究", "个股研究", "自选股", "我的资料", "我的研究"]);
   assert.match(layout, /id="dsh-settings"/);
-  for (const route of ["/intel/investment-news", "/intel/news", "/intel/filings", "/intel/events"]) assert.ok(layout.includes(route));
+  assert.doesNotMatch(layout, /INTEL_LINKS|NAV_GROUPS|子栏目/);
+  const intel = read("verticals/finance/pages/Intel.tsx");
+  for (const key of ["investment-news", "news", "filings", "events"]) assert.ok(intel.includes(`key: "${key}"`));
+  assert.doesNotMatch(intel, /label: "Investment News"/);
   assert.doesNotMatch(layout, /gpu-rent|GPU租金|SIGNAL_LINKS|vr-signals-open/);
   assert.doesNotMatch(layout, /SECTOR_LINKS|vr-sectors-open/);
   assert.doesNotMatch(layout, /FinanceAiConsole|consoleOpen|vr-ai-console|openAgent|打开普通对话/);
@@ -23,7 +26,6 @@ test("V2 保留原侧栏顺序、子栏目及真实 AI 入口", () => {
   assert.match(layout, /key=\{pathname\}/);
   assert.match(layout, /className="workspace-page-enter"/);
   assert.doesNotMatch(layout, /ViewTransition|startViewTransition|framer-motion/);
-  assert.match(layout, /aria-expanded=\{groupOpen\}/);
   assert.match(layout, /aria-label=\{label\}/);
   assert.match(layout, /const closeMobileNav = \(\) => \{\s*setMobileOpen\(false\);[\s\S]*?requestAnimationFrame\(\(\) => menuRef\.current\?\.focus\(\)\)/);
   assert.equal((layout.match(/onClick=\{closeMobileNav\}/g) ?? []).length, 2);
@@ -88,7 +90,7 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
     assert.match(read(`verticals/finance/${file}`), /<SidePanelResizeHandle \/>/);
     assert.doesNotMatch(read(`verticals/finance/${file}`), /top-\[76px\]|29\.5rem/);
   }
-  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 4rem/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 5rem/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /margin-right: calc\(var\(--finance-assistant-width\) \+ var\(--finance-assistant-inline\)\)/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--conversation-expand-ease|cubic-bezier\(\.22, 1, \.36, 1\)/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /page && renderPanel/);
@@ -111,7 +113,7 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /finance\.panel\.conversation/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /cancelSession/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /当前回答结束后可发送/);
-  assert.match(read("verticals/finance/dsh/panel-conversation.tsx"), /conversation\.chat\.turnTail/);
+  assert.match(read("verticals/finance/dsh/panel-conversation.tsx"), /conversation\.chat\.assistant-actions/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.session\.header\.actions/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.hero\.agentPreset/);
   assert.match(read("verticals/finance/dsh/native-dsh.css"), /conversation\.session\.header\.corner/);

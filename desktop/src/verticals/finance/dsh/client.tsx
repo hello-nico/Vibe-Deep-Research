@@ -166,6 +166,9 @@ export function apply(ctx: Context) {
     const dark = snapshot.active.colorScheme === "dark";
     document.body.toggleAttribute("data-ds-dark-theme", dark);
     document.documentElement.style.colorScheme = dark ? "dark" : "light";
+    // Product tokens follow the DSH theme from the first frame, including the loading screen.
+    document.documentElement.classList.toggle("light", !dark);
+    document.documentElement.classList.toggle("dark", dark);
     document.body.style.setProperty("--dsh-content-font-size", `${snapshot.fontSize}px`);
     for (const [key, value] of Object.entries(snapshot.active.tokens)) document.body.style.setProperty(key, value);
     window.dispatchEvent(new CustomEvent("dsh-theme-change", { detail: dark }));

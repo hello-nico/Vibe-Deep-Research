@@ -459,11 +459,11 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
             : "这一页还没有加载出内容"
         }
         className={cn(
-          "ai-chat-trigger inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2",
-          "text-sm font-medium shadow-glow backdrop-blur transition-all",
+          "ai-chat-trigger inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3.5",
+          "text-sm font-medium transition-colors",
           currentPage
-            ? "bg-primary/20 text-primary ring-1 ring-primary/40 hover:bg-primary/30 hover:ring-primary/60"
-            : "cursor-not-allowed bg-muted/40 text-muted-foreground/60 ring-1 ring-border",
+            ? "border-primary/25 bg-card text-primary hover:bg-primary/5"
+            : "cursor-not-allowed border-border bg-muted/40 text-muted-foreground/60",
         )}
       >
         <Sparkles className="h-4 w-4" />
@@ -472,18 +472,18 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
 
       {page && renderPanel(
         open ? <>
-          <div className="ai-surface-header flex items-center justify-between gap-2 border-b border-border/60 p-4">
-            <span className="flex min-w-0 items-center gap-2 font-semibold text-glow">
-              <Sparkles className="h-4 w-4 shrink-0 text-primary" />
-              <span className="truncate">问助手 · {page.title}</span>
-            </span>
-            <div className="flex shrink-0 items-center gap-3">
-              {sessionId && <button type="button" className="text-[11px] text-muted-foreground hover:text-foreground" onClick={newThread}>新讨论</button>}
-              <button onClick={close} aria-label="关闭" className="text-muted-foreground hover:text-foreground">
+          <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sparkles className="h-3.5 w-3.5" /></span>
+              <div className="min-w-0"><p className="text-xs text-muted-foreground">问助手</p><h2 className="truncate text-sm font-semibold">{page.title}</h2></div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1">
+              {sessionId && <button type="button" className="rounded-lg px-2 py-1 text-xs text-muted-foreground hover:bg-muted hover:text-foreground" onClick={newThread}>新讨论</button>}
+              <button type="button" onClick={close} aria-label="关闭" className="rounded-lg p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground">
                 <X className="h-4 w-4" />
               </button>
             </div>
-          </div>
+          </header>
           {sessionId && binding ? <AssistantTranscript sessionId={sessionId} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
               <p>{error || "正在准备，马上就好…"}</p>
@@ -510,7 +510,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
             </div>
           )}
           {sessionId && (error || seat.notice) && <p role="alert" className="px-4 text-xs text-destructive">{error || seat.notice}</p>}
-          <div className="finance-assistant-composer ai-composer relative border-t border-border/60 p-3">
+          <div className="finance-assistant-composer relative border-t border-border p-3">
             {mentionQuery !== null && (
               <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background shadow-lg" role="listbox" aria-label="本页条目">
                 {candidates.length ? candidates.map(item => (
@@ -534,7 +534,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
               placeholder={assistantModeHint(seat.mode)}
               aria-label="问助手输入"
               rows={3}
-              className="w-full resize-none rounded-lg border border-border/70 bg-transparent px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
+              className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
               onCompositionStart={() => { composing.current = true; }}
               onCompositionEnd={event => {
                 composing.current = false;
@@ -567,7 +567,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
               </div>
               <button
                 type="button"
-                className="workspace-action workspace-action-compact inline-flex items-center gap-1"
+                className="workspace-action workspace-action-compact workspace-action-primary inline-flex items-center gap-1"
                 aria-label={showStop ? "停止" : "发送"}
                 disabled={!ready || (showStop ? stopping : running || !hasDraft)}
                 onClick={() => { showStop ? void stop() : void send(); }}
