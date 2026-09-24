@@ -77,11 +77,14 @@ test('公司任务首请求前绑定研究身份，同公司去重，不把模�
   assert.equal(starts[0]?.request.maxDepth, 1);
   assert.equal(loadReportTasks().sessions[first.session_id].kind, 'research');
   assert.equal(loadReportTasks().sessions[first.session_id].title, input.title);
+  await assert.rejects(startReportRun(ctx, { slug: input.slug, input_hash: 'a'.repeat(64), prompt: '生成报告' }), /公司研究进行中/);
+  starts[0]?.finish({ stopReason: 'error' });
+  await new Promise(resolve => setTimeout(resolve, 0));
   const report = await startReportRun(ctx, { slug: input.slug, input_hash: 'a'.repeat(64), prompt: '生成报告' });
   assert.equal(report.status, 'started');
   assert.equal(starts[1]?.pending.kind, 'report');
   assert.equal(starts[1]?.request.parent.session.id, host.session.id);
-  starts[0]?.finish({ stopReason: 'error' });
+  await assert.rejects(startResearchRun(ctx, input), /图文报告生成中/);
   starts[1]?.finish({ stopReason: 'completed' });
   await new Promise(resolve => setTimeout(resolve, 0));
   assert.equal(loadReportTasks().sessions[first.session_id].run_status, 'failed');

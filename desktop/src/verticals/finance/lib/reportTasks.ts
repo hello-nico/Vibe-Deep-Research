@@ -86,6 +86,41 @@ export async function cancelResearchRun(sessionId: string): Promise<void> {
 export interface ReportTaskStore {
   sessions: Record<string, ReportTaskBinding>;
   host_session_id?: string;
+  pending?: { kind?: 'research' | 'report'; slug?: string; requested_at?: string } | null;
+}
+
+export type ReportArtifact = { report_id: string; created_at: string; input_hash: string; session_id?: string };
+
+export function reportTaskTitle(binding: ReportTaskBinding, objectLabel?: string): string {
+  const name = binding.title?.replace(/^报告生成\s*·\s*/, '').trim()
+    || (objectLabel && !['公司研究', '行业研究'].includes(objectLabel) ? objectLabel : '')
+    || binding.slug;
+  return `图文报告 · ${name}`;
+}
+
+export function activeTaskKind(store: ReportTaskStore, slug: string, running: (id: string) => boolean,
+  now = Date.now()): 'research' | 'report' | null {
+  if (store.pending?.slug === slug && within(store.pending.requested_at, 15_000, now))
+    return store.pending.kind === 'research' ? 'research' : 'report';
+  for (const [id, binding] of Object.entries(store.sessions || {})) {
+    if (binding.slug !== slug) continue;
+    if (binding.kind === 'research' && (running(id)
+      || (binding.settlement_status === 'running' && within(binding.settlement_updated_at, RESEARCH_SETTLEMENT_MS, now)))) return 'research';
+    if ((binding.kind || 'report') === 'report' && running(id)) return 'report';
+  }
+  return null;
+}
+
+export function reportTaskOutcome(binding: ReportTaskBinding, running: boolean,
+  artifacts: readonly ReportArtifact[] | null, sessionId: string): 'running' | 'generated' | 'unsaved' | 'failed' | 'cancelled' | 'unconfirmed' {
+  if (running) return 'running';
+  if (binding.run_status === 'failed' || binding.run_status === 'cancelled') return binding.run_status;
+  if (!artifacts || !binding.bound_at) return 'unconfirmed';
+  const started = Date.parse(binding.bound_at);
+  if (!Number.isFinite(started)) return 'unconfirmed';
+  if (artifacts.some(item => item.session_id === sessionId && item.input_hash === binding.input_hash
+    && Date.parse(item.created_at) >= started)) return 'generated';
+  return binding.run_status === 'completed' ? 'unsaved' : 'unconfirmed';
 }
 
 export function legacyCompanySymbol(title: string): string | undefined {

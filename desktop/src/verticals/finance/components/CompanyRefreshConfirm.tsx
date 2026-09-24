@@ -27,10 +27,10 @@ async function request<T>(body: Record<string, unknown>): Promise<T> {
   return value as T;
 }
 
-export function CompanyRefreshConfirm({ slug, version, title, onUpdated, onStateChange }: {
-  slug: string; version?: string; title: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
+export function CompanyRefreshConfirm({ slug, version, title, disabledReason, onUpdated, onStateChange }: {
+  slug: string; version?: string; title: string; disabledReason?: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
 }) {
-  return <RefreshConfirm page="company" slug={slug} version={version} title={title} onUpdated={onUpdated} onStateChange={onStateChange} />;
+  return <RefreshConfirm page="company" slug={slug} version={version} title={title} disabledReason={disabledReason} onUpdated={onUpdated} onStateChange={onStateChange} />;
 }
 
 export function IndustryRefreshConfirm({ slug, version, title, onUpdated, onStateChange }: {
@@ -39,8 +39,8 @@ export function IndustryRefreshConfirm({ slug, version, title, onUpdated, onStat
   return <RefreshConfirm page="industry" slug={slug} version={version} title={title} onUpdated={onUpdated} onStateChange={onStateChange} />;
 }
 
-function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }: {
-  page: 'company' | 'industry'; slug: string; version?: string; title: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
+function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated, onStateChange }: {
+  page: 'company' | 'industry'; slug: string; version?: string; title: string; disabledReason?: string; onUpdated: () => void; onStateChange?: (state: RefreshViewState) => void;
 }) {
   const [check, setCheck] = useState<CheckRecord | null>(null);
   const [proposal, setProposal] = useState<Proposal | null>(null);
@@ -99,6 +99,7 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
     triggerRef.current?.focus();
   };
   const prepare = async () => {
+    if (disabledReason) return;
     setBusy('prepare'); setError(''); setNotice(null);
     try {
       initiatedRef.current = true;
@@ -118,6 +119,7 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
   };
   const choose = async (approve: boolean) => {
     if (!proposal) return;
+    if (approve && disabledReason) return;
     setBusy(approve ? 'confirm' : 'reject'); setError('');
     if (approve) { setOpen(false); triggerRef.current?.focus(); }
     if (approve) {
@@ -193,7 +195,7 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
     else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
   };
   return <>
-    <button ref={triggerRef} type="button" className={`workspace-action refresh-trigger${isChecking || isUpdating ? ' is-loading' : ''}`} disabled={!!busy || check?.status === 'checking' || (!pending && !version)}
+    <button ref={triggerRef} type="button" title={disabledReason} className={`workspace-action refresh-trigger${isChecking || isUpdating ? ' is-loading' : ''}`} disabled={!!disabledReason || !!busy || check?.status === 'checking' || (!pending && !version)}
       aria-busy={isChecking || isUpdating}
       onClick={() => { if (uncertain) { void readBack(); return; } if (pending) { setOpen(true); return; } void prepare(); }}>
       <RefreshCw />
@@ -239,7 +241,7 @@ function RefreshConfirm({ page, slug, version, title, onUpdated, onStateChange }
         <footer className="refresh-dialog-footer">
           {busy ? <span className="refresh-dialog-wait">正在处理…</span>
             : proposal.status === 'open' ? <><button type="button" className="workspace-action" onClick={() => void choose(false)}>取消</button>
-              <button type="button" className="workspace-action workspace-action-primary" onClick={() => void choose(true)}>{page === 'industry' ? '确认添加来源' : '确认刷新'}</button></>
+              <button type="button" className="workspace-action workspace-action-primary" disabled={!!disabledReason} title={disabledReason} onClick={() => void choose(true)}>{page === 'industry' ? '确认添加来源' : '确认刷新'}</button></>
               : <><button type="button" className="workspace-action" onClick={close}>关闭</button>
                 {['executing', 'unknown', 'partial'].includes(proposal.status) && <button type="button" className="workspace-action workspace-action-primary" onClick={() => void readBack()}>查看结果</button>}</>}
         </footer>

@@ -24,9 +24,10 @@ import {
   type ResearchTopicSummary,
 } from "../lib/research";
 import { userFacingRuntimeError } from '../lib/userFacingError';
-import { loadReportTasks, researchSkipSummary, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
-import { normalizeResearchTarget, openRegisteredObject, registeredObject } from "../lib/objectRegistry";
+import { activeTaskKind, loadReportTasks, reportTaskOutcome, reportTaskTitle, researchSkipSummary, researchTaskStatus, type ReportArtifact, type ReportTaskStore } from "../lib/reportTasks";
+import { normalizeResearchTarget, openRegisteredObject, registeredObject, resolveObjectLabels } from "../lib/objectRegistry";
 import { useAiPage } from "../../../core/ai/pageContext";
+import type { WikiPage } from '../lib/research';
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
 
 const TASK_STATUS: Record<string, string> = {
@@ -34,6 +35,7 @@ const TASK_STATUS: Record<string, string> = {
   awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消", recorded: "已记录",
   researching: '研究中', settling: '整理中', completed: '研究已结束', unconfirmed: '结果待确认',
   skipped: '未整理',
+  generated: '已生成', unsaved: '未保存',
 };
 
 type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_token?: string; settlement_reason?: string; reason?: string };
@@ -67,6 +69,8 @@ export function MyResearch() {
   const [notesTick, setNotesTick] = useState(0);
   const [tasks, setTasks] = useState<TaskRow[] | null>(null);
   const [tasksError, setTasksError] = useState("");
+  const [retryBusy, setRetryBusy] = useState('');
+  const [retryError, setRetryError] = useState('');
   const [topicQuestion, setTopicQuestion] = useState("");
   const [topicRouteResult, setTopicRouteResult] = useState<ResearchTopicRouteResult | null>(null);
   const [topicRouteError, setTopicRouteError] = useState("");
@@ -124,15 +128,28 @@ export function MyResearch() {
         if (controller.signal.aborted) return;
         const background = Array.isArray(body.items) ? body.items : [];
         const settlements = new Map(background.filter(item => item.source_session_id).map(item => [item.source_session_id!, item]));
-        const reportItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([id, bind]) => id && id !== reports.host_session_id && (bind.kind || 'report') === 'report').map(([id, bind]) => ({
+        const reportBindings = Object.entries(reports.sessions || {}).filter(([id, bind]) => id && id !== reports.host_session_id && (bind.kind || 'report') === 'report');
+        const reportSlugs = [...new Set(reportBindings.map(([, bind]) => bind.slug))];
+        await resolveObjectLabels(reportSlugs).catch(() => {});
+        const artifactsBySlug = new Map(await Promise.all(reportSlugs.map(async slug => {
+          try {
+            const list = await researchRead<{ items: ReportArtifact[] }>('/wiki/reports?slug=' + encodeURIComponent(slug), { signal: controller.signal });
+            const relevant = list.items.filter(item => reportBindings.some(([, bind]) => bind.slug === slug && Date.parse(item.created_at) >= Date.parse(bind.bound_at || '')));
+            const details = await Promise.all(relevant.map(item => researchRead<ReportArtifact>('/wiki/reports/' + encodeURIComponent(item.report_id), { signal: controller.signal })));
+            return [slug, details] as const;
+          } catch { return [slug, null] as const; }
+        })));
+        if (controller.signal.aborted) return;
+        const reportItems: TaskRow[] = reportBindings.map(([id, bind]) => ({
           id,
           kind: 'report' as const,
-          title: `图文报告 · ${bind.slug}`,
-          display_status: researchSessions?.taskRunning(id) ? 'running' : bind.run_status === 'completed' ? 'recorded' : bind.run_status || 'recorded',
+          title: reportTaskTitle(bind, registeredObject(bind.slug)?.label),
+          display_status: reportTaskOutcome(bind, Boolean(researchSessions?.taskRunning(id)), artifactsBySlug.get(bind.slug) ?? null, id),
           started_at: bind.bound_at,
           child_session_id: id,
           targets: [normalizeResearchTarget(bind.slug) || bind.slug],
-          summary: bind.slug,
+          summary: reportTaskOutcome(bind, Boolean(researchSessions?.taskRunning(id)), artifactsBySlug.get(bind.slug) ?? null, id) === 'unsaved'
+            ? '报告没有保存成功（常见原因是生成期间研究页已更新），可重新生成。' : '',
         }));
         const researchItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([, bind]) => bind.kind === 'research').map(([id, bind]) => {
           const settlement = settlements.get(id);
@@ -260,6 +277,23 @@ export function MyResearch() {
     event.preventDefault();
     void submitTopicRoute();
   };
+  const retryReport = async (task: TaskRow) => {
+    const slug = task.targets?.[0];
+    if (!slug || !researchSessions || retryBusy) return;
+    setRetryBusy(task.id); setRetryError('');
+    try {
+      const bindings = await loadReportTasks();
+      if (activeTaskKind(bindings, slug, id => researchSessions.taskRunning(id)))
+        throw new Error('这家公司的研究或报告仍在进行，请完成后再生成。');
+      const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(slug));
+      if (!page.input_hash) throw new Error('研究页版本暂时无法读取，请稍后重试。');
+      await researchSessions.start(`为《${page.spec.title || slug}》生成一份图文报告。`, undefined, {
+        navigate: false, task: { kind: 'report', slug, inputHash: page.input_hash, title: `报告生成 · ${page.spec.title || slug}` },
+      });
+      navigate(`/research?company=${encodeURIComponent(slug)}&view=report`);
+    } catch (e) { setRetryError(e instanceof Error ? e.message : String(e)); }
+    finally { setRetryBusy(''); }
+  };
   useAiPage({
     key: `my-research:${tab}:${status}`,
     title: "我的研究",
@@ -287,10 +321,10 @@ export function MyResearch() {
         {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
       </div>
       {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
-      {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <BackgroundTaskList tasks={tasks} error={tasksError} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
+      {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <><BackgroundTaskList tasks={tasks} error={tasksError} retryBusy={retryBusy} onRetryReport={retryReport} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
         sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
         resultRef: target,
-      })} onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "topics" ? <>
+      })} onOpenSource={id => { void researchSessions?.openSession(id); }} />{retryError && <p role="alert" className="mt-3 text-sm text-destructive">{retryError}</p>}</> : tab === "topics" ? <>
         <form onSubmit={startTopic} className="border-b border-border/30 pb-4">
           <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start">
@@ -359,9 +393,11 @@ export function MyResearch() {
   </div>;
 }
 
-function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
+function BackgroundTaskList({ tasks, error, retryBusy, onRetryReport, onOpenProcess, onOpenSource }: {
   tasks: TaskRow[] | null;
   error: string;
+  retryBusy: string;
+  onRetryReport: (task: TaskRow) => void;
   onOpenProcess?: (sessionId: string, kind: 'report' | 'research' | 'knowledge', title: string, parentSessionId?: string, target?: string, settlementId?: string, status?: string) => void;
   onOpenSource?: (sessionId: string) => void | Promise<void>;
 }) {
@@ -394,6 +430,7 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
         {target && !title.includes(target) && <p className="mt-1 text-xs text-muted-foreground">{target}</p>}
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
+        {kind === 'report' && task.display_status === 'unsaved' && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
         {(object?.href || object?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => openRegisteredObject(targetRef)}>打开研究页</button>}

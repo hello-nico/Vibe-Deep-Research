@@ -6,7 +6,7 @@ import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
 import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
-import { RESEARCH_SETTLEMENT_MS, researchSkipSummary } from '../lib/reportTasks';
+import { activeTaskKind, loadReportTasks, RESEARCH_SETTLEMENT_MS, researchSkipSummary } from '../lib/reportTasks';
 import { isBareCompanyCode, wikiPageTitle } from '../lib/researchObject';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
@@ -14,6 +14,7 @@ import { api } from '../lib/api';
 import { prefGet, prefSet } from '../lib/prefs';
 import { cn } from '@/lib/utils';
 import { useResearchSessions } from '../dsh/research-session';
+import { useSlugTaskActivity } from '../dsh/task-activity';
 import { buildDirectorySnapshot, buildWikiPageSnapshot } from '../assistant/snapshot.ts';
 import { wikiAssistantObject, companyQuoteObject } from '../lib/pageAssistantObjects';
 import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
@@ -177,6 +178,9 @@ export function CompanyWiki() {
   const matched = searching ? rows.filter(row => matches(row.title, row.symbol, searching)) : rows;
   const visible = searching ? matched : matched.slice(0, RECENT_LIMIT);
   const current = rows.find(row => row.slug === slug) || (slug ? toRow(symbolFromCompanySlug(slug) || slug, symbolFromCompanySlug(slug) ? slug : null, wikiBySlug.get(slug)) : undefined);
+  const taskActivity = useSlugTaskActivity(slug, sessions);
+  const reportBlocksRefresh = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
+    : taskActivity.kind === 'report' ? '图文报告生成中，完成后可刷新资料。' : '';
   const visibleSlugs = visible.filter(row => row.hasWiki).map(row => row.slug).join('\0');
   const attachRoster = (rowSlug: string) => (el: HTMLElement | null) => {
     if (el) rosterNodes.current.set(rowSlug, el);
@@ -331,6 +335,17 @@ export function CompanyWiki() {
     if (!current || !current.aShare || gen?.phase === 'ensuring' || gen?.phase === 'researching') return;
     setError('');
     const target = current;
+    if (!taskActivity.ready || taskActivity.kind === 'report') {
+      setError(reportBlocksRefresh || '正在核对任务状态，请稍后重试。');
+      return;
+    }
+    try {
+      const bindings = await loadReportTasks();
+      if (activeTaskKind(bindings, target.slug, id => sessions.taskRunning(id)) === 'report') {
+        setError('图文报告生成中，完成后可刷新资料。');
+        return;
+      }
+    } catch { setError('任务状态暂时无法核对，请稍后重试。'); return; }
     setGen({ slug: target.slug, phase: 'ensuring' });
     let ensured: { slug: string; action: string };
     try {
@@ -445,11 +460,12 @@ export function CompanyWiki() {
       <div className="object-toolbar-group object-toolbar-actions">
         {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
         {/* 研究页的动作是刷新资料；图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
-        {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
+        {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} disabledReason={reportBlocksRefresh} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
         {current?.hasWiki && report && <span ref={setReportSlot} className="contents" />}
         {current && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出研究', icon: <X size={14} />, onSelect: () => void leave(current.symbol) }]} />}
       </div>
       {notice.slug === slug && notice.text && !refreshing && <span role="status" className="object-toolbar-notice">{notice.text}</span>}
+      {!report && taskActivity.kind === 'report' && <span role="status" className="object-toolbar-notice">{reportBlocksRefresh}</span>}
     </div>}
     {slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
       {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
@@ -459,7 +475,7 @@ export function CompanyWiki() {
           : '已加入研究。港股 / 美股暂时没有研究页，可以在深度对话中研究。'}</p>
         <div className="flex flex-wrap gap-2">
           {current.aShare
-            ? <button type="button" className="workspace-action workspace-action-primary" disabled={!!gen && gen.slug === slug && (gen.phase === 'ensuring' || gen.phase === 'researching' || gen.phase === 'settling')} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
+            ? <button type="button" className="workspace-action workspace-action-primary" title={reportBlocksRefresh} disabled={!!reportBlocksRefresh || !!gen && gen.slug === slug && (gen.phase === 'ensuring' || gen.phase === 'researching' || gen.phase === 'settling')} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
             : <button type="button" className="workspace-action" onClick={() => void startPlainResearch()}>在深度对话中研究</button>}
           <Link className="workspace-action" to="/my-reports">上传研报补充</Link>
         </div>

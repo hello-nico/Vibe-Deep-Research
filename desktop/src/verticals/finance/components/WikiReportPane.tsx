@@ -3,6 +3,8 @@ import { createPortal } from 'react-dom';
 import { RotateCw } from 'lucide-react';
 import { researchRead, type WikiPage } from '../lib/research';
 import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-session';
+import { useSlugTaskActivity } from '../dsh/task-activity';
+import { activeTaskKind, loadReportTasks } from '../lib/reportTasks';
 import { ResearchLoading } from './ui/ResearchLoading';
 import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
 import './wiki-report.css';
@@ -66,6 +68,9 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const slug = pageSlug(page);
   const inputHash = page.input_hash ?? '';
   const sessions = useContext(ResearchSessionContext);
+  const taskActivity = useSlugTaskActivity(slug, sessions, false);
+  const blockedReason = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
+    : taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : '';
   const [items, setItems] = useState<ReportMeta[] | null>(null);
   const [selected, setSelected] = useState<ReportMeta | null>(null);
   const [detail, setDetail] = useState<{ reportId: string; html: string; allowed: Set<string> } | null>(null);
@@ -248,6 +253,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const generate = () => {
     if (!sessions) { setError('研究服务正在连接，请稍后再试。'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
+    if (blockedReason) { setError(blockedReason); return; }
     const epoch = pageEpoch.current;
     watchedLive.current = true;
     awaitingArtifact.current = true;
@@ -255,10 +261,15 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     requestedAt.current = Date.now();
     setError(''); setStarting(true); setPendingRun(true);
     setSelected(null); setDetail(null);
-    void sessions.start(reportPrompt(page), undefined, {
-      navigate: false,
-      task: { kind: 'report', slug, inputHash, title: `报告生成 · ${page.spec.title || slug}` },
-    }).then(result => {
+    void (async () => {
+      const bindings = await loadReportTasks();
+      if (activeTaskKind(bindings, slug, id => sessions.taskRunning(id)) === 'research')
+        throw new Error('公司研究进行中，完成后可生成图文报告。');
+      return sessions.start(reportPrompt(page), undefined, {
+        navigate: false,
+        task: { kind: 'report', slug, inputHash, title: `报告生成 · ${page.spec.title || slug}` },
+      });
+    })().then(result => {
       if (epoch !== pageEpoch.current) return;
       setBusyOtherVersion(result.status === 'busy_other_version');
       if (result.status === 'busy_other_version') {
@@ -283,11 +294,11 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
           baseline: baselineReport.current ?? undefined,
         });
       }
-    }).catch(() => {
+    }).catch(e => {
       if (epoch !== pageEpoch.current) return;
       setPendingRun(false);
       startedSession.current = '';
-      setError('报告生成未能启动，研究页仍可阅读；可重试。');
+      setError(e instanceof Error ? e.message : '报告生成未能启动，研究页仍可阅读；可重试。');
       const current = items?.find(item => item.current);
       if (current) setSelected(current);
     }).finally(() => { if (epoch === pageEpoch.current) setStarting(false); });
@@ -296,12 +307,12 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   // First open of a version with no artifact and no prior task starts one
   // generation. A finished binding is a previous attempt — retry is explicit.
   useEffect(() => {
-    if (!active || autoTried || items === null || !taskReady || starting || task?.running) return;
+    if (!active || autoTried || items === null || !taskReady || starting || task?.running || blockedReason) return;
     if (items.some(item => item.current)) return;
     setAutoTried(true);
     if (task) return;
     generate();
-  }, [active, autoTried, items, taskReady, starting, task, task?.running]);
+  }, [active, autoTried, items, taskReady, starting, task, task?.running, blockedReason]);
 
   const generating = starting || pendingRun || Boolean(task?.running);
   const taskStale = Boolean(task?.running && task.inputHash !== inputHash);
@@ -309,10 +320,12 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const loadingList = active && items === null && !error;
   const loadingDetail = active && Boolean(selected) && !detail && !error;
   const waiting = active && !showGenerated && !loadingList && !loadingDetail;
-  const canGenerate = items !== null && !generating;
+  const canGenerate = items !== null && !generating && !blockedReason;
   return <>
     {actionSlot && generating && createPortal(
       <button type="button" className="workspace-action" disabled aria-busy="true">正在生成…</button>, actionSlot)}
+    {actionSlot && !generating && blockedReason && createPortal(<button type="button" className="workspace-action" disabled title={blockedReason}>生成图文报告</button>, actionSlot)}
+    {active && taskActivity.kind === 'research' && <p role="status" className="mb-3 text-sm text-muted-foreground">{blockedReason}</p>}
     {showGenerated && canGenerate && actionSlot && createPortal(
       <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">

@@ -446,6 +446,9 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   assertActive(signal);
   const store = loadReportTasks();
   const running = sessionId => reportRuns.has(sessionId) || sessionRunning(ctx, sessionId);
+  const researchBusy = Object.entries(store.sessions).some(([id, bind]) => bind?.kind === 'research' && bind.slug === slug
+    && (running(id) || (bind.settlement_status === 'running' && Date.now() - Date.parse(bind.settlement_updated_at || '') < RUNNING_STALE_MS)));
+  if (researchBusy) throw Object.assign(new Error('公司研究进行中，完成后可生成图文报告'), { status: 409 });
   const matches = Object.entries(store.sessions).filter(([, bind]) => (bind?.kind || 'report') === 'report' && bind?.slug === slug);
   const same = matches.find(([id, bind]) => running(id) && bind.input_hash === input_hash);
   if (same) return { session_id: same[0], status: 'running', host_session_id: store.host_session_id || '' };
@@ -505,7 +508,7 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
     watchReportRun(run, abort);
     const after = loadReportTasks();
     if (after.pending?.parent_id === hostId) {
-      after.sessions[run.id] = { kind: 'report', slug, input_hash, bound_at: new Date().toISOString(), run_status: 'running' };
+      after.sessions[run.id] = { kind: 'report', slug, title: next.pending.title, input_hash, bound_at: new Date().toISOString(), run_status: 'running' };
       after.pending = null;
       writeReportStore(after);
     }
@@ -545,6 +548,9 @@ export async function startResearchRun(ctx, { slug, symbol, prompt, title }) {
 async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, signal) {
   assertActive(signal);
   const store = loadReportTasks();
+  const reportBusy = Object.entries(store.sessions).some(([id, bind]) => (bind?.kind || 'report') === 'report' && bind.slug === slug
+    && (reportRuns.has(id) || sessionRunning(ctx, id)));
+  if (reportBusy) throw Object.assign(new Error('图文报告生成中，完成后可刷新资料'), { status: 409 });
   const active = Object.entries(store.sessions).find(([id, bind]) => bind?.kind === 'research' && bind.slug === slug
     && (reportRuns.has(id) || sessionRunning(ctx, id)
       || (bind.settlement_status === 'running' && Date.now() - Date.parse(bind.settlement_updated_at || '') < RUNNING_STALE_MS)));
