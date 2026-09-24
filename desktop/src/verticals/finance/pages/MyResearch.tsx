@@ -23,6 +23,7 @@ import {
   type ResearchTopicRouteResult,
   type ResearchTopicSummary,
 } from "../lib/research";
+import { userFacingRuntimeError } from '../lib/userFacingError';
 import { loadReportTasks, researchSkipSummary, researchTaskStatus, type ReportTaskStore } from "../lib/reportTasks";
 import { normalizeResearchTarget, researchObjectHref } from "../lib/researchObject";
 import { useAiPage } from "../../../core/ai/pageContext";
@@ -372,7 +373,10 @@ function BackgroundTaskList({ tasks, error, onOpenProcess, onOpenSource }: {
     const processId = task.child_session_id || task.id;
     const kind = task.kind === 'report' ? 'report' as const : task.kind === 'research' ? 'research' as const : 'knowledge' as const;
     const title = task.title || (kind === 'report' ? '图文报告' : kind === 'research' ? '公司研究' : '知识整理');
-    const summary = task.summary || task.question || '';
+    const rawSummary = task.summary || task.question || '';
+    // 失败 / 取消 / 中断的摘要可能是运行时英文原文，按类别转成中文。
+    const summary = ['failed', 'cancelled', 'interrupted'].includes(task.display_status || '')
+      ? userFacingRuntimeError(rawSummary, '这次任务没有完成') : rawSummary;
     const target = task.targets?.join('、') || '';
     const showSummary = Boolean(summary && summary !== title && summary !== target);
     const href = researchObjectHref(task.targets?.[0] || '');
