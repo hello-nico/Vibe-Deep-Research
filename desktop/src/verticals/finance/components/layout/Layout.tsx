@@ -15,6 +15,7 @@ import { prefGet, prefSet } from "@/lib/prefs";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { TaskNotices } from "../ui/TaskNotices";
 import { WikiDrawer } from '../WikiDrawer';
+import { loadPendingItems, pendingCount } from '../../lib/pendingResearch';
 
 const NAV = [
   { to: "/", icon: MessagesSquare, label: "深度对话" },
@@ -52,6 +53,16 @@ export function Layout() {
     return () => window.removeEventListener("vibe-toggle-sidebar", toggle);
   }, []);
   const { pathname } = useLocation();
+  const [pendingNavCount, setPendingNavCount] = useState<number>();
+  useEffect(() => {
+    let active = true;
+    const read = () => { if (document.visibilityState === 'visible') void loadPendingItems().then(items => { if (active) setPendingNavCount(pendingCount(items)); }).catch(() => { if (active) setPendingNavCount(undefined); }); };
+    read();
+    const timer = window.setInterval(read, 30_000);
+    document.addEventListener('visibilitychange', read);
+    window.addEventListener('finance-pending-changed', read);
+    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', read); window.removeEventListener('finance-pending-changed', read); };
+  }, [pathname]);
   const navigation = useNavigation();
   useDarkMode();
   const navRef = useRef<HTMLElement | null>(null);
@@ -213,7 +224,7 @@ export function Layout() {
                     className={cn("workspace-nav-link relative z-[1] flex min-w-0 flex-1 items-center text-[13px] transition-colors",
                       compact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
                       active ? "font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>
-                    <Icon className="h-4 w-4 shrink-0" />{!compact && <span>{label}</span>}
+                    <Icon className="h-4 w-4 shrink-0" />{!compact && <span>{label}</span>}{to === '/my-research' && pendingNavCount ? <span className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] text-primary" aria-label={`${pendingNavCount} 项待处理`}>{pendingNavCount}</span> : null}
                   </Link>
                   {group && !compact && <button type="button" aria-label={`${groupOpen ? "收起" : "展开"}${label}子栏目`}
                     aria-expanded={groupOpen} onClick={() => toggleGroup(to)}

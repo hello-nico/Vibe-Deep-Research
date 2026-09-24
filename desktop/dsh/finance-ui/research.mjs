@@ -4,6 +4,7 @@ const TOPIC_POOL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/(
 const WIKI_SLUG = /^\/wiki\/pages\/read$/;
 const NBS_INDUSTRY = /^\/wiki\/industries\/nbs$/;
 const DRAFT_TOKEN = /^\/wiki\/page-drafts\/[A-Za-z0-9_-]{32,64}$/;
+const DRAFT_ID_DISCARD = /^\/wiki\/page-drafts\/draft-[a-f0-9]{24}\/discard$/;
 const BLOCK = /^\/wiki\/documents\/[a-f0-9]+\/blocks\/[A-Za-z0-9_%:.-]+$/;
 const DOCUMENT = /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index|reparse))?$/;
 const PROFILE = /^\/industries\/profiles\/[A-Za-z0-9.]+$/;
@@ -11,12 +12,13 @@ const PROFILE = /^\/industries\/profiles\/[A-Za-z0-9.]+$/;
 export function researchRoute(method, pathname) {
   if (method === 'GET' && [
     '/wiki/pages', '/wiki/pages/read', '/wiki/pages/related', '/wiki/research-topics', '/wiki/research-links',
-    '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/industries/nbs',
+    '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/page-drafts', '/wiki/industries/nbs',
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
+  if (method === 'POST' && DRAFT_ID_DISCARD.test(pathname)) return true;
   if (method === 'PATCH' && /^\/documents\/[a-f0-9]{32}$/.test(pathname)) return true;
   if (method === 'GET' && /^\/notes\/[^/]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/research-results\/result(?::|%3A)[0-9a-f]{32}$/i.test(pathname)) return true;

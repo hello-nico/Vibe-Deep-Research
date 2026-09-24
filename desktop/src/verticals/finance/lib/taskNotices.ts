@@ -5,7 +5,7 @@ export const TASK_TRACK_TTL_MS = 2 * 60 * 60 * 1000;
 export type TaskObject = { slug: string; title: string; kind: 'company' | 'industry'; path: string };
 export type TrackedTask = {
   id: string;
-  kind: 'report' | 'refresh';
+  kind: 'report' | 'refresh' | 'research';
   object: TaskObject;
   ref: string;
   originHref: string;
@@ -14,7 +14,7 @@ export type TrackedTask = {
   phase?: 'check' | 'write';
   page?: 'company' | 'industry';
 };
-export type NoticeVariant = 'report-success' | 'report-fail' | 'refresh-wrote' | 'refresh-pending' | 'refresh-fail';
+export type NoticeVariant = 'report-success' | 'report-fail' | 'refresh-wrote' | 'refresh-pending' | 'refresh-fail' | 'research-pending' | 'research-no-increment' | 'research-invalid' | 'research-fail';
 export type TaskNotice = {
   id: string;
   variant: NoticeVariant;
@@ -44,7 +44,7 @@ function storage(): StorageLike | undefined {
 function isTrackRecord(value: unknown): value is TrackedTask {
   if (!value || typeof value !== 'object') return false;
   const item = value as TrackedTask;
-  return (item.kind === 'report' || item.kind === 'refresh')
+  return (item.kind === 'report' || item.kind === 'refresh' || item.kind === 'research')
     && typeof item.id === 'string'
     && typeof item.ref === 'string'
     && typeof item.startedAt === 'number'
@@ -169,9 +169,10 @@ export function dismissNotice(id: string) {
 }
 
 export function noticeFromOutcome(task: TrackedTask, outcome: Extract<TrackOutcome, { status: 'done' }>, currentHref: string, now = Date.now()): TaskNotice | null {
-  if (sameOriginPage(task.originHref, currentHref)) return null;
+  if (task.kind !== 'research' && sameOriginPage(task.originHref, currentHref)) return null;
   const name = task.object.title || task.object.slug;
-  const href = outcome.variant === 'report-success' ? objectHref(task.object.path, { view: 'report' })
+  const href = outcome.variant === 'research-pending' || outcome.variant === 'research-invalid' || outcome.variant === 'research-fail' ? '/my-research?tab=tasks'
+    : outcome.variant === 'report-success' ? objectHref(task.object.path, { view: 'report' })
     : outcome.variant === 'refresh-pending' ? objectHref(task.object.path, { refresh: 'confirm' })
       : objectHref(task.object.path);
   const copy: Record<NoticeVariant, { title: string; detail: string; sticky: boolean }> = {
@@ -180,6 +181,10 @@ export function noticeFromOutcome(task: TrackedTask, outcome: Extract<TrackOutco
     'refresh-wrote': { title: `「${name}」· 资料已更新`, detail: outcome.detail, sticky: false },
     'refresh-pending': { title: `「${name}」· 发现新资料，待你确认`, detail: outcome.detail || '点击查看并确认', sticky: true },
     'refresh-fail': { title: `「${name}」· 这次未能检查完`, detail: '资料保持原样，可稍后重试', sticky: true },
+    'research-pending': { title: `「${name}」· 研究完成，草案待你审阅`, detail: '点击查看任务并审阅草案', sticky: true },
+    'research-no-increment': { title: `「${name}」· 研究完成，没有需要更新的内容`, detail: '点击查看研究页', sticky: false },
+    'research-invalid': { title: `「${name}」· 草案已失效`, detail: outcome.detail, sticky: true },
+    'research-fail': { title: `「${name}」· 研究没有完成`, detail: '可在「我的研究 · 任务」查看过程后重试', sticky: true },
   };
   return { id: `${task.id}:${now}`, variant: outcome.variant, object: task.object, href, createdAt: now, ...copy[outcome.variant] };
 }
@@ -214,6 +219,22 @@ export async function resolveTrack(task: TrackedTask, deps?: {
   readCheck?: (id: string) => Promise<{ status: string; proposal?: { status?: string }; items?: { receipt?: { status?: string; result?: { updated_fields?: number; added_sources?: number; status?: string } } }[] }>;
   readProposal?: (id: string, page: string) => Promise<{ status: string; items?: { receipt?: { status?: string; result?: { updated_fields?: number; added_sources?: number; status?: string } } }[] }>;
 }): Promise<TrackOutcome> {
+  if (task.kind === 'research') {
+    const [{ loadReportTasks }, { loadResearchDrafts, draftInvalidReason }] = await Promise.all([import('./reportTasks'), import('./pendingResearch')]);
+    const binding = (await loadReportTasks()).sessions[task.ref];
+    if (!binding || binding.run_status === 'running' || binding.settlement_status === 'running' || binding.settlement_status === 'waiting_ingest') return { status: 'running' };
+    if (binding.run_status === 'failed' || binding.run_status === 'cancelled' || binding.settlement_status === 'failed' || binding.settlement_status === 'cancelled') return { status: 'done', variant: 'research-fail', detail: '' };
+    if (!binding.settlement_status) return { status: 'running' };
+    if (binding.settlement_status === 'no_increment' || binding.settlement_status === 'skipped') return { status: 'done', variant: 'research-no-increment', detail: '' };
+    const drafts = await loadResearchDrafts(task.object.slug);
+    if (drafts.some(draft => draft.status === 'pending' && draft.source_session_id === task.ref)) return { status: 'done', variant: 'research-pending', detail: '' };
+    if (drafts.some(draft => draft.status === 'published' && draft.source_session_id === task.ref)) return { status: 'unchanged' };
+    const invalid = drafts.find(draft => draft.status === 'invalid' && draft.source_session_id === task.ref);
+    if (invalid) return { status: 'done', variant: 'research-invalid', detail: draftInvalidReason(invalid.invalid_reason) };
+    if (binding.settlement_status === 'awaiting_authorization') return { status: 'running' };
+    if (binding.settlement_status === 'partial') return { status: 'done', variant: 'research-fail', detail: '' };
+    return { status: 'running' };
+  }
   if (task.kind === 'report') {
     const list = await (deps?.listReports ?? ((slug: string) =>
       readJson<{ items: { report_id: string; current?: boolean }[] }>(

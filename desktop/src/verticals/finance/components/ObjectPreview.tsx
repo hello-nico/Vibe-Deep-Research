@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { BookOpen, Building2, Factory, FileText, Layers, type LucideIcon } from 'lucide-react';
 import { objectFacts, openRegisteredObject, registeredObject, type ObjectKind } from '../lib/objectRegistry';
-import { loadObjectBadges } from '../lib/objectStatus';
+import { loadObjectStatuses, type StatusRow } from '../lib/objectStatus';
+import { ObjectStatusBadges } from './ui/ObjectStatusBadges';
 import './object-preview.css';
 
 // Hover preview for object tags (design v1 §4.4): reads only cached knowledge and Backend
@@ -35,7 +36,7 @@ function place(rect: DOMRect, height: number) {
 
 export function ObjectPreviewLayer() {
   const [anchor, setAnchor] = useState<Anchor | null>(null);
-  const [badges, setBadges] = useState<string[]>([]);
+  const [status, setStatus] = useState<StatusRow>();
   const [height, setHeight] = useState(160);
   const card = useRef<HTMLDivElement>(null);
   const timers = useRef<{ show?: number; hide?: number }>({});
@@ -86,19 +87,19 @@ export function ObjectPreviewLayer() {
   }, []);
 
   useEffect(() => {
-    setBadges([]);
+    setStatus(undefined);
     if (!anchor) return;
     const object = registeredObject(anchor.ref);
     let alive = true;
     if (object && (object.kind === 'company' || object.kind === 'industry')) {
-      void loadObjectBadges(object.id).then(next => { if (alive) setBadges(next); });
+      void loadObjectStatuses([object.id]).then(rows => { if (alive) setStatus(rows.get(object.id)); }).catch(() => {});
     }
     return () => { alive = false; };
   }, [anchor]);
 
   useEffect(() => {
     if (card.current) setHeight(card.current.offsetHeight);
-  }, [anchor, badges]);
+  }, [anchor, status]);
 
   if (!anchor) return null;
   const object = registeredObject(anchor.ref);
@@ -116,7 +117,7 @@ export function ObjectPreviewLayer() {
       </div>
     </div>
     {summary && <p className="finance-object-preview-summary">{summary}</p>}
-    {badges.length > 0 && <div className="finance-object-preview-badges">{badges.map(badge => <span key={badge}>{badge}</span>)}</div>}
+    {status && <div className="finance-object-preview-badges"><ObjectStatusBadges slug={object.id} row={status} /></div>}
     <div className="finance-object-preview-foot">
       <span>{facts?.asOf ? `资料截至 ${facts.asOf}` : ''}</span>
       <button type="button" className="workspace-action workspace-action-compact" onClick={() => { setAnchor(null); openRegisteredObject(anchor.ref); }}>打开</button>

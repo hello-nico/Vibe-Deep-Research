@@ -21,7 +21,7 @@ export const RESEARCH_START_GRACE_MS = 15_000;
 export const RESEARCH_SETTLEMENT_MS = 180_000;
 
 export type ResearchTaskStatus = 'researching' | 'settling' | 'awaiting_authorization' | 'no_increment'
-  | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'unconfirmed' | 'skipped';
+  | 'partial' | 'failed' | 'cancelled' | 'interrupted' | 'unconfirmed' | 'skipped' | 'published' | 'invalid';
 
 export interface ResearchSettlementRecord {
   status?: string;
@@ -29,6 +29,12 @@ export interface ResearchSettlementRecord {
   started_at?: string;
   settlement_reason?: string;
   reason?: string;
+  draft_id?: string;
+  draft_token?: string;
+}
+
+export function researchDraftStatus(status: 'pending' | 'published' | 'invalid'): ResearchTaskStatus {
+  return status === 'pending' ? 'awaiting_authorization' : status === 'published' ? 'published' : 'invalid';
 }
 
 export const SETTLEMENT_SKIP_REASONS: Record<string, string> = {

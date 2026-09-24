@@ -228,6 +228,7 @@ export interface BackgroundTask {
   source_session_id?: string;
   child_session_id?: string;
   targets?: string[];
+  draft_id?: string;
   draft_token?: string;
   settlement_reason?: string;
   reason?: string;

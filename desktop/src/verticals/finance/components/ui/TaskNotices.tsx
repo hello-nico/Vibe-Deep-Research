@@ -7,6 +7,8 @@ import {
   subscribeNotices, subscribeTracks, type TaskNotice,
 } from '../../lib/taskNotices';
 import '../refresh-confirm.css';
+import { invalidateObjectStatuses } from '../../lib/objectStatus';
+import { invalidatePendingItems } from '../../lib/pendingResearch';
 
 const POLL_MS = 5_000;
 const AUTO_MS = 8_000;
@@ -33,9 +35,9 @@ function NoticeCard({ notice }: { notice: TaskNotice }) {
     }, 200);
     return () => window.clearInterval(timer);
   }, [notice.id, notice.sticky]);
-  const warn = notice.variant === 'report-fail' || notice.variant === 'refresh-fail';
+  const warn = notice.variant === 'report-fail' || notice.variant === 'refresh-fail' || notice.variant === 'research-fail' || notice.variant === 'research-invalid';
   const go = () => {
-    if (notice.variant === 'report-fail') return;
+    if (notice.variant === 'report-fail' || notice.variant === 'research-fail') return;
     onDismiss();
     navigate(notice.href);
   };
@@ -51,7 +53,7 @@ function NoticeCard({ notice }: { notice: TaskNotice }) {
     <div>
       <strong>{notice.title}</strong>
       <p>{notice.detail}</p>
-      {notice.variant === 'report-fail' && <button type="button" className="task-notice-link" onClick={event => {
+      {(notice.variant === 'report-fail' || notice.variant === 'research-fail') && <button type="button" className="task-notice-link" onClick={event => {
         event.stopPropagation();
         onDismiss();
         navigate('/my-research?tab=tasks');
@@ -80,6 +82,7 @@ export function TaskNotices() {
           if (!active) return;
           if (outcome.status === 'running') continue;
           dropTrack(task.id);
+          if (task.kind === 'research') { invalidateObjectStatuses([task.object.slug]); invalidatePendingItems(); }
           if (outcome.status === 'unchanged') continue;
           const notice = noticeFromOutcome(task, outcome, href);
           if (notice) pushNotice(notice);

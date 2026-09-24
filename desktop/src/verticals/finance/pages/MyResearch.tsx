@@ -24,8 +24,13 @@ import {
   type ResearchTopicSummary,
 } from "../lib/research";
 import { userFacingRuntimeError } from '../lib/userFacingError';
-import { activeTaskKind, loadReportTasks, reportTaskOutcome, reportTaskTitle, researchSkipSummary, researchTaskStatus, type ReportArtifact, type ReportTaskStore } from "../lib/reportTasks";
-import { normalizeResearchTarget, openRegisteredObject, registeredObject, resolveObjectLabels } from "../lib/objectRegistry";
+import { activeTaskKind, loadReportTasks, reportTaskOutcome, reportTaskTitle, researchDraftStatus, researchSkipSummary, researchTaskStatus, type ReportArtifact, type ReportTaskStore } from "../lib/reportTasks";
+import { normalizeResearchTarget, objectLabel, openRegisteredObject, registeredObject, resolveObjectLabels } from "../lib/objectRegistry";
+import { discardResearchDraft, draftInvalidReason, invalidatePendingItems, loadPendingItems, loadResearchDrafts, pendingCount, type PendingItem, type ResearchDraft } from '../lib/pendingResearch';
+import { symbolFromCompanySlug } from '../lib/research';
+import { trackTask } from '../lib/taskNotices';
+import { WikiDraftPublish } from '../components/WikiDraftPublish';
+import { invalidateObjectStatuses } from '../lib/objectStatus';
 import { useAiPage } from "../../../core/ai/pageContext";
 import type { WikiPage } from '../lib/research';
 import { adoptCandidate, CandidateChoiceNeeded, CANDIDATE_CHANGED, disposeCandidate, loadCandidates, loadMemory, saveMemory, type MemoryDoc, type TopicCandidate } from "../lib/memory";
@@ -35,12 +40,14 @@ const TASK_STATUS: Record<string, string> = {
   awaiting_authorization: "待审阅", partial: "部分完成", failed: "失败", cancelled: "已取消", recorded: "已记录",
   researching: '研究中', settling: '整理中', completed: '研究已结束', unconfirmed: '结果待确认',
   skipped: '未整理',
+  published: '已发布', invalid: '草案已失效',
   generated: '已生成', unsaved: '未保存',
 };
 
-type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_token?: string; settlement_reason?: string; reason?: string };
+type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_id?: string; draft_token?: string; draft?: ResearchDraft; settlement_reason?: string; reason?: string };
 
 const RESEARCH_TABS = [
+  { value: 'pending', label: '待处理', icon: ListTodo },
   { value: "topics", label: "议题", icon: BookOpen },
   { value: "notes", label: "记录", icon: NotebookPen },
   { value: "tasks", label: "任务", icon: ListTodo },
@@ -51,7 +58,7 @@ export function MyResearch() {
   const navigate = useNavigate();
   const researchSessions = useContext(ResearchSessionContext);
   const [params, setParams] = useSearchParams();
-  const tab = params.get("tab") === "notes" ? "notes" : params.get("tab") === "tasks" ? "tasks" : params.get("tab") === "memory" ? "memory" : "topics";
+  const tab = params.get("tab") === 'pending' ? 'pending' : params.get("tab") === "notes" ? "notes" : params.get("tab") === "tasks" ? "tasks" : params.get("tab") === "memory" ? "memory" : "topics";
   const status = params.get("status") === "archived" ? "archived" : "active";
   const [query, setQuery] = useState("");
   const [topics, setTopics] = useState<ResearchTopicSummary[] | null>(null);
@@ -69,6 +76,9 @@ export function MyResearch() {
   const [notesTick, setNotesTick] = useState(0);
   const [tasks, setTasks] = useState<TaskRow[] | null>(null);
   const [tasksError, setTasksError] = useState("");
+  const [pending, setPending] = useState<PendingItem[] | null>(null);
+  const [pendingError, setPendingError] = useState('');
+  const [pendingTick, setPendingTick] = useState(0);
   const [retryBusy, setRetryBusy] = useState('');
   const [retryError, setRetryError] = useState('');
   const [topicQuestion, setTopicQuestion] = useState("");
@@ -113,6 +123,20 @@ export function MyResearch() {
     return () => controller.abort();
   }, [tab, query, notesOffset, notesTick]);
   useEffect(() => {
+    if (tab !== 'pending') return;
+    let active = true;
+    setPending(null); setPendingError('');
+    void loadPendingItems().then(items => { if (active) setPending(items); })
+      .catch(error => { if (active) setPendingError(error instanceof Error ? error.message : String(error)); });
+    return () => { active = false; };
+  }, [tab, pendingTick]);
+  useEffect(() => {
+    if (tab !== 'pending') return;
+    const update = () => setPendingTick(value => value + 1);
+    window.addEventListener('finance-pending-changed', update);
+    return () => window.removeEventListener('finance-pending-changed', update);
+  }, [tab]);
+  useEffect(() => {
     if (tab !== "tasks") return;
     const controller = new AbortController();
     let first = true;
@@ -130,7 +154,10 @@ export function MyResearch() {
         const settlements = new Map(background.filter(item => item.source_session_id).map(item => [item.source_session_id!, item]));
         const reportBindings = Object.entries(reports.sessions || {}).filter(([id, bind]) => id && id !== reports.host_session_id && (bind.kind || 'report') === 'report');
         const reportSlugs = [...new Set(reportBindings.map(([, bind]) => bind.slug))];
-        await resolveObjectLabels(reportSlugs).catch(() => {});
+        const draftSlugs = [...new Set(Object.entries(reports.sessions || {}).filter(([id, bind]) => bind.kind === 'research' && settlements.get(id)?.draft_id).map(([, bind]) => bind.slug))];
+        const draftResults = await Promise.all(draftSlugs.map(async slug => loadResearchDrafts(slug).catch(() => [])));
+        const draftsById = new Map(draftResults.flat().map(draft => [draft.draft_id, draft]));
+        await resolveObjectLabels([...reportSlugs, ...draftSlugs]).catch(() => {});
         const artifactsBySlug = new Map(await Promise.all(reportSlugs.map(async slug => {
           try {
             const list = await researchRead<{ items: ReportArtifact[] }>('/wiki/reports?slug=' + encodeURIComponent(slug), { signal: controller.signal });
@@ -154,16 +181,19 @@ export function MyResearch() {
         const researchItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([, bind]) => bind.kind === 'research').map(([id, bind]) => {
           const settlement = settlements.get(id);
           const running = researchSessions?.taskRunning(id);
-          const status = researchTaskStatus(bind, Boolean(running), settlement);
+          const draft = settlement?.draft_id ? draftsById.get(settlement.draft_id) : undefined;
+          const status = settlement?.draft_id ? draft ? researchDraftStatus(draft.status) : 'unconfirmed' : researchTaskStatus(bind, Boolean(running), settlement);
           const reason = settlement?.settlement_reason || settlement?.reason || bind.settlement_reason;
-          const skipSummary = status === 'skipped' ? researchSkipSummary(reason) : '';
+          const skipSummary = status === 'skipped' ? researchSkipSummary(reason) : status === 'invalid' ? draftInvalidReason(draft?.invalid_reason) : '';
           const target = normalizeResearchTarget(bind.slug) || bind.slug;
-          return { id, kind: 'research', title: bind.title || `公司研究 · ${bind.symbol || bind.slug.replace(/^companies\//, '')}`,
+          const name = objectLabel(target);
+          return { id, kind: 'research', title: name && name !== '公司研究' ? `公司研究 · ${name}` : bind.title || `公司研究 · ${bind.symbol || bind.slug.replace(/^companies\//, '')}`,
             display_status: status,
             started_at: bind.bound_at, finished_at: settlement?.finished_at || bind.finished_at,
             parent_session_id: reports.host_session_id, child_session_id: id,
             settlement_session_id: settlement?.child_session_id || settlement?.id,
-            targets: [target], settlement_reason: reason, summary: skipSummary || settlement?.summary || '' };
+            targets: [target], draft_id: settlement?.draft_id, draft_token: settlement?.draft_token, draft,
+            settlement_reason: reason, summary: skipSummary || settlement?.summary || '' };
         });
         const legacyItems: TaskRow[] = legacy.map(item => {
           const target = normalizeResearchTarget(`companies/${item.symbol}`) || `companies/${item.symbol}`;
@@ -185,6 +215,12 @@ export function MyResearch() {
     const timer = window.setInterval(() => { void load(); }, 4000);
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [tab]);
+  useEffect(() => {
+    const draftId = params.get('draft');
+    if (tab !== 'tasks' || !draftId || !tasks) return;
+    const frame = requestAnimationFrame(() => document.getElementById(`draft-${draftId}`)?.scrollIntoView({ block: 'center' }));
+    return () => cancelAnimationFrame(frame);
+  }, [tab, tasks, params]);
   const replaceParams = (mutate: (next: URLSearchParams) => void) => {
     const next = new URLSearchParams(params);
     mutate(next);
@@ -198,10 +234,10 @@ export function MyResearch() {
     topicRouteTimer.current = null;
     setTopicRouteBusy(false);
   };
-  const setTab = (value: "topics" | "notes" | "tasks" | "memory") => {
+  const setTab = (value: "pending" | "topics" | "notes" | "tasks" | "memory") => {
     if (value !== "topics") cancelTopicRoute();
     replaceParams(next => {
-      if (value === "notes" || value === "tasks" || value === "memory") next.set("tab", value); else next.delete("tab");
+      if (value !== "topics") next.set("tab", value); else next.delete("tab");
     });
     if (value === "notes") setNotesOffset(0);
   };
@@ -294,10 +330,41 @@ export function MyResearch() {
     } catch (e) { setRetryError(e instanceof Error ? e.message : String(e)); }
     finally { setRetryBusy(''); }
   };
+  const restartResearch = async (slug: string) => {
+    if (!researchSessions || retryBusy) return;
+    const symbol = symbolFromCompanySlug(slug);
+    if (!symbol) { setRetryError('仅公司研究可以重新整理。'); return; }
+    setRetryBusy(slug); setRetryError('');
+    try {
+      const bindings = await loadReportTasks();
+      if (activeTaskKind(bindings, slug, id => researchSessions.taskRunning(id))) throw new Error('这家公司的研究或报告仍在进行，请完成后再试。');
+      const ensured = await researchRead<{ action: string }>('/wiki/pages/ensure', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug }) });
+      const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(slug));
+      const name = page.spec.title || objectLabel(slug);
+      const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${name}（${symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${name} \`${slug}\``;
+      const { sessionId } = await researchSessions.start(prompt, { symbol, name }, { navigate: false, task: { kind: 'research', slug, symbol, title: `公司研究 · ${name}` } });
+      trackTask({ kind: 'research', object: { slug, title: name, kind: 'company', path: `/research?company=${encodeURIComponent(slug)}` }, ref: sessionId });
+      navigate(`/research?company=${encodeURIComponent(slug)}`);
+    } catch (error) { setRetryError(error instanceof Error ? error.message : String(error)); }
+    finally { setRetryBusy(''); }
+  };
+  const discardDraft = async (draft: ResearchDraft) => {
+    if (!window.confirm('放弃这条研究草案？放弃后需要重新研究才能生成新草案。')) return;
+    setRetryBusy(draft.draft_id); setRetryError('');
+    try {
+      await discardResearchDraft(draft);
+      setTasks(previous => previous?.map(task => task.draft_id === draft.draft_id
+        ? { ...task, display_status: 'invalid', summary: draftInvalidReason('discarded'), draft: { ...draft, status: 'invalid', invalid_reason: 'discarded' } } : task) ?? null);
+      setPendingTick(value => value + 1);
+    } catch (error) { setRetryError(error instanceof Error ? error.message : String(error)); }
+    finally { setRetryBusy(''); }
+  };
   useAiPage({
     key: `my-research:${tab}:${status}`,
     title: "我的研究",
-    context: tab === "notes"
+    context: tab === 'pending'
+      ? (pendingError ? '待处理状态读取失败' : `待处理 ${pending ? pendingCount(pending) : 0} 项`)
+      : tab === "notes"
       ? (notesError ? "记录读取失败" : (notes?.length ? `独立沉淀记录 ${notesTotal || notes.length} 条` : "还没有独立沉淀记录"))
       : tab === "tasks"
         ? (tasksError ? "任务读取失败" : (tasks?.length ? `知识整理 ${tasks.length} 条` : "还没有任务"))
@@ -320,8 +387,9 @@ export function MyResearch() {
         </div>
         {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
       </div>
-      {tab !== "tasks" && tab !== "memory" && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
-      {tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <><BackgroundTaskList tasks={tasks} error={tasksError} retryBusy={retryBusy} onRetryReport={retryReport} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
+      {tab !== "tasks" && tab !== "memory" && tab !== 'pending' && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
+      {tab === 'pending' ? <PendingResearchPanel items={pending} error={pendingError} busy={retryBusy} onRetry={() => { invalidatePendingItems(); setPendingTick(value => value + 1); }} onAction={item => item.kind === 'invalid' ? void restartResearch(item.slug) : item.href ? navigate(item.href) : undefined} />
+        : tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <><BackgroundTaskList tasks={tasks} error={tasksError} retryBusy={retryBusy} selectedDraftId={params.get('draft') || ''} onRetryReport={retryReport} onRestartResearch={slug => void restartResearch(slug)} onDiscardDraft={draft => void discardDraft(draft)} onDraftPublished={draft => { invalidateObjectStatuses([draft.slug]); invalidatePendingItems(); setTasks(previous => previous?.map(task => task.draft_id === draft.draft_id ? { ...task, display_status: 'published' } : task) ?? null); }} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
         sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
         resultRef: target,
       })} onOpenSource={id => { void researchSessions?.openSession(id); }} />{retryError && <p role="alert" className="mt-3 text-sm text-destructive">{retryError}</p>}</> : tab === "topics" ? <>
@@ -393,11 +461,37 @@ export function MyResearch() {
   </div>;
 }
 
-function BackgroundTaskList({ tasks, error, retryBusy, onRetryReport, onOpenProcess, onOpenSource }: {
+function PendingResearchPanel({ items, error, busy, onRetry, onAction }: {
+  items: PendingItem[] | null; error: string; busy: string; onRetry: () => void; onAction: (item: PendingItem) => void;
+}) {
+  const [openDraftId, setOpenDraftId] = useState('');
+  if (error) return <p role="alert" className="text-sm text-destructive">待处理事项暂时无法读取：{error}<button type="button" className="workspace-action ml-2" onClick={onRetry}>重试</button></p>;
+  if (!items) return <ResearchLoading compact title="正在读取待处理事项" sections={['草案', '资料变化']} />;
+  if (!items.length) return <p className="py-8 text-sm text-muted-foreground">目前没有待处理事项。</p>;
+  return <div className="divide-y divide-border/30">{items.map(item => {
+    const object = registeredObject(item.slug);
+    const action = item.kind === 'invalid' ? '重新整理' : item.kind === 'draft' ? '审阅' : item.kind === 'refresh' ? '确认新资料' : '查看';
+    return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+      <div className="min-w-0">
+        <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => openRegisteredObject(item.slug)}>{object?.label || item.slug}</button>
+        <p className="mt-1 text-sm">{item.label}</p>
+        {item.time && <p className="mt-1 text-xs text-muted-foreground">{new Date(item.time).toLocaleString('zh-CN')}</p>}
+      </div>
+      <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy || (!item.href && item.kind !== 'invalid' && !item.draftToken)} onClick={() => item.kind === 'draft' && item.draftToken ? setOpenDraftId(openDraftId === item.id ? '' : item.id) : onAction(item)}>{busy === item.slug ? '启动中…' : action}</button>
+      {item.kind === 'draft' && item.draftToken && openDraftId === item.id && <div className="w-full"><WikiDraftPublish draftToken={item.draftToken} onPublished={() => { invalidateObjectStatuses([item.slug]); invalidatePendingItems(); onRetry(); setOpenDraftId(''); }} /></div>}
+    </div>;
+  })}</div>;
+}
+
+function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryReport, onRestartResearch, onDiscardDraft, onDraftPublished, onOpenProcess, onOpenSource }: {
   tasks: TaskRow[] | null;
   error: string;
   retryBusy: string;
+  selectedDraftId: string;
   onRetryReport: (task: TaskRow) => void;
+  onRestartResearch: (slug: string) => void;
+  onDiscardDraft: (draft: ResearchDraft) => void;
+  onDraftPublished: (draft: ResearchDraft) => void;
   onOpenProcess?: (sessionId: string, kind: 'report' | 'research' | 'knowledge', title: string, parentSessionId?: string, target?: string, settlementId?: string, status?: string) => void;
   onOpenSource?: (sessionId: string) => void | Promise<void>;
 }) {
@@ -422,7 +516,7 @@ function BackgroundTaskList({ tasks, error, retryBusy, onRetryReport, onOpenProc
       task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '',
       duration != null ? `${duration} 秒` : '',
     ].filter(Boolean).join(' · ');
-    return <div key={task.id} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0">
+    return <div key={task.id} id={task.draft_id ? `draft-${task.draft_id}` : undefined} className={`flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0 ${task.draft_id === selectedDraftId ? 'rounded-lg bg-primary/5 px-2' : ''}`}>
       <div className="min-w-0 flex-1">
         <p className="text-xs text-muted-foreground">{when}</p>
         <h2 className="mt-1 text-base font-semibold">{title}</h2>
@@ -431,10 +525,13 @@ function BackgroundTaskList({ tasks, error, retryBusy, onRetryReport, onOpenProc
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {kind === 'report' && task.display_status === 'unsaved' && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
+        {kind === 'research' && task.display_status === 'invalid' && targetRef.startsWith('companies/') && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onRestartResearch(targetRef)}>{retryBusy === targetRef ? '启动中…' : '重新整理'}</button>}
+        {kind === 'research' && task.display_status === 'awaiting_authorization' && task.draft && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onDiscardDraft(task.draft!)}>放弃</button>}
         {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
         {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
         {(object?.href || object?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => openRegisteredObject(targetRef)}>打开研究页</button>}
       </div>
+      {kind === 'research' && task.display_status === 'awaiting_authorization' && task.draft_token && task.draft && <div className="w-full"><WikiDraftPublish draftToken={task.draft_token} onPublished={() => onDraftPublished(task.draft!)} /></div>}
     </div>;
   })}</>;
 }

@@ -66,6 +66,16 @@ test('对象路径去掉分段参数，失败与待确认跳转符合规格', ()
   assert.equal(pending?.sticky, true);
 });
 
+test('公司研究完成提醒按草案和无新增分别显示，原页也能收到', () => {
+  const company = { slug: 'companies/600900-sh', title: '长江电力', kind: 'company' as const, path: '/research?company=companies%2F600900-sh' };
+  const track = trackTask({ kind: 'research', object: company, ref: 'research-1', originHref: company.path }, memoryStore());
+  const pending = noticeFromOutcome(track, { status: 'done', variant: 'research-pending', detail: '' }, company.path);
+  assert.match(pending?.title || '', /研究完成，草案待你审阅/);
+  assert.equal(pending?.href, '/my-research?tab=tasks');
+  const unchanged = noticeFromOutcome(track, { status: 'done', variant: 'research-no-increment', detail: '' }, '/watchlist');
+  assert.match(unchanged?.title || '', /没有需要更新的内容/);
+});
+
 test('报告与刷新在生成/检查时登记，外壳挂载提醒且共用卡片样式', () => {
   const root = fileURLToPath(new URL('../src/verticals/finance/', import.meta.url));
   const pane = readFileSync(root + 'components/WikiReportPane.tsx', 'utf8');

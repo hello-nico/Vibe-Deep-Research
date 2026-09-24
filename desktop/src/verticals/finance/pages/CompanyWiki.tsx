@@ -23,6 +23,9 @@ import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X 
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { CompanyRefreshConfirm, type RefreshViewState } from '../components/CompanyRefreshConfirm';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
+import { ObjectStatusBadges, useObjectStatusRows } from '../components/ui/ObjectStatusBadges';
+import type { StatusRow } from '../lib/objectStatus';
+import { trackTask } from '../lib/taskNotices';
 
 const VIEW_KEY = 'vr-company-roster-view';
 const RECENT_LIMIT = 9;
@@ -46,7 +49,6 @@ export function CompanyWiki() {
   const setSlug = (value: string) => {
     if (!slug) sessionStorage.setItem(overviewKey, String(document.getElementById('workspace-main')?.scrollTop || 0));
     const next = new URLSearchParams(params);
-    next.delete('reader');
     next.delete('view');
     next.delete('refresh');
     if (value) next.set('company', value); else next.delete('company');
@@ -178,6 +180,7 @@ export function CompanyWiki() {
   const matched = searching ? rows.filter(row => matches(row.title, row.symbol, searching)) : rows;
   const visible = searching ? matched : matched.slice(0, RECENT_LIMIT);
   const current = rows.find(row => row.slug === slug) || (slug ? toRow(symbolFromCompanySlug(slug) || slug, symbolFromCompanySlug(slug) ? slug : null, wikiBySlug.get(slug)) : undefined);
+  const objectStatuses = useObjectStatusRows(slug ? [slug] : visible.filter(row => row.aShare).map(row => row.slug));
   const taskActivity = useSlugTaskActivity(slug, sessions);
   const reportBlocksRefresh = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
     : taskActivity.kind === 'report' ? '图文报告生成中，完成后可刷新资料。' : '';
@@ -365,6 +368,7 @@ export function CompanyWiki() {
       const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name }, {
         navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${name}` },
       });
+      trackTask({ kind: 'research', object: { slug: target.slug, title: name, kind: 'company', path: `/research?company=${encodeURIComponent(target.slug)}` }, ref: sessionId });
       if (activeSlug.current !== target.slug) return;
       setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: page?.input_hash });
     } catch (e) {
@@ -455,6 +459,7 @@ export function CompanyWiki() {
           emptyText="名单里没有匹配的公司"
           options={switchOptions}
         />
+        <ObjectStatusBadges slug={slug} row={objectStatuses.get(slug)} />
         {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} />}
       </div>
       <div className="object-toolbar-group object-toolbar-actions">
@@ -515,6 +520,7 @@ export function CompanyWiki() {
           industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
           researching={runningSymbols.has(row.symbol)}
           hasReport={Boolean(reportFlags[row.slug])}
+          objectStatus={objectStatuses.get(row.slug)}
           onOpen={() => setSlug(row.slug)}
           attach={attachRoster(row.slug)}
         />
@@ -527,6 +533,7 @@ export function CompanyWiki() {
             industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
             researching={runningSymbols.has(row.symbol)}
             hasReport={Boolean(reportFlags[row.slug])}
+            objectStatus={objectStatuses.get(row.slug)}
             watched={watched.has(row.symbol)}
             onOpen={() => setSlug(row.slug)}
             onWatch={() => void toggleWatch(row.symbol)}
@@ -574,12 +581,13 @@ function RosterOneLiner({ text, lines }: { text?: string | null; lines: 1 | 2 })
 }
 
 function CompanyRosterRow({
-  row, industryReady, researching, hasReport, watched, onOpen, onWatch, onLeave, attach,
+  row, industryReady, researching, hasReport, objectStatus, watched, onOpen, onWatch, onLeave, attach,
 }: {
   row: RosterRow;
   industryReady: boolean;
   researching: boolean;
   hasReport: boolean;
+  objectStatus?: StatusRow;
   watched: boolean;
   onOpen: () => void;
   onWatch: () => void;
@@ -595,6 +603,7 @@ function CompanyRosterRow({
       </button>
       <RosterIndustryTag summary={row.summary} ready={industryReady} />
       <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
+      <ObjectStatusBadges slug={row.slug} row={objectStatus} />
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}</span>}
         <ArrowRight size={14} className="text-muted-foreground/60" />
@@ -611,12 +620,13 @@ function CompanyRosterRow({
 }
 
 function CompanyRosterCard({
-  row, industryReady, researching, hasReport, onOpen, attach,
+  row, industryReady, researching, hasReport, objectStatus, onOpen, attach,
 }: {
   row: RosterRow;
   industryReady: boolean;
   researching: boolean;
   hasReport: boolean;
+  objectStatus?: StatusRow;
   onOpen: () => void;
   attach: (el: HTMLElement | null) => void;
 }) {
@@ -632,6 +642,7 @@ function CompanyRosterCard({
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
           <RosterIndustryTag summary={row.summary} ready={industryReady} />
           <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
+          <ObjectStatusBadges slug={row.slug} row={objectStatus} />
         </div>
         <button type="button" onClick={onOpen} className="mt-2 block w-full min-w-0 text-left">
           <RosterOneLiner text={row.summary?.one_liner} lines={2} />
