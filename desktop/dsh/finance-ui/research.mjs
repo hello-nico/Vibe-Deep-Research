@@ -1,5 +1,6 @@
 /** Product read/upload facade. Research validation and persistence stay in Backend. */
 const TOPIC_ID = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}$/i;
+const TOPIC_WALL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/wall$/i;
 const TOPIC_POOL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/(?:archive|restore)$/i;
 const WIKI_SLUG = /^\/wiki\/pages\/read$/;
 const NBS_INDUSTRY = /^\/wiki\/industries\/nbs$/;
@@ -16,7 +17,7 @@ export function researchRoute(method, pathname) {
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
   ].includes(pathname)) return true;
-  if (method === 'GET' && (TOPIC_ID.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
+  if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
   if (method === 'POST' && DRAFT_ID_DISCARD.test(pathname)) return true;
   if (method === 'PATCH' && /^\/documents\/[a-f0-9]{32}$/.test(pathname)) return true;
@@ -28,6 +29,7 @@ export function researchRoute(method, pathname) {
     '/documents/fetch-url',
     '/wiki/research-topics/route', '/wiki/research-links/propose',
     '/wiki/research-links/confirm', '/wiki/research-links/reject',
+    '/wiki/research-links/hypotheses', '/wiki/research-links/hypotheses/withdraw',
     '/wiki/research-candidates', '/notes',
     '/research-results/market/preview',
     '/wiki/objects/status', // read-only batch status (T4-a); POST only for the slug list body

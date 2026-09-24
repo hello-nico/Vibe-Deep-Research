@@ -30,12 +30,18 @@ test("Backend 入库仍运行或暂不可用时不推断为完成或子会话中
 test("我的研究 facade 允许 Topic 冒号 ID、确认关联与记录接口，仍拒绝浏览器直传发布", () => {
   assert.equal(researchRoute("GET", "/wiki/research-topics/topic:24ff5def6bf2"), true);
   assert.equal(researchRoute("GET", "/wiki/research-topics/topic%3A24ff5def6bf2"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-topics/topic:24ff5def6bf2/wall"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-topics/topic%3A24ff5def6bf2/wall"), true);
+  assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2/wall"), false);
   assert.equal(researchRoute("POST", "/wiki/research-topics/route"), true);
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2"), true);
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2/archive"), true);
   assert.equal(researchRoute("POST", "/wiki/research-topics/topic:24ff5def6bf2/restore"), true);
   assert.equal(researchRoute("GET", "/wiki/industries/nbs"), true);
   assert.equal(researchRoute("POST", "/wiki/research-links/confirm"), true);
+  assert.equal(researchRoute("POST", "/wiki/research-links/hypotheses"), true);
+  assert.equal(researchRoute("POST", "/wiki/research-links/hypotheses/withdraw"), true);
+  assert.equal(researchRoute("GET", "/wiki/research-links/hypotheses"), false);
   assert.equal(researchRoute("GET", "/wiki/research-memory"), true);
   assert.equal(researchRoute("PUT", "/wiki/research-memory"), true);
   assert.equal(researchRoute("GET", "/wiki/research-candidates"), true);
