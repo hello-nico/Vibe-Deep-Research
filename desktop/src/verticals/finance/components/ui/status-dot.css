@@ -1,0 +1,12 @@
+/* 状态点：颜色表达状态，悬停或键盘聚焦立即显示说明。 */
+.status-dot { position: relative; display: inline-block; width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; background: hsl(var(--muted-foreground) / .5); box-shadow: 0 0 0 3px hsl(var(--card)); outline: none; }
+.status-dot::before { content: ''; position: absolute; inset: -6px; }
+.status-dot.tone-ok { background: hsl(142 64% 42%); }
+.status-dot.tone-bad { background: hsl(0 72% 54%); }
+.status-dot.tone-wait { background: hsl(36 92% 50%); }
+.status-dot.tone-run { background: hsl(var(--primary)); animation: status-dot-pulse 1.4s ease-in-out infinite; }
+.status-dot-tip { position: absolute; left: 50%; bottom: calc(100% + 8px); z-index: 30; width: max-content; max-width: 260px; padding: 6px 10px; border-radius: 8px; background: hsl(var(--foreground)); color: hsl(var(--background)); font-size: 12px; font-weight: 400; line-height: 1.5; white-space: normal; text-align: left; letter-spacing: 0; pointer-events: none; opacity: 0; transform: translate(-50%, 2px); transition: opacity .12s, transform .12s; }
+.status-dot:hover .status-dot-tip, .status-dot:focus-visible .status-dot-tip { opacity: 1; transform: translate(-50%, 0); }
+.status-dot:focus-visible { box-shadow: 0 0 0 3px hsl(var(--card)), 0 0 0 5px hsl(var(--primary) / .5); }
+@keyframes status-dot-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .status-dot.tone-run { animation: none; } }

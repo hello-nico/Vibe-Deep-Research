@@ -138,6 +138,9 @@
     -webkit-backdrop-filter: blur(14px);
   }
   .light .glass { box-shadow: 0 10px 26px rgba(30, 60, 100, 0.10), inset 0 1px 0 var(--glass-hi); }
+  /* 嵌套玻璃卡不再叠加背景模糊：外层已模糊，内层叠加没有可见效果；且 Chrome 在宽度变化（右侧面板开合）后
+     不重绘嵌套的 backdrop-filter 层，内卡会只剩底色（研究页首卡空白）。 */
+  .glass .glass { backdrop-filter: none; -webkit-backdrop-filter: none; }
 
   /* 顶角暖橙光晕（配 .glass 用，装饰热点） */
   .glass-glow { position: relative; overflow: hidden; }

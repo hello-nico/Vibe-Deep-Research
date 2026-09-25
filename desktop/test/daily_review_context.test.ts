@@ -61,13 +61,13 @@ test("大盘数据块正常、回退、无数据三态使用本块时间与实�
   const now = new Date(2026, 8, 24, 21, 30);
   const block = { id: "board_flow", title: "板块资金", note: null, status: "stale_fallback" as const,
     fetched_at: new Date(2026, 8, 24, 14, 31).toISOString(), error: "东方财富接口 HTTP 502", envelope: {} };
-  assert.equal(dailyReviewBlockStatus(block, now), "这次没取到（东方财富接口 HTTP 502），下面是 14:31 的内容");
+  assert.equal(dailyReviewBlockStatus(block, now), "这次没有取到最新数据，显示的是 14:31 的内容");
   assert.equal(dailyReviewBlockStatus({ ...block, fetched_at: new Date(2026, 8, 23, 14, 31).toISOString() }, now),
-    "这次没取到（东方财富接口 HTTP 502），下面是 2026-09-23 14:31 的内容");
+    "这次没有取到最新数据，显示的是 2026-09-23 14:31 的内容");
   assert.equal(dailyReviewBlockStatus({ ...block, status: "ok" }, now), null);
   assert.equal(dailyReviewBlockTime(block, "错误的情绪时间"), block.fetched_at);
   assert.equal(dailyReviewBlockTime({ ...block, status: "failed" }, "错误的情绪时间"), null);
-  assert.equal(dailyReviewEmptyStatus({ ...block, status: "failed" }), "东方财富接口 HTTP 502");
+  assert.equal(dailyReviewEmptyStatus({ ...block, status: "failed" }), "这次没有取到数据，可以稍后刷新重试");
   assert.equal(dailyReviewEmptyStatus(undefined, "本机服务连接失败"), "本机服务连接失败");
 });
 

@@ -85,10 +85,3 @@ button.rl-object-chip:hover { background: hsl(var(--primary) / .16); }
 .rl-task-summary { margin-left: 16px; padding: 10px 12px; border-radius: 10px; background: hsl(var(--card)); font-size: 13px; line-height: 1.7; color: hsl(var(--muted-foreground)); white-space: pre-wrap; }
 .rl-task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 10px; }
 .rl-task-actions:empty { display: none; }
-.rl-status-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; background: hsl(var(--muted-foreground) / .5); cursor: help; box-shadow: 0 0 0 3px hsl(var(--card)); }
-.rl-status-dot.tone-ok { background: hsl(142 64% 42%); }
-.rl-status-dot.tone-bad { background: hsl(0 72% 54%); }
-.rl-status-dot.tone-wait { background: hsl(36 92% 50%); }
-.rl-status-dot.tone-run { background: hsl(var(--primary)); animation: rl-pulse 1.4s ease-in-out infinite; }
-@keyframes rl-pulse { 50% { opacity: .35; } }
-@media (prefers-reduced-motion: reduce) { .rl-status-dot.tone-run { animation: none; } }

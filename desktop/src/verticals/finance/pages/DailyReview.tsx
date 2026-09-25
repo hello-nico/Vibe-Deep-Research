@@ -11,6 +11,7 @@ import { api, type IndexQuote, type MarketOverview, type ShortTermEmotion, type 
 import { cn } from "@/lib/utils";
 import { marketRequest } from "@/lib/marketRequest";
 import { CompanyNamePeek } from "../components/CompanyPeek";
+import { StatusDot } from "../components/ui/StatusDot";
 import { dailyReviewBlockStatus, dailyReviewBlockTime, dailyReviewEmptyStatus } from "./dailyReviewStatus.ts";
 
 // A股红涨绿跌。全球市场（美股/港股指数）**也沿用红涨**——与整个看板及东财等中国平台一致，
@@ -32,14 +33,14 @@ function formatUpdated(value?: string | null) {
 }
 
 function SectionHead({
-  icon: Icon, title, hint, updated, action,
+  icon: Icon, title, hint, updated, action, notice,
 }: {
-  icon?: LucideIcon; title: string; hint?: string; updated?: string | null; action?: ReactNode;
+  icon?: LucideIcon; title: string; hint?: string; updated?: string | null; action?: ReactNode; notice?: string | null;
 }) {
   const stamp = formatUpdated(updated);
   return (
     <div className="dashboard-section-head">
-      <h3>{Icon && <Icon className="h-4 w-4 shrink-0" />}{title}</h3>
+      <h3>{Icon && <Icon className="h-4 w-4 shrink-0" />}{title}{notice && <StatusDot tone="wait" label={notice} className="ml-2" />}</h3>
       {hint && <span className="hint">{hint}</span>}
       <div className="meta">
         {stamp && <span>更新于 {stamp}</span>}
@@ -114,10 +115,6 @@ export function DailyReview() {
 
   // 数据块占位：请求没回来 = 加载中；回来了但为空 = 数据源暂不可用（别让用户干等）
   const pageBlock = (id: string) => pageMeta?.blocks.find(b => b.id === id);
-  const fallback = (id: string) => {
-    const message = dailyReviewBlockStatus(pageBlock(id));
-    return message && <p role="status" className="mb-2 text-xs text-amber-700 dark:text-amber-300">{message}</p>;
-  };
   const pending = (done: boolean, id?: string) => (
     <p className="py-4 text-center text-sm text-muted-foreground/60">
       {done ? dailyReviewEmptyStatus(id ? pageBlock(id) : undefined, pageErr) : "加载中…"}
@@ -325,8 +322,7 @@ export function DailyReview() {
       )}
 
       {/* 4. 市场情绪 */}
-      <SectionHead icon={Gauge} title="市场情绪" updated={dailyReviewBlockTime(pageBlock("sentiment"), sentiment?.fetched_at)} />
-      {fallback("sentiment")}
+      <SectionHead icon={Gauge} title="市场情绪" updated={dailyReviewBlockTime(pageBlock("sentiment"), sentiment?.fetched_at)} notice={dailyReviewBlockStatus(pageBlock("sentiment"))} />
       <GlassCard className="mb-6">
         {!sentiment?.breadth ? (
           pending(ovDone, "sentiment")
@@ -357,8 +353,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4b. 短线情绪（连板梯队 / 打板情绪，聚合口径零个股名） */}
-      <SectionHead icon={Flame} title="短线情绪" hint="连板股 · 打板情绪 · 客观公开榜单" updated={dailyReviewBlockTime(pageBlock("zt_pool"), emotion?.fetched_at)} />
-      {fallback("zt_pool")}
+      <SectionHead icon={Flame} title="短线情绪" hint="连板股 · 打板情绪 · 客观公开榜单" updated={dailyReviewBlockTime(pageBlock("zt_pool"), emotion?.fetched_at)} notice={dailyReviewBlockStatus(pageBlock("zt_pool"))} />
       <GlassCard className="mb-6">
         {!emotion || emotion.zt_count === undefined ? (
           pending(emoDone, "zt_pool")
@@ -431,8 +426,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 4c. 全市场成交额 TOP20（客观公开榜单） */}
-      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="公开榜单" updated={dailyReviewBlockTime(pageBlock("turnover"), turnover?.updated)} />
-      {fallback("turnover")}
+      <SectionHead icon={BarChart3} title="全市场成交额 TOP20" hint="公开榜单" updated={dailyReviewBlockTime(pageBlock("turnover"), turnover?.updated)} notice={dailyReviewBlockStatus(pageBlock("turnover"))} />
       <GlassCard className="mb-6">
         {!turnover || turnover.stocks.length === 0 ? (
           pending(toDone, "turnover")
@@ -467,8 +461,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 5. 板块资金趋势榜（行业） */}
-      <SectionHead icon={TrendingUp} title="板块资金趋势榜" hint="行业 · 按今日净流入排序" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} />
-      {fallback("board_flow")}
+      <SectionHead icon={TrendingUp} title="板块资金趋势榜" hint="行业 · 按今日净流入排序" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} notice={dailyReviewBlockStatus(pageBlock("board_flow"))} />
       <GlassCard className="mb-6">
         {sectors.length === 0 ? (
           pending(ovDone, "board_flow")
@@ -499,8 +492,7 @@ export function DailyReview() {
       </GlassCard>
 
       {/* 6. 资金轮动 */}
-      <SectionHead icon={ArrowDownUp} title="资金轮动" hint="板块级净流入 / 流出" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} />
-      {fallback("board_flow")}
+      <SectionHead icon={ArrowDownUp} title="资金轮动" hint="板块级净流入 / 流出" updated={dailyReviewBlockTime(pageBlock("board_flow"), overview?.sectors_fetched_at)} notice={dailyReviewBlockStatus(pageBlock("board_flow"))} />
       <div className="mb-2 grid gap-4 md:grid-cols-2">
         {[
           // 🔴 判据是**净额的正负**，不是"在列表的哪一头"。

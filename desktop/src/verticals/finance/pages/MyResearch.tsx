@@ -2,6 +2,7 @@ import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { Archive, BookOpen, Brain, Check, ChevronDown, ChevronUp, ListTodo, MessageSquare, NotebookPen, Pencil, Plus, RotateCcw, ScrollText, Trash2, X } from "lucide-react";
 import "./my-research.css";
+import { StatusDot } from "../components/ui/StatusDot";
 import { ResearchSessionContext } from "../dsh/research-session";
 import { PageHeader } from "../components/ui/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -537,7 +538,7 @@ function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryR
     const openable = Boolean(object?.href || object?.drawer);
     return <div key={task.id} id={task.draft_id ? `draft-${task.draft_id}` : undefined} className={`rl-task${task.draft_id === selectedDraftId ? ' is-selected' : ''}`}>
       <div className="rl-task-head">
-        <span className={`rl-status-dot tone-${taskTone(status)}`} role="img" aria-label={statusLabel} title={statusLabel} />
+        <StatusDot tone={taskTone(status)} label={statusLabel} />
         <strong className="rl-task-kind">{kindLabel}</strong>
         {objectRef && (openable
           ? <button type="button" className="rl-chip rl-object-chip" title={`打开研究页：${objectName}`} onClick={() => openRegisteredObject(objectRef)}>{objectName === objectRef ? '研究对象' : objectName}</button>

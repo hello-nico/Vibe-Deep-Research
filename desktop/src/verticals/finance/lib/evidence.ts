@@ -1,4 +1,6 @@
 import { researchRead } from './research';
+import { documentDisplayTitle } from './documentTitle';
+import { objectLabel } from './objectRegistry';
 import { providerDisclosure, providerSnapshot } from './wikiFacts';
 
 export function decodeEvidenceLink(href: string): string | null {
@@ -39,6 +41,8 @@ export async function readPinnedBlock(block: Parameters<typeof pinnedBlockPath>[
   if (['document_id', 'parse_revision_id', 'parsed_content_sha256', 'block_id'].some(key => result[key as keyof SourceBlock] !== block[key as keyof typeof block])) throw new Error('原文版本核对失败，暂时无法打开。');
   return result;
 }
+const DOCUMENT_KIND: Record<string, string> = { annual_report: '年报', semi_annual_report: '半年报', interim_report: '半年报', quarterly_report: '季报', announcement: '公告', research_report: '研报' };
+
 export interface EvidenceView { title: string; text: string; page?: number; block?: SourceBlock; related: string[]; href?: string }
 export async function loadEvidence(ref: string, signal: AbortSignal): Promise<EvidenceView> {
   const { kind, data } = await resolveEvidence(ref, signal);
@@ -46,8 +50,11 @@ export async function loadEvidence(ref: string, signal: AbortSignal): Promise<Ev
   if (kind === 'source' || kind === 'evidence') {
     const location = data.location as Record<string, unknown> | undefined;
     const block = await readPinnedBlock({ document_id: String(data.document_id ?? ''), parse_revision_id: String(data.parse_revision_id ?? ''), parsed_content_sha256: String(data.parsed_content_sha256 ?? ''), block_id: String(data.block_id ?? location?.block_id ?? '') }, signal);
-    const document = await researchRead<{ title?: string }>(`/documents/${encodeURIComponent(block.document_id)}`, { signal });
-    return { title: document.title || '来源资料', text: block.text, page: block.page, block, related: [] };
+    const document = await researchRead<{ title?: string; symbol?: string; reporting_period?: string | null; document_type?: string }>(`/documents/${encodeURIComponent(block.document_id)}`, { signal });
+    const companySlug = document.symbol ? `companies/${document.symbol.toLowerCase().replace('.', '-')}` : '';
+    const company = companySlug && objectLabel(companySlug) !== companySlug ? objectLabel(companySlug) : document.symbol || '';
+    const title = documentDisplayTitle(document.title, document.reporting_period, DOCUMENT_KIND[document.document_type || ''] || '资料', company);
+    return { title, text: block.text, page: block.page, block, related: [] };
   }
   const groups = Array.isArray(data.support_groups) ? data.support_groups : [];
   const related = [...new Set(groups.flatMap(group => Array.isArray(group.segments) ? group.segments.map((segment: { evidence_id?: string }) => segment.evidence_id).filter((item: unknown): item is string => typeof item === 'string' && item.startsWith('evidence:')) : []))] as string[];

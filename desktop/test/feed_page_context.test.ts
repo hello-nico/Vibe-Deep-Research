@@ -110,7 +110,8 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
   assert.equal(assistantBindingForPage('home'), null);
   assert.equal(assistantBindingForPage('my-research'), null);
   assert.equal(assistantBindingForPage('my-research:topics:abc'), null);
-  assert.equal(assistantBindingForPage('document:abc'), null);
+  // 资料阅读页“就此追问”：每份资料一段问助手对话，按资讯与公告原文的角色解读（M6-B 并排阅读恢复）。
+  assert.deepEqual(assistantBindingForPage('document:abc:r-1'), { plugin: 'intel', target: '', bindKey: 'document:abc' });
   assert.equal(assistantBindingForPage('signals'), null);
 });
 test('问助手开场介绍按页面区分，对象提示不出现已发布版本或当前页', () => {

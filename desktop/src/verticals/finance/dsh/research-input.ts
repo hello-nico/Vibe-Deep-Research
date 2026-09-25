@@ -1,4 +1,5 @@
 import type { InputTriggerSource } from '@deepseek-ai/dsh-client-ui-input-trigger/client';
+import { documentDisplayTitle } from '../lib/documentTitle';
 import { researchRead, ResearchError, type ResearchTopicSummary, type WikiItem } from '../lib/research';
 import { documentIdFromRef, listLibraryDocuments, mentionLabel, parseDocumentRef, documentRef, rememberMentionLabel, type LibraryDocument } from '../lib/library';
 import { MENTION_NOTES } from '../lib/researchMentions';
@@ -37,6 +38,8 @@ function wikiValue(item: { slug: string; input_hash?: string }): string {
   return item.input_hash ? `${item.slug}@${item.input_hash}` : item.slug;
 }
 
+const DOCUMENT_KIND: Record<string, string> = { annual_report: '年报', semi_annual_report: '半年报', interim_report: '半年报', quarterly_report: '季报', announcement: '公告', research_report: '研报' };
+
 async function serializeDocument(ref: string, signal: AbortSignal): Promise<string> {
   const parsed = parseDocumentRef(ref);
   const id = parsed?.document_id || documentIdFromRef(ref);
@@ -50,7 +53,9 @@ async function serializeDocument(ref: string, signal: AbortSignal): Promise<stri
     }
     throw error;
   }
-  const title = doc.title || '未命名资料';
+  const companySlug = doc.symbol ? `companies/${doc.symbol.toLowerCase().replace('.', '-')}` : '';
+  const company = companySlug && objectLabel(companySlug) !== companySlug ? objectLabel(companySlug) : doc.symbol || '';
+  const title = doc.title ? documentDisplayTitle(doc.title, (doc as LibraryDocument & { reporting_period?: string | null }).reporting_period, DOCUMENT_KIND[doc.document_type || ''] || '资料', company) : '未命名资料';
   rememberMentionLabel(documentRef(id, parsed?.parse_revision_id, parsed?.parsed_content_sha256), title);
   rememberMentionLabel(id, title);
   const listed = await researchRead<{ revisions: { status?: string; parse_revision_id?: string; parsed_content_sha256?: string }[] }>(

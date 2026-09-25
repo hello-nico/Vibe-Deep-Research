@@ -9,6 +9,9 @@ export function assistantBindingForPage(pageKey: string): { plugin: AssistantPlu
   if (pageKey.startsWith('nbs:')) return { plugin: 'industry_wiki', target: '', bindKey: 'industry_wiki:list' };
   if (pageKey === 'daily-review') return { plugin: 'market', target: '', bindKey: 'market:daily-review' };
   if (pageKey.startsWith('intel:')) return { plugin: 'intel', target: '', bindKey: 'intel:radar' };
+  // 资料阅读页：用“解读资讯与公告原文”的角色，每份资料一段问助手对话；选中的原文经“就此追问”随本轮上下文送达。
+  const document = /^document:([^:]+)/.exec(pageKey);
+  if (document?.[1]) return { plugin: 'intel', target: '', bindKey: `document:${document[1]}` };
   const profile = /^industry-profile:(.+)$/.exec(pageKey);
   if (profile?.[1]) {
     const code = profile[1];

@@ -222,6 +222,9 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
   chipsRef.current = chips;
   draftRef.current = draft;
   const activeQuestion = question?.pageKey === page?.key ? question : null;
+  // Callers put the selected passage after the first line of the question context.
+  const selectedExcerpt = activeQuestion?.object?.kind === 'document' && !activeQuestion.reference
+    ? (activeQuestion.context.split('\n').slice(1).join('\n').trim() || '') : '';
   const binding = useMemo(() => page ? assistantBindingForPage(page.key) : null, [page?.key]);
 
   const rememberChips = useCallback((key: string, next: PageAssistantObject[]) => {
@@ -305,7 +308,9 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
   }, [open, page?.key, binding?.bindKey, attach, sessionId, rememberChips]);
 
   useEffect(() => {
-    if (question && question.sequence > openedQuestion.current && question.pageKey === page?.key) {
+    // Compare with the page on screen, not the page the open panel is holding: “就此追问” on a new page
+    // must move the panel to that page instead of being ignored.
+    if (question && question.sequence > openedQuestion.current && question.pageKey === currentPage?.key) {
       openedQuestion.current = question.sequence;
       openPanel();
     }
@@ -416,7 +421,9 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
         plugin: binding.plugin,
         target: binding.target,
         prompt: text,
-        pageSnapshot: page.snapshotForSend?.(seat.mode || 'ask', chips) ?? page.context,
+        // “就此追问”选中的原文放在问题的 context 里，必须随本轮页面上下文一起交给助手，否则它不知道问的是哪一段。
+        pageSnapshot: [page.snapshotForSend?.(seat.mode || 'ask', chips) ?? page.context, selectedExcerpt ? activeQuestion?.context : '']
+          .filter(Boolean).join('\n\n'),
         marketIndices: page.marketIndices,
         companyQuotes: page.companyQuotes,
         objects: chips.map(item => ({
@@ -500,6 +507,13 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
                   }}><X size={10} /></button>
                 </span>
               ))}
+            </div>
+          )}
+          {selectedExcerpt && (
+            <div className="relative mx-4 mb-2 rounded-lg border p-2 pr-8 text-xs">
+              <button type="button" onClick={clearQuestion} aria-label="移除所选原文" className="absolute right-2 top-2 text-muted-foreground hover:text-foreground"><X size={14} /></button>
+              <details><summary className="cursor-pointer">已选原文：{selectedExcerpt.slice(0, 40)}{selectedExcerpt.length > 40 ? '…' : ''}</summary>
+              <p className="mt-2 max-h-32 overflow-auto whitespace-pre-wrap">{selectedExcerpt}</p></details>
             </div>
           )}
           {activeQuestion?.reference && !chips.some(item => item.label === activeQuestion.reference?.title) && (
