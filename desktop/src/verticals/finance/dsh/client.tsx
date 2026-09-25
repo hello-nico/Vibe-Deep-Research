@@ -120,7 +120,7 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories"];
+export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories", "configForms"];
 
 function openResearchTarget(value: string) { openRegisteredObject(value); }
 
@@ -692,6 +692,9 @@ export function apply(ctx: Context) {
     getWorkspace: () => workspace,
     openAssistantPanel: id => research.openAssistantPanel(id),
   });
+  // 产品不展示 DSH 开发者视图（对话里的「轨迹」等）。没有 Host 存储时 DSH 默认开启开发者工具，这里在启动时关闭。
+  const developerTools = (ctx as unknown as { configForms?: { developerTools?: { enabled: { getSnapshot(): boolean }; setEnabled(enabled: boolean): Promise<void> } } }).configForms?.developerTools;
+  if (developerTools?.enabled.getSnapshot()) void developerTools.setEnabled(false).catch(() => {});
   client.slots.inject('conversation.view', () => client.slots.register<{ openView(view: string, focus?: string): void }>({
     name: 'conversation.view', id: 'finance-history', order: 30, label: () => '历史对话',
   }, History));

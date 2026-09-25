@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
-import { Archive, Check, ChevronLeft, FileText, Plus, RefreshCw, RotateCcw } from "lucide-react";
+import { Archive, Check, ChevronLeft, FileText, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { GlassCard } from "../components/ui/GlassCard";
 import { ResearchResult } from '../components/ResearchResult';
@@ -20,6 +20,7 @@ import {
 import { useResearchSessions } from "../dsh/research-session";
 import { topicOpeningQuestions } from "../dsh/side-panel";
 import { useAiPage } from "../../../core/ai/pageContext";
+import "./my-research.css";
 
 function DraftPreview({ draft }: { draft: WikiDraft }) {
   return <div className="space-y-4">
@@ -61,6 +62,11 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     if (material) next.set("material", material); else next.delete("material");
     return next;
   }, { replace: true });
+  const readerRef = useRef<HTMLElement>(null);
+  // The reader sits below the material lists; bring it into view whenever a material is opened.
+  useEffect(() => {
+    if (selected) requestAnimationFrame(() => readerRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }, [selected]);
   const [reviewedToken, setReviewedToken] = useState("");
   const [draftPreview, setDraftPreview] = useState<WikiDraft | null>(null);
   const [error, setError] = useState("");
@@ -211,6 +217,11 @@ function TopicContent({ topicHex }: { topicHex: string }) {
   });
   const wikiPages = pages.filter(item => /^(themes|comparisons|industries|companies)\//.test(item.target_id));
   const selectedNote = selected.startsWith("note:") ? noteMap[selected.slice(5)] : undefined;
+  const selectedLink = links.find(item => (item.source_id || item.note_id || item.target_id) === selected);
+  const selectedTitle = selectedNote?.title
+    || (selectedLink && (noteMap[selectedLink.note_id?.replace(/^note:/, "") ?? ""]?.title || (selectedLink.kind === "result" ? "研究成果" : "研究材料")))
+    || pages.find(item => item.target_id === selected)?.title
+    || (selected.startsWith("draft:") ? "待发布草案" : "研究材料");
   const pendingDrafts = drafts.filter(item => !item.published);
   const wallCount = wall?.edges.length || 0;
   const changedSlugs = new Set((basis?.pages || []).filter(page => page.status === 'changed' && page.slug).map(page => page.slug!));
@@ -270,6 +281,21 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         })}
       </section>
       <section className="topic-section">
+        <h2>待发布草案</h2>
+        {pendingDrafts.length === 0 && <p className="text-sm text-muted-foreground">助手整理好的主题研究或对比研究会出现在这里，你确认后才会发布。</p>}
+        {pendingDrafts.map(item => <div key={item.draft_token} className="topic-material">
+          <p className="text-sm">{item.titles?.join("、") || "未命名草案"}</p>
+          <div className="mt-2 flex gap-2">
+            <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void reviewDraft(item.draft_token)}>
+              <FileText className="h-3.5 w-3.5" />{reviewedToken === item.draft_token ? "已审阅" : "审阅草案"}
+            </button>
+            <button type="button" className="workspace-field-action" disabled={!!busy || reviewedToken !== item.draft_token} onClick={() => void publish(item.draft_token)}>
+              {busy === item.draft_token ? "发布中…" : "确认发布"}
+            </button>
+          </div>
+        </div>)}
+      </section>
+      <section className="topic-section">
         <h2>已关联材料</h2>
         {links.length === 0 && wikiPages.length === 0 && <p className="text-sm text-muted-foreground">确认后会出现在这里，刷新和新会话都能读到。</p>}
         {links.map(item => {
@@ -285,27 +311,12 @@ function TopicContent({ topicHex }: { topicHex: string }) {
           <span className="text-xs text-muted-foreground">已发布研究材料</span>
         </button>)}
       </section>
-      <section className="topic-section">
-        <h2>待发布草案</h2>
-        {pendingDrafts.length === 0 && <p className="text-sm text-muted-foreground">助手整理好的主题研究或对比研究会出现在这里，你确认后才会发布。</p>}
-        {pendingDrafts.map(item => <div key={item.draft_token} className="topic-material">
-          <p className="text-sm">{item.titles?.join("、") || "未命名草案"}</p>
-          <div className="mt-2 flex gap-2">
-            <button type="button" className="workspace-action workspace-action-compact" disabled={!!busy} onClick={() => void reviewDraft(item.draft_token)}>
-              <FileText className="h-3.5 w-3.5" />{reviewedToken === item.draft_token ? "已审阅" : "审阅草案"}
-            </button>
-            <button type="button" className="workspace-field-action" disabled={!!busy || reviewedToken !== item.draft_token} onClick={() => void publish(item.draft_token)}>
-              {busy === item.draft_token ? "发布中…" : "确认发布"}
-            </button>
-          </div>
-        </div>)}
-      </section>
-      {selected.startsWith("draft:") && draftPreview && <DraftPreview draft={draftPreview} />}
-      {selected.startsWith('result:') && <ResearchResult key={selected} resultId={selected} presentation="report" />}
-      {selected && /^(themes|comparisons|industries|companies)\//.test(selected) && <WikiReader slug={selected} />}
-      {selected.startsWith("note:") && <section className="topic-section">
-        <h2>{selectedNote?.title || "记录"}</h2>
-        {selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已被删除或移动，可以到「记录」里查找。</p>}
+      {selected && <section ref={readerRef} className="topic-section topic-reader" aria-label="正在阅读">
+        <div className="topic-card-head"><h2>正在阅读 · {selectedTitle}</h2><button type="button" className="rl-icon-action" onClick={() => setSelected("")}><X size={13} />收起</button></div>
+        {selected.startsWith("draft:") && draftPreview && <DraftPreview draft={draftPreview} />}
+        {selected.startsWith('result:') && <ResearchResult key={selected} resultId={selected} presentation="report" />}
+        {/^(themes|comparisons|industries|companies)\//.test(selected) && <WikiReader slug={selected} />}
+        {selected.startsWith("note:") && (selectedNote ? <KnowledgeText markdown={selectedNote.content} /> : <p className="whitespace-pre-wrap text-sm leading-7">这条记录已被删除或移动，可以到「记录」里查找。</p>)}
       </section>}
     </div>}
     {view !== 'wall' && <Disclaimer compact />}

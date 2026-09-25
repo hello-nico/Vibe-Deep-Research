@@ -214,8 +214,10 @@ test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
   assert.match(mine, /label: "记忆"/);
   assert.match(mine, /aria-label="议题状态"/);
   assert.match(mine, /<GlassCard glow>/);
-  assert.match(mine, /border-b border-border\/30 py-3 last:border-0/);
-  assert.match(mine, /flex flex-wrap items-start justify-between gap-x-6/);
+  // 列表用浅卡片分隔，不用整行分割线；任务状态用色点。
+  assert.match(mine, /className="rl-topic"/);
+  assert.match(mine, /rl-status-dot tone-/);
+  assert.doesNotMatch(mine, /border-b border-border\/30 py-3 last:border-0/);
   assert.doesNotMatch(mine, /DashboardPanel/);
   assert.doesNotMatch(mine, /justify-between gap-3">\s*<WorkspaceTabs/);
   assert.match(intel, /WorkspaceTabs/);

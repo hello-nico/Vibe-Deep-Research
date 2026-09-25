@@ -1,0 +1,94 @@
+/* 我的研究 · 记录与记忆：列表用浅卡片分隔，不用整行分割线；技术标识不上屏。 */
+
+.rl-meta { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.rl-chip { display: inline-flex; flex-shrink: 0; align-items: center; gap: 4px; height: 20px; padding: 0 7px; border-radius: 6px; background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); font-size: 11px; font-weight: 500; }
+.rl-chip.is-primary { background: hsl(var(--primary) / .1); color: hsl(var(--primary)); }
+.rl-chip.is-done { background: transparent; border: 1px solid hsl(var(--border)); }
+.rl-icon-action { display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 8px; border-radius: 7px; color: hsl(var(--muted-foreground)); font-size: 12px; }
+.rl-icon-action:hover:not(:disabled) { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+.rl-icon-action.is-danger:hover:not(:disabled) { background: hsl(var(--destructive) / .08); color: hsl(var(--destructive)); }
+.rl-icon-action:disabled { opacity: .5; }
+
+/* 记录 */
+.rl-notes { display: grid; gap: 6px; }
+.rl-note { border: 1px solid transparent; border-radius: 14px; transition: background-color .15s, border-color .15s; }
+.rl-note:hover { background: hsl(var(--muted) / .45); }
+.rl-note.is-open { border-color: hsl(var(--border)); background: hsl(var(--card)); box-shadow: 0 1px 2px hsl(var(--foreground) / .04); }
+.rl-note-head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; width: 100%; padding: 14px 16px 0; text-align: left; }
+.rl-note-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; font-weight: 600; }
+.rl-note-excerpt-wrap { padding: 6px 16px 14px; cursor: pointer; }
+.rl-note-excerpt { display: -webkit-box; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 13px; line-height: 1.65; color: hsl(var(--muted-foreground)); }
+.rl-note-body { margin: 12px 16px 0; padding: 14px 0 16px; border-top: 1px solid hsl(var(--border) / .7); }
+.rl-note-label { margin-bottom: 6px; font-size: 12px; font-weight: 600; color: hsl(var(--muted-foreground)); }
+.rl-note-question { margin-bottom: 18px; padding: 10px 14px; border-radius: 10px; background: hsl(var(--muted) / .55); font-size: 13px; line-height: 1.7; }
+/* 记录正文里的标题降一级：记录是一段回答，不是一篇报告。 */
+.rl-note-body .finance-cite-root h1,
+.rl-note-body .finance-cite-root h2 { margin: 1.25em 0 .5em !important; padding: 0 !important; border: 0 !important; font-size: 14px !important; line-height: 1.5 !important; }
+.rl-note-body .finance-cite-root h3 { margin: 1em 0 .4em !important; font-size: 13px !important; }
+.rl-note-body .finance-cite-root > :first-child { margin-top: 0 !important; }
+.rl-note-foot { display: flex; justify-content: flex-end; margin-top: 10px; }
+
+/* 记忆 */
+.rl-memory { display: grid; gap: 22px; }
+.rl-memory-intro { font-size: 13px; color: hsl(var(--muted-foreground)); }
+.rl-group-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; }
+.rl-group-head h2 { font-size: 15px; font-weight: 600; }
+.rl-group-head span { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.rl-group-desc { margin-bottom: 10px; font-size: 12px; color: hsl(var(--muted-foreground)); }
+.rl-group-empty { padding: 14px 16px; border: 1px dashed hsl(var(--border)); border-radius: 12px; font-size: 13px; color: hsl(var(--muted-foreground)); }
+.rl-items { display: grid; gap: 8px; }
+.rl-item { padding: 12px 14px; border-radius: 12px; background: hsl(var(--muted) / .45); }
+.rl-item-text { font-size: 13.5px; line-height: 1.7; }
+.rl-item-text .rl-chip { margin-right: 8px; vertical-align: 1px; }
+.rl-item-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.rl-item-actions { display: flex; gap: 2px; margin-left: auto; }
+.rl-item-source { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.rl-item-source:hover { color: hsl(var(--primary)); text-decoration: underline; }
+.rl-item textarea { margin-top: 8px; width: 100%; min-height: 72px; }
+.rl-topic-ref { color: hsl(var(--primary)); }
+.rl-topic-ref:hover { text-decoration: underline; }
+.rl-candidate-title { font-size: 14px; font-weight: 600; line-height: 1.6; }
+.rl-candidate-reason { margin-top: 4px; font-size: 13px; line-height: 1.7; color: hsl(var(--muted-foreground)); }
+.rl-candidate-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.rl-disclosure { font-size: 12px; color: hsl(var(--muted-foreground)); }
+.rl-disclosure:hover { color: hsl(var(--foreground)); }
+
+/* 议题：发起问题的输入区，一个整体的输入卡片，按钮在卡片内右下角。 */
+.rl-composer { margin-bottom: 8px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); transition: border-color .15s, box-shadow .15s; }
+.rl-composer:focus-within { border-color: hsl(var(--primary) / .45); box-shadow: 0 0 0 3px hsl(var(--primary) / .08); }
+.rl-composer textarea { display: block; width: 100%; min-height: 64px; max-height: 240px; padding: 14px 16px 4px; border: 0; background: transparent; font-size: 14px; line-height: 1.7; resize: none; field-sizing: content; outline: none; }
+.rl-composer textarea::placeholder { color: hsl(var(--muted-foreground) / .8); }
+.rl-composer-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 6px 10px 10px 16px; }
+.rl-composer-foot p { font-size: 12px; color: hsl(var(--muted-foreground)); }
+
+/* 议题列表 */
+.rl-topic { display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 14px; transition: background-color .15s; }
+.rl-topic + .rl-topic { margin-top: 4px; }
+.rl-topic:hover { background: hsl(var(--muted) / .45); }
+.rl-topic-main { min-width: 0; flex: 1; }
+.rl-topic-title { font-size: 15px; font-weight: 600; line-height: 1.5; }
+.rl-topic:hover .rl-topic-title { color: hsl(var(--primary)); }
+.rl-topic-summary { display: -webkit-box; overflow: hidden; margin-top: 4px; -webkit-box-orient: vertical; -webkit-line-clamp: 2; font-size: 13px; line-height: 1.65; color: hsl(var(--muted-foreground)); }
+.rl-topic .rl-icon-action { opacity: 0; }
+.rl-topic:hover .rl-icon-action, .rl-topic .rl-icon-action:focus-visible { opacity: 1; }
+
+/* 任务：状态用色点表达，操作统一为轻按钮，对象是可点的标签。 */
+.rl-tasks { display: grid; gap: 4px; }
+.rl-task { display: grid; gap: 6px; padding: 14px 16px; border-radius: 14px; transition: background-color .15s; }
+.rl-task:hover, .rl-task.is-selected { background: hsl(var(--muted) / .45); }
+.rl-task.is-selected { box-shadow: inset 0 0 0 1px hsl(var(--primary) / .3); }
+.rl-task-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.rl-task-kind { font-size: 14px; font-weight: 600; }
+.rl-object-chip { display: inline-block; max-width: 28em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 20px; background: hsl(var(--primary) / .08); color: hsl(var(--primary)); }
+.rl-object-chip.is-static { background: hsl(var(--muted)); color: hsl(var(--foreground)); }
+button.rl-object-chip:hover { background: hsl(var(--primary) / .16); }
+.rl-task-summary { margin-left: 16px; padding: 10px 12px; border-radius: 10px; background: hsl(var(--card)); font-size: 13px; line-height: 1.7; color: hsl(var(--muted-foreground)); white-space: pre-wrap; }
+.rl-task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 10px; }
+.rl-task-actions:empty { display: none; }
+.rl-status-dot { width: 8px; height: 8px; flex-shrink: 0; border-radius: 999px; background: hsl(var(--muted-foreground) / .5); cursor: help; box-shadow: 0 0 0 3px hsl(var(--card)); }
+.rl-status-dot.tone-ok { background: hsl(142 64% 42%); }
+.rl-status-dot.tone-bad { background: hsl(0 72% 54%); }
+.rl-status-dot.tone-wait { background: hsl(36 92% 50%); }
+.rl-status-dot.tone-run { background: hsl(var(--primary)); animation: rl-pulse 1.4s ease-in-out infinite; }
+@keyframes rl-pulse { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .rl-status-dot.tone-run { animation: none; } }

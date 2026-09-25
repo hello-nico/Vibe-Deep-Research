@@ -1,6 +1,7 @@
 import { useContext, useEffect, useRef, useState, type FormEvent } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
-import { Archive, BookOpen, Brain, ListTodo, NotebookPen, Plus, RotateCcw } from "lucide-react";
+import { Archive, BookOpen, Brain, Check, ChevronDown, ChevronUp, ListTodo, MessageSquare, NotebookPen, Pencil, Plus, RotateCcw, ScrollText, Trash2, X } from "lucide-react";
+import "./my-research.css";
 import { ResearchSessionContext } from "../dsh/research-session";
 import { PageHeader } from "../components/ui/PageHeader";
 import { GlassCard } from "../components/ui/GlassCard";
@@ -390,32 +391,34 @@ export function MyResearch() {
         </div>
         {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
       </div>
-      {tab !== "tasks" && tab !== "memory" && tab !== 'pending' && <WorkspaceSearch className="mb-4" placeholder={tab === "notes" ? "搜索记录标题或正文" : "搜索议题"} value={query} onChange={value => { setQuery(value); setOffset(0); setNotesOffset(0); }} />}
+      {tab === "notes" && <WorkspaceSearch className="mb-4" placeholder="搜索记录标题或正文" value={query} onChange={value => { setQuery(value); setNotesOffset(0); }} />}
       {tab === 'pending' ? <PendingResearchPanel items={pending} error={pendingError} busy={retryBusy} onRetry={() => { invalidatePendingItems(); setPendingTick(value => value + 1); }} onAction={item => item.kind === 'invalid' ? void restartResearch(item.slug) : item.href ? navigate(item.href) : undefined} />
-        : tab === "memory" ? <MemoryPanel /> : tab === "tasks" ? <><BackgroundTaskList tasks={tasks} error={tasksError} retryBusy={retryBusy} selectedDraftId={params.get('draft') || ''} onRetryReport={retryReport} onRestartResearch={slug => void restartResearch(slug)} onDiscardDraft={draft => void discardDraft(draft)} onDraftPublished={draft => { invalidateObjectStatuses([draft.slug]); invalidatePendingItems(); setTasks(previous => previous?.map(task => task.draft_id === draft.draft_id ? { ...task, display_status: 'published' } : task) ?? null); }} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
+        : tab === "memory" ? <MemoryPanel onOpenSource={id => { void researchSessions?.openSession(id); }} /> : tab === "tasks" ? <><BackgroundTaskList tasks={tasks} error={tasksError} retryBusy={retryBusy} selectedDraftId={params.get('draft') || ''} onRetryReport={retryReport} onRestartResearch={slug => void restartResearch(slug)} onDiscardDraft={draft => void discardDraft(draft)} onDraftPublished={draft => { invalidateObjectStatuses([draft.slug]); invalidatePendingItems(); setTasks(previous => previous?.map(task => task.draft_id === draft.draft_id ? { ...task, display_status: 'published' } : task) ?? null); }} onOpenProcess={(id, kind, title, parentId, target, settlementId, taskStatus) => researchSessions?.openTaskProcess({
         sessionId: id, kind, title, parentSessionId: parentId, settlementSessionId: settlementId, status: taskStatus,
         resultRef: target,
       })} onOpenSource={id => { void researchSessions?.openSession(id); }} />{retryError && <p role="alert" className="mt-3 text-sm text-destructive">{retryError}</p>}</> : tab === "topics" ? <>
-        <form onSubmit={startTopic} className="border-b border-border/30 pb-4">
-          <label className="text-sm font-medium" htmlFor="topic-question">要持续研究的问题</label>
-          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-start">
-            <textarea
-              id="topic-question"
-              aria-describedby="topic-question-hint"
-              className="workspace-field min-h-20 flex-1 resize-y"
-              disabled={topicRouteBusy}
-              maxLength={2000}
-              placeholder="例如：未来两年容量电价如何影响火电公司的盈利稳定性？"
-              value={topicQuestion}
-              onChange={event => changeTopicQuestion(event.target.value)}
-            />
-            <button type="submit" className="workspace-field-action shrink-0" disabled={topicRouteBusy || !topicQuestion.trim()}>
+        <form onSubmit={startTopic} className="rl-composer">
+          <label className="sr-only" htmlFor="topic-question">要持续研究的问题</label>
+          <textarea
+            id="topic-question"
+            aria-describedby="topic-question-hint"
+            rows={2}
+            disabled={topicRouteBusy}
+            maxLength={2000}
+            placeholder="写下要持续研究的问题，例如：未来两年容量电价如何影响火电公司的盈利稳定性？"
+            value={topicQuestion}
+            onChange={event => changeTopicQuestion(event.target.value)}
+            onKeyDown={event => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); event.currentTarget.form?.requestSubmit(); } }}
+          />
+          <div className="rl-composer-foot">
+            <p id="topic-question-hint">已有相近议题时会直接接着研究 · ⌘ Enter 发起</p>
+            <button type="submit" className="workspace-action workspace-action-compact workspace-action-primary" disabled={topicRouteBusy || !topicQuestion.trim()}>
               <Plus className="h-4 w-4" />{topicRouteBusy ? "发起中…" : "发起议题"}
             </button>
           </div>
-          <p id="topic-question-hint" className="mt-2 text-xs text-muted-foreground">如果已有相近的议题，会直接接着研究。</p>
         </form>
         {topicRouteError && <p role="alert" className="mt-3 text-sm text-destructive">{topicRouteError}</p>}
+        <WorkspaceSearch className="mb-3 mt-6" placeholder="搜索议题" value={query} onChange={value => { setQuery(value); setOffset(0); }} />
         {topicRouteStatus && <p role="status" className="mt-3 text-sm text-primary">{topicRouteStatus}</p>}
         {topicRouteResult?.action === "choose" && <div className="mt-4 border-b border-border/30 pb-4">
           <p className="text-sm font-medium">{topicRouteResult.reason === ARCHIVED_TOPIC_TEXT_SEARCH
@@ -445,13 +448,13 @@ export function MyResearch() {
         {topics && topics.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{status === "archived" ? "还没有已归档的议题。" : "还没有研究中的议题。写下一个需要持续验证或跟踪的问题，发起后会在这里出现。"}</p>}
         {topics && topics.length > 0 && topics.map(item => {
           const archived = (item.pool_state || status) === "archived";
-          return <div key={item.topic_id} className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0">
-            <Link to={`/my-research/topics/${topicHex(item.topic_id)}`} className="min-w-0 flex-1">
-              <p className="text-xs text-muted-foreground">{archived ? "已归档" : "研究中"}{item.last_touched_at ? ` · ${new Date(item.last_touched_at).toLocaleString("zh-CN")}` : " · 待继续"}</p>
-              <h2 className="mt-1 text-base font-semibold hover:text-primary">{item.title}</h2>
-              <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{item.user_claim || item.judgment?.text || "继续研究，逐步形成判断"}</p>
+          return <div key={item.topic_id} className="rl-topic">
+            <Link to={`/my-research/topics/${topicHex(item.topic_id)}`} className="rl-topic-main">
+              <h2 className="rl-topic-title">{item.title}</h2>
+              <p className="rl-topic-summary">{item.judgment?.text || item.user_claim || "继续研究，逐步形成判断"}</p>
+              <p className="rl-meta mt-2">{item.judgment?.state ? `判断：${JUDGMENT_LABEL[item.judgment.state] || item.judgment.state} · ` : ""}{item.last_touched_at ? `最近研究 ${shortTime(item.last_touched_at)}` : "待继续"}</p>
             </Link>
-            <button type="button" className="workspace-action workspace-action-compact shrink-0" disabled={poolBusy === item.topic_id} onClick={() => void changePool(item, archived ? "restore" : "archive")}>
+            <button type="button" className="rl-icon-action shrink-0" disabled={poolBusy === item.topic_id} onClick={() => void changePool(item, archived ? "restore" : "archive")}>
               {archived ? <RotateCcw size={14} /> : <Archive size={14} />}
               {poolBusy === item.topic_id ? (archived ? "恢复中…" : "归档中…") : (archived ? "恢复研究" : "归档")}
             </button>
@@ -498,45 +501,129 @@ function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryR
   onOpenProcess?: (sessionId: string, kind: 'report' | 'research' | 'knowledge', title: string, parentSessionId?: string, target?: string, settlementId?: string, status?: string) => void;
   onOpenSource?: (sessionId: string) => void | Promise<void>;
 }) {
+  const refs = [...new Set((tasks || []).map(task => taskObjectRef(task.targets?.[0] || '')).filter(Boolean))];
+  const [, relabel] = useState(0);
+  const [detailOpen, setDetailOpen] = useState<Set<string>>(() => new Set());
+  const toggleDetail = (id: string) => setDetailOpen(previous => {
+    const next = new Set(previous);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  useEffect(() => {
+    if (!refs.length) return;
+    let active = true;
+    void resolveObjectLabels(refs).then(() => { if (active) relabel(value => value + 1); }).catch(() => {});
+    return () => { active = false; };
+  }, [refs.join('\0')]);
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!tasks) return <ResearchLoading compact title="正在读取任务" sections={["执行状态", "成果摘要"]} />;
   if (!tasks.length) return <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话需要补读原文时，整理进度会显示在这里；不会自动建立议题。</div>;
-  return <>{tasks.map(task => {
-    const duration = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
+  return <div className="rl-tasks">{tasks.map(task => {
+    const seconds = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
     const processId = task.child_session_id || task.id;
     const kind = task.kind === 'report' ? 'report' as const : task.kind === 'research' ? 'research' as const : 'knowledge' as const;
-    const title = task.title || (kind === 'report' ? '图文报告' : kind === 'research' ? '公司研究' : '知识整理');
+    const kindLabel = kind === 'report' ? '图文报告' : kind === 'research' ? '公司研究' : '知识整理';
+    const status = task.display_status || '';
+    const statusLabel = TASK_STATUS[status] || status || '未知';
     const rawSummary = task.summary || task.question || '';
-    // 失败 / 取消 / 中断的摘要可能是运行时英文原文，按类别转成中文。
-    const summary = ['failed', 'cancelled', 'interrupted'].includes(task.display_status || '')
-      ? userFacingRuntimeError(rawSummary, '这次任务没有完成') : rawSummary;
-    const target = task.targets?.join('、') || '';
-    const showSummary = Boolean(summary && summary !== title && summary !== target);
+    // 失败 / 取消 / 中断的摘要可能是运行时英文原文，按类别转成中文；只剩通用说法时不再重复状态。
+    const failedLike = ['failed', 'cancelled', 'interrupted'].includes(status);
+    const summary = failedLike ? userFacingRuntimeError(rawSummary, '') : rawSummary;
     const targetRef = task.targets?.[0] || '';
-    const object = registeredObject(targetRef);
-    const when = [
-      TASK_STATUS[task.display_status || ''] || task.display_status || '未知',
-      task.started_at ? new Date(task.started_at).toLocaleString('zh-CN') : '',
-      duration != null ? `${duration} 秒` : '',
-    ].filter(Boolean).join(' · ');
-    return <div key={task.id} id={task.draft_id ? `draft-${task.draft_id}` : undefined} className={`flex flex-wrap items-start justify-between gap-x-6 gap-y-3 border-b border-border/30 py-3 last:border-0 ${task.draft_id === selectedDraftId ? 'rounded-lg bg-primary/5 px-2' : ''}`}>
-      <div className="min-w-0 flex-1">
-        <p className="text-xs text-muted-foreground">{when}</p>
-        <h2 className="mt-1 text-base font-semibold">{title}</h2>
-        {showSummary && <p className="mt-1 line-clamp-2 text-sm text-muted-foreground">{summary}</p>}
-        {target && !title.includes(target) && <p className="mt-1 text-xs text-muted-foreground">{target}</p>}
+    const objectRef = taskObjectRef(targetRef);
+    const object = objectRef ? registeredObject(objectRef) : undefined;
+    const objectName = objectRef ? objectLabel(objectRef) : '';
+    const showSummary = Boolean(summary && !GENERIC_TASK_SUMMARY.has(summary) && summary !== task.title && summary !== targetRef && summary !== objectName);
+    const openable = Boolean(object?.href || object?.drawer);
+    return <div key={task.id} id={task.draft_id ? `draft-${task.draft_id}` : undefined} className={`rl-task${task.draft_id === selectedDraftId ? ' is-selected' : ''}`}>
+      <div className="rl-task-head">
+        <span className={`rl-status-dot tone-${taskTone(status)}`} role="img" aria-label={statusLabel} title={statusLabel} />
+        <strong className="rl-task-kind">{kindLabel}</strong>
+        {objectRef && (openable
+          ? <button type="button" className="rl-chip rl-object-chip" title={`打开研究页：${objectName}`} onClick={() => openRegisteredObject(objectRef)}>{objectName === objectRef ? '研究对象' : objectName}</button>
+          : <span className="rl-chip rl-object-chip is-static" title={objectName}>{objectName === objectRef ? '研究对象' : objectName}</span>)}
+        {task.started_at && <span className="rl-chip">{shortTime(task.started_at)}</span>}
+        {seconds != null && <span className="rl-chip">用时 {formatDuration(seconds)}</span>}
       </div>
-      <div className="flex shrink-0 flex-wrap gap-2">
-        {kind === 'report' && task.display_status === 'unsaved' && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
-        {kind === 'research' && task.display_status === 'invalid' && targetRef.startsWith('companies/') && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onRestartResearch(targetRef)}>{retryBusy === targetRef ? '启动中…' : '重新整理'}</button>}
-        {kind === 'research' && task.display_status === 'awaiting_authorization' && task.draft && <button type="button" className="workspace-action workspace-action-compact" disabled={!!retryBusy} onClick={() => onDiscardDraft(task.draft!)}>放弃</button>}
-        {processId && <button type="button" className="workspace-action workspace-action-compact" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}>查看过程</button>}
-        {kind === 'knowledge' && task.parent_session_id && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void onOpenSource?.(task.parent_session_id!)}>查看来源对话</button>}
-        {(object?.href || object?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => openRegisteredObject(targetRef)}>打开研究页</button>}
+      {showSummary && detailOpen.has(task.id) && <p className="rl-task-summary"><TopicRefText text={summary} /></p>}
+      <div className="rl-task-actions">
+        {kind === 'report' && status === 'unsaved' && <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
+        {kind === 'research' && status === 'invalid' && targetRef.startsWith('companies/') && <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={!!retryBusy} onClick={() => onRestartResearch(targetRef)}>{retryBusy === targetRef ? '启动中…' : '重新整理'}</button>}
+        {kind === 'research' && status === 'awaiting_authorization' && task.draft && <button type="button" className="rl-icon-action is-danger" disabled={!!retryBusy} onClick={() => onDiscardDraft(task.draft!)}><X size={13} />放弃草案</button>}
+        {processId && <button type="button" className="rl-icon-action" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}><ScrollText size={13} />查看过程</button>}
+        {showSummary && <button type="button" className="rl-icon-action" aria-expanded={detailOpen.has(task.id)} onClick={() => toggleDetail(task.id)}>{detailOpen.has(task.id) ? <ChevronUp size={13} /> : <ChevronDown size={13} />}{detailOpen.has(task.id) ? '收起详情' : '查看详情'}</button>}
+        {kind === 'knowledge' && task.parent_session_id && <button type="button" className="rl-icon-action" onClick={() => void onOpenSource?.(task.parent_session_id!)}><MessageSquare size={13} />来源对话</button>}
       </div>
-      {kind === 'research' && task.display_status === 'awaiting_authorization' && task.draft_token && task.draft && <div className="w-full"><WikiDraftPublish draftToken={task.draft_token} onPublished={() => onDraftPublished(task.draft!)} /></div>}
+      {kind === 'research' && status === 'awaiting_authorization' && task.draft_token && task.draft && <div className="w-full"><WikiDraftPublish draftToken={task.draft_token} onPublished={() => onDraftPublished(task.draft!)} /></div>}
     </div>;
-  })}</>;
+  })}</div>;
+}
+
+const GENERIC_TASK_SUMMARY = new Set(['', '这次任务没有完成', '已停止', '已取消']);
+
+/** Task targets arrive as page slugs, topic IDs or bare symbols (600900.SH); map them to one registered object. */
+function taskObjectRef(target: string): string {
+  if (!target) return '';
+  if (/^\d{6}\.(SH|SZ|BJ)$/i.test(target)) return normalizeResearchTarget(`companies/${target}`) || target;
+  return normalizeResearchTarget(target) || target;
+}
+
+function taskTone(status: string): 'ok' | 'bad' | 'wait' | 'run' | 'off' {
+  if (['generated', 'published', 'recorded', 'completed', 'no_increment'].includes(status)) return 'ok';
+  if (['failed', 'unsaved', 'invalid', 'interrupted'].includes(status)) return 'bad';
+  if (['awaiting_authorization', 'partial', 'unconfirmed', 'waiting_ingest'].includes(status)) return 'wait';
+  if (['running', 'researching', 'settling'].includes(status)) return 'run';
+  return 'off';
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds} 秒`;
+  const minutes = Math.floor(seconds / 60);
+  return seconds % 60 ? `${minutes} 分 ${seconds % 60} 秒` : `${minutes} 分`;
+}
+
+function shortTime(value?: number | string): string {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  return date.getFullYear() === new Date().getFullYear()
+    ? `${date.getMonth() + 1}月${date.getDate()}日 ${time}`
+    : `${date.getFullYear()}年${date.getMonth() + 1}月${date.getDate()}日`;
+}
+
+/** Saved assistant answers are stored as "## 问题 … ## 回答 …"; show them as a question and an answer, not as a report. */
+function splitQuestionAnswer(markdown: string): { question: string; answer: string; source: string } | null {
+  const match = /^\s*##\s*问题\s*\n([\s\S]*?)\n##\s*回答\s*\n([\s\S]*)$/.exec(markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, ""));
+  if (!match) return null;
+  const footer = /\n-{3,}\s*\n来源：([^\n]*)\s*$/.exec(match[2]!);
+  return { question: match[1]!.trim(), answer: (footer ? match[2]!.slice(0, footer.index) : match[2]!).trim(), source: footer?.[1]?.trim() || "" };
+}
+
+/** One-paragraph preview: the answer (not the repeated question), without markdown syntax. */
+function plainExcerpt(note: Note): string {
+  const raw = note.excerpt || note.content || "";
+  const body = splitQuestionAnswer(raw)?.answer ?? raw.replace(/^\s*##\s*问题\s*\n[\s\S]*?\n##\s*回答\s*\n/, "").replace(/^\s*##\s*问题\s+[^#]*##\s*回答\s*/, "");
+  return body
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, "$1")
+    .replace(/^#{1,6}\s+/gm, "")
+    .replace(/\s#{1,6}\s+/g, " ")
+    .replace(/(\*\*|__|`)/g, "")
+    .replace(/^\s*(?:[-*>]|\d+\.)\s+/gm, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function NoteBody({ note }: { note: Note }) {
+  const qa = splitQuestionAnswer(note.content);
+  if (!qa) return <KnowledgeText markdown={note.content} />;
+  return <>
+    <p className="rl-note-label">问题</p>
+    <div className="rl-note-question">{qa.question}</div>
+    <p className="rl-note-label">回答</p>
+    <KnowledgeText markdown={qa.answer} />
+    {qa.source && <p className="rl-meta mt-4">来源：{qa.source}</p>}
+  </>;
 }
 
 function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onRetry }: {
@@ -566,24 +653,28 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
       你在各页保存的记录会出现在这里。
     </div>;
   }
-  return <div className="space-y-2">
-    <p className="text-xs text-muted-foreground">记录 · {notes?.length ?? 0}{total ? ` / ${total}` : ''}</p>
-    {notes?.map(note => {
-      const open = openId === note.id;
-      return <div key={note.id} className="border-b border-border/30 py-3 last:border-0">
-        <button type="button" className="flex w-full items-center gap-2 text-left" onClick={() => setOpenId(open ? null : note.id)}>
-          <BookOpen className="h-4 w-4 text-primary" />
-          <span className="text-xs text-muted-foreground">{note.kind}</span>
-          <strong className="min-w-0 flex-1 truncate text-sm">{note.title}</strong>
-          <span className="text-xs text-muted-foreground">{note.ts ? new Date(note.ts).toLocaleString("zh-CN") : ""}</span>
-        </button>
-        {!open && <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{note.excerpt || note.content}</p>}
-        {open && <div className="mt-3 border-t border-border/40 pt-3">
-          {fullError && <p role="alert" className="text-sm text-destructive">{fullError}<button className="workspace-action ml-2" onClick={() => setOpenId(note.id)}>重新读取</button></p>}
-          {full && full.id === note.id ? <KnowledgeText markdown={full.content} /> : !fullError && <p role="status" className="text-sm text-muted-foreground">正在读取全文…</p>}
-        </div>}
-      </div>;
-    })}
+  return <div>
+    <p className="rl-meta mb-2">{total || notes?.length || 0} 条记录</p>
+    <div className="rl-notes">
+      {notes?.map(note => {
+        const open = openId === note.id;
+        // Titles are saved as "问助手 · 问题"; the kind already shows as a chip.
+        const title = note.title.startsWith(`${note.kind} · `) ? note.title.slice(note.kind.length + 3) : note.title;
+        return <article key={note.id} className={`rl-note${open ? " is-open" : ""}`}>
+          <button type="button" className="rl-note-head" aria-expanded={open} onClick={() => setOpenId(open ? null : note.id)}>
+            <span className="rl-chip is-primary">{note.kind}</span>
+            <span className="rl-note-title">{title}</span>
+            <span className="rl-meta">{shortTime(note.ts)}</span>
+          </button>
+          {!open && <div className="rl-note-excerpt-wrap" onClick={() => setOpenId(note.id)}><p className="rl-note-excerpt">{plainExcerpt(note)}</p></div>}
+          {open && <div className="rl-note-body">
+            {fullError && <p role="alert" className="text-sm text-destructive">{fullError}<button type="button" className="workspace-action ml-2" onClick={() => { setOpenId(null); setTimeout(() => setOpenId(note.id)); }}>重新读取</button></p>}
+            {full && full.id === note.id ? <NoteBody note={full} /> : !fullError && <p role="status" className="text-sm text-muted-foreground">正在读取全文…</p>}
+            <div className="rl-note-foot"><button type="button" className="rl-icon-action" onClick={() => setOpenId(null)}><ChevronUp size={14} />收起</button></div>
+          </div>}
+        </article>;
+      })}
+    </div>
     {(offset > 0 || nextOffset !== null) && <div className="mt-4 flex gap-2">
       <button className="workspace-action" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - 40))}>上一页</button>
       <button className="workspace-action" disabled={nextOffset === null} onClick={() => nextOffset !== null && onPage(nextOffset)}>下一页</button>
@@ -591,7 +682,35 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
   </div>;
 }
 
-function MemoryPanel() {
+const TOPIC_REF = /topic:[0-9a-f]{12}/g;
+
+/** Model-written memory and suggestion text may carry topic IDs; show them as linked topic titles. */
+function TopicRefText({ text }: { text: string }) {
+  const refs = [...new Set(text.match(TOPIC_REF) || [])];
+  const [, refresh] = useState(0);
+  useEffect(() => {
+    if (!refs.length) return;
+    let active = true;
+    void resolveObjectLabels(refs).then(() => { if (active) refresh(value => value + 1); }).catch(() => {});
+    return () => { active = false; };
+  }, [refs.join(" ")]);
+  if (!refs.length) return <>{text}</>;
+  return <>{text.split(/(topic:[0-9a-f]{12})/).map((part, index) => /^topic:[0-9a-f]{12}$/.test(part)
+    ? <Link key={index} className="rl-topic-ref" title={objectLabel(part)} to={`/my-research/topics/${part.slice(6)}`}>「{topicShortTitle(part)}」</Link>
+    : part)}</>;
+}
+
+function topicShortTitle(ref: string): string {
+  const title = objectLabel(ref);
+  if (title === ref) return "议题";
+  return title.length > 18 ? `${title.slice(0, 18)}…` : title;
+}
+
+const JUDGMENT_LABEL: Record<string, string> = { gathering: "收集中", provisional: "初步判断", blocked: "受阻" };
+
+const STANCE: Record<string, string> = { stated: "你说过", inferred: "推断", corrected: "已纠正" };
+
+function MemoryPanel({ onOpenSource }: { onOpenSource: (sessionId: string) => void }) {
   const [soul, setSoul] = useState<MemoryDoc | null>(null);
   const [recent, setRecent] = useState<MemoryDoc | null>(null);
   const [candidates, setCandidates] = useState<TopicCandidate[] | null>(null);
@@ -642,40 +761,58 @@ function MemoryPanel() {
     }
     finally { setBusy(""); }
   };
-  const STANCE: Record<string, string> = { stated: "明确表达", inferred: "推断", corrected: "已纠正" };
-  const section = (title: string, doc: MemoryDoc | null, kind: "soul" | "recent") => <section className="mb-4 border-b border-border/30 pb-4">
-    <h2 className="text-base font-semibold">{title}</h2>
-    {!doc && !error && <p className="mt-2 text-sm text-muted-foreground">正在读取…</p>}
-    {doc && doc.entries.length === 0 && <p className="mt-2 text-sm text-muted-foreground">还没有条目。</p>}
-    {doc?.entries.map(item => <div key={item.id} className="mt-3 border-t border-border/40 pt-3 text-sm">
-      <p><span className="text-xs text-muted-foreground">{STANCE[item.stance] || item.stance}</span> {item.text}</p>
-      {item.source_session && <p className="mt-1 text-xs text-muted-foreground">来源会话 {item.source_session}{item.source_turn != null ? ` · 第 ${item.source_turn} 轮` : ""}</p>}
-      {editId === item.id && <textarea className="workspace-field mt-2 min-h-16 w-full" value={editText} onChange={event => setEditText(event.target.value)} />}
-      <div className="mt-2 flex flex-wrap gap-2">
-        {editId === item.id
-          ? <button type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void save(kind, item.id, doc.version, editText)}>保存纠正</button>
-          : <button type="button" className="workspace-action workspace-action-compact" onClick={() => { setEditId(item.id); setEditText(item.text); }}>纠正</button>}
-        <button type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void remove(kind, item.id, doc.version)}>删除</button>
+  const [showDone, setShowDone] = useState(false);
+  const group = (title: string, description: string, doc: MemoryDoc | null, kind: "soul" | "recent", empty: string) => <section>
+    <div className="rl-group-head"><h2>{title}</h2>{doc && doc.entries.length > 0 && <span>{doc.entries.length} 条</span>}</div>
+    <p className="rl-group-desc">{description}</p>
+    {!doc && !error && <p className="rl-group-empty">正在读取…</p>}
+    {doc && doc.entries.length === 0 && <p className="rl-group-empty">{empty}</p>}
+    {doc && doc.entries.length > 0 && <div className="rl-items">{doc.entries.map(item => <div key={item.id} className="rl-item">
+      <p className="rl-item-text"><span className={`rl-chip${item.stance === "corrected" ? " is-primary" : ""}`}>{STANCE[item.stance] || item.stance}</span><TopicRefText text={item.text} /></p>
+      {editId === item.id && <textarea className="workspace-field" aria-label="纠正这条记忆" value={editText} onChange={event => setEditText(event.target.value)} />}
+      <div className="rl-item-foot">
+        {item.source_session ? <button type="button" className="rl-item-source" onClick={() => onOpenSource(item.source_session!)}>来自对话{item.updated_at ? ` · ${shortTime(item.updated_at)}` : ""}</button>
+          : <span className="rl-item-source">{item.updated_at ? shortTime(item.updated_at) : ""}</span>}
+        <div className="rl-item-actions">
+          {editId === item.id ? <>
+            <button type="button" className="rl-icon-action" onClick={() => setEditId("")}><X size={13} />取消</button>
+            <button type="button" className="rl-icon-action" disabled={busy === item.id || !editText.trim()} onClick={() => void save(kind, item.id, doc.version, editText)}><Check size={13} />保存纠正</button>
+          </> : <>
+            <button type="button" className="rl-icon-action" onClick={() => { setEditId(item.id); setEditText(item.text); }}><Pencil size={13} />纠正</button>
+            <button type="button" className="rl-icon-action is-danger" disabled={busy === item.id} onClick={() => void remove(kind, item.id, doc.version)}><Trash2 size={13} />删除</button>
+          </>}
+        </div>
       </div>
-    </div>)}
+    </div>)}</div>}
   </section>;
-  return <>
-    {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
-    {section("用户画像", soul, "soul")}
-    {section("近期研究记忆", recent, "recent")}
+  const open = candidates?.filter(item => item.status === "open") ?? [];
+  const done = candidates?.filter(item => item.status !== "open") ?? [];
+  const candidateCard = (item: TopicCandidate) => <div key={item.id} className="rl-item">
+    <p className="rl-candidate-title"><TopicRefText text={item.question} /></p>
+    {item.reason && <p className="rl-candidate-reason"><TopicRefText text={item.reason} /></p>}
+    {item.status === "open" ? <div className="rl-candidate-actions">
+      {choices[item.id]?.map(topic => <button key={topic.topic_id} type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void act(item, "adopt", topic.topic_id)}>继续：{topic.title}</button>)}
+      <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={busy === item.id} onClick={() => void act(item, "adopt")}><Check size={14} />采用</button>
+      <button type="button" className="workspace-action workspace-action-compact" disabled={busy === item.id} onClick={() => void act(item, "ignore")}><X size={14} />忽略</button>
+    </div> : <div className="rl-item-foot"><span className="rl-chip is-done">{item.status === "adopted" ? "已采用" : "已忽略"}</span></div>}
+  </div>;
+  return <div className="rl-memory">
+    <p className="rl-memory-intro">助手回答时会参考这里的内容。说错了可以纠正，不需要的可以删除。</p>
+    {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+    {group("用户画像", "你的表达偏好与习惯，例如金额单位、回答详略。", soul, "soul", "还没有条目。在对话里说“记住：金额默认用亿元”这类话，会记在这里。")}
+    {group("近期研究记忆", "你最近持续关心的问题和做过的纠正。", recent, "recent", "还没有条目。")}
     <section>
-      <h2 className="text-base font-semibold">议题建议</h2>
-      {candidates && candidates.length === 0 && <p className="mt-2 text-sm text-muted-foreground">还没有待处理建议。</p>}
-      {candidates?.map(item => <div key={item.id} className="mt-3 border-t border-border/40 pt-3 text-sm">
-        <p className="font-medium">{item.question}</p>
-        <p className="mt-1 text-muted-foreground">{item.reason}</p>
-        <p className="mt-1 text-xs">{item.status === "open" ? "待处理" : item.status === "adopted" ? "已采用" : "已忽略"}</p>
-        {item.status === "open" && choices[item.id]?.map(topic => <button key={topic.topic_id} type="button" className="workspace-action mt-2 mr-2" disabled={busy === item.id} onClick={() => void act(item, "adopt", topic.topic_id)}>继续：{topic.title}</button>)}
-        {item.status === "open" && <div className="mt-2 flex gap-2">
-          <button type="button" className="workspace-action" disabled={busy === item.id} onClick={() => void act(item, "adopt")}>采用</button>
-          <button type="button" className="workspace-action" disabled={busy === item.id} onClick={() => void act(item, "ignore")}>忽略</button>
-        </div>}
-      </div>)}
+      <div className="rl-group-head"><h2>议题建议</h2>{open.length > 0 && <span>{open.length} 条待处理</span>}</div>
+      <p className="rl-group-desc">知识整理发现值得持续研究的问题时，会在这里建议。采用后成为议题。</p>
+      {!candidates && !error && <p className="rl-group-empty">正在读取…</p>}
+      {candidates && open.length === 0 && <p className="rl-group-empty">没有待处理的建议。</p>}
+      {open.length > 0 && <div className="rl-items">{open.map(candidateCard)}</div>}
+      {done.length > 0 && <>
+        <button type="button" className="rl-disclosure mt-3 inline-flex items-center gap-1" aria-expanded={showDone} onClick={() => setShowDone(value => !value)}>
+          {showDone ? <ChevronUp size={13} /> : <ChevronDown size={13} />}已处理 {done.length} 条
+        </button>
+        {showDone && <div className="rl-items mt-2">{done.map(candidateCard)}</div>}
+      </>}
     </section>
-  </>;
+  </div>;
 }
