@@ -100,6 +100,28 @@ test('大盘快照按块标注信封来源与时点，缺则未标注，不写�
   assert.match(unlabeled, /取数时点未标注/);
 });
 
+test('大盘刷新中保留已显示块，完成后仍按同一数据写快照', () => {
+  const visible = {
+    reviewDate: '2026-09-18', fetchedAt: '2026-09-18T15:05:00+08:00', dataReady: false,
+    indices: [], globalIndices: [], globalDone: false, idxDone: false, idxErr: false,
+    sentiment: { breadth: '偏强', up: 3000, fetched_at: '2026-09-18T15:01:00+08:00' },
+    emotion: { zt_count: 40, lianban_stocks: [{ code: '600865', name: '百大集团', boards: 3 }] },
+    sectors: [{ name: '银行', pct: 1, net: 2 }],
+    turnover: { stocks: [{ name: '平安银行', code: '000001', price: 10, pct: 1, amount: 2e9 }] },
+  };
+  const refreshing = buildDailyReviewSnapshot({ ...visible, emoDone: false, ovDone: false, toDone: false });
+  for (const name of ['偏强', '涨停 40', '百大集团', '银行', '平安银行']) assert.match(refreshing, new RegExp(name));
+  for (const section of ['市场情绪', '短线情绪', '连板股', '板块资金趋势', '成交额榜 TOP20']) {
+    assert.doesNotMatch(refreshing, new RegExp(`【${section}】\\n未加载`), section);
+  }
+  const complete = buildDailyReviewSnapshot({ ...visible, dataReady: true, emoDone: true, ovDone: true, toDone: true });
+  for (const name of ['偏强', '涨停 40', '百大集团', '银行', '平安银行']) assert.match(complete, new RegExp(name));
+  const empty = buildDailyReviewSnapshot({ ...visible, sentiment: null, emotion: null, sectors: [], turnover: null,
+    emoDone: false, ovDone: false, toDone: false });
+  assert.match(empty, /【市场情绪】\n未加载/);
+  assert.match(empty, /【成交额榜 TOP20】\n未加载/);
+});
+
 test('截断优先保留与 @ 相关段落', () => {
   const long = `${'指数段\n'.repeat(5000)}\n\n【连板股】\n- 百大集团（600865.SH）：连板 3 板\n`;
   const clipped = clipPageSnapshot(long, ['company:600865.SH', '百大集团']);

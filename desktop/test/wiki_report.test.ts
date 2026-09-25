@@ -76,6 +76,15 @@ test('公司底稿：首屏给关键读数，数值绑定依据', async () => {
   assert.match(html, /data-evidence-ref="provider:hithink:600900\.SH:revenue:2026-06-30"/);
 });
 
+test('公司首卡仅在所属行业有已登记主页时提供对象入口', async () => {
+  const linked = await render('WikiReport', { spec: { ...COMPANY_SPEC, links: [{ to: 'industries/nbs-电力', type: 'belongs_to' }] } });
+  assert.match(linked, /<button[^>]*class="finance-citation"[^>]*>电力<\/button>/);
+  const unavailable = await render('WikiReport', { spec: { ...COMPANY_SPEC, links: [] } });
+  assert.doesNotMatch(unavailable, /<button[^>]*class="finance-citation"[^>]*>电力<\/button>/);
+  const source = (await import('node:fs')).readFileSync(new URL('../src/verticals/finance/components/WikiReport.tsx', import.meta.url), 'utf8');
+  assert.match(source, /onClick=\{\(\) => openRegisteredObject\(target\)\}/);
+});
+
 test('公司底稿：缺失单元格显示占位而非零，零值如实显示', async () => {
   const html = await render('WikiReport', { spec: COMPANY_SPEC });
   // net_profit_attributable 只有 FY2025，2026-06-30 列应为占位符
@@ -142,4 +151,16 @@ test('容器消息只接受 cite/resize 的严格形态', async () => {
     assert.equal(reportMessage('cite:claim:abc'), null);
     assert.equal(reportMessage({ source: 'vibe-wiki-report', type: 'resize', height: NaN }), null);
   } finally { await server.close(); }
+});
+
+test('资料时间线：旧占位标题按报告期命名，不露出 legacy 编号', async () => {
+  const html = await render('SourceTimeline', { content: { items: [
+    { title: 'legacy:870a19d7', document_type: 'annual_report', reporting_period: 'FY2025', document_id: '870a19d753bb4253bb770177544ff283' },
+    { title: 'legacy:12ab', document_type: 'quarterly_report', reporting_period: '2026H1' },
+    { title: '长江电力2026年一季度报告', document_type: 'quarterly_report', reporting_period: '2026Q1' },
+  ] } });
+  assert.doesNotMatch(html, /legacy:/);
+  assert.match(html, /2025 年年度报告/);
+  assert.match(html, /2026 年半年度报告/);
+  assert.match(html, /长江电力2026年一季度报告/);
 });

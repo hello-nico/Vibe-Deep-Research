@@ -36,6 +36,24 @@ test('图文报告只打开当前版本，不提供历史下拉', async () => {
   } finally { await env.cleanup(); }
 });
 
+test('旧报告的 srcDoc 追加产品侧窄屏封面规则', async () => {
+  const env = await boot();
+  try {
+    const id = 'report:' + 'e'.repeat(32);
+    const oldHtml = '<!doctype html><html><body><style>.lf-spine{display:flex}</style><div class="lf-sheet"><div class="lf-spine">华能蒙电</div><h1>华能蒙电</h1></div></body></html>';
+    globalThis.fetch = async url => String(url).includes('/wiki/reports?')
+      ? Response.json({ items: [{ report_id: id, title: '旧报告', created_at: '2026-09-23', input_hash: HASH_A, current: true }] })
+      : Response.json({ report_id: id, html: oldHtml, refs: [] });
+    await env.render(createElement(env.Provider, { value: sessionMock() },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    const srcDoc = env.container.querySelector('iframe')?.getAttribute('srcdoc') || '';
+    assert.ok(srcDoc.includes(oldHtml.slice(0, 40)), '旧报告正文仍被渲染');
+    assert.match(srcDoc, /@media \(max-width: 760px\)/);
+    assert.match(srcDoc, /\.lf-spine \{ display: none !important; \}/);
+    assert.ok(srcDoc.indexOf('data-product-report-layout') > srcDoc.indexOf('.lf-spine{display:flex}'));
+  } finally { await env.cleanup(); }
+});
+
 test('议题报告显示旧版本并沿用报告面板', async () => {
   const env = await boot();
   try {
@@ -424,6 +442,105 @@ function companyFetch(bgTasks, pageHash = HASH_A) {
     return Response.json({});
   };
 }
+
+test('已有研究页可从工具栏继续公司研究，进行中的任务会禁用入口', async () => {
+  for (const kind of [null, 'research', 'report']) {
+    const env = await bootCompany();
+    try {
+      let ensured = 0;
+      const baseFetch = companyFetch(() => []);
+      globalThis.fetch = async (url, init) => {
+        const path = String(url);
+        if (path.includes('/wiki/pages?')) return Response.json({ items: [{ slug: COMPANY_SLUG, title: '长江电力' }], total: 1 });
+        if (path.includes('/finance-report-tasks')) return Response.json({ sessions: kind ? { active: { kind, slug: COMPANY_SLUG } } : {} });
+        if (path.includes('/wiki/pages/ensure')) { ensured++; return Response.json({ slug: COMPANY_SLUG, action: 'exists' }); }
+        if (path.includes('/finance-maintenance-refresh')) return Response.json(null);
+        return baseFetch(url, init);
+      };
+      const sessions = sessionMock({
+        taskRunning: id => id === 'active',
+        findCompanySession: async () => null,
+        start: async (...args) => { sessions.startCalls.push(args); return { sessionId: 'new-research', status: 'started' }; },
+      });
+      const CompanyWiki = (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx')).CompanyWiki;
+      await env.render(createElement(env.Provider, { value: sessions }, createElement(env.MemoryRouter,
+        { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
+      await env.act(async () => {});
+      const action = [...env.container.querySelectorAll('button')].find(button => button.textContent === '公司研究');
+      assert.ok(action, '已有研究页的工具栏应有公司研究入口');
+      assert.equal(action.disabled, kind !== null);
+      if (!kind) {
+        await env.act(async () => { action.click(); });
+        assert.equal(ensured, 1);
+        assert.equal(sessions.startCalls.length, 1);
+        assert.match(sessions.startCalls[0][0], /^继续研究/);
+      } else {
+        assert.match(action.title, kind === 'report' ? /图文报告生成中/ : /公司研究进行中/);
+      }
+    } finally { await env.cleanup(); }
+  }
+});
+
+test('刷新资料检查期间禁用已有研究页的公司研究入口', async () => {
+  const env = await bootCompany();
+  try {
+    const baseFetch = companyFetch(() => []);
+    let prepareStarted = false;
+    globalThis.fetch = async (url, init) => {
+      const path = String(url);
+      if (path.includes('/wiki/pages?')) return Response.json({ items: [{ slug: COMPANY_SLUG, title: '长江电力' }], total: 1 });
+      if (path.includes('/finance-report-tasks')) return Response.json({ sessions: {} });
+      if (path.includes('/finance-maintenance-refresh')) {
+        const body = JSON.parse(init.body);
+        if (body.operation === 'prepare') { prepareStarted = true; return new Promise(() => {}); }
+        return Response.json(null);
+      }
+      return baseFetch(url, init);
+    };
+    const CompanyWiki = (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx')).CompanyWiki;
+    await env.render(createElement(env.Provider, { value: sessionMock({ taskRunning: () => false, findCompanySession: async () => null }) }, createElement(env.MemoryRouter,
+      { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
+    await env.act(async () => {});
+    const buttons = () => [...env.container.querySelectorAll('button')];
+    assert.equal(buttons().find(button => button.textContent === '公司研究')?.disabled, false);
+    await env.act(async () => { buttons().find(button => button.textContent === '刷新资料').click(); });
+    assert.equal(prepareStarted, true);
+    const action = buttons().find(button => button.textContent === '公司研究');
+    assert.equal(action.disabled, true);
+    assert.match(action.title, /资料刷新中/);
+  } finally { await env.cleanup(); }
+});
+
+test('旧任务过程显示灰色清理说明，临时读取失败保留红色错误', async () => {
+  for (const temporaryFailure of [false, true]) {
+    const env = await boot();
+    try {
+      const registrations = new Map();
+      const sessions = {
+        refresh: async () => { if (temporaryFailure) throw new Error('network unavailable'); },
+        refreshProjections: async () => {},
+        subagentAddress: () => undefined,
+        list: { getSnapshot: () => ({ byId: {}, projectionsBySession: {} }) },
+        retain: () => { throw new Error('cleared task should not be retained'); },
+      };
+      const ctx = { sessions, slots: {
+        inject: (_name, factory) => factory(),
+        register: (options, Component) => { registrations.set(options.name, Component); },
+      } };
+      (await env.serverLoad('/src/verticals/finance/dsh/panel-conversation.tsx')).installPanelConversation(ctx, () => null);
+      const PanelSeat = registrations.get('finance.panel.conversation');
+      await env.render(createElement(PanelSeat, {
+        sessionId: 'child', parentSessionId: 'host', SessionProvider: ({ children }) => children, renderSlot: () => null,
+      }));
+      await env.act(async () => {});
+      const message = env.container.querySelector('p');
+      assert.equal(message?.getAttribute('role'), temporaryFailure ? 'alert' : 'status');
+      assert.match(message?.className || '', temporaryFailure ? /text-destructive/ : /text-muted-foreground/);
+      assert.equal(message?.textContent, temporaryFailure ? '执行记录读取失败，请稍后重试' : '这次任务的执行记录已清理，无法查看过程');
+      assert.equal(env.container.querySelector('button'), null);
+    } finally { await env.cleanup(); }
+  }
+});
 
 test('会话结束后：后台整理中 → 无新增确认 → done；原始错误不外泄', async () => {
   const env = await bootCompany();

@@ -339,8 +339,8 @@ export function CompanyWiki() {
     if (!current || !current.aShare || gen?.phase === 'ensuring' || gen?.phase === 'researching') return;
     setError('');
     const target = current;
-    if (!taskActivity.ready || taskActivity.kind === 'report') {
-      setError(reportBlocksRefresh || '正在核对任务状态，请稍后重试。');
+    if (companyResearchDisabledReason) {
+      setError(companyResearchDisabledReason);
       return;
     }
     try {
@@ -397,6 +397,10 @@ export function CompanyWiki() {
   const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
   const genHere = gen && gen.slug === slug ? gen : null;
   const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
+  const companyResearchDisabledReason = reportBlocksRefresh
+    || (refreshView !== 'idle' ? '资料刷新中，完成后可发起公司研究。' : '')
+    || (taskActivity.kind === 'research' || genHere && ['ensuring', 'researching', 'settling'].includes(genHere.phase)
+      ? '公司研究进行中，完成后可再次研究。' : '');
   const wikiLoadState = wikiWait
     ? 'loading'
     : !current?.hasWiki
@@ -465,8 +469,9 @@ export function CompanyWiki() {
       </div>
       <div className="object-toolbar-group object-toolbar-actions">
         {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
-        {/* 研究页的动作是刷新资料；图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
+        {/* 图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
         {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} disabledReason={reportBlocksRefresh} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
+        {current?.hasWiki && !report && current.aShare && <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>公司研究</button>}
         {current?.hasWiki && report && <span ref={setReportSlot} className="contents" />}
         {current && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出研究', icon: <X size={14} />, onSelect: () => void leave(current.symbol) }]} />}
       </div>
@@ -481,7 +486,7 @@ export function CompanyWiki() {
           : '已加入研究。港股 / 美股暂时没有研究页，可以在深度对话中研究。'}</p>
         <div className="flex flex-wrap gap-2">
           {current.aShare
-            ? <button type="button" className="workspace-action workspace-action-primary" title={reportBlocksRefresh} disabled={!!reportBlocksRefresh || !!gen && gen.slug === slug && (gen.phase === 'ensuring' || gen.phase === 'researching' || gen.phase === 'settling')} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
+            ? <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
             : <button type="button" className="workspace-action" onClick={() => void startPlainResearch()}>在深度对话中研究</button>}
           <Link className="workspace-action" to="/my-reports">上传研报补充</Link>
         </div>

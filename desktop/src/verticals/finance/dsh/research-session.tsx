@@ -102,7 +102,7 @@ export interface ResearchSessions {
   sessionState(sessionId: string): SessionState | null;
   taskRunning(sessionId: string): boolean;
   restoreTopic(topicId: string, title?: string, signal?: AbortSignal): Promise<TopicSessionMatch>;
-  startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }): Promise<string>;
+  startTopic(input: { topicId: string; title: string; prompt?: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }): Promise<string>;
   startAssistant(input: {
     pageKey: string;
     title: string;

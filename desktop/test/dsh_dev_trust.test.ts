@@ -43,3 +43,10 @@ test("开发代理允许同源与无 Origin 的本机请求，拒绝跨站和 Ho
   assert.equal(isTrustedDevRequest({ headers: { host: "127.0.0.1:5930", origin, "sec-fetch-site": "cross-site" } }, origin), false);
   assert.equal(isTrustedDevRequest({ headers: { host: "127.0.0.1:5930" } }, ""), false);
 });
+
+test("宿主注册的每个 /finance-* 接口都经开发入口转发", () => {
+  const host = readFileSync(fileURLToPath(new URL("../dsh/finance-ui/host-state.mjs", import.meta.url)), "utf8");
+  const routes = [...host.matchAll(/path: '(\/finance-[^']+)'/g)].map(match => match[1]);
+  assert.ok(routes.includes("/finance-assistant-page-context"));
+  for (const route of routes) assert.ok(isDshProxiedPath(route), `${route} 未加入开发入口转发`);
+});

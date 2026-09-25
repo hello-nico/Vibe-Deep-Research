@@ -6,7 +6,7 @@ import { researchRead, ResearchError, type WikiPage } from '../lib/research';
 import { FACT_SECTIONS, factItems, factLabel, formatFactValue, providerSnapshot } from '../lib/wikiFacts';
 import { WikiLoading } from './WikiLoading';
 import { ObjectReport } from './ObjectReport';
-import { KnowledgeText, SourceTimeline } from './WikiReport';
+import { CompanyIndustryLink, KnowledgeText, SourceTimeline } from './WikiReport';
 import { WikiReportPane } from './WikiReportPane';
 import { cn } from '@/lib/utils';
 import { loadReadyIndustryProfiles, objectLabel, openRegisteredObject, readableRelatedWikiRefs, registeredObject } from '../lib/objectRegistry';
@@ -159,7 +159,7 @@ function WikiBody({ slug, report, onMarkdown, onPage, onLoadState, revision, ren
       const body = page.markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '').replace(/^\s*# [^\n]+\r?\n/, '').replace(/^## 身份\s*\r?\n[\s\S]*?(?=^## |$(?![\s\S]))/m, '');
       return <article className="mx-auto max-w-4xl py-2">{failure}
         <GlassCard glow className="mb-6 !p-6"><div className="flex items-start gap-4"><span className="rounded-2xl bg-primary/10 p-3 text-primary"><Building2 size={24} /></span><div><p className="mb-1 text-xs text-muted-foreground">公司研究 · {page.spec.as_of}</p><h2 className="text-2xl font-semibold tracking-tight">{page.spec.title}</h2></div></div>
-          <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-border/60 pt-5 sm:grid-cols-3">{fields.map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-2 text-sm font-medium">{typeof identity[key] === 'string' && identity[key] ? String(identity[key]) : '暂无资料'}</dd></div>)}</dl>
+          <dl className="mt-6 grid grid-cols-1 gap-4 border-t border-border/60 pt-5 sm:grid-cols-3">{fields.map(([key, label]) => <div key={key}><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-2 text-sm font-medium">{typeof identity[key] === 'string' && identity[key] ? (key === 'industry' ? <CompanyIndustryLink page={page}>{String(identity[key])}</CompanyIndustryLink> : String(identity[key])) : '暂无资料'}</dd></div>)}</dl>
         </GlassCard>
         <WikiSections markdown={body} blocks={page.spec.blocks} company />
       </article>;

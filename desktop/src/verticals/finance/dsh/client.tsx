@@ -43,6 +43,7 @@ interface Client {
     getTheme(): { active: { colorScheme: string; tokens: Record<string, string> }; fontSize: number };
     setTheme(theme: string): void;
   };
+  locale: { getLocale(): { active: string }; setLocale(id: string): void };
   connection: { state: { getSnapshot(): string | undefined; subscribe(callback: () => void): () => void } };
   slots: {
     register<P>(options: Record<string, unknown>, component: React.ComponentType<P>): () => void;
@@ -120,12 +121,14 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
-export const inject = ["slots", "connection", "theme", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories", "configForms"];
+export const inject = ["slots", "connection", "theme", "locale", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories", "configForms"];
 
 function openResearchTarget(value: string) { openRegisteredObject(value); }
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
+  const client = ctx as unknown as Client;
+  if (client.locale.getLocale().active !== 'zh') client.locale.setLocale('zh');
   installResultNode(ctx);
   installPanelConversation(ctx, () => sidePanel);
   ctx.effect(() => ctx.inputTriggers.registerSource(researchObjectSource));
@@ -145,7 +148,6 @@ export function apply(ctx: Context) {
       return { label, title: label, open() { openResearchTarget(value); } };
     } };
   } });
-  const client = ctx as unknown as Client;
   for (const name of FINANCE_TOOL_NAMES) {
     client.slots.inject('tool.call.toolview', () => client.slots.register({ name: 'tool.call.toolview', key: name }, FinanceToolRow));
   }
@@ -593,7 +595,7 @@ export function apply(ctx: Context) {
     await bindTopicSession(topicId, id, title || topicBind?.title || topicId);
     signal?.throwIfAborted();
     return { topicId, sessionId: id };
-  }, async startTopic(input: { topicId: string; title: string; prompt: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }) {
+  }, async startTopic(input: { topicId: string; title: string; prompt?: string; fresh?: boolean; onSessionReady?: (sessionId: string) => void }) {
     await session;
     if (!workspaceId) throw new Error('研究服务正在连接，请稍后再试');
     let id: string;
@@ -605,8 +607,9 @@ export function apply(ctx: Context) {
       id = (await research.restoreTopic(input.topicId, input.title)).sessionId;
     }
     input.onSessionReady?.(id);
+    if (input.fresh) return id;
     await withSession(id, async face => {
-      if (!(await face.prompt([{ type: 'text', text: input.prompt }], 'queue')).ok) {
+      if (!(await face.prompt([{ type: 'text', text: input.prompt || '' }], 'queue')).ok) {
         throw new Error('议题研究未被接收，请检查模型设置后重试');
       }
     });

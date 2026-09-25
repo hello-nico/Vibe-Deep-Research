@@ -127,8 +127,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     return () => controller.abort();
   }, [topicId, view]);
   // 只写用户能读懂的一句话和议题标签；工作步骤由 Stock 的 my_research 角色提示负责。
-  const prompt = (fresh = false) =>
-    `${fresh ? "在新对话里继续研究这个议题" : "继续研究这个议题"}：引用议题：${topic?.title || topicId} \`${topicId}\``;
+  const prompt = () => `继续研究这个议题：引用议题：${topic?.title || topicId} \`${topicId}\``;
   const start = async (fresh = false) => {
     setBusy(fresh ? "new" : "continue"); setError("");
     try {
@@ -136,7 +135,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
         const restored = await setTopicPool(topicId, "restore");
         setTopic(current => current ? { ...current, ...restored, pool_state: "active" } : current);
       }
-      await research.startTopic({ topicId, title: topic?.title || topicId, prompt: prompt(fresh), fresh,
+      await research.startTopic({ topicId, title: topic?.title || topicId, ...(fresh ? {} : { prompt: prompt() }), fresh,
         onSessionReady: sessionId => research.openTopicPanel({ kind: 'topic', sessionId, topicId, title: topic?.title || topicId,
           judgment: topic?.judgment?.text || '尚未形成判断', questions: topicOpeningQuestions(topic?.next_questions), fresh }) });
     } catch (e) { setError(e instanceof Error ? e.message : String(e)); }

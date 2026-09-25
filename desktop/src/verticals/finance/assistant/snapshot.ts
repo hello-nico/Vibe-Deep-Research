@@ -167,70 +167,57 @@ export function buildDailyReviewSnapshot(input: DailyReviewSnapshotInput): strin
   const sections: string[] = [formatSnapshotSection('页面状态', header)];
 
   const indexMeta = firstProvenance(input.indices);
-  const indexLines = input.idxDone
-    ? (input.indices.length
-      ? [...provenance(indexMeta.source, indexMeta.fetched_at), ...input.indices.map(i => `- ${i.name}：点位 ${num(i.price)}，涨跌幅 ${pct(i.change_pct)}`)]
-      : [input.idxErr ? '宽基指数：数据源暂不可用' : '宽基指数：暂无数据'])
-    : ['宽基指数：未加载'];
+  const indexLines = input.indices.length
+    ? [...provenance(indexMeta.source, indexMeta.fetched_at), ...input.indices.map(i => `- ${i.name}：点位 ${num(i.price)}，涨跌幅 ${pct(i.change_pct)}`)]
+    : input.idxDone ? [input.idxErr ? '宽基指数：数据源暂不可用' : '宽基指数：暂无数据'] : ['宽基指数：未加载'];
   sections.push(formatSnapshotSection('宽基指数', indexLines));
 
   const globalMeta = firstProvenance(input.globalIndices);
-  const globalLines = !input.globalDone
-    ? ['未加载']
-    : input.globalIndices.length
-      ? [...provenance(globalMeta.source, globalMeta.fetched_at), ...input.globalIndices.map(g => `- ${g.name}${g.region ? `（${g.region}）` : ''}：${num(g.price)}，${pct(g.change_pct)}${g.fetched_at ? `，数据时间 ${g.fetched_at}` : ''}${g.note ? `，${g.note}` : ''}`)]
-      : [input.globalErr || '全球指数：暂无可用数据'];
+  const globalLines = input.globalIndices.length
+    ? [...provenance(globalMeta.source, globalMeta.fetched_at), ...input.globalIndices.map(g => `- ${g.name}${g.region ? `（${g.region}）` : ''}：${num(g.price)}，${pct(g.change_pct)}${g.fetched_at ? `，数据时间 ${g.fetched_at}` : ''}${g.note ? `，${g.note}` : ''}`)]
+    : input.globalDone ? [input.globalErr || '全球指数：暂无可用数据'] : ['未加载'];
   sections.push(formatSnapshotSection('全球指数', globalLines));
 
   const sent = input.sentiment;
-  const sentLines = !input.ovDone
-    ? ['未加载']
-    : sent?.breadth
+  const sentVisible = sent && [sent.breadth, sent.speculation, sent.up, sent.down, sent.flat, sent.zt, sent.dt, sent.active].some(value => value !== null && value !== undefined && value !== '');
+  const sentLines = sent && sentVisible
       ? [
         ...provenance(sent.source, sent.fetched_at),
-        `- 大盘宽度 ${sent.breadth}，题材投机 ${sent.speculation ?? '—'}`,
+        `- 大盘宽度 ${sent.breadth ?? '—'}，题材投机 ${sent.speculation ?? '—'}`,
         '  口径：大盘宽度/题材投机是前端按上涨家数占比与涨停家数阈值派生的标签，不是取数层原始字段。',
         `- 上涨 ${sent.up ?? '—'} 家，下跌 ${sent.down ?? '—'} 家，平盘 ${sent.flat ?? '—'} 家`,
         '  口径：上涨/下跌家数是行业板块成分加总，不是交易所公布口径。',
         `- 涨停 ${sent.zt ?? '—'}，真实涨停 ${sent.zt_real ?? '—'}，跌停 ${sent.dt ?? '—'}，真实跌停 ${sent.dt_real ?? '—'}，活跃度 ${sent.active ?? '—'}`,
         sent.date ? `- 观察日 ${sent.date}` : '',
       ]
-      : ['市场情绪：暂无数据'];
+    : input.ovDone ? ['市场情绪：暂无数据'] : ['未加载'];
   sections.push(formatSnapshotSection('市场情绪', sentLines));
 
   const emo = input.emotion;
-  const emoLines = !input.emoDone
-    ? ['未加载']
-    : emo && emo.zt_count !== undefined
+  const emoLines = emo && emo.zt_count !== undefined
       ? [
         ...provenance(emo.source, emo.fetched_at),
         `- 涨停 ${emo.zt_count}，跌停 ${emo.dt_count ?? '—'}，最高连板 ${emo.max_boards ?? '—'} 板，连板 ${emo.lianban_count ?? '—'} 家`,
         `- 封板率 ${emo.seal_rate == null ? '—' : `${(emo.seal_rate * 100).toFixed(1)}%`}，炸板率 ${emo.break_rate == null ? '—' : `${(emo.break_rate * 100).toFixed(1)}%`}，晋级率 ${emo.promotion_rate == null ? '—' : `${(emo.promotion_rate * 100).toFixed(1)}%`}`,
         emo.date ? `- 观察日 ${emo.date}` : '',
       ]
-      : ['短线情绪：暂无数据'];
+      : input.emoDone ? ['短线情绪：暂无数据'] : ['未加载'];
   sections.push(formatSnapshotSection('短线情绪', emoLines));
 
   const lianban = emo?.lianban_stocks || [];
-  const lianbanLines = !input.emoDone
-    ? ['未加载']
-    : lianban.length
+  const lianbanLines = lianban.length
       ? [...provenance(emo?.source, emo?.fetched_at), ...lianban.slice(0, 40).map(s => `- ${s.name}（${s.code}）：连板 ${s.boards ?? '—'} 板，现价 ${num(s.price ?? null)}，${pct(s.pct ?? null)}，成交额 ${yi(s.amount ?? null)}${s.float_cap != null ? `，流通市值 ${yi(s.float_cap)}` : ''}${s.industry ? `，${s.industry}` : ''}`)]
-      : ['连板股：暂无数据'];
+      : input.emoDone ? ['连板股：暂无数据'] : ['未加载'];
   sections.push(formatSnapshotSection('连板股', lianbanLines));
 
-  const sectorLines = !input.ovDone
-    ? ['未加载']
-    : input.sectors.length
+  const sectorLines = input.sectors.length
       ? [...provenance(input.sectorsSource, input.sectorsFetchedAt), ...input.sectors.slice(0, 15).map(s => `- ${s.name}：涨跌 ${pct(s.pct)}，净流入 ${s.net == null ? '—' : `${s.net > 0 ? '+' : ''}${num(s.net)} 亿`}`)]
-      : ['板块资金：暂无数据'];
+      : input.ovDone ? ['板块资金：暂无数据'] : ['未加载'];
   sections.push(formatSnapshotSection('板块资金趋势', sectorLines));
 
-  const turnoverLines = !input.toDone
-    ? ['未加载']
-    : input.turnover?.stocks?.length
+  const turnoverLines = input.turnover?.stocks?.length
       ? [...provenance(input.turnover.source, input.turnover.updated), ...input.turnover.stocks.slice(0, 20).map((s, i) => `- ${i + 1}. ${s.name}（${s.code}）：现价 ${num(s.price ?? null)}，${pct(s.pct ?? null)}，成交额 ${yi(s.amount ?? null)}`)]
-      : ['成交额榜：暂无数据'];
+      : input.toDone ? ['成交额榜：暂无数据'] : ['未加载'];
   sections.push(formatSnapshotSection('成交额榜 TOP20', turnoverLines));
 
   let body = sections.filter(Boolean).join('\n\n');

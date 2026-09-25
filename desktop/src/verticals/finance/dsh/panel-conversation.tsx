@@ -5,7 +5,7 @@ import type { SessionReference } from '@deepseek-ai/dsh-api-session-controller/c
 import type { PropsRenderFactories, PropsRuntime, SessionProviderComponent } from '@deepseek-ai/dsh-client-ui-slots';
 import type { ConversationViewsProps } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import { loadReportTasks } from '../lib/reportTasks';
-import { taskPanelTarget } from './task-panel-target';
+import { isMissingSessionError, taskPanelTarget, taskProcessMissing } from './task-panel-target';
 import type { FinanceSidePanel } from './side-panel';
 import { SaveNoteButton } from '../components/ui/SaveNoteButton';
 import { assistantTurnNote } from './assistant-turn-note';
@@ -64,32 +64,38 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
   const id = (value: string) => value as NativeSessionId;
   function PanelSeat({ sessionId, parentSessionId, topic, assistant, SessionProvider, renderSlot }: PanelSeatProps) {
     const [reference, setReference] = useState<SessionReference | null>(null);
-    const [error, setError] = useState('');
+    const [error, setError] = useState<'missing' | 'failed' | null>(null);
     useEffect(() => {
       let active = true;
       const controller = new AbortController();
       let retained: SessionReference | undefined;
       setReference(null);
-      setError('');
+      setError(null);
       void (async () => {
-        await ctx.sessions.refresh().catch(() => {});
+        if (topic || assistant) await ctx.sessions.refresh().catch(() => {});
+        else await ctx.sessions.refresh();
         const parent = topic || assistant ? undefined : parentSessionId || ctx.sessions.subagentAddress(id(sessionId))?.parentSessionId
           || ctx.sessions.list.getSnapshot().byId[id(sessionId)]?.parentId
-          || (await loadReportTasks().catch(() => null))?.host_session_id;
-        if (parent) await ctx.sessions.refreshProjections(id(parent)).catch(() => {});
+          || (await loadReportTasks())?.host_session_id;
+        if (parent) {
+          if (topic || assistant) await ctx.sessions.refreshProjections(id(parent)).catch(() => {});
+          else await ctx.sessions.refreshProjections(id(parent));
+        }
         if (!active) return;
         const address = ctx.sessions.subagentAddress(id(sessionId));
         const catalog = parent ? ctx.sessions.list.getSnapshot().projectionsBySession[id(parent)]?.values.subagentCatalog || [] : [];
+        if (!topic && !assistant && taskProcessMissing(sessionId, parent, address, catalog,
+          Boolean(ctx.sessions.list.getSnapshot().byId[id(sessionId)]))) throw new Error('sessions.retain: unknown session ' + sessionId);
         const target = topic || assistant ? sessionId : taskPanelTarget(sessionId, parent, address, catalog);
         retained = ctx.sessions.retain(typeof target === 'string' ? id(target) : {
           parentSessionId: id(target.parentSessionId), childSessionId: id(target.childSessionId), mode: target.mode,
         }, { source: topic || assistant ? 'financePanel' : 'taskProcess', signal: controller.signal });
         await retained.ready;
         if (active) setReference(retained);
-      })().catch(() => {
+      })().catch(error => {
         retained?.release();
         retained = undefined;
-        if (active) setError('执行记录读取失败，请稍后重试');
+        if (active) setError(!topic && !assistant && isMissingSessionError(error) ? 'missing' : 'failed');
       });
       return () => {
         active = false;
@@ -97,7 +103,7 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
         retained?.release();
       };
     }, [sessionId, parentSessionId, topic, assistant]);
-    if (error) return <p role="alert" className="p-4 text-sm text-destructive">{error}</p>;
+    if (error) return <p role={error === 'missing' ? 'status' : 'alert'} className={`p-4 text-sm ${error === 'missing' ? 'text-muted-foreground' : 'text-destructive'}`}>{error === 'missing' ? '这次任务的执行记录已清理，无法查看过程' : '执行记录读取失败，请稍后重试'}</p>;
     if (!reference) return <p role="status" className="p-4 text-sm text-muted-foreground">{topic || assistant ? '正在打开对话…' : '正在读取执行记录…'}</p>;
     return <SessionProvider session={reference}>{renderSlot('finance.panel.chat', { topic, assistant })}</SessionProvider>;
   }

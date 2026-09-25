@@ -60,6 +60,21 @@ export function allowedRefSet(detail: Pick<ReportDetail, 'refs' | 'allowed_refs'
   return new Set(detail.allowed_refs?.length ? detail.allowed_refs : detail.refs ?? []);
 }
 
+const NARROW_REPORT_STYLE = `<style data-product-report-layout>
+@media (max-width: 760px) {
+  .lf-sheet { grid-template-columns: minmax(0, 1fr) !important; }
+  .lf-spine { display: none !important; }
+  .lf-mast h1 { writing-mode: horizontal-tb !important; overflow-wrap: break-word; }
+}
+</style>`;
+
+export function reportWithNarrowLayout(html: string): string {
+  const closing = /<\/(?:body|html)\s*>/i.exec(html);
+  return closing
+    ? html.slice(0, closing.index) + NARROW_REPORT_STYLE + html.slice(closing.index)
+    : html + NARROW_REPORT_STYLE;
+}
+
 function pageSlug(page: WikiPage): string {
   return page.spec.slug || '';
 }
@@ -343,7 +358,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
         {error && <span role="alert" className="text-destructive">{error}</span>}
       </div>}
-      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={detail.html} style={{ minHeight: 480 }} />
+      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={reportWithNarrowLayout(detail.html)} style={{ minHeight: 480 }} />
     </div>}
     {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '正在打开报告…' : '正在查看是否已有报告…'}</p>}
     {waiting && <div className="wiki-report-empty">

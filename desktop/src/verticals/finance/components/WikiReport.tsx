@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { documentDisplayTitle } from '../lib/documentTitle';
 import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -26,15 +27,19 @@ export function KnowledgeText({ markdown }: { markdown: string }) {
   } }}>{body}</ReactMarkdown></div>;
 }
 
+export { legacyReportTitle } from '../lib/documentTitle';
+
 export function SourceTimeline({ content }: { content?: Record<string, unknown> }) {
   const location = useLocation();
   const items = Array.isArray(content?.items) ? content.items.filter((item): item is Record<string, unknown> => !!item && typeof item === 'object') : [];
   const labels: Record<string, string> = { annual_report: '年报', quarterly_report: '季报', research_report: '研报', announcement: '公告', news: '新闻', earnings_call: '业绩交流' };
   if (!items.length) return <p className="wr-gap">资料待补充</p>;
   return <ul className="divide-y divide-border/50">{items.map((item, index) => {
-    const title = typeof item.title === 'string' && item.title.trim() ? item.title : '未命名资料';
     const kind = labels[String(item.document_type)] || '资料';
     const period = typeof item.reporting_period === 'string' ? item.reporting_period : '';
+    const raw = typeof item.title === 'string' ? item.title.trim() : '';
+    // Older ingests kept a placeholder title ("legacy:…"); name them from the report period instead.
+    const title = raw ? documentDisplayTitle(raw, period, kind) : '未命名资料';
     const id = typeof item.document_id === 'string' && /^[a-f0-9]+$/.test(item.document_id) ? item.document_id : null;
     return <li key={index} className="flex flex-col gap-2 py-3 first:pt-0 sm:flex-row sm:items-baseline sm:gap-4"><span className="shrink-0 text-xs text-muted-foreground sm:w-24">{[period, kind].filter(Boolean).join(' · ')}</span>{id ? <Link className="text-sm font-medium leading-6 hover:text-primary" to={`/my-reports/read/${encodeURIComponent(id)}?from=${encodeURIComponent(location.pathname + location.search)}`} onClick={() => sessionStorage.setItem(`finance-scroll:${location.pathname}${location.search}`, String(document.getElementById('workspace-main')?.scrollTop ?? 0))}>{title}<span className="ml-2 text-primary" aria-hidden="true">↗</span></Link> : <span className="text-sm font-medium leading-6">{title}</span>}</li>;
   })}</ul>;
@@ -232,6 +237,13 @@ function Gaps({ block }: { block: WikiBlock | undefined }) {
   </Section>;
 }
 
+export function CompanyIndustryLink({ page, children }: { page: WikiPage; children: ReactNode }) {
+  const target = page.spec.links?.find(link => link.type === 'belongs_to' && link.to.startsWith('industries/') && registeredObject(link.to)?.href)?.to;
+  return target
+    ? <button type="button" className="finance-citation" onClick={() => openRegisteredObject(target)}>{children}</button>
+    : <>{children}</>;
+}
+
 function CompanyLead({ page }: { page: WikiPage }) {
   const items = [...factItems(contentDict(page, 'financial_facts') ?? undefined), ...factItems(contentDict(page, 'valuation_facts') ?? undefined)];
   const latest = new Map<string, Record<string, unknown>>();
@@ -241,8 +253,11 @@ function CompanyLead({ page }: { page: WikiPage }) {
     if (!current || String(item.period || '') > String(current.period || '')) latest.set(metric, item);
   }
   const stats = LEAD_METRICS.map(metric => latest.get(metric)).filter((item): item is Record<string, unknown> => !!item).slice(0, 4);
+  const identity = contentDict(page, 'identity');
+  const industry = String(identity?.industry || '');
+  const parentIndustry = String(identity?.parent_industry || '');
   return <>
-    <p className="wr-lede"><span className="wr-dim">{[String(contentDict(page, 'identity')?.symbol || ''), String(contentDict(page, 'identity')?.industry || ''), String(contentDict(page, 'identity')?.parent_industry || '')].filter(Boolean).join(' · ')}</span></p>
+    <p className="wr-lede"><span className="wr-dim">{String(identity?.symbol || '')}{industry && <> · <CompanyIndustryLink page={page}>{industry}</CompanyIndustryLink></>}{parentIndustry && ` · ${parentIndustry}`}</span></p>
     {stats.length ? <div className="wr-stats">{stats.map((item, index) => <div className="wr-stat" key={index}>
       <p className="wr-stat-label">{factLabel({ ...item, period: '' })}</p>
       <p className="wr-stat-value">{itemLink(item, formatFactValue(item))}</p>
