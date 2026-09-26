@@ -85,3 +85,20 @@ button.rl-object-chip:hover { background: hsl(var(--primary) / .16); }
 .rl-task-summary { margin-left: 16px; padding: 10px 12px; border-radius: 10px; background: hsl(var(--card)); font-size: 13px; line-height: 1.7; color: hsl(var(--muted-foreground)); white-space: pre-wrap; }
 .rl-task-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding-left: 10px; }
 .rl-task-actions:empty { display: none; }
+
+/* 任务列表为模板：议题行沿用 rl-task 的状态点、标签与操作行；摘要与标签行和标题左对齐（状态点 8px + 间距 8px）。 */
+.rl-topic-row .rl-task-head { gap: 6px 8px; }
+.rl-topic-link { min-width: 0; line-height: 1.5; }
+.rl-topic-link:hover { color: hsl(var(--primary)); }
+.rl-topic-indent { margin-left: 16px; }
+.rl-topic-row .rl-topic-summary { margin-top: 0; }
+.rl-topic-row .rl-icon-action { opacity: 1; }
+/* 任务、议题、记录共用的分页条 */
+.rl-pager { display: flex; align-items: center; gap: 10px; margin-top: 16px; }
+/* 长标题换行时状态点留在首行左侧，标题在自己的列内换行 */
+.rl-topic-title-row { flex-wrap: nowrap; align-items: flex-start; }
+.rl-topic-title-row > .status-dot { margin-top: 7px; }
+/* 列表行的状态点贴着左边缘：提示框改为从状态点左侧对齐向右展开，避免被卡片裁掉左半截 */
+.rl-task-head > .status-dot .status-dot-tip { left: -6px; transform: translate(0, 2px); }
+.rl-task-head > .status-dot:hover .status-dot-tip,
+.rl-task-head > .status-dot:focus-visible .status-dot-tip { transform: translate(0, 0); }

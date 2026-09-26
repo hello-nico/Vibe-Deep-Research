@@ -109,7 +109,7 @@ export function MyResearch() {
     setError("");
     setTopics(null);
     void researchRead<{ items: ResearchTopicSummary[]; next_offset: number | null }>(
-      `/wiki/research-topics?limit=50&offset=${offset}&query=${encodeURIComponent(query)}&pool=${status}`,
+      `/wiki/research-topics?limit=${LIST_PAGE_SIZE}&offset=${offset}&query=${encodeURIComponent(query)}&pool=${status}`,
       { signal: controller.signal },
     ).then(value => { setTopics(value.items); setNextOffset(value.next_offset); }).catch(e => { if (!controller.signal.aborted) setError(String(e)); });
     return () => controller.abort();
@@ -118,7 +118,7 @@ export function MyResearch() {
     if (tab !== "notes") return;
     const controller = new AbortController();
     setNotesBusy(true); setNotesError("");
-    void searchNotes(query, notesOffset, 40).then(page => {
+    void searchNotes(query, notesOffset, LIST_PAGE_SIZE).then(page => {
       if (controller.signal.aborted) return;
       setNotes(page.notes); setNotesTotal(page.total); setNotesNext(page.nextOffset);
     }).catch(e => {
@@ -447,21 +447,9 @@ export function MyResearch() {
         {error && <p role="alert" className="mt-3 text-sm text-destructive">{error}</p>}
         {!topics && !error && <ResearchLoading compact title="正在读取议题" sections={["持续议题", "研究问题"]} />}
         {topics && topics.length === 0 && <p className="py-8 text-center text-sm text-muted-foreground">{status === "archived" ? "还没有已归档的议题。" : "还没有研究中的议题。写下一个需要持续验证或跟踪的问题，发起后会在这里出现。"}</p>}
-        {topics && topics.length > 0 && topics.map(item => {
-          const archived = (item.pool_state || status) === "archived";
-          return <div key={item.topic_id} className="rl-topic">
-            <Link to={`/my-research/topics/${topicHex(item.topic_id)}`} className="rl-topic-main">
-              <h2 className="rl-topic-title">{item.title}</h2>
-              <p className="rl-topic-summary">{item.judgment?.text || item.user_claim || "继续研究，逐步形成判断"}</p>
-              <p className="rl-meta mt-2">{item.judgment?.state ? `判断：${JUDGMENT_LABEL[item.judgment.state] || item.judgment.state} · ` : ""}{item.last_touched_at ? `最近研究 ${shortTime(item.last_touched_at)}` : "待继续"}</p>
-            </Link>
-            <button type="button" className="rl-icon-action shrink-0" disabled={poolBusy === item.topic_id} onClick={() => void changePool(item, archived ? "restore" : "archive")}>
-              {archived ? <RotateCcw size={14} /> : <Archive size={14} />}
-              {poolBusy === item.topic_id ? (archived ? "恢复中…" : "归档中…") : (archived ? "恢复研究" : "归档")}
-            </button>
-          </div>;
-        })}
-        {(offset > 0 || nextOffset !== null) && <div className="mt-3 flex gap-2"><button className="workspace-action" disabled={offset === 0} onClick={() => setOffset(Math.max(0, offset - 50))}>上一页</button><button className="workspace-action" disabled={nextOffset === null} onClick={() => nextOffset !== null && setOffset(nextOffset)}>下一页</button></div>}
+        {topics && topics.length > 0 && <TopicRows topics={topics} status={status} poolBusy={poolBusy} onPool={(item, action) => void changePool(item, action)} />}
+        <ListPager page={Math.floor(offset / LIST_PAGE_SIZE)} hasNext={nextOffset !== null} unit="个议题"
+          onPage={page => setOffset(page * LIST_PAGE_SIZE)} />
       </> : <NotesPanel notes={notes} total={notesTotal} busy={notesBusy} error={notesError} offset={notesOffset} nextOffset={notesNext} onPage={setNotesOffset} onRetry={() => setNotesTick(value => value + 1)} />}
     </GlassCard>
     <Disclaimer />
@@ -516,10 +504,18 @@ function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryR
     void resolveObjectLabels(refs).then(() => { if (active) relabel(value => value + 1); }).catch(() => {});
     return () => { active = false; };
   }, [refs.join('\0')]);
+  // 每页 10 条；从“待处理”带着草案进来时翻到该草案所在页，任务变少时页码收回到最后一页。
+  const [page, setPage] = useState(0);
+  const pageCount = Math.max(1, Math.ceil((tasks?.length || 0) / LIST_PAGE_SIZE));
+  const draftIndex = selectedDraftId && tasks ? tasks.findIndex(task => task.draft_id === selectedDraftId) : -1;
+  useEffect(() => { if (draftIndex >= 0) setPage(Math.floor(draftIndex / LIST_PAGE_SIZE)); }, [selectedDraftId, draftIndex >= 0]);
+  useEffect(() => { if (page > pageCount - 1) setPage(pageCount - 1); }, [page, pageCount]);
   if (error) return <p role="alert" className="text-sm text-destructive">{error}</p>;
   if (!tasks) return <ResearchLoading compact title="正在读取任务" sections={["执行状态", "成果摘要"]} />;
   if (!tasks.length) return <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground"><ListTodo className="h-8 w-8 text-muted-foreground/40" />还没有任务。深度对话需要补读原文时，整理进度会显示在这里；不会自动建立议题。</div>;
-  return <div className="rl-tasks">{tasks.map(task => {
+  const current = Math.min(page, pageCount - 1);
+  const visible = tasks.slice(current * LIST_PAGE_SIZE, (current + 1) * LIST_PAGE_SIZE);
+  return <><div className="rl-tasks">{visible.map(task => {
     const seconds = task.started_at && task.finished_at ? Math.max(0, Math.round((Date.parse(task.finished_at) - Date.parse(task.started_at)) / 1000)) : null;
     const processId = task.child_session_id || task.id;
     const kind = task.kind === 'report' ? 'report' as const : task.kind === 'research' ? 'research' as const : 'knowledge' as const;
@@ -557,7 +553,9 @@ function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryR
       </div>
       {kind === 'research' && status === 'awaiting_authorization' && task.draft_token && task.draft && <div className="w-full"><WikiDraftPublish draftToken={task.draft_token} onPublished={() => onDraftPublished(task.draft!)} /></div>}
     </div>;
-  })}</div>;
+  })}</div>
+    <ListPager page={current} total={tasks.length} unit="个任务" onPage={setPage} />
+  </>;
 }
 
 const GENERIC_TASK_SUMMARY = new Set(['', '这次任务没有完成', '已停止', '已取消']);
@@ -655,8 +653,7 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
     </div>;
   }
   return <div>
-    <p className="rl-meta mb-2">{total || notes?.length || 0} 条记录</p>
-    <div className="rl-notes">
+        <div className="rl-notes">
       {notes?.map(note => {
         const open = openId === note.id;
         // Titles are saved as "问助手 · 问题"; the kind already shows as a chip.
@@ -665,7 +662,7 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
           <button type="button" className="rl-note-head" aria-expanded={open} onClick={() => setOpenId(open ? null : note.id)}>
             <span className="rl-chip is-primary">{note.kind}</span>
             <span className="rl-note-title">{title}</span>
-            <span className="rl-meta">{shortTime(note.ts)}</span>
+            <span className="rl-chip">{shortTime(note.ts)}</span>
           </button>
           {!open && <div className="rl-note-excerpt-wrap" onClick={() => setOpenId(note.id)}><p className="rl-note-excerpt">{plainExcerpt(note)}</p></div>}
           {open && <div className="rl-note-body">
@@ -676,13 +673,12 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
         </article>;
       })}
     </div>
-    {(offset > 0 || nextOffset !== null) && <div className="mt-4 flex gap-2">
-      <button className="workspace-action" disabled={offset === 0} onClick={() => onPage(Math.max(0, offset - 40))}>上一页</button>
-      <button className="workspace-action" disabled={nextOffset === null} onClick={() => nextOffset !== null && onPage(nextOffset)}>下一页</button>
-    </div>}
+    <ListPager page={Math.floor(offset / LIST_PAGE_SIZE)} hasNext={nextOffset !== null} total={total} unit="条记录"
+      onPage={page => onPage(page * LIST_PAGE_SIZE)} />
   </div>;
 }
 
+const LIST_PAGE_SIZE = 10;
 const TOPIC_REF = /topic:[0-9a-f]{12}/g;
 
 /** Model-written memory and suggestion text may carry topic IDs; show them as linked topic titles. */
@@ -816,4 +812,88 @@ function MemoryPanel({ onOpenSource }: { onOpenSource: (sessionId: string) => vo
       </>}
     </section>
   </div>;
+}
+
+/**
+ * 任务、议题、记录共用的分页条（每页 LIST_PAGE_SIZE 条）。
+ * 知道总数时显示“第 X / Y 页 · 共 N {unit}”；只知道有没有下一页时（议题接口不返回总数）显示“第 X 页”。
+ */
+function ListPager({ page, total, hasNext, unit, onPage }: {
+  page: number; total?: number; hasNext?: boolean; unit: string; onPage: (page: number) => void;
+}) {
+  const pageCount = total != null ? Math.max(1, Math.ceil(total / LIST_PAGE_SIZE)) : undefined;
+  const canNext = pageCount != null ? page < pageCount - 1 : Boolean(hasNext);
+  if (page === 0 && !canNext) return null;
+  return <div className="rl-pager">
+    <button type="button" className="workspace-action" disabled={page === 0} onClick={() => onPage(page - 1)}>上一页</button>
+    <span className="rl-meta">{pageCount != null ? `第 ${page + 1} / ${pageCount} 页 · 共 ${total} ${unit}` : `第 ${page + 1} 页`}</span>
+    <button type="button" className="workspace-action" disabled={!canNext} onClick={() => onPage(page + 1)}>下一页</button>
+  </div>;
+}
+
+// 申万二级行业代码 → 名称（产业研究同源接口）；只读一次，失败时退回显示代码。
+let sw2Names: Promise<Map<string, string>> | null = null;
+function loadSw2Names(): Promise<Map<string, string>> {
+  sw2Names ??= researchRead<{ items: { industry_code: string; industry_name: string }[] }>('/industries/profiles')
+    .then(value => new Map(value.items.map(item => [item.industry_code, item.industry_name])))
+    .catch(() => { sw2Names = null; return new Map<string, string>(); });
+  return sw2Names;
+}
+
+const TOPIC_TONE: Record<string, 'ok' | 'bad' | 'wait'> = { gathering: 'wait', provisional: 'ok', blocked: 'bad' };
+
+/** 议题列表：沿用任务列表的样式（状态点、标签、操作行）。 */
+function TopicRows({ topics, status, poolBusy, onPool }: {
+  topics: ResearchTopicSummary[]; status: string; poolBusy: string;
+  onPool: (item: ResearchTopicSummary, action: "archive" | "restore") => void;
+}) {
+  const [industries, setIndustries] = useState<Map<string, string>>(() => new Map());
+  const subjects = topics.flatMap(item => item.subjects || []);
+  const companyRefs = [...new Set(subjects.map(ref => /^company:(\d{6}\.(?:SH|SZ|BJ))$/i.exec(ref)?.[1]).filter((code): code is string => Boolean(code)).map(taskObjectRef))];
+  const [, relabel] = useState(0);
+  useEffect(() => {
+    let active = true;
+    if (subjects.some(ref => ref.startsWith('industry:sw2:'))) void loadSw2Names().then(map => { if (active) setIndustries(map); });
+    if (companyRefs.length) void resolveObjectLabels(companyRefs).then(() => { if (active) relabel(value => value + 1); }).catch(() => {});
+    return () => { active = false; };
+  }, [subjects.join('\0')]);
+  return <div className="rl-tasks">{topics.map(item => {
+    const archived = (item.pool_state || status) === "archived";
+    const state = item.judgment?.state || '';
+    const stateLabel = JUDGMENT_LABEL[state] || '';
+    const href = `/my-research/topics/${topicHex(item.topic_id)}`;
+    return <div key={item.topic_id} className="rl-task rl-topic-row">
+      <div className="rl-task-head rl-topic-title-row">
+        <StatusDot tone={archived ? 'off' : TOPIC_TONE[state] || 'off'} label={archived ? '已归档' : `研究中${stateLabel ? ` · ${stateLabel}` : ''}`} />
+        <Link to={href} className="rl-task-kind rl-topic-link">{item.title}</Link>
+      </div>
+      <Link to={href} className="rl-topic-summary rl-topic-indent">{item.judgment?.text || item.user_claim || "继续研究，逐步形成判断"}</Link>
+      <div className="rl-task-head rl-topic-indent">
+        {stateLabel && <span className="rl-chip">判断 · {stateLabel}</span>}
+        {(item.subjects || []).slice(0, 4).map(ref => <TopicSubject key={ref} subject={ref} industries={industries} />)}
+        <span className="rl-chip">{item.last_touched_at ? `最近研究 ${shortTime(item.last_touched_at)}` : '待继续'}</span>
+        <button type="button" className="rl-icon-action ml-auto" disabled={poolBusy === item.topic_id} onClick={() => onPool(item, archived ? "restore" : "archive")}>
+          {archived ? <RotateCcw size={13} /> : <Archive size={13} />}
+          {poolBusy === item.topic_id ? (archived ? "恢复中…" : "归档中…") : (archived ? "恢复研究" : "归档")}
+        </button>
+      </div>
+    </div>;
+  })}</div>;
+}
+
+function TopicSubject({ subject, industries }: { subject: string; industries: Map<string, string> }) {
+  const industry = /^industry:sw2:([0-9A-Z.]+)$/.exec(subject)?.[1];
+  if (industry) {
+    const name = industries.get(industry);
+    return <Link to={`/sectors/profiles/${encodeURIComponent(industry)}`} className="rl-chip rl-object-chip" title={`打开产业研究：${name || industry}`}>{name || industry}</Link>;
+  }
+  // company:600900.SH → companies/600900-sh，与任务列表的对象标签同一套登记。
+  const company = /^company:(\d{6}\.(?:SH|SZ|BJ))$/i.exec(subject)?.[1];
+  const ref = company ? taskObjectRef(company) : subject;
+  const object = registeredObject(ref);
+  if (!object) return null;
+  const name = objectLabel(ref);
+  return object.href || object.drawer
+    ? <button type="button" className="rl-chip rl-object-chip" title={`打开研究页：${name}`} onClick={() => openRegisteredObject(ref)}>{name}</button>
+    : <span className="rl-chip rl-object-chip is-static">{name}</span>;
 }

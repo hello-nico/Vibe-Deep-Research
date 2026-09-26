@@ -195,7 +195,8 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
   const panel = useSyncExternalStore(sessions.subscribeSidePanel, sessions.getSidePanel, sessions.getSidePanel);
   const open = panel?.kind === 'assistant';
   const [heldPage, setHeldPage] = useState(currentPage);
-  const page = open ? heldPage || currentPage : currentPage;
+  // 面板打开后切到别的页面时沿用打开时的页面；仍在同一页时取最新快照，否则会一直发送打开瞬间（数据尚未加载）的旧快照。
+  const page = open && heldPage && heldPage.key !== currentPage?.key ? heldPage : currentPage ?? heldPage;
   const { question, objects, uncitate, clearQuestion } = useAiQuestion();
   const currentRegistry = usePageAssistantObjects();
   const heldRegistry = useRef(currentRegistry);

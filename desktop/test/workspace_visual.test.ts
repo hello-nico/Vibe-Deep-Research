@@ -215,7 +215,10 @@ test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
   assert.match(mine, /aria-label="议题状态"/);
   assert.match(mine, /<GlassCard glow>/);
   // 列表用浅卡片分隔，不用整行分割线；任务状态用色点。
-  assert.match(mine, /className="rl-topic"/);
+  // 议题沿用任务列表的行样式（状态点 + 标签）；任务、议题、记录共用每页 10 条的分页条（2026-09-26）。
+  assert.match(mine, /className="rl-task rl-topic-row"/);
+  assert.match(mine, /const LIST_PAGE_SIZE = 10;/);
+  assert.equal((mine.match(/<ListPager /g) || []).length, 3);
   assert.match(mine, /<StatusDot tone=\{taskTone\(status\)\}/);
   assert.doesNotMatch(mine, /border-b border-border\/30 py-3 last:border-0/);
   assert.doesNotMatch(mine, /DashboardPanel/);
