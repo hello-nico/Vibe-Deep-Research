@@ -19,7 +19,7 @@ const { runBackgroundReview, listBackgroundTasks } = await import(new URL('backg
 const { installResearchTools } = await import(new URL('research-tools.mjs', stock).href);
 const snapshot = {
   questionIdentity: 'first-question', question: '第一题材料快照', reviewed_as_of: '2026-09-15',
-  accepted_pages: [{ spec: { slug: 'companies/test', research_blocks: [] }, base_input_hash: 'a'.repeat(64) }],
+  accepted_pages: [{ spec: { slug: 'companies/test', research_blocks: [] }, base_input_hash: 'a'.repeat(64), base_research_hash: 'c'.repeat(64) }],
   source_blocks: [{ text: '原文材料', source_ref: 'source:test' }], candidates: [],
 };
 const emptyResult = { decision: 'no_increment', noIncrementReason: '无增量' };
@@ -67,7 +67,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         if (mode === 'fail') throw new Error('controlled failure');
         yield { type: 'block-start', index: 0, blockType: 'tool-call' };
         const result = mode === 'draft' ? { decision: 'update', wikiUpdates: [{
-          slug: 'companies/test', baseInputHash: 'a'.repeat(64), kind: 'operating_model',
+          slug: 'companies/test', kind: 'operating_model',
           content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文',
         }] } : emptyResult;
         yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: result } };
@@ -139,7 +139,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         value = { version: 9, entries: [{ stance: 'corrected', text: '本轮更正的偏好' }] };
       } else if (pathname.endsWith('/wiki/page-drafts/research')) {
         value = options.method === 'POST' ? { draft_token: 'controlled-draft', published: false }
-          : { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64) };
+          : { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64), base_research_hash: 'c'.repeat(64) };
       } else if (pathname.endsWith('/wiki/extractions/finalize')) {
         const body = JSON.parse(options.body);
         value = { results: body.candidates.map(() => ({ outcome: 'accepted' })) };

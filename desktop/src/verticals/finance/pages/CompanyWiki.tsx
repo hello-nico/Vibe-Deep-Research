@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useSyncExternalStore } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
@@ -27,9 +27,12 @@ import { statusBadges } from '../lib/objectStatus';
 import { ObjectStatusBadges, useObjectStatusRows } from '../components/ui/ObjectStatusBadges';
 import type { StatusRow } from '../lib/objectStatus';
 import { trackTask } from '../lib/taskNotices';
+import { companyResearchStep, COMPANY_RESEARCH_STEPS } from '../lib/companyResearchProgress';
 
 const VIEW_KEY = 'vr-company-roster-view';
 const RECENT_LIMIT = 9;
+const noopSubscribe = () => () => {};
+const unknownResearchStep = () => null;
 
 export function CompanyWiki() {
   const sessions = useResearchSessions();
@@ -358,7 +361,8 @@ export function CompanyWiki() {
     return () => { alive = false; window.clearTimeout(timer); };
   }, [gen?.slug, gen?.phase, gen?.sessionId, slug, sessionsRev]);
   const startCompanyResearch = async () => {
-    if (!current || !current.aShare || gen?.phase === 'ensuring' || gen?.phase === 'researching') return;
+    // 只拦同一家公司正在进行的研究；页面上另一家公司的研究不影响这里发起（后端允许不同公司并行）。
+    if (!current || !current.aShare || (gen?.slug === current.slug && (gen.phase === 'ensuring' || gen.phase === 'researching'))) return;
     setError('');
     const target = current;
     if (companyResearchDisabledReason) {
@@ -373,9 +377,8 @@ export function CompanyWiki() {
       }
     } catch { setError('任务状态暂时无法核对，请稍后重试。'); return; }
     setGen({ slug: target.slug, phase: 'ensuring' });
-    let ensured: { slug: string; action: string };
     try {
-      ensured = await researchRead<{ slug: string; action: string }>('/wiki/pages/ensure', {
+      await researchRead<{ slug: string; action: string }>('/wiki/pages/ensure', {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: target.slug }),
       });
     } catch (e) {
@@ -387,7 +390,7 @@ export function CompanyWiki() {
     try {
       const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
       const name = isBareCompanyCode(target.title, target.symbol) ? wikiPageTitle(page, target.symbol) : target.title;
-      const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${name}（${target.symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${name} \`${target.slug}\``;
+      const prompt = `按公司研究流程研究 ${name}（${target.symbol}）`;
       const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name }, {
         navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${name}` },
       });
@@ -418,6 +421,23 @@ export function CompanyWiki() {
   };
   const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
   const genHere = gen && gen.slug === slug ? gen : null;
+  const researchSessionId = genHere?.sessionId || taskActivity.research?.sessionId;
+  const researchTrajectory = useMemo(() => {
+    try { return researchSessionId ? sessions.trajectory(researchSessionId) : null; }
+    catch { return null; }
+  }, [sessions, researchSessionId]);
+  const readResearchStep = useMemo(() => researchTrajectory
+    ? () => companyResearchStep(researchTrajectory.getSnapshot()) : unknownResearchStep, [researchTrajectory]);
+  const researchStep = useSyncExternalStore(researchTrajectory?.subscribe ?? noopSubscribe,
+    readResearchStep, unknownResearchStep);
+  const researchProgress = <div className="research-loading-compact" role="status" aria-live="polite" aria-busy="true">
+    <span className="research-loading-scan" aria-hidden="true" />
+    <span className="research-loading-beam" aria-hidden="true" />
+    <p className="research-loading-compact-title">{researchStep === null ? '研究进行中' : COMPANY_RESEARCH_STEPS[researchStep]}</p>
+    {researchStep !== null && <ol className="research-loading-compact-rail">
+      {COMPANY_RESEARCH_STEPS.map((step, index) => <li key={step} className={index === researchStep ? 'is-active' : ''} aria-current={index === researchStep ? 'step' : undefined}><i />{step}</li>)}
+    </ol>}
+  </div>;
   const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
   // 研究进行中时按钮显示阶段并可点开任务过程，而不是只变灰。
   const researchPhase = genHere?.phase === 'settling' || taskActivity.research?.status === 'settling' ? 'settling'
@@ -520,9 +540,9 @@ export function CompanyWiki() {
           <Link className="workspace-action" to="/my-reports">上传研报补充</Link>
         </div>
       </div>}
-      {wikiWait && genHere && <><WikiLoading slug={slug} title={wikiWaitTitle} />{genHere.phase !== 'ensuring' && genActions}</>}
+      {wikiWait && genHere && <>{genHere.phase === 'researching' ? researchProgress : <WikiLoading slug={slug} title={wikiWaitTitle} />}{genHere.phase !== 'ensuring' && genActions}</>}
       {genHere && !wikiWait && <div className="mb-4 rounded-xl border border-border p-4" role="status">
-        {genHere.phase === 'researching' && <p className="text-sm">{genHere.pageReady ? '研究页已建立，' : ''}研究进行中，结果会陆续更新到本页。</p>}
+        {genHere.phase === 'researching' && researchProgress}
         {genHere.phase === 'settling' && <p className="text-sm">研究已结束，正在整理结果…</p>}
         {genHere.phase === 'done' && <p className="text-sm">{genHere.message || '研究已结束。'}</p>}
         {(genHere.phase === 'partial' || genHere.phase === 'review') && <p className="text-sm">{genHere.message}</p>}

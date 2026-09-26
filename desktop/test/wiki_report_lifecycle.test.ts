@@ -12,6 +12,66 @@ import { Window } from 'happy-dom';
 const HASH_A = 'a'.repeat(64);
 const HASH_B = 'b'.repeat(64);
 
+test('质检提示在报告顶部可见并保留入场动画', async () => {
+  const env = await boot();
+  try {
+    const id = 'report:' + 'e'.repeat(32);
+    globalThis.fetch = async url => String(url).includes('/wiki/reports?')
+      ? Response.json({items:[{report_id:id,title:'报告',created_at:'2026-09-26',input_hash:HASH_A,current:true}]})
+      : Response.json({report_id:id,html:'<p style="animation:enter 1s">正文</p>',quality_warnings:[{check:'text_clipped'}]});
+    await env.render(createElement(env.Provider,{value:sessionMock()},createElement(env.pane.WikiReportPane,{page:page('companies/a')})));
+    assert.match(env.container.textContent,/这份报告有 1 处排版待核，可重新生成/);
+    assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '',/animation:enter 1s/);
+  } finally { await env.cleanup(); }
+});
+
+test('待核引用显示顶部提示并给引用追加标记说明', async () => {
+  const env = await boot();
+  try {
+    const id = 'report:' + 'f'.repeat(32);
+    globalThis.fetch = async url => String(url).includes('/wiki/reports?')
+      ? Response.json({ items: [{ report_id: id, title: '报告', created_at: '2026-09-26', input_hash: HASH_A, current: true }] })
+      : Response.json({ report_id: id, html: '<p data-ref="source:a">8亿元</p>', refs: ['source:a'], unverified_refs: ['source:a'] });
+    await env.render(createElement(env.Provider, { value: sessionMock() }, createElement(env.pane.WikiReportPane, { page: page('companies/a') })));
+    assert.match(env.container.textContent, /有 1 处引用待核/);
+    const html = env.container.querySelector('iframe')?.getAttribute('srcdoc') || '';
+    assert.match(html, /mark.textContent='待核'/);
+    assert.match(html, /这条引用的原文里没有找到对应数字/);
+    const document = new Window({ settings: { enableJavaScriptEvaluation: true } });
+    document.document.body.innerHTML = '<p data-ref="source:a">8亿元</p><p data-ref="source:b">正常</p>';
+    document.eval(html.match(/<script data-product-report-verification>([\s\S]*?)<\/script>/)?.[1] || '');
+    assert.equal(document.document.querySelectorAll('small').length, 1);
+    assert.equal(document.document.querySelector('small')?.textContent, '待核');
+    assert.equal(document.document.querySelector('small')?.title, '数字对不上：这条引用的原文里没有找到对应数字');
+    document.happyDOM.abort();
+  } finally { await env.cleanup(); }
+});
+
+test('语义待核与数字共用一个标记，失败不标，悬停区分原因', async () => {
+  const env = await boot();
+  try {
+    const checks = [
+      {ref:'source:a',status:'completed',probabilities:{support:0.69}},
+      {ref:'source:b',status:'completed',probabilities:{support:0.71}},
+      {ref:'source:c',status:'failed',probabilities:{support:0}},
+    ];
+    assert.deepEqual(env.pane.semanticUnverifiedRefs(checks), ['source:a']);
+    const html = env.pane.reportWithNarrowLayout('<p data-ref="source:a">结论</p><p data-ref="source:b">正确</p><p data-ref="source:c">失败</p>', ['source:a'], checks);
+    const document = new Window({settings:{enableJavaScriptEvaluation:true}});
+    document.document.body.innerHTML = '<p data-ref="source:a">结论</p><p data-ref="source:b">正确</p><p data-ref="source:c">失败</p>';
+    document.eval(html.match(/<script data-product-report-verification>([\s\S]*?)<\/script>/)?.[1] || '');
+    assert.equal(document.document.querySelectorAll('small').length, 1);
+    assert.match(document.document.querySelector('small')?.title || '', /数字对不上.*语义可能不一致/);
+    document.happyDOM.abort();
+    const id = 'report:'+'f'.repeat(32);
+    globalThis.fetch = async url => String(url).includes('/wiki/reports?')
+      ? Response.json({items:[{report_id:id,title:'报告',created_at:'2026-09-26',input_hash:HASH_A,current:true}]})
+      : Response.json({report_id:id,html:'<p data-ref="source:a">结论</p>',semantic_checks:checks});
+    await env.render(createElement(env.Provider,{value:sessionMock()},createElement(env.pane.WikiReportPane,{page:page('companies/a')})));
+    assert.match(env.container.textContent,/有 1 处引用待核/);
+  } finally { await env.cleanup(); }
+});
+
 test('图文报告只打开当前版本，不提供历史下拉', async () => {
   const env = await boot();
   try {
@@ -481,7 +541,7 @@ test('已有研究页可从工具栏继续公司研究，进行中的任务会�
         await env.act(async () => { action.click(); });
         assert.equal(ensured, 1);
         assert.equal(sessions.startCalls.length, 1);
-        assert.match(sessions.startCalls[0][0], /^继续研究/);
+        assert.equal(sessions.startCalls[0][0], '按公司研究流程研究 长江电力（600900）');
       }
     } finally { await env.cleanup(); }
   }

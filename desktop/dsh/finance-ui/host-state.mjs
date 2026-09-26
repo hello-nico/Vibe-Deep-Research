@@ -648,7 +648,7 @@ async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, sign
       agentOptions: model_selection,
       prompt: [{ type: 'text', text: prompt }], label: next.pending.title, maxDepth: 1,
       toolFilter: { allow: [] },
-      persona: 'Research the bound company using the deep_research tools. Ground conclusions in evidence. Write all user-visible text, including progress notes, in natural Simplified Chinese. Do not ask the user, publish drafts, create another agent, or write to the parent conversation.',
+      persona: 'Use the company_research role and its five-step company research SOP for the bound company. Ground conclusions in evidence. Write all user-visible text, including progress notes, in natural Simplified Chinese. Do not ask the user, publish drafts, create another agent, or write to the parent conversation.',
     });
     if (signal.aborted) {
       void Promise.resolve(run.result).catch(() => {});

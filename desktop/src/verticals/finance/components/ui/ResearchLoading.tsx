@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import './research-loading.css';
 
-export type ResearchLoadingProps = { title?: string; sections?: readonly string[]; compact?: boolean };
+/** `active`：由调用方给出真实的当前步骤（下标）与说明，不再轮播；省略时按原样轮播。 */
+export type ResearchLoadingProps = { title?: string; sections?: readonly string[]; compact?: boolean; active?: { index: number; label: string } };
 
 function useSectionStep(sections: readonly string[], enabled: boolean) {
   const [step, setStep] = useState(0);
@@ -24,8 +25,9 @@ export function ResearchRefreshStatus({ label = '正在刷新…' }: { label?: s
 }
 
 /** Presentation only; the caller owns requests and completion. */
-export function ResearchLoading({ title = '正在读取研究资料', sections = ['研究资料'], compact = false }: ResearchLoadingProps) {
-  const current = useSectionStep(sections, true);
+export function ResearchLoading({ title = '正在读取研究资料', sections = ['研究资料'], compact = false, active }: ResearchLoadingProps) {
+  const cycling = useSectionStep(sections, !active);
+  const current = active ? sections[active.index] ?? '' : cycling;
   if (compact) {
     return <div role="status" aria-live="polite" aria-busy="true" className="research-loading-compact">
       <span className="research-loading-scan" aria-hidden="true" />
@@ -43,7 +45,7 @@ export function ResearchLoading({ title = '正在读取研究资料', sections =
       <ol className="research-loading-rail">{sections.map(section => <li key={section} className={section === current ? 'is-active' : ''}><i />{section}</li>)}</ol>
       <div className="research-loading-frame">
         <span className="research-loading-beam" />
-        <p className="mb-8 font-medium">{current}</p>
+        <p className="mb-8 font-medium">{active ? active.label : current}</p>
         {[92, 76, 86, 58, 80, 65].map((width, index) => <div key={index} className="research-loading-line" style={{ width: `${width}%` }} />)}
       </div>
     </div>

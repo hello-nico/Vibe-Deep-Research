@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RotateCw } from 'lucide-react';
 import { researchRead, type WikiPage } from '../lib/research';
@@ -6,6 +6,7 @@ import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-sess
 import { useSlugTaskActivity } from '../dsh/task-activity';
 import { activeTaskKind, loadReportTasks } from '../lib/reportTasks';
 import { ResearchLoading } from './ui/ResearchLoading';
+import { reportProgress, REPORT_STEPS } from '../lib/reportProgress';
 import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
 import './wiki-report.css';
 
@@ -23,6 +24,21 @@ interface ReportDetail extends ReportMeta {
   html: string;
   refs?: string[];
   allowed_refs?: string[];
+  unverified_refs?: string[];
+  quality_warnings?: unknown[];
+  semantic_checks?: SemanticCheck[];
+}
+
+interface SemanticCheck {
+  ref?: string;
+  status?: string;
+  probabilities?: { support?: number };
+}
+
+export function semanticUnverifiedRefs(checks: readonly SemanticCheck[] = []): string[] {
+  return [...new Set(checks.filter(check => check.status === 'completed' && typeof check.ref === 'string'
+    && typeof check.probabilities?.support === 'number' && check.probabilities.support < 0.7)
+    .map(check => check.ref!))];
 }
 
 /** The report to show: the one for the current page version, else the newest older one (shown with a stale notice). */
@@ -68,11 +84,23 @@ const NARROW_REPORT_STYLE = `<style data-product-report-layout>
 }
 </style>`;
 
-export function reportWithNarrowLayout(html: string): string {
+export function reportWithNarrowLayout(html: string, unverifiedRefs: readonly string[] = [], semanticChecks: readonly SemanticCheck[] = []): string {
+  const semanticRefs = semanticUnverifiedRefs(semanticChecks);
+  const reasons = Object.fromEntries([...new Set([...unverifiedRefs, ...semanticRefs])].map(ref => [ref,
+    [unverifiedRefs.includes(ref) ? '数字对不上：这条引用的原文里没有找到对应数字' : '',
+      semanticRefs.includes(ref) ? '语义可能不一致：原文对这条结论的支持不足' : ''].filter(Boolean).join('；')]));
+  const refs = JSON.stringify(reasons).replace(/</g, '\\u003c');
+  const marks = Object.keys(reasons).length ? `<script data-product-report-verification>
+    (function(){var reasons=${refs};document.querySelectorAll('[data-ref]').forEach(function(el){
+      var reason=reasons[el.getAttribute('data-ref')];if(typeof reason!=='string')return;
+      var mark=document.createElement('small');mark.textContent='待核';
+      mark.title=reason;
+      mark.style.cssText='margin-left:4px;color:#888;font-size:11px';el.after(mark);
+    });})();</script>` : '';
   const closing = /<\/(?:body|html)\s*>/i.exec(html);
   return closing
-    ? html.slice(0, closing.index) + NARROW_REPORT_STYLE + html.slice(closing.index)
-    : html + NARROW_REPORT_STYLE;
+    ? html.slice(0, closing.index) + NARROW_REPORT_STYLE + marks + html.slice(closing.index)
+    : html + NARROW_REPORT_STYLE + marks;
 }
 
 function pageSlug(page: WikiPage): string {
@@ -95,7 +123,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     : !topicReport && taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : '';
   const [items, setItems] = useState<ReportMeta[] | null>(null);
   const [selected, setSelected] = useState<ReportMeta | null>(null);
-  const [detail, setDetail] = useState<{ reportId: string; html: string; allowed: Set<string> } | null>(null);
+  const [detail, setDetail] = useState<{ reportId: string; html: string; allowed: Set<string>; unverifiedRefs: string[]; qualityWarnings: unknown[]; semanticChecks: SemanticCheck[] } | null>(null);
   const [error, setError] = useState('');
   const [task, setTask] = useState<ReportTaskRef | null>(null);
   const [starting, setStarting] = useState(false);
@@ -172,7 +200,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       .then(result => {
         if (controller.signal.aborted || seq.current !== mine) return;
         if (result.report_id !== selected.report_id) throw new Error('报告身份不匹配');
-        setDetail({ reportId: result.report_id, html: result.html, allowed: allowedRefSet(result) });
+        setDetail({ reportId: result.report_id, html: result.html, allowed: allowedRefSet(result), unverifiedRefs: result.unverified_refs ?? [], qualityWarnings: result.quality_warnings ?? [], semanticChecks: result.semantic_checks ?? [] });
       })
       .catch(() => {
         if (controller.signal.aborted || seq.current !== mine) return;
@@ -338,19 +366,31 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     {showGenerated && canGenerate && actionSlot && createPortal(
       <button type="button" className="workspace-action" onClick={generate}><RotateCw />重新生成</button>, actionSlot)}
     {showGenerated && detail && <div className="wiki-report-shell">
+      {new Set([...detail.unverifiedRefs, ...semanticUnverifiedRefs(detail.semanticChecks)]).size > 0 && <p role="status" className="text-sm text-muted-foreground">有 {new Set([...detail.unverifiedRefs, ...semanticUnverifiedRefs(detail.semanticChecks)]).size} 处引用待核</p>}
+      {(() => {
+        // “未做排版检查”是检查工具自身不可用，不算排版问题，单独说明。
+        const unchecked = detail.qualityWarnings.some(item => (item as { check?: string })?.check === 'quality_unavailable');
+        const issues = detail.qualityWarnings.filter(item => (item as { check?: string })?.check !== 'quality_unavailable').length;
+        return <>
+          {issues > 0 && <p role="status" className="text-sm text-muted-foreground">这份报告有 {issues} 处排版待核，可重新生成</p>}
+          {unchecked && <p role="status" className="text-sm text-muted-foreground">这份报告保存时未做排版检查</p>}
+        </>;
+      })()}
       {selected && !selected.current && <p role="status" className="wiki-report-stale">{topicReport ? '报告对应旧版本，议题已有更新。' : '研究页在这份报告生成后有更新，报告可能不含最新内容。'}{canGenerate ? '可点「重新生成」按当前内容再出一份。' : ''}</p>}
       {((canGenerate && !actionSlot) || error) && <div className="wiki-report-chrome" role="toolbar" aria-label="报告操作">
         {selected?.current && <span className="sr-only">对应当前研究页</span>}
         {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
         {error && <span role="alert" className="text-destructive">{error}</span>}
       </div>}
-      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={reportWithNarrowLayout(detail.html)} style={{ minHeight: 480 }} />
+      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={reportWithNarrowLayout(detail.html, detail.unverifiedRefs, detail.semanticChecks)} style={{ minHeight: 480 }} />
     </div>}
     {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '正在打开报告…' : '正在查看是否已有报告…'}</p>}
     {waiting && <div className="wiki-report-empty">
       {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
       {busyOtherVersion && !generating && <p className="mb-3 text-sm text-muted-foreground">可生成当前版本。</p>}
-      {generating ? <ResearchLoading title={taskStale ? '另一版本仍在生成' : '正在生成图文报告'} sections={['读取报告方法', '选择模板', '读取研究页', '组织图文', '保存报告']} /> : <>
+      {generating ? (taskStale || !task?.sessionId
+        ? <ResearchLoading title={taskStale ? '另一版本仍在生成' : '正在生成图文报告'} sections={REPORT_STEPS} />
+        : <ReportProgress sessionId={task.sessionId} />) : <>
         <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
         <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
         {canGenerate && <button type="button" className="workspace-action workspace-action-primary mt-4" onClick={generate}>{items?.some(item => item.current) ? '重新生成' : '生成报告'}</button>}
@@ -358,4 +398,24 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     </div>}
     {!active && fallback}
   </>;
+}
+
+const noopSubscribe = () => () => {};
+const noProgress = () => null;
+
+/** 生成中的真实步骤：由报告会话最近一次工具调用推断；读不到过程时退回轮播。 */
+function ReportProgress({ sessionId }: { sessionId: string }) {
+  const sessions = useContext(ResearchSessionContext);
+  const trajectory = useMemo(() => {
+    try { return sessions?.trajectory(sessionId) ?? null; } catch { return null; }
+  }, [sessions, sessionId]);
+  const read = useMemo(() => trajectory ? () => {
+    const progress = reportProgress(trajectory.getSnapshot());
+    return `${progress.step}|${progress.label}`;
+  } : noProgress, [trajectory]);
+  const value = useSyncExternalStore(trajectory?.subscribe ?? noopSubscribe, read, noProgress);
+  if (!value) return <ResearchLoading title="正在生成图文报告" sections={REPORT_STEPS} />;
+  const [stepText, label = ''] = value.split('|');
+  // 沿用已验收的完整加载效果，只把轮播换成真实的当前步骤。
+  return <ResearchLoading title="正在生成图文报告" sections={REPORT_STEPS} active={{ index: Number(stepText), label }} />;
 }
