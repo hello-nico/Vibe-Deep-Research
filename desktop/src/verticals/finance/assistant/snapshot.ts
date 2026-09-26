@@ -78,6 +78,8 @@ export function citedWikiVersionFailure(expected?: string, hash?: string): strin
 
 export interface DailyReviewSnapshotInput {
   reviewDate?: string | null;
+  /** Core 给出的业务日原因（如节假日回退到最近交易日），让助手不把取数时点当成数据日期 */
+  reviewReason?: string | null;
   fetchedAt?: string | null;
   dataReady: boolean;
   pageErr?: string | null;
@@ -157,9 +159,9 @@ function firstProvenance<T extends { source?: string | null; fetched_at?: string
 /** 大盘页：宽基、全球指数、情绪、板块资金、短线情绪、成交额榜、连板股。 */
 export function buildDailyReviewSnapshot(input: DailyReviewSnapshotInput): string {
   const asOf = input.reviewDate || '未确定业务日';
-  const fetched = input.fetchedAt ? `取数时点 ${input.fetchedAt}` : '取数时点未标注';
+  const fetched = input.fetchedAt ? `取数时点 ${input.fetchedAt}（抓取时间，不是数据所属日期）` : '取数时点未标注';
   const header = [
-    `业务日 ${asOf}`,
+    `业务日 ${asOf}${input.reviewReason ? `（${input.reviewReason}）` : ''}`,
     fetched,
     input.pageErr ? `页面错误：${input.pageErr}` : '',
     !input.dataReady ? '部分数据块仍在加载或未加载' : '页面数据块已加载完成',

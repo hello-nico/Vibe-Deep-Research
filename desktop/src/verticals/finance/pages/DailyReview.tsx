@@ -171,6 +171,7 @@ export function DailyReview() {
   const marketObjects = [...(collection ? [...indexObjects, collection] : indexObjects), ...globalIndexObjects, ...quoteObjects];
   const pageSnapshot = buildDailyReviewSnapshot({
     reviewDate,
+    reviewReason: pageMeta?.context?.review_reason,
     fetchedAt: pageMeta?.oldest_fetched_at ?? null,
     dataReady,
     pageErr,

@@ -45,6 +45,7 @@ test('Topic 绑定契约读取 markdown 或主张/观察/判断，时点 last_to
 test('大盘快照按块标注信封来源与时点，缺则未标注，不写死来源', () => {
   const snapshot = buildDailyReviewSnapshot({
     reviewDate: '2026-09-18',
+    reviewReason: '今天不是交易日,显示最近一个交易日',
     fetchedAt: '2026-09-18T15:05:00+08:00',
     dataReady: true,
     indices: [{ name: '上证指数', price: 3200, change_pct: 0.5, source: 'tencent', fetched_at: '2026-09-18T15:00:00+08:00' }],
@@ -69,6 +70,8 @@ test('大盘快照按块标注信封来源与时点，缺则未标注，不写�
     idxDone: true,
     idxErr: false,
   });
+  assert.match(snapshot, /业务日 2026-09-18（今天不是交易日,显示最近一个交易日）/);
+  assert.match(snapshot, /抓取时间，不是数据所属日期/);
   assert.match(snapshot, /来源 tencent/);
   assert.match(snapshot, /取数时点 2026-09-18T15:00:00\+08:00/);
   assert.match(snapshot, /来源 eastmoney/);
