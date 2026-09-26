@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { documentDisplayTitle } from '../lib/documentTitle';
 import { Link, useLocation } from 'react-router-dom';
-import ReactMarkdown, { defaultUrlTransform } from 'react-markdown';
+import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { decodeEvidenceLink } from '../lib/evidence';
 import { remarkCitationMarks } from '../lib/citationMarks';
@@ -12,19 +12,24 @@ import { objectLabel, openRegisteredObject, registeredObject } from '../lib/obje
 import './wiki-report.css';
 
 // 下面四类底稿的阅读顺序同时写在 Stock 的 wiki_report 角色提示中（reportTaskPrompt），生成任务按它组织；改动阅读顺序时两处同步。
+// 组件表与插件放在模块级：内联对象会让每次重渲染（页面轮询）都换一个组件类型，引用按钮被卸载重建，点击丢失。
+const KNOWLEDGE_PLUGINS = [remarkGfm, remarkCitationMarks];
+const knowledgeUrl = (url: string) => decodeEvidenceLink(url) ? url : defaultUrlTransform(url);
+const KNOWLEDGE_COMPONENTS: Components = { a: ({ href, children }) => {
+  const reference = decodeEvidenceLink(href || '');
+  if (reference) return <EvidenceLink reference={reference}>{children}</EvidenceLink>;
+  const target = href?.replace(/^\//, '');
+  const object = target && registeredObject(target);
+  if (object) return object.href || object.drawer
+    ? <button type="button" className="finance-citation" onClick={() => openRegisteredObject(target)}>{objectLabel(target)}</button>
+    : <span>{objectLabel(target)}</span>;
+  return <a href={href}>{children}</a>;
+} };
+
 /** Markdown body with citation links; shared by report and research views. */
 export function KnowledgeText({ markdown }: { markdown: string }) {
-  const body = markdown.replace(/^﻿?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
-  return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 prose-headings:tracking-tight prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border/60 prose-h2:pb-3 prose-table:text-xs dark:prose-invert overflow-x-auto"><ReactMarkdown remarkPlugins={[remarkGfm, remarkCitationMarks]} urlTransform={url => decodeEvidenceLink(url) ? url : defaultUrlTransform(url)} components={{ a: ({ href, children }) => {
-    const reference = decodeEvidenceLink(href || '');
-    if (reference) return <EvidenceLink reference={reference}>{children}</EvidenceLink>;
-    const target = href?.replace(/^\//, '');
-    const object = target && registeredObject(target);
-    if (object) return object.href || object.drawer
-      ? <button type="button" className="finance-citation" onClick={() => openRegisteredObject(target)}>{objectLabel(target)}</button>
-      : <span>{objectLabel(target)}</span>;
-    return <a href={href}>{children}</a>;
-  } }}>{body}</ReactMarkdown></div>;
+  const body = markdown.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '');
+  return <div className="finance-cite-root prose prose-sm max-w-none break-words leading-8 prose-headings:tracking-tight prose-h1:text-2xl prose-h2:mt-8 prose-h2:border-b prose-h2:border-border/60 prose-h2:pb-3 prose-table:text-xs dark:prose-invert overflow-x-auto"><ReactMarkdown remarkPlugins={KNOWLEDGE_PLUGINS} urlTransform={knowledgeUrl} components={KNOWLEDGE_COMPONENTS}>{body}</ReactMarkdown></div>;
 }
 
 export { legacyReportTitle } from '../lib/documentTitle';

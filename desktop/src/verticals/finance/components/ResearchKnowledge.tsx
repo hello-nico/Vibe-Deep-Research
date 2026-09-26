@@ -65,11 +65,11 @@ function requiredMetrics(blocks: WikiPage['spec']['blocks']): string[] {
   const metrics = blockDict(blocks.find(block => block.kind === 'operating_facts')?.content)?.required_metrics;
   return Array.isArray(metrics) ? metrics.filter((item): item is string => typeof item === 'string' && Boolean(item.trim())) : [];
 }
-// Operating facts only come from company research reading the reports; say what is missing and how it gets filled.
+// 经营数据只来自公司研究读定期报告；清单是行业关注指标，其中市场规模、预测等未必出现在定期报告里，不承诺补齐。
 function SectionGap({ missing, card = false }: { missing: string[]; card?: boolean }) {
   if (!missing.length) return <p className={cn('text-sm text-muted-foreground', card && 'py-2')}>资料待补充</p>;
   return <div className={cn('text-sm text-muted-foreground', card && 'py-2')}>
-    <p>还没有从年报中读出的经营数据。发起公司研究后，会从定期报告里补齐以下项目：</p>
+    <p>还没有经营数据。下面是这个行业值得关注的指标，公司研究会从定期报告中提取能找到的部分：</p>
     <ul className="mt-3 flex flex-wrap gap-2">{missing.map(item => <li key={item} className="rounded-md border border-border/70 px-2 py-0.5 text-xs">{item}</li>)}</ul>
   </div>;
 }
