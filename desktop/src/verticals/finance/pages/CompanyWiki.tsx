@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { PageHeader } from '../components/ui/PageHeader';
 import { GlassCard } from '../components/ui/GlassCard';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
 import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
-import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
-import { activeTaskKind, loadReportTasks, RESEARCH_SETTLEMENT_MS, researchSkipSummary } from '../lib/reportTasks';
+import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyCheckedLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
+import { activeTaskKind, latestResearch, loadReportTasks, RESEARCH_SETTLEMENT_MS, researchProgressLine, researchSkipSummary, runningReport, type ReportTaskStore } from '../lib/reportTasks';
 import { isBareCompanyCode, wikiPageTitle } from '../lib/researchObject';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
@@ -19,7 +19,7 @@ import { buildDirectorySnapshot, buildWikiPageSnapshot } from '../assistant/snap
 import { wikiAssistantObject, companyQuoteObject } from '../lib/pageAssistantObjects';
 import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
-import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, RefreshCw, Star, X } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, Loader2, RefreshCw, Star, X } from 'lucide-react';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { CompanyRefreshConfirm, type RefreshViewState } from '../components/CompanyRefreshConfirm';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
@@ -35,6 +35,7 @@ export function CompanyWiki() {
   const sessions = useResearchSessions();
   const [pages, setPages] = useState<WikiItem[] | null>(null);
   const [params, setParams] = useSearchParams();
+  const navigate = useNavigate();
   const slug = params.get('company') || '';
   const query = params.get('q') || '';
   const [rosterRev, setRosterRev] = useState(0);
@@ -96,6 +97,7 @@ export function CompanyWiki() {
   const [view, setView] = useState<'grid' | 'list'>(() => prefGet(VIEW_KEY) === 'list' ? 'list' : 'grid');
   const [readyProfiles, setReadyProfiles] = useState<Set<string>>(() => new Set());
   const [runningSymbols, setRunningSymbols] = useState<Set<string>>(() => new Set());
+  const [researchStore, setResearchStore] = useState<ReportTaskStore | null>(null);
   const [reportFlags, setReportFlags] = useState<Record<string, true>>({});
   const reportAsked = useRef(new Set<string>());
   const rosterNodes = useRef(new Map<string, Element>());
@@ -144,10 +146,16 @@ export function CompanyWiki() {
   useEffect(() => {
     if (slug) return;
     let cancelled = false;
-    void sessions.listRunningCompanySymbols().then(symbols => {
-      if (!cancelled) setRunningSymbols(new Set(symbols));
-    }).catch(() => {});
-    return () => { cancelled = true; };
+    // 名单每行显示最近一次研究的阶段；研究与整理会在列表停留期间推进，所以轮询任务台账。
+    const load = () => {
+      void sessions.listRunningCompanySymbols().then(symbols => {
+        if (!cancelled) setRunningSymbols(new Set(symbols));
+      }).catch(() => {});
+      void loadReportTasks().then(store => { if (!cancelled) setResearchStore(store); }).catch(() => {});
+    };
+    load();
+    const timer = window.setInterval(load, 6000);
+    return () => { cancelled = true; window.clearInterval(timer); };
   }, [sessions, sessionsRev, slug]);
   const searching = query.trim();
   useEffect(() => {
@@ -213,6 +221,20 @@ export function CompanyWiki() {
     });
     return () => { cancelAnimationFrame(frame); io.disconnect(); };
   }, [slug, visibleSlugs]);
+  const rosterChecked = (row: RosterRow) => companyCheckedLabel(row.summary?.as_of, [
+    latestResearch(researchStore, row.slug, id => sessions.taskRunning(id))?.finishedAt,
+    objectStatuses.get(row.slug)?.refresh?.checked_at,
+  ]);
+  const rosterReportRunning = (row: RosterRow) => Boolean(runningReport(researchStore, row.slug, id => sessions.taskRunning(id)));
+  const rosterProgress = (row: RosterRow) => {
+    if (!row.hasWiki) return null;
+    const isRunning = (id: string) => sessions.taskRunning(id);
+    const research = latestResearch(researchStore, row.slug, isRunning);
+    const running = runningSymbols.has(row.symbol) && research?.status !== 'settling'
+      ? { ...(research || { sessionId: '', runFailed: false }), status: 'researching' as const } : research;
+    return researchProgressLine(running, runningReport(researchStore, row.slug, isRunning),
+      (objectStatuses.get(row.slug)?.drafts?.pending || 0) > 0, Boolean(row.summary?.one_liner?.trim()));
+  };
   const switchOptions = rows.map(row => ({ value: row.slug, label: row.title, detail: row.symbol }));
   if (current && !switchOptions.some(option => option.value === current.slug)) switchOptions.unshift({ value: current.slug, label: current.title, detail: current.symbol });
   const pagesReady = pages !== null;
@@ -397,6 +419,10 @@ export function CompanyWiki() {
   const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
   const genHere = gen && gen.slug === slug ? gen : null;
   const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
+  // 研究进行中时按钮显示阶段并可点开任务过程，而不是只变灰。
+  const researchPhase = genHere?.phase === 'settling' || taskActivity.research?.status === 'settling' ? 'settling'
+    : taskActivity.kind === 'research' || (genHere && ['ensuring', 'researching'].includes(genHere.phase)) ? 'researching'
+    : taskActivity.kind === 'report' ? 'report' : null;
   const companyResearchDisabledReason = reportBlocksRefresh
     || (refreshView !== 'idle' ? '资料刷新中，完成后可发起公司研究。' : '')
     || (taskActivity.kind === 'research' || genHere && ['ensuring', 'researching', 'settling'].includes(genHere.phase)
@@ -471,12 +497,15 @@ export function CompanyWiki() {
         {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
         {/* 图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
         {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} disabledReason={reportBlocksRefresh} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
-        {current?.hasWiki && !report && current.aShare && <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>公司研究</button>}
+        {current?.hasWiki && !report && current.aShare && (researchPhase
+          ? <button type="button" className="workspace-action" title={researchPhase === 'report' ? '查看图文报告的生成进度' : '查看这次研究的过程'}
+              onClick={() => researchPhase === 'report' ? setReport(true) : navigate('/my-research?tab=tasks')}>
+              <Loader2 size={14} className="animate-spin text-primary" />{researchPhase === 'settling' ? '整理中…' : researchPhase === 'report' ? '报告生成中…' : '研究中…'}</button>
+          : <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>公司研究</button>)}
         {current?.hasWiki && report && <span ref={setReportSlot} className="contents" />}
         {current && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出研究', icon: <X size={14} />, onSelect: () => void leave(current.symbol) }]} />}
       </div>
       {notice.slug === slug && notice.text && !refreshing && <span role="status" className="object-toolbar-notice">{notice.text}</span>}
-      {!report && taskActivity.kind === 'report' && <span role="status" className="object-toolbar-notice">{reportBlocksRefresh}</span>}
     </div>}
     {slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
       {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
@@ -527,6 +556,9 @@ export function CompanyWiki() {
           researching={runningSymbols.has(row.symbol)}
           hasReport={Boolean(reportFlags[row.slug])}
           objectStatus={objectStatuses.get(row.slug)}
+          progress={rosterProgress(row)}
+          reportRunning={rosterReportRunning(row)}
+          checked={rosterChecked(row)}
           onOpen={() => setSlug(row.slug)}
           attach={attachRoster(row.slug)}
         />
@@ -540,6 +572,9 @@ export function CompanyWiki() {
             researching={runningSymbols.has(row.symbol)}
             hasReport={Boolean(reportFlags[row.slug])}
             objectStatus={objectStatuses.get(row.slug)}
+            progress={rosterProgress(row)}
+            reportRunning={rosterReportRunning(row)}
+            checked={rosterChecked(row)}
             watched={watched.has(row.symbol)}
             onOpen={() => setSlug(row.slug)}
             onWatch={() => void toggleWatch(row.symbol)}
@@ -580,20 +615,26 @@ function RosterStatusTags({ slug, researching, hasReport }: { slug: string; rese
   </>;
 }
 
-function RosterOneLiner({ text, lines }: { text?: string | null; lines: 1 | 2 }) {
+type RosterProgress = ReturnType<typeof researchProgressLine>;
+
+function RosterOneLiner({ text, lines, progress }: { text?: string | null; lines: 1 | 2; progress?: RosterProgress }) {
+  if (progress) return <p className={cn('text-[13px]', progress.tone === 'active' ? 'text-primary' : 'text-muted-foreground/70', lines === 1 ? 'truncate' : 'line-clamp-2')}>{progress.text}</p>;
   const clipped = clipCompanyOneLiner(text);
   if (!clipped) return <p className={cn('text-[13px] text-muted-foreground/50', lines === 1 ? 'truncate' : 'line-clamp-2')}>资料待补充</p>;
   return <p className={cn('text-[13px] text-muted-foreground', lines === 1 ? 'truncate' : 'line-clamp-2')}>{clipped}</p>;
 }
 
 function CompanyRosterRow({
-  row, industryReady, researching, hasReport, objectStatus, watched, onOpen, onWatch, onLeave, attach,
+  row, industryReady, researching, hasReport, objectStatus, progress, reportRunning, checked, watched, onOpen, onWatch, onLeave, attach,
 }: {
   row: RosterRow;
   industryReady: boolean;
   researching: boolean;
   hasReport: boolean;
   objectStatus?: StatusRow;
+  progress?: RosterProgress;
+  reportRunning?: boolean;
+  checked?: string | null;
   watched: boolean;
   onOpen: () => void;
   onWatch: () => void;
@@ -609,9 +650,9 @@ function CompanyRosterRow({
       </button>
       <RosterIndustryTag summary={row.summary} ready={industryReady} />
       <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
-      <ObjectStatusBadges slug={row.slug} row={objectStatus} />
+      <ObjectStatusBadges slug={row.slug} row={objectStatus} badges={statusBadges(objectStatus).filter(badge => !(reportRunning && badge === '报告已过期'))} />
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}</span>}
+        {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}{checked ? ` · ${checked} 已核对` : ''}</span>}
         <ArrowRight size={14} className="text-muted-foreground/60" />
         <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onWatch} aria-label={watched ? '移出自选' : '加入自选'}>
           <Star size={14} className={watched ? 'fill-current text-primary' : ''} />
@@ -620,19 +661,22 @@ function CompanyRosterRow({
       </div>
     </div>
     <button type="button" onClick={onOpen} className="mt-1 block w-full min-w-0 text-left">
-      <RosterOneLiner text={row.summary?.one_liner} lines={1} />
+      <RosterOneLiner text={row.summary?.one_liner} lines={1} progress={progress} />
     </button>
   </div>;
 }
 
 function CompanyRosterCard({
-  row, industryReady, researching, hasReport, objectStatus, onOpen, attach,
+  row, industryReady, researching, hasReport, objectStatus, progress, reportRunning, checked, onOpen, attach,
 }: {
   row: RosterRow;
   industryReady: boolean;
   researching: boolean;
   hasReport: boolean;
   objectStatus?: StatusRow;
+  progress?: RosterProgress;
+  reportRunning?: boolean;
+  checked?: string | null;
   onOpen: () => void;
   attach: (el: HTMLElement | null) => void;
 }) {
@@ -648,14 +692,14 @@ function CompanyRosterCard({
         <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
           <RosterIndustryTag summary={row.summary} ready={industryReady} />
           <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
-          <ObjectStatusBadges slug={row.slug} row={objectStatus} />
+          <ObjectStatusBadges slug={row.slug} row={objectStatus} badges={statusBadges(objectStatus).filter(badge => !(reportRunning && badge === '报告已过期'))} />
         </div>
         <button type="button" onClick={onOpen} className="mt-2 block w-full min-w-0 text-left">
-          <RosterOneLiner text={row.summary?.one_liner} lines={2} />
+          <RosterOneLiner text={row.summary?.one_liner} lines={2} progress={progress} />
         </button>
       </div>
       <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/50 pt-3 text-xs">
-        <span className="min-w-0 truncate text-muted-foreground">{asOf ? `资料截至 ${asOf}` : row.hasWiki ? '打开资料' : '资料待生成'}</span>
+        <span className="min-w-0 truncate text-muted-foreground">{asOf ? `资料截至 ${asOf}${checked ? ` · ${checked} 已核对` : ''}` : row.hasWiki ? '打开资料' : '资料待生成'}</span>
         <button type="button" onClick={onOpen} className="inline-flex shrink-0 items-center gap-1 text-primary">
           {row.hasWiki ? '打开资料' : '资料待生成'}<ArrowRight size={16} />
         </button>

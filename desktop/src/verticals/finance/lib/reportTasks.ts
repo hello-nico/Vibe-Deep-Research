@@ -129,6 +129,64 @@ export function reportTaskOutcome(binding: ReportTaskBinding, running: boolean,
   return binding.run_status === 'completed' ? 'unsaved' : 'unconfirmed';
 }
 
+export type LatestResearch = { sessionId: string; status: ResearchTaskStatus; runFailed: boolean; startedAt?: string; finishedAt?: string };
+
+/** 某对象最近一次公司研究及其阶段（研究中 / 整理中 / 整理结果）；没有研究记录时为 null。 */
+export function latestResearch(store: ReportTaskStore | null, slug: string, running: (id: string) => boolean,
+  now = Date.now()): LatestResearch | null {
+  let latest: [string, ReportTaskBinding] | null = null;
+  for (const entry of Object.entries(store?.sessions || {})) {
+    if (entry[1].kind !== 'research' || entry[1].slug !== slug) continue;
+    if (!latest || String(entry[1].bound_at || '') > String(latest[1].bound_at || '')) latest = entry;
+  }
+  if (!latest) return null;
+  const [sessionId, binding] = latest;
+  return { sessionId, status: researchTaskStatus(binding, running(sessionId), null, now),
+    runFailed: binding.run_status === 'failed' || binding.run_status === 'cancelled', startedAt: binding.bound_at, finishedAt: binding.finished_at };
+}
+
+/** 该对象正在生成的图文报告（含刚提交、会话还没出现的 15 秒窗口）；没有时为 null。 */
+export function runningReport(store: ReportTaskStore | null, slug: string, running: (id: string) => boolean,
+  now = Date.now()): { startedAt?: string } | null {
+  for (const [id, binding] of Object.entries(store?.sessions || {})) {
+    if ((binding.kind || 'report') === 'report' && binding.slug === slug && running(id)) return { startedAt: binding.bound_at };
+  }
+  const pending = store?.pending;
+  if (pending?.slug === slug && pending.kind !== 'research' && within(pending.requested_at, 15_000, now)) return { startedAt: pending.requested_at };
+  return null;
+}
+
+function elapsed(label: string, startedAt: string | undefined, now: number): string {
+  const minutes = Math.floor((now - Date.parse(startedAt || '')) / 60_000);
+  return Number.isFinite(minutes) && minutes >= 1 ? `${label} · 已用 ${minutes} 分钟` : label;
+}
+
+function monthDay(time?: string): string {
+  const date = new Date(time || '');
+  return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1} 月 ${date.getDate()} 日`;
+}
+
+/**
+ * 研究名单每行的状态：后台长时间运行的 Agent 任务（公司研究、知识整理、图文报告）进行中时优先显示，
+ * 其次是待你确认的结论；其余只在研究页还没有结论时说明上次研究的结果。
+ * tone 为 active 时是进行中或待你处理，其余为弱提示。
+ */
+export function researchProgressLine(research: LatestResearch | null, report: { startedAt?: string } | null,
+  draftPending: boolean, hasSummary: boolean, now = Date.now()): { text: string; tone: 'active' | 'muted' } | null {
+  const status = research?.status;
+  if (status === 'researching') return { text: elapsed('公司研究进行中', research?.startedAt, now), tone: 'active' };
+  if (status === 'settling') return { text: '研究已完成，正在整理结论', tone: 'active' };
+  if (report) return { text: elapsed('图文报告生成中', report.startedAt, now), tone: 'active' };
+  if (draftPending) return { text: '有新的研究结论，确认后写入研究页', tone: 'active' };
+  if (hasSummary) return null;
+  if (!research) return { text: '还没有研究结论，可发起公司研究', tone: 'muted' };
+  const day = monthDay(research.finishedAt || research.startedAt);
+  const when = day ? `${day} ` : '';
+  if (research.runFailed) return { text: `${when}的研究没有完成，可重新发起`, tone: 'muted' };
+  if (status === 'no_increment' || status === 'skipped') return { text: `${when}已研究，这次没有新增结论`, tone: 'muted' };
+  return { text: `${when}已研究，结论未写入研究页，可重新发起`, tone: 'muted' };
+}
+
 export function legacyCompanySymbol(title: string): string | undefined {
   return /^公司研究 · (\d{6}) · /.exec(title)?.[1];
 }

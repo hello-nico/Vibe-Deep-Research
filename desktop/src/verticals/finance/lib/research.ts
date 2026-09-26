@@ -38,7 +38,7 @@ export async function researchRead<T>(route: string, init?: RequestInit): Promis
   }
 }
 export type { CompanyPageSummary } from './companyRoster';
-export { clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel } from './companyRoster';
+export { clipCompanyOneLiner, companyAsOfLabel, companyCheckedLabel, companyIndustryLabel } from './companyRoster';
 export interface WikiItem { slug: string; title: string; input_hash?: string; summary?: CompanyPageSummary }
 export interface WikiBlock { kind: string; content?: Record<string, unknown> | string; refs: string[]; reviewed_as_of?: string }
 export interface WikiPageLink { to: string; type: string; basis?: string; ref?: string }

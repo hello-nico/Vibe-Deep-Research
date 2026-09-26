@@ -252,6 +252,11 @@ for (const outcome of ['started', 'failed', 'busy_other_version']) {
       const renderPage = slug => env.render(createElement(env.Provider, { value: sessions },
         createElement(env.pane.WikiReportPane, { page: page(slug) })));
       await renderPage('companies/a');
+      // 打开图文报告页不自动生成，点「生成报告」才开始。
+      assert.ok(!env.container.textContent.includes('正在生成'));
+      const button = [...env.container.querySelectorAll('button')].find(item => item.textContent === '生成报告');
+      assert.ok(button, '没有报告时应显示生成报告按钮');
+      await env.act(async () => { button.click(); });
       assert.ok(env.container.textContent.includes('正在生成'));
       await renderPage('companies/b');
       const before = env.container.textContent;
@@ -466,16 +471,17 @@ test('已有研究页可从工具栏继续公司研究，进行中的任务会�
       await env.render(createElement(env.Provider, { value: sessions }, createElement(env.MemoryRouter,
         { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
       await env.act(async () => {});
-      const action = [...env.container.querySelectorAll('button')].find(button => button.textContent === '公司研究');
+      // 研究进行中时入口换成可点开任务过程的"研究中…"，而不是变灰的"公司研究"。
+      const label = kind === 'research' ? '研究中…' : kind === 'report' ? '报告生成中…' : '公司研究';
+      const action = [...env.container.querySelectorAll('button')].find(button => button.textContent === label);
       assert.ok(action, '已有研究页的工具栏应有公司研究入口');
-      assert.equal(action.disabled, kind !== null);
-      if (!kind) {
+      assert.equal(action.disabled, false);
+      if (kind) assert.equal(action.title, kind === 'report' ? '查看图文报告的生成进度' : '查看这次研究的过程');
+      else {
         await env.act(async () => { action.click(); });
         assert.equal(ensured, 1);
         assert.equal(sessions.startCalls.length, 1);
         assert.match(sessions.startCalls[0][0], /^继续研究/);
-      } else {
-        assert.match(action.title, kind === 'report' ? /图文报告生成中/ : /公司研究进行中/);
       }
     } finally { await env.cleanup(); }
   }

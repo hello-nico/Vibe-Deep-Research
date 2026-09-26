@@ -43,6 +43,6 @@ test("个股名单不把申万标签链到行业研究页，报告状态懒加�
   assert.match(companyWiki, /view=report/);
   assert.match(companyWiki, /listRunningCompanySymbols/);
   assert.match(companyWiki, /status === 'ready'/);
-  assert.match(companyWiki, /function CompanyRosterRow[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{1\} \/>/);
-  assert.match(companyWiki, /function CompanyRosterCard[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{2\} \/>/);
+  assert.match(companyWiki, /function CompanyRosterRow[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{1\} progress=\{progress\} \/>/);
+  assert.match(companyWiki, /function CompanyRosterCard[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{2\} progress=\{progress\} \/>/);
 });

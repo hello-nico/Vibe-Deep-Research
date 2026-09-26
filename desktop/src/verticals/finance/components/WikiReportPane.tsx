@@ -100,8 +100,6 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const [task, setTask] = useState<ReportTaskRef | null>(null);
   const [starting, setStarting] = useState(false);
   const [pendingRun, setPendingRun] = useState(false);
-  const [autoTried, setAutoTried] = useState(false);
-  const [taskReady, setTaskReady] = useState(false);
   const [busyOtherVersion, setBusyOtherVersion] = useState(false);
   useEffect(() => {
     if (!sessions || !task?.sessionId) return;
@@ -142,7 +140,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     awaitingArtifact.current = false;
     setListSeed(0);
     setItems(null); setSelected(null); setDetail(null); setError('');
-    setTask(null); setTaskReady(false); setStarting(false); setPendingRun(false); setAutoTried(false); setBusyOtherVersion(false);
+    setTask(null); setStarting(false); setPendingRun(false); setBusyOtherVersion(false);
     startedSession.current = '';
     void fetchItems(controller.signal)
       .then(list => {
@@ -229,11 +227,9 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
           setError('暂时无法确认报告任务状态，可在「我的研究 · 任务」查看过程后重试。');
           startedSession.current = '';
         }
-        setTaskReady(true);
         if (!found) return;
       }
       setTask(found ? { ...found, running } : previous => previous ? { ...previous, running } : previous);
-      setTaskReady(true);
       if (!primedTask.current) {
         primedTask.current = true;
         wasRunning.current = running;
@@ -326,16 +322,6 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       if (shown) setSelected(shown);
     }).finally(() => { if (epoch === pageEpoch.current) setStarting(false); });
   };
-
-  // First open of a page with no report at all starts one generation. An older
-  // report is kept and shown with a stale notice; regenerating it is the user's call.
-  useEffect(() => {
-    if (!active || autoTried || items === null || !taskReady || starting || task?.running || blockedReason) return;
-    if (items.length) return;
-    setAutoTried(true);
-    if (task) return;
-    generate();
-  }, [active, autoTried, items, taskReady, starting, task, task?.running, blockedReason]);
 
   const generating = starting || pendingRun || Boolean(task?.running);
   const taskStale = Boolean(task?.running && task.inputHash !== inputHash);

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import { activeTaskKind, loadReportTasks } from '../lib/reportTasks';
+import { activeTaskKind, latestResearch, loadReportTasks, type LatestResearch } from '../lib/reportTasks';
 import type { ResearchSessions } from './research-session';
 
 export function useSlugTaskActivity(slug: string, sessions: ResearchSessions | null, subscribe = true) {
-  const [activity, setActivity] = useState<{ slug: string; kind: 'research' | 'report' | null; ready: boolean }>({ slug: '', kind: null, ready: false });
+  const [activity, setActivity] = useState<{ slug: string; kind: 'research' | 'report' | null; ready: boolean; research?: LatestResearch | null }>({ slug: '', kind: null, ready: false });
   useEffect(() => {
     if (!slug || !sessions) return;
     let active = true;
@@ -11,7 +11,8 @@ export function useSlugTaskActivity(slug: string, sessions: ResearchSessions | n
     const load = () => {
       const mine = ++sequence;
       void loadReportTasks().then(store => {
-        if (active && mine === sequence) setActivity({ slug, kind: activeTaskKind(store, slug, id => sessions.taskRunning(id)), ready: true });
+        const running = (id: string) => sessions.taskRunning(id);
+        if (active && mine === sequence) setActivity({ slug, kind: activeTaskKind(store, slug, running), ready: true, research: latestResearch(store, slug, running) });
       }).catch(() => {
         if (active && mine === sequence) setActivity({ slug, kind: null, ready: false });
       });
