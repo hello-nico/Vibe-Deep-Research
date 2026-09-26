@@ -119,8 +119,11 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   const sessions = useContext(ResearchSessionContext);
   const taskActivity = useSlugTaskActivity(slug, sessions, false);
   const topicReport = page.spec.type === 'topic';
+  // 研究页带依据的数据太少时，报告会在保存前被判为“内容空洞”而白跑一遍；生成前就拦下（2026-09-26 行业报告跑了近 3 分钟才被拒）。
+  const dataGap = !topicReport && citableRefCount(page) < MIN_CITABLE_REFS
+    ? '这一页可引用的数据还太少，先刷新资料或做一次研究，再生成图文报告。' : '';
   const blockedReason = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
-    : !topicReport && taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : '';
+    : !topicReport && taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : dataGap;
   const [items, setItems] = useState<ReportMeta[] | null>(null);
   const [selected, setSelected] = useState<ReportMeta | null>(null);
   const [detail, setDetail] = useState<{ reportId: string; html: string; allowed: Set<string>; unverifiedRefs: string[]; qualityWarnings: unknown[]; semanticChecks: SemanticCheck[] } | null>(null);
@@ -392,7 +395,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         ? <ResearchLoading title={taskStale ? '另一版本仍在生成' : '正在生成图文报告'} sections={REPORT_STEPS} />
         : <ReportProgress sessionId={task.sessionId} />) : <>
         <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
-        <p className="mt-2 text-sm text-muted-foreground">按当前研究页生成。原文还在「研究页」里。</p>
+        <p className="mt-2 text-sm text-muted-foreground">{dataGap || '按当前研究页生成。原文还在「研究页」里。'}</p>
         {canGenerate && <button type="button" className="workspace-action workspace-action-primary mt-4" onClick={generate}>{items?.some(item => item.current) ? '重新生成' : '生成报告'}</button>}
       </>}
     </div>}
@@ -418,4 +421,14 @@ function ReportProgress({ sessionId }: { sessionId: string }) {
   const [stepText, label = ''] = value.split('|');
   // 沿用已验收的完整加载效果，只把轮播换成真实的当前步骤。
   return <ResearchLoading title="正在生成图文报告" sections={REPORT_STEPS} active={{ index: Number(stepText), label }} />;
+}
+
+const MIN_CITABLE_REFS = 3;
+
+/** 研究页上能被报告引用的依据条数（事实、证据、原文块、数据源），与后端“内容空洞”规则的至少 3 处引用对应。 */
+function citableRefCount(page: WikiPage): number {
+  const blocks = [...(page.spec.blocks ?? []), ...(page.spec.research_blocks ?? [])];
+  const refs = blocks.flatMap(block => (block as { refs?: unknown[] }).refs ?? [])
+    .filter((ref): ref is string => typeof ref === 'string' && /^(claim|evidence|source|provider):/.test(ref));
+  return new Set(refs).size;
 }

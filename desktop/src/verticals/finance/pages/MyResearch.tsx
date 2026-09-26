@@ -47,7 +47,7 @@ const TASK_STATUS: Record<string, string> = {
   generated: '已生成', unsaved: '未保存',
 };
 
-type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_id?: string; draft_token?: string; draft?: ResearchDraft; settlement_reason?: string; reason?: string };
+type TaskRow = { id: string; kind?: string; title?: string; question?: string; status?: string; display_status?: string; started_at?: string; finished_at?: string; summary?: string; parent_session_id?: string; source_session_id?: string; child_session_id?: string; settlement_session_id?: string; targets?: string[]; draft_id?: string; draft_token?: string; draft?: ResearchDraft; settlement_reason?: string; reason?: string; failure_code?: string };
 
 const RESEARCH_TABS = [
   { value: 'pending', label: '待处理', icon: ListTodo },
@@ -162,9 +162,11 @@ export function MyResearch() {
         const draftResults = await Promise.all(draftSlugs.map(async slug => loadResearchDrafts(slug).catch(() => [])));
         const draftsById = new Map(draftResults.flat().map(draft => [draft.draft_id, draft]));
         await resolveObjectLabels([...reportSlugs, ...draftSlugs]).catch(() => {});
+        const failuresBySession = new Map<string, ReportFailure>();
         const artifactsBySlug = new Map(await Promise.all(reportSlugs.map(async slug => {
           try {
-            const list = await researchRead<{ items: ReportArtifact[] }>('/wiki/reports?slug=' + encodeURIComponent(slug), { signal: controller.signal });
+            const list = await researchRead<{ items: ReportArtifact[]; failures?: ReportFailure[] }>('/wiki/reports?slug=' + encodeURIComponent(slug), { signal: controller.signal });
+            for (const failure of list.failures ?? []) if (failure.session_id) failuresBySession.set(failure.session_id, failure);
             const relevant = list.items.filter(item => reportBindings.some(([, bind]) => bind.slug === slug && Date.parse(item.created_at) >= Date.parse(bind.bound_at || '')));
             const details = await Promise.all(relevant.map(item => researchRead<ReportArtifact>('/wiki/reports/' + encodeURIComponent(item.report_id), { signal: controller.signal })));
             return [slug, details] as const;
@@ -180,7 +182,8 @@ export function MyResearch() {
           child_session_id: id,
           targets: [normalizeResearchTarget(bind.slug) || bind.slug],
           summary: reportTaskOutcome(bind, Boolean(researchSessions?.taskRunning(id)), artifactsBySlug.get(bind.slug) ?? null, id) === 'unsaved'
-            ? '报告没有保存成功（常见原因是生成期间研究页已更新），可重新生成。' : '',
+            ? reportFailureSummary(failuresBySession.get(id)?.code) : '',
+          failure_code: failuresBySession.get(id)?.code,
         }));
         const researchItems: TaskRow[] = Object.entries(reports.sessions || {}).filter(([, bind]) => bind.kind === 'research').map(([id, bind]) => {
           const settlement = settlements.get(id);
@@ -544,7 +547,7 @@ function BackgroundTaskList({ tasks, error, retryBusy, selectedDraftId, onRetryR
       </div>
       {showSummary && detailOpen.has(task.id) && <p className="rl-task-summary"><TopicRefText text={summary} /></p>}
       <div className="rl-task-actions">
-        {kind === 'report' && status === 'unsaved' && <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
+        {kind === 'report' && status === 'unsaved' && !REPORT_NO_RETRY.has(task.failure_code || '') && <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={!!retryBusy} onClick={() => onRetryReport(task)}>{retryBusy === task.id ? '启动中…' : '重新生成'}</button>}
         {kind === 'research' && status === 'invalid' && targetRef.startsWith('companies/') && <button type="button" className="workspace-action workspace-action-compact workspace-action-primary" disabled={!!retryBusy} onClick={() => onRestartResearch(targetRef)}>{retryBusy === targetRef ? '启动中…' : '重新整理'}</button>}
         {kind === 'research' && status === 'awaiting_authorization' && task.draft && <button type="button" className="rl-icon-action is-danger" disabled={!!retryBusy} onClick={() => onDiscardDraft(task.draft!)}><X size={13} />放弃草案</button>}
         {processId && <button type="button" className="rl-icon-action" onClick={() => onOpenProcess?.(processId, kind, task.title || '', task.parent_session_id, task.targets?.[0], task.settlement_session_id, task.display_status)}><ScrollText size={13} />查看过程</button>}
@@ -679,6 +682,18 @@ function NotesPanel({ notes, total, busy, error, offset, nextOffset, onPage, onR
 }
 
 const LIST_PAGE_SIZE = 10;
+
+type ReportFailure = { session_id?: string; code?: string; message?: string; at?: string };
+// 这些原因下重新生成仍会失败，不给“重新生成”，引导先补数据。
+const REPORT_NO_RETRY = new Set(['report_content_empty']);
+
+/** 报告没有保存时的说明：按后端记录的真实原因；没有记录时沿用通用说法。 */
+function reportFailureSummary(code?: string): string {
+  if (code === 'report_content_empty') return '研究页可引用的数据不足，报告没有保存。先刷新资料或做一次研究，再生成图文报告。';
+  if (code === 'report_quality_failed') return '报告排版检查两次未通过，没有保存，可重新生成。';
+  if (code === 'citation_numbers_failed') return '报告里的数字两次与原文对不上，没有保存，可重新生成。';
+  return '报告没有保存成功（常见原因是生成期间研究页已更新），可重新生成。';
+}
 const TOPIC_REF = /topic:[0-9a-f]{12}/g;
 
 /** Model-written memory and suggestion text may carry topic IDs; show them as linked topic titles. */

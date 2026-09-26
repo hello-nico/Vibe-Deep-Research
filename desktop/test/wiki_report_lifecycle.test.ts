@@ -199,10 +199,13 @@ function deferred() {
   return { promise, resolve, reject };
 }
 
-function page(slug, inputHash = HASH_A) {
+// 真实研究页带有可引用的依据；报告生成前会检查至少 3 条（见 WikiReportPane 的 citableRefCount）。
+const CITED_BLOCKS = [{ kind: 'financial_facts', content: {}, refs: ['claim:a', 'claim:b', 'provider:x:1'] }];
+
+function page(slug, inputHash = HASH_A, blocks = CITED_BLOCKS) {
   return {
     markdown: '# page', published: true, input_hash: inputHash,
-    spec: { slug, title: '测试页', type: 'company', as_of: '2026-09-01', blocks: [] },
+    spec: { slug, title: '测试页', type: 'company', as_of: '2026-09-01', blocks },
   };
 }
 
@@ -922,5 +925,18 @@ test('已有报告生成中重新进入：失败时保留旧报告并提示，�
     assert.match(env.container.querySelector('iframe')?.getAttribute('srcdoc') || '', /OLD_BODY/);
     assert.ok(env.container.textContent.includes('报告生成失败'));
     assert.ok(!env.container.textContent.includes('尚未确认'));
+  } finally { await env.cleanup(); }
+});
+
+test('研究页可引用的依据不足时不启动生成，并说明原因', async () => {
+  const env = await boot();
+  try {
+    globalThis.fetch = async () => Response.json({ items: [] });
+    const sessions = sessionMock({ start: async () => { throw new Error('must not start'); } });
+    await env.render(createElement(env.Provider, { value: sessions },
+      createElement(env.pane.WikiReportPane, { page: page('companies/a', HASH_A, [{ kind: 'identity', content: {}, refs: ['taxonomy:x'] }]) })));
+    await env.act(async () => {});
+    assert.ok(env.container.textContent.includes('可引用的数据还太少'));
+    assert.ok(![...env.container.querySelectorAll('button')].some(button => button.textContent === '生成报告'));
   } finally { await env.cleanup(); }
 });
