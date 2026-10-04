@@ -1,6 +1,6 @@
 # 产品 DSH runtime
 
-> 2026-09-23 已切换主目录至 `0.1.7-alpha.2`，保留 11 个新版补丁。主目录自动检查与端口检查记录见 [DSH 升级 Task §9.2a](../../../docs/DSH升级到0.1.7_Task_2026-09-23.md)；本轮未做浏览器或真实流程测试。下表保留升级前 rc.1 的 14 个补丁处置历史。
+> 2026-09-23 已切换主目录至 `0.1.7-alpha.2`，保留 11 个新版补丁。主目录自动检查与端口检查记录见 [DSH 升级 Task §9.2a](../../../docs/tasks/archived/DSH升级到0.1.7_Task_2026-09-23.md)；本轮未做浏览器或真实流程测试。下表保留升级前 rc.1 的 14 个补丁处置历史。
 
 当前 `@deepseek-ai/dsh-*` 精确锁定 `0.1.7-alpha.2`，React / ReactDOM 为 `18.3.1`；`package-lock.json` 记录完整安装闭包，运行依赖与用户 `DSH_HOME`、研究工作区分开。
 
@@ -34,6 +34,9 @@
 | dsh-client-ui-deliverables | 产品功能 | 本地路径引用解析（`localPathReference`：绝对路径 / 含分隔符 / 常规文件名才当路径，裸标识符保持惰性）；产物为空时仍提供 mention 解析 | 上游支持等价本地路径 mention 与空产物行为 |
 | dsh-llm-pi-ai | bug fix | 错误分类区分 401/403 与额度，避免把服务商拒绝误报为认证失效 | 上游分类等价 |
 | dsh-llm-deepseek | 产品配置 + bug fix | ① 默认目录改官方 `deepseek-flash`（V4.1-Flash，含视觉）与 `deepseek-v4-pro`；② 错误分类区分额度、认证与服务商拒绝 | ① 上游默认目录更新后重新对照；② 上游分类等价 |
+| dsh-client-ui-conversation | 文案 | 输入框占位、首页 hero 标题改为研究场景文案，hero preview 置空（中英） | 上游提供文案配置点（当前 locale namespace 固定注册、不可重复注册，Config 无文案字段） |
+| dsh-client-ui-layout | 产品功能 | 去掉上游 `root` 插槽注册与 `AppFrame`，由产品提供根框架与插槽，只保留 `layout` 服务 | 上游允许宿主自供根框架而不重复注册 `root`，或产品改用上游 AppFrame |
+| dsh-web-frontend | 产品功能 | 打包后的 Markdown 链接放行 `stock-ref:` 协议，供产品引用标记（`citationMarks.ts`）使用 | 上游 Markdown 渲染支持可配置的链接协议白名单；该补丁改的是带哈希的压缩产物，每次升级都必须重做 |
 
 上游 `packages/client/ui-subagent/src/client/sidebar-chat/index.tsx` 已使用 `sessions.retain(address, { source, signal })`，是 session-controller patch 的升级替代候选；本轮未核验 0.1.6-alpha.2 远端之外的版本，不改任何 patch 内容。
 

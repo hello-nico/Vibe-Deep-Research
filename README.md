@@ -19,22 +19,22 @@
 
 ## 模块入口
 
-我的资料见 [M9.6 Task](docs/资料管理与对话引用_Task_M9.6_2026-09-17.md)：双入口 PDF/TXT/MD 上传、阅读和 @ 引用已接入正式 Backend 资料库；真模型与浏览器视觉待验收。URL/YouTube 导入延期。
+契约描述当前实现，产品重构时整体改写。文档结构见 [docs/README.md](docs/README.md)。
 
-| 模块 | 源码 / 契约与 Task |
-|---|---|
-| 产品页面与 DSH UI 插件 | `desktop/src/verticals/finance/`、`desktop/dsh/finance-ui/`；[M6 边界](docs/架构边界与UI组合方案_M6_2026-09-09.md)；用户可见文案见[界面文案收敛 Task](docs/界面文案收敛_Task_2026-09-23.md)、[深度对话提示词与文案收敛 Task](docs/深度对话提示词与文案收敛_Task_2026-09-23.md) |
-| 产品对象模型与交互 | [v1 设计稿](docs/产品对象模型与交互_v1_2026-09-23.md)：对象为主、助手即入口、统一动作与界面零件；待审阅后拆 Task |
-| DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts`；[运行时说明](desktop/dsh/runtime/README.md)；升级见 [DSH 升级到 0.1.7 Task](docs/DSH升级到0.1.7_Task_2026-09-23.md) |
-| 本机数据服务与 Client 存储 | `orchestrator/src/api.ts`、`service.ts`、`client_store.ts`；[M8.5 Task](docs/Client选择与研究数据归属_Task_M8.5_2026-09-14.md) |
-| 研究知识与发布 | Stock-Research 仓库的 Backend 与 DSH 插件；[M8 Task](docs/我的研究与行业入口_Task_M8_2026-09-10.md) |
-| 研究记忆与按需维护 | [M9.3 Task](docs/研究记忆与按需维护_Task_M9.3_2026-09-16.md)：画像、研究连续性、四类 Wiki 后台维护与 Topic 候选；已实施，真实模型与浏览器待验收 |
-| 多口径映射与研究画布 | [M9.4 Task](docs/多口径映射与研究画布_Task_M9.4_2026-09-16.md)：跨分类关联、Topic 画布与选中对象继续研究；复杂交互已暂停，未实施 |
-| 公司 Wiki 生成与分类型报告 | [M9.5 Task](docs/公司Wiki生成与交互报告_Task_M9.5_2026-09-17.md)：缺页研究闭环、四类底稿与交互报告；E 节已接入真实 spawn 子 Agent 与只读过程，真实验收待用户 |
-| 页面问助手（五角色 × Ask/Agent） | `desktop/src/verticals/finance/assistant/` 与 `FinanceAiDock`；Stock-Research `dsh/src/consumers.mjs` 登记角色，`native-research-tools.mjs` 安装工具与执行权限守卫；[M9.8 Task](docs/问助手双模式与Agent面板_Task_M9.8_2026-09-20.md) 对象登记与会话绑定；[M9.9 Task](docs/问助手即答与深查边界_Task_M9.9_2026-09-21.md) 固定上下文与 Ask 即答 / Agent 深查，真实验收交用户 |
-| 图表、计算与报告 | `ResearchResult`、`MarketChart` 及 Backend 成果；[M8.6 Task](docs/研究可视化与图数联动_Task_M8.6_2026-09-14.md) |
-| 本轮删除与验收 | [旧系统退役 Task](docs/旧系统退役_Task_2026-09-15.md)、[Human Checklist](human-checklist.md) |
-| 后续总体收敛 | [待办](todo.md)、[文档索引](docs/README.md) |
+| 模块 | 源码 | 契约 |
+|---|---|---|
+| 系统职责与数据归属 | — | [system-ownership](docs/contracts/system-ownership.md)（上位） |
+| 产品页面与 DSH UI 插件 | `desktop/src/verticals/finance/`、`desktop/dsh/finance-ui/` | [product-ui](docs/contracts/product-ui.md)；设计方向见[产品对象模型与交互 v1](docs/decisions/implemented/产品对象模型与交互_v1_2026-09-23.md) |
+| DSH 运行时与模型接入 | `desktop/dsh/runtime/`、`desktop/dsh-dev.ts` | [运行时说明](desktop/dsh/runtime/README.md) |
+| 本机数据服务与 Client 存储 | `orchestrator/src/api.ts`、`service.ts`、`client_store.ts` | [system-ownership](docs/contracts/system-ownership.md) §1、§3 |
+| 研究知识、维护与刷新 | Stock-Research Backend 与 DSH 插件 | [research-knowledge](docs/contracts/research-knowledge.md) |
+| 公司 Wiki 生成与图文报告 | `CompanyWiki.tsx`、`WikiReportPane.tsx`；Stock `services/wiki_reports.py` | [wiki-reports](docs/contracts/wiki-reports.md) |
+| 我的资料 | 资料页与对话上传入口；Stock 文档接口 | [my-materials](docs/contracts/my-materials.md) |
+| 问助手（Ask / Agent） | `desktop/src/verticals/finance/assistant/`；Stock `dsh/src/consumers.mjs` | [page-assistant](docs/contracts/page-assistant.md) |
+| 图表、计算与研究成果 | `ResearchResult`、`MarketChart` 及 Backend 成果 | [charts-and-results](docs/contracts/charts-and-results.md) |
+| 研究记忆 | Stock Backend `research/memory/` | 现行规则见 Human Checklist；v2 [提案](docs/decisions/proposed/研究记忆机制v2_设计_2026-09-24.md) |
+| 不变量 | — | [invariants](docs/contracts/invariants.md) |
+| 决策、待办与进行中 | — | [Human Checklist](human-checklist.md)、[待办](todo.md)、[进行中的 Task](docs/tasks/active/) |
 
 `datasources/`、`.agents/skills/data-access/` 和 `calc/` 保留被现用取数与校验消费的能力。`orchestrator` 不再注册研究启动工具，其 MCP 仅提供端点目录和受控取数。
 

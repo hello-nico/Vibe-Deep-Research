@@ -12,7 +12,7 @@ The source workspace is undergoing M8.5/M8.6 acceptance. The former six-stage en
 - DSH runtime: `desktop/dsh/runtime/` and `desktop/dsh-dev.ts`.
 - Local data service and selections: `orchestrator/src/api.ts`, `service.ts`, `client_store.ts`.
 - Durable research: the separate Stock-Research repository and its DSH plugin.
-- Decisions and tasks: [Human Checklist](human-checklist.md), [documentation index](docs/README.md), [retirement task](docs/旧系统退役_Task_2026-09-15.md), [M9 diagram](artifacts/m9-research-workbench.html).
+- Decisions and tasks: [Human Checklist](human-checklist.md), [documentation layout](docs/README.md), [module contracts](docs/contracts/), [retirement task](docs/tasks/archived/旧系统退役_Task_2026-09-15.md).
 
 All services can run locally. This is a responsibility boundary, not a public/private data classification. Data suppliers and the selected model may use network services.
 

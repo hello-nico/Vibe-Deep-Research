@@ -15,4 +15,4 @@ DSH 拥有会话和模型执行，Stock Backend 拥有资料、Wiki、Topic、�
 验证：`npm run typecheck`、`npm test`。取数测试可用 `VRA_PYTHON` 指向已安装依赖的解释器。
 原生 App 的 DSH 打包接缝尚待 M9 完成，不能以静态网关测试作为安装包验收。
 
-[退役 Task](../docs/旧系统退役_Task_2026-09-15.md) · [项目入口](../README.md)
+[退役 Task](../docs/tasks/archived/旧系统退役_Task_2026-09-15.md) · [项目入口](../README.md)
