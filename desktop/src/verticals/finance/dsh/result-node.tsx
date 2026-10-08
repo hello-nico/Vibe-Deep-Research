@@ -3,18 +3,23 @@ import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client';
 import { ResearchResult } from '../components/ResearchResult';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
-import { maintenanceDefinition, researchStatusDefinition, resultDefinition, topicCandidateDefinition, type MaintenanceData, type TopicCandidateData } from './result-projection';
+import { isUnboundDeepResearchSession, maintenanceDefinition, researchStatusDefinition, resultDefinition, suggestionDefinition, topicCandidateDefinition, type MaintenanceData, type SuggestionData, type TopicCandidateData } from './result-projection';
 import { adoptCandidate, CANDIDATE_CHANGED, CandidateChoiceNeeded, disposeCandidate, loadCandidate, type TopicCandidate } from '../lib/memory';
 import type { ResearchTopicRouteCandidate } from '../lib/research';
 import { userFacingRuntimeError } from '../lib/userFacingError';
 import { useEffect, useState } from 'react';
 import { registerInlineResultRenderer } from './inline-result';
+import { SuggestionNode } from './suggestion-node';
+import { loadTopicSessions } from '../lib/topicSessions';
+import { loadAssistantSessions } from '../assistant/sessions';
+import { loadReportTasks } from '../lib/reportTasks';
 
 interface ResultData { resultId: string }
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
   interface ChatNodeDataMap {
     'finance-result': ResultData; 'finance-maintenance': MaintenanceData;
     'finance-research-status': { text: string }; 'finance-topic-candidate': TopicCandidateData;
+    'finance-suggestion': SuggestionData;
   }
 }
 function ResultNode({ node }: Pick<ChatNodeViewProps<'finance-result'>, 'node'>) {
@@ -26,9 +31,11 @@ export function installResultNode(ctx: Context) {
   ctx.uiConversation.events.register(maintenanceDefinition);
   ctx.uiConversation.events.register(researchStatusDefinition);
   ctx.uiConversation.events.register(topicCandidateDefinition);
+  ctx.uiConversation.events.register(suggestionDefinition);
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-research-status' }, ResearchStatusNode));
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-maintenance' }, MaintenanceNode));
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-topic-candidate' }, TopicCandidateNode));
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-suggestion' }, SuggestionNode));
   ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-result' }, ResultNode));
 }
 
@@ -46,13 +53,14 @@ function MaintenanceNode({ node }: Pick<ChatNodeViewProps<'finance-maintenance'>
   </details>;
 }
 
-function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-candidate'>, 'node'>) {
+function TopicCandidateNode({ node, sessionId }: Pick<ChatNodeViewProps<'finance-topic-candidate'>, 'node' | 'sessionId'>) {
   const [status, setStatus] = useState(node.data.status || 'open');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState('');
   const [editing, setEditing] = useState(false);
   const [question, setQuestion] = useState(node.data.question);
   const [choices, setChoices] = useState<ResearchTopicRouteCandidate[]>([]);
+  const [entryScope, setEntryScope] = useState<'loading' | 'deep-research' | 'other'>('loading');
   const apply = (item: TopicCandidate) => {
     setStatus(item.status || 'open');
     setQuestion(item.question);
@@ -69,6 +77,14 @@ function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-cand
     window.addEventListener(CANDIDATE_CHANGED, onChange);
     return () => { active = false; window.removeEventListener(CANDIDATE_CHANGED, onChange); };
   }, [node.data.id]);
+  useEffect(() => {
+    let active = true;
+    void Promise.all([loadTopicSessions(), loadAssistantSessions(), loadReportTasks()]).then(([topics, assistants, tasks]) => {
+      if (active) setEntryScope(isUnboundDeepResearchSession(String(sessionId), topics.sessions, assistants.sessions, tasks.sessions)
+        ? 'deep-research' : 'other');
+    }).catch(() => { if (active) setEntryScope('other'); });
+    return () => { active = false; };
+  }, [sessionId]);
   const run = async (action: 'adopt' | 'ignore', topicId?: string) => {
     if (busy || status !== 'open') return;
     setBusy(action); setError('');
@@ -81,6 +97,7 @@ function TopicCandidateNode({ node }: Pick<ChatNodeViewProps<'finance-topic-cand
       else setError(userFacingRuntimeError(err, '操作失败'));
     } finally { setBusy(''); }
   };
+  if (entryScope !== 'other') return null;
   return <div className="my-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5 text-sm">
     <p className="font-medium">建议持续研究：{question}</p>
     <p className="mt-2 leading-6 text-muted-foreground">{node.data.reason}</p>

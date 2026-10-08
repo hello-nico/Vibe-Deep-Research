@@ -1,6 +1,7 @@
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client';
 import type {} from '@deepseek-ai/dsh-client-ui-chat/client';
 import { inlineResultReferences, resultReference as validResultReference } from './inline-result.ts';
+import type { TrackingSuggestion } from './suggestion-actions.ts';
 
 interface State { resultId?: string; seq: number }
 function reference(value: unknown) {
@@ -81,13 +82,24 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
 };
 
 export interface TopicCandidateData {
-  id: string; question: string; reason: string; objects?: string[]; match_topic_id?: string; status?: 'open' | 'failed' | 'ignored' | 'adopted';
+  id: string; question: string; reason: string; objects?: string[]; match_topic_id?: string; status?: 'open' | 'failed' | 'ignored' | 'adopted'; consumer?: string;
+}
+export function isUnboundDeepResearchSession(
+  sessionId: string,
+  topicSessions: Record<string, unknown>,
+  assistantSessions: Record<string, unknown>,
+  taskSessions: Record<string, unknown>,
+): boolean {
+  return !Object.hasOwn(topicSessions, sessionId)
+    && !Object.hasOwn(assistantSessions, sessionId)
+    && !Object.hasOwn(taskSessions, sessionId);
 }
 export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidateData> = {
   kind: 'finance-topic-candidate', target: 'chat',
   match(event) {
     const value = event as unknown as { type: string; data?: TopicCandidateData };
-    if (value.type !== 'stock-research/topic-candidate' || !value.data?.id || !value.data.question) return null;
+    if (value.type !== 'stock-research/topic-candidate' || value.data?.consumer === 'deep_research'
+      || !value.data?.id || !value.data.question) return null;
     return { id: value.data.id, role: 'start' };
   },
   start(_context, match) { return match.event.data as unknown as TopicCandidateData; },
@@ -100,6 +112,39 @@ export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidate
     return { key: context.key, kind: 'finance-topic-candidate', id: context.id, target: 'chat',
       anchorSeq: context.start?.event?.seq ?? 0, location: context.start?.location ?? { kind: 'unresolved' as const },
       visibility: 'visible', data: context.state };
+  },
+};
+
+export interface QuestionSuggestion { text: string }
+export interface CompanySuggestion { symbol: string; reason: string }
+export interface IndicatorSuggestion { name: string; reason: string; tracking_item: TrackingSuggestion }
+export type SuggestionData = {
+  id: string;
+  question: string;
+  consumer: 'deep_research';
+} & ({ type: 'question'; items: QuestionSuggestion[] }
+  | { type: 'company'; items: CompanySuggestion[] }
+  | { type: 'indicator'; items: IndicatorSuggestion[] });
+
+export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = {
+  kind: 'finance-suggestion', target: 'chat',
+  match(event) {
+    const value = event as unknown as { type: string; data?: SuggestionData };
+    const data = value.data;
+    if (value.type !== 'stock-research/suggestion' || data?.consumer !== 'deep_research'
+      || !data.id || !data.question || !['question', 'indicator', 'company'].includes(data.type)
+      || !Array.isArray(data.items) || !data.items.length) return null;
+    return { id: data.id, role: 'start' };
+  },
+  start(_context, match) { return match.event.data as unknown as SuggestionData; },
+  update(context) { return context.state; },
+  buildViewNode(context) {
+    if (!context.state || !context.start) return null;
+    const location = context.start.location;
+    const turn = location.kind === 'turn' || location.kind === 'step' ? location.turn : undefined;
+    if (!turn?.end) return null;
+    return { key: context.key, kind: 'finance-suggestion', id: context.id, target: 'chat',
+      anchorSeq: turn.end.seq, location, visibility: 'visible', data: context.state };
   },
 };
 
