@@ -36,10 +36,11 @@
 | dsh-llm-deepseek | 产品配置 + bug fix | ① 默认目录改官方 `deepseek-flash`（V4.1-Flash，含视觉）与 `deepseek-v4-pro`；② 错误分类区分额度、认证与服务商拒绝 | ① 上游默认目录更新后重新对照；② 上游分类等价 |
 | dsh-client-ui-conversation | 文案 | 输入框占位、首页 hero 标题改为研究场景文案，hero preview 置空（中英） | 上游提供文案配置点（当前 locale namespace 固定注册、不可重复注册，Config 无文案字段） |
 | dsh-client-ui-layout | 产品功能 | 去掉上游 `root` 插槽注册与 `AppFrame`，由产品提供根框架与插槽，只保留 `layout` 服务 | 上游允许宿主自供根框架而不重复注册 `root`，或产品改用上游 AppFrame |
-| dsh-web-frontend | 产品功能 | 打包后的 Markdown 链接放行 `stock-ref:` 协议，供产品引用标记（`citationMarks.ts`）使用 | 上游 Markdown 渲染支持可配置的链接协议白名单；该补丁改的是带哈希的压缩产物，每次升级都必须重做 |
+| dsh-web-frontend | 产品功能 | ① 打包后的 Markdown 链接放行 `stock-ref:` 协议，供产品引用标记（`citationMarks.ts`）使用；② `result:` 图片使用产品注册函数，单图段落按块渲染，流式末尾隐藏未完成标记；`check-inline-result.mjs` 在 postinstall 检查实际加载产物 | ① 上游 Markdown 渲染支持可配置的链接协议白名单；② 上游 Markdown 支持由插件注册内嵌协议渲染；该补丁改的是带哈希的压缩产物，每次升级都必须重做 |
 
 上游 `packages/client/ui-subagent/src/client/sidebar-chat/index.tsx` 已使用 `sessions.retain(address, { source, signal })`，是 session-controller patch 的升级替代候选；本轮未核验 0.1.6-alpha.2 远端之外的版本，不改任何 patch 内容。
 
 桌面发行版的窗口、Finder、目录选择桥接及替代布局补丁不带入。产品布局、主题和导航由 `../finance-ui` 的浏览器插件拥有；rc.1 composer 的目录按钮仍是有界 CSS 例外。
 
 升级时必须一起核对精确依赖、lockfile、补丁和原生交互；不能删除失败补丁后仅凭安装成功宣称升级完成。
+回归检查失败说明补丁需要重做。

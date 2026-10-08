@@ -8,6 +8,7 @@ import { adoptCandidate, CANDIDATE_CHANGED, CandidateChoiceNeeded, disposeCandid
 import type { ResearchTopicRouteCandidate } from '../lib/research';
 import { userFacingRuntimeError } from '../lib/userFacingError';
 import { useEffect, useState } from 'react';
+import { registerInlineResultRenderer } from './inline-result';
 
 interface ResultData { resultId: string }
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
@@ -20,6 +21,7 @@ function ResultNode({ node }: Pick<ChatNodeViewProps<'finance-result'>, 'node'>)
   return <ResearchResult key={node.data.resultId} resultId={node.data.resultId} />;
 }
 export function installResultNode(ctx: Context) {
+  ctx.effect(() => registerInlineResultRenderer(resultId => <ResearchResult key={resultId} resultId={resultId} />), 'finance inline result renderer');
   ctx.uiConversation.events.register(resultDefinition);
   ctx.uiConversation.events.register(maintenanceDefinition);
   ctx.uiConversation.events.register(researchStatusDefinition);

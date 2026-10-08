@@ -56,3 +56,27 @@ test('historical generation prefix survives spill notices and truncated rows', (
   for (const text of [`Explanation {"research_result":"${id}"}`, `{"nested":{"research_result":"${id}"}} trailing`])
     assert.equal(project(result([{ type: 'text', text }]))?.resultId, undefined);
 });
+
+test('final answer markers hide only this turn result, preserving the materialized key', () => {
+  const marker = `![走势](${id})`;
+  const state = { seq: 8, resultId: id };
+  const make = (text: string, ended = true, finalNode: unknown = {}) => ({ state, key: 'finance-result:call-1', id: 'call-1',
+    start: { location: { kind: 'step', turn: {
+      end: ended ? { seq: 12 } : undefined,
+      data: { get: () => ({ answerStep: 2 }) },
+      steps: [{ step: 1, data: { get: () => ({ finalNode: {}, blocks: [{ kind: 'text', text: marker }] }) } },
+        { step: 2, data: { get: () => ({ finalNode, blocks: [{ kind: 'reasoning', text: marker }, { kind: 'text', text }] }) } }],
+    } } } });
+  const view = (text: string, ended = true, finalNode: unknown = {}) => definition.buildViewNode(make(text, ended, finalNode) as never)!;
+  const hidden = view(`说明\n\n${marker}`);
+  assert.equal(hidden.visibility, 'hidden');
+  assert.equal(hidden.key, view('普通回答').key);
+  assert.equal(hidden.anchorSeq, 12);
+  for (const text of ['普通回答', `![其他成果](result:${'b'.repeat(32)})`, marker.slice(0, -1), `\`\`\`md\n${marker}\n\`\`\``])
+    assert.equal(view(text).visibility, 'visible');
+  assert.equal(view(marker, false).visibility, 'visible');
+  assert.equal(view(marker, true, null).visibility, 'visible');
+  const noAnswer = make(marker);
+  noAnswer.start.location.turn.data.get = () => ({ answerStep: null as never });
+  assert.equal(definition.buildViewNode(noAnswer as never)?.visibility, 'visible');
+});

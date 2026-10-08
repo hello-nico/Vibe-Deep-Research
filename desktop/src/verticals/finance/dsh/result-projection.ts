@@ -1,8 +1,10 @@
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client';
+import type {} from '@deepseek-ai/dsh-client-ui-chat/client';
+import { inlineResultReferences, resultReference as validResultReference } from './inline-result.ts';
 
 interface State { resultId?: string; seq: number }
 function reference(value: unknown) {
-  return typeof value === 'string' && /^result:[0-9a-f]{32}$/.test(value) ? value : undefined;
+  return validResultReference(value) ? value : undefined;
 }
 function resultReference(content: readonly { type: string; text?: string }[]) {
   for (const item of content) {
@@ -38,12 +40,18 @@ export const resultDefinition: ConversationNodeDefinition<State> = {
   },
   buildViewNode(context) {
     if (!context.state?.resultId) return null;
+    const resultId = context.state.resultId;
     const location = context.start?.location ?? { kind: 'unresolved' as const };
     // Completed results belong after the answer, outside its collapsed tool steps.
     const end = location.kind === 'turn' || location.kind === 'step' ? location.turn.end : undefined;
+    const turn = location.kind === 'turn' || location.kind === 'step' ? location.turn : undefined;
+    const answerStep = end ? turn?.data?.get('turn-process')?.answerStep : undefined;
+    const answer = answerStep == null ? undefined : turn?.steps.find(step => step.step === answerStep)?.data.get('assistant-step');
+    const embedded = answer?.finalNode && answer.blocks.some(block => block.kind === 'text'
+      && inlineResultReferences(block.text).has(resultId));
     return { key: context.key, kind: 'finance-result', id: context.id, target: 'chat',
-      anchorSeq: end?.seq ?? context.state.seq, location, visibility: 'visible',
-      data: { resultId: context.state.resultId } };
+      anchorSeq: end?.seq ?? context.state.seq, location, visibility: embedded ? 'hidden' : 'visible',
+      data: { resultId } };
   },
 };
 

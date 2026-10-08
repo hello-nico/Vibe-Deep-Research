@@ -122,7 +122,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
   }, [rows, payload, columns]);
   return <section className="my-4 w-full min-w-0 rounded-2xl border bg-background p-5" aria-label={payload.title}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-      <div><h3 className="font-semibold">{payload.title}</h3><p className="text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}</p></div>
+      <div><h3 className="font-semibold">{payload.title}</h3>{presentation === 'report' && <p className="text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}</p>}</div>
       <div className="flex gap-3"><button aria-pressed={!table} onClick={() => setTable(false)}>图表</button><button aria-pressed={table} onClick={() => setTable(true)}>数据</button><button onClick={() => {
         setDownloadError('');
         if (table) downloadFile(payload.title + '.csv', new Blob([dataCsv(columns, listOrEmpty(payload.rows))], { type: 'text/csv;charset=utf-8' }));
@@ -143,6 +143,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       : presentation === 'report' && payload.kind === 'financial'
         ? <ReportFinancialChart rows={rows} series={payload.series ?? []} columns={columns} onReady={readyMarket} />
         : <EChart option={option} height={400} onReady={readyEChart} />}
+    {presentation === 'conversation' && <p className="mt-3 text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}{payload.kind === 'financial' && '；图表单位为亿元，下载数据保留原始单位和精度。'}</p>}
     {missing.map(gap => <p className="text-sm text-muted-foreground" key={gap}>{gap}</p>)}
     {payload.kind === 'market' && <p className="mt-3 text-xs text-muted-foreground">价格与均线显示两位小数，下载数据保留原始精度；改变显示范围不会重新计算。</p>}
     {payload.calculations && !Array.isArray(payload.calculations) && <details className="mt-3 text-sm">
