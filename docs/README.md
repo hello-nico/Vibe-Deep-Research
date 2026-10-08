@@ -18,14 +18,6 @@
 
 ## 进行中的 Task
 
-- [外部价格进Backend_Task_2026-10-08](tasks/active/外部价格进Backend_Task_2026-10-08.md)
 - [深挖行为与一类推荐_Task_2026-10-08](tasks/active/深挖行为与一类推荐_Task_2026-10-08.md)
-- [Jev判断连续性_Task_2026-09-24](tasks/active/Jev判断连续性_Task_2026-09-24.md)
-- [整体验收修复_第2轮_Task_2026-09-25](tasks/active/整体验收修复_第2轮_Task_2026-09-25.md)
-- [治理对齐修复_Task_2026-09-21](tasks/active/治理对齐修复_Task_2026-09-21.md)
-- [深度对话提示词与文案收敛_Task_2026-09-23](tasks/active/深度对话提示词与文案收敛_Task_2026-09-23.md)
-- [真实阅读与数据引用优化_Task_2026-09-21](tasks/active/真实阅读与数据引用优化_Task_2026-09-21.md)
-- [深度对话正文内嵌交互图_Task_2026-10-08](tasks/active/深度对话正文内嵌交互图_Task_2026-10-08.md)
-- [深度对话表达升级_Task_2026-10-08](tasks/active/深度对话表达升级_Task_2026-10-08.md)
-- [研究草案版本冲突_Task_2026-09-26](tasks/active/研究草案版本冲突_Task_2026-09-26.md)
-- [记忆触发影子模式_Task_2026-09-26](tasks/active/记忆触发影子模式_Task_2026-09-26.md)
+- [深度对话指标卡与传导链_Task_2026-10-08](tasks/active/深度对话指标卡与传导链_Task_2026-10-08.md)
+- [外部价格进Backend_Task_2026-10-08](tasks/active/外部价格进Backend_Task_2026-10-08.md)
