@@ -23,8 +23,17 @@
 | 入口 | 调用链 | 规则 |
 |---|---|---|
 | 深度对话、我的研究、问助手 Agent 模式 | 产品 → DSH Agent → Stock 插件 → Backend | 产品只发意图与对象；工具和维护逻辑留在 Stock 插件 |
-| 问助手 Ask 模式 | 产品 → DSH 会话（角色工具集为空） | 只用发送时固定的上下文，见 [问助手](page-assistant.md) |
+| 问助手 Ask 模式 | 产品 → DSH 会话 → 只读 `read_page_context` | 只读发送时由宿主暂存的页面快照与 @ 读取结果，不写入，见 [问助手](page-assistant.md) |
 | 页面模型（翻译、提炼等） | `/finance-model` → `ctx.llm.stream` | 无 Agent、无工具；不能借此路径获得研究写权限 |
+
+现行 Ask / Agent 都由 DSH 执行，用户消息只保留原话与 @ 引用，页面快照不塞进气泡；页面角色、模式及绑定目标限制由 Stock 插件执行。未定义角色或模式不回退为另一条模型路径。
+
+## 会话面板的现行接线
+
+- `dsh/panel-conversation.tsx` 通过会话引用挂载原生 `conversation.content`：问助手与议题可输入，任务过程只读，不自绘消息或切换前台会话。
+- `SessionReference` 在挂载时保留、关闭或切换时释放；关闭面板不取消后台任务。过程丢失与读取失败分别提示；只读过程不显示输入和聊天操作。
+- 同时只显示一个面板，宽度由 `SidePanelResize.tsx` 管理。当前 `research-surfaces.css` 在宽度 ≥1100px 时给主区留出面板空间，窄屏覆盖；这是源码现状，不把旧 Checklist 的 900px 目标当成已实现。
+- 面板重新设计归 T8，重构时改写本段；这里承接现有实现，不保留旧 DSH 右栏多标签、停靠或全屏方案。
 
 ## 4. 样式责任
 
