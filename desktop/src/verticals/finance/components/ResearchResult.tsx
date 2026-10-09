@@ -7,11 +7,39 @@ import { EvidenceLink } from './EvidenceCard';
 import { resultSourceText, type ResultSource } from '../lib/resultSource';
 import { dataCsv, downloadFile, financialNumber, sourceName } from '../lib/financialDisplay';
 import type { ECharts } from 'echarts/core';
+import { init as existingMarketChart, type AxisTick } from 'klinecharts';
 import { downloadChart } from '../lib/chartDownload';
 import { WorkspaceSelect } from './ui/WorkspaceSelect';
 import { RESULT_EMBED_FALLBACK, embeddableChartResult, listOrEmpty } from '../lib/researchResultEmbed';
 
 const loadingSections = ['图表', '数据', '来源'];
+const VOLUME_TICK_LIMIT = 3;
+
+function compactVolume(value: number) {
+  return Math.abs(value) >= 1e8 ? financialNumber(value / 1e8, 1) + '亿'
+    : Math.abs(value) >= 1e4 ? financialNumber(value / 1e4, 1) + '万'
+    : financialNumber(value);
+}
+
+function volumeTicks(ticks: AxisTick[]) {
+  const ordered = [...ticks].sort((a, b) => a.coord - b.coord);
+  const selected = ordered.length <= VOLUME_TICK_LIMIT ? ordered
+    : [ordered[0]!, ordered[Math.floor((ordered.length - 1) / 2)]!, ordered.at(-1)!];
+  const spaced: AxisTick[] = [];
+  for (const tick of selected) {
+    if (!spaced.length || tick.coord - spaced.at(-1)!.coord >= 24)
+      spaced.push({ ...tick, text: compactVolume(Number(tick.value)) });
+  }
+  return spaced;
+}
+
+function missingExplanation(gap: string) {
+  if (/开高低|开盘|最高|最低|OHLC/i.test(gap)) return '部分日期缺少开高低数据，图中只显示收盘价。';
+  if (/成交量|volume/i.test(gap)) return '部分日期缺少成交量，图中只显示已有数据。';
+  if (/成交额|turnover/i.test(gap)) return '部分日期缺少成交额，表中只显示已有数据。';
+  if (/均线|moving.average/i.test(gap)) return '部分日期的数据不足，暂不显示对应均线。';
+  return '部分数据暂不可用，图表显示已有数据，详情可查看来源依据。';
+}
 
 type Row = Record<string, string | null>;
 interface Result {
@@ -82,15 +110,29 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
   const [chart, setChart] = useState<ECharts | null>(null);
   const marketDownload = useRef<(() => string) | null>(null);
   const eChartDownload = useRef<(() => string) | null>(null);
-  const readyMarket = useCallback((download: (() => string) | null) => { marketDownload.current = download; }, []);
+  const card = useRef<HTMLElement>(null);
+  const readyMarket = useCallback((download: (() => string) | null) => {
+    marketDownload.current = download;
+    const element = card.current?.querySelector<HTMLElement>('[k-line-chart-id]');
+    // init returns the existing instance on this DOM; lifecycle and saved data
+    // remain owned by MarketChart. Only its volume axis is customized here.
+    const instance = download && element ? existingMarketChart(element) : null;
+    instance?.getIndicators({ name: 'SAVED_VOLUME' }).forEach(indicator => instance.overrideYAxis({
+      paneId: indicator.paneId, id: indicator.yAxisId,
+      createTicks: ({ defaultTicks }) => volumeTicks(defaultTicks),
+    }));
+  }, []);
   const readyEChart = useCallback((instance: ECharts | null, download?: (() => string) | null) => {
     setChart(instance);
     eChartDownload.current = download ?? null;
   }, []);
   const [range, setRange] = useState(0);
   const missing = listOrEmpty(payload?.missing);
+  const explanations = [...new Set(missing.map(missingExplanation))];
+  const rawMissing = missing.length ? '\n\n### 原始数据说明\n\n' + missing.join('\n') : '';
   const sources = listOrEmpty(payload?.sources);
-  const columns = listOrEmpty(payload?.columns);
+  const columns = useMemo(() => listOrEmpty(payload?.columns).map(column =>
+    ['volume', 'turnover'].includes(column.key) && column.unit === '单位未确认' ? { ...column, unit: '' } : column), [payload?.columns]);
   const priceUnit = columns.find(column => column.key === 'close')?.unit || payload.unit || '';
   const rows = useMemo(() => {
     const all = listOrEmpty(payload?.rows);
@@ -106,11 +148,17 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       series: (payload.series ?? []).map(key => ({ name: columns.find(column => column.key === key)?.label ?? key,
         type: 'bar', barMaxWidth: 48, data: rows.map(row => row[key] == null ? null : Number(row[key]) / 100000000) })),
     };
+    const volumes = rows.map(row => number(row.volume)).filter((value): value is number => value != null && Number.isFinite(value));
+    const maximum = Math.max(0, ...volumes);
+    const magnitude = maximum > 0 ? 10 ** Math.floor(Math.log10(maximum / (VOLUME_TICK_LIMIT - 1))) : 1;
+    const interval = maximum > 0 ? Math.ceil(maximum / (VOLUME_TICK_LIMIT - 1) / magnitude) * magnitude : 1;
     return {
       animation: false, tooltip: { trigger: 'axis' }, legend: { top: 0 },
       grid: [{ left: 65, right: 25, top: 45, height: '57%' }, { left: 65, right: 25, top: '76%', height: '14%' }],
       xAxis: [0, 1].map(gridIndex => ({ type: 'category', gridIndex, data: rows.map(row => row.trading_day), axisLabel: { show: gridIndex === 1 } })),
-      yAxis: [{ scale: true, name: priceUnit }, { gridIndex: 1, scale: true, name: columns.find(c => c.key === 'volume')?.unit }],
+      yAxis: [{ scale: true, name: priceUnit }, { gridIndex: 1, show: volumes.length > 0,
+        min: 0, max: interval * (VOLUME_TICK_LIMIT - 1), interval,
+        name: columns.find(c => c.key === 'volume')?.unit || '', axisLabel: { formatter: compactVolume } }],
       axisPointer: { link: [{ xAxisIndex: 'all' }] },
       series: [
         payload?.chart === 'candlestick'
@@ -121,12 +169,16 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       ],
     };
   }, [rows, payload, columns, priceUnit]);
-  return <section className="my-4 w-full min-w-0 rounded-2xl border bg-background p-5" aria-label={payload.title}>
+  return <section ref={card} className="my-4 w-full min-w-0 rounded-2xl border bg-background p-5" aria-label={payload.title}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="font-semibold">{payload.title}</h3>{presentation === 'report' && <p className="text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}</p>}</div>
       <div className="flex gap-3"><button aria-pressed={!table} onClick={() => setTable(false)}>图表</button><button aria-pressed={table} onClick={() => setTable(true)}>数据</button><button onClick={() => {
         setDownloadError('');
-        if (table) downloadFile(payload.title + '.csv', new Blob([dataCsv(columns, listOrEmpty(payload.rows))], { type: 'text/csv;charset=utf-8' }));
+        if (table) {
+          const exportColumns = missing.length ? [...columns, { key: 'raw_missing', label: '原始数据说明', unit: '' }] : columns;
+          const exportRows = listOrEmpty(payload.rows).map((row, index) => missing.length ? { ...row, raw_missing: index === 0 ? missing.join('\n') : '' } : row);
+          downloadFile(payload.title + '.csv', new Blob([dataCsv(exportColumns, exportRows)], { type: 'text/csv;charset=utf-8' }));
+        }
         else if (chart || marketDownload.current) {
           const image = marketDownload.current?.() ?? eChartDownload.current?.() ?? chart!.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
           void downloadChart(image, payload.title, [
@@ -145,13 +197,13 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
         ? <ReportFinancialChart rows={rows} series={payload.series ?? []} columns={columns} onReady={readyMarket} />
         : <EChart option={option} height={400} onReady={readyEChart} />}
     {presentation === 'conversation' && <p className="mt-3 text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}{payload.kind === 'financial' && '；图表单位为亿元，下载数据保留原始单位和精度。'}</p>}
-    {missing.map(gap => <p className="text-sm text-muted-foreground" key={gap}>{gap}</p>)}
+    {explanations.map(explanation => <p className="text-sm text-muted-foreground" key={explanation}>{explanation}</p>)}
     {payload.kind === 'market' && <p className="mt-3 text-xs text-muted-foreground">价格与均线显示两位小数，下载数据保留原始精度；改变显示范围不会重新计算。</p>}
     {payload.calculations && !Array.isArray(payload.calculations) && <details className="mt-3 text-sm">
       <summary className="cursor-pointer">均线口径与计算输入</summary>
       <p className="my-2">均线为含当日在内最近 {payload.calculations.windows.join('／')} 个交易日收盘价的算术平均；不足对应天数时不计算。{payload.calculations.rounding}。</p>
       <div className="max-h-64 overflow-auto"><table className="w-full text-right tabular-nums"><thead><tr><th>日期</th><th>收盘价{priceUnit && `（${priceUnit}）`}</th></tr></thead><tbody>{payload.calculations.inputs.map(row => <tr key={row.trading_day}><td>{row.trading_day}</td><td>{financialNumber(row.close, 2)}</td></tr>)}</tbody></table></div>
     </details>}
-    <div className="conversation-citations mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">来源：{sources.map((source, index) => <EvidenceLink key={index} reference={`provider:${sourceKey}:${index}`} snapshot={resultSourceText(source, payload.fetched_at)}>{sourceName(source.title)}{source.endpoint?.includes('income-statements') ? ' · 利润表' : source.endpoint?.includes('cash-flow-statements') ? ' · 现金流量表' : ''}</EvidenceLink>)}<span>获取时间 {new Date(payload.fetched_at).toLocaleString()}</span></div>
+    <div className="conversation-citations mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">来源：{sources.map((source, index) => <EvidenceLink key={index} reference={`provider:${sourceKey}:${index}`} snapshot={resultSourceText(source, payload.fetched_at) + rawMissing}>{sourceName(source.title)}{source.endpoint?.includes('income-statements') ? ' · 利润表' : source.endpoint?.includes('cash-flow-statements') ? ' · 现金流量表' : ''}</EvidenceLink>)}<span>获取时间 {new Date(payload.fetched_at).toLocaleString()}</span></div>
   </section>;
 }
