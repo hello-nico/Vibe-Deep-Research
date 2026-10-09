@@ -7,7 +7,7 @@
 - 2026-10-09 完成并归档：T3 [外部价格进 Backend](docs/tasks/archived/外部价格进Backend_Task_2026-10-08.md)、[外部行情补修](docs/tasks/archived/外部行情补修_Task_2026-10-09.md)、[工具返回瘦身](docs/tasks/archived/工具返回瘦身与上下文成本_Task_2026-10-09.md)（同题 token −67%）、[S0 组件目录验证](docs/tasks/archived/研究组件目录S0验证_Task_2026-10-09.md)（七次真实运行，S1 定为正文组件加确定性校验）。
 - **S1** [研究组件目录实现](docs/tasks/active/研究组件目录S1实现_Task_2026-10-09.md)：待派发，codex1（Stock）与 codex2（Vibe）按事件契约并行；完成后 T1、T2 归档。
 - **协议治理** [Checklist 收敛验收与补齐](docs/tasks/active/Checklist收敛验收与补齐_Task_2026-10-09.md)：已提交（2026-10-09）；剩用户配置 `CROSS_REPO_READ_TOKEN` 并推临时分支看 CI。后续另立：契约细节下沉、Stock Dreaming 清理。
-- **死代码清点** [Task](docs/tasks/active/死代码清点_Task_2026-10-09.md)：待派发；只读清点。
+- **死代码清点** [Task](docs/tasks/archived/死代码清点_Task_2026-10-09.md)：✅ 已归档（pi 清点、用户裁决）；执行见 [死代码退役](docs/tasks/active/死代码退役_Task_2026-10-09.md)，S1 合并后派 pi。
 - T1 [深挖行为与一类推荐](docs/tasks/active/深挖行为与一类推荐_Task_2026-10-08.md)、T2 [指标卡与传导链](docs/tasks/active/深度对话指标卡与传导链_Task_2026-10-08.md)：不再单独修，待 S0 结论后并入 S1 并归档；T1 已提交代码在测试环境保留到 S1 替换。旧描述见各自过程记录。
 
 ## 2. 分阶段计划（2026-10-09 按特色四层重排）
@@ -16,7 +16,7 @@
 
 | 特色层 | Task | 依赖 / 备注 |
 |---|---|---|
-| 地基 | 外部价格 T3 ✅、外部行情补修 ✅、工具返回瘦身 ✅（同题 token −67%）、S0 ✅；协议 CI、死代码清点（pi）在途 | — |
+| 地基 | 外部价格 T3 ✅、外部行情补修 ✅、工具返回瘦身 ✅（同题 token −67%）、S0 ✅；协议 CI 在途；死代码清点 ✅（[退役 Task](docs/tasks/active/死代码退役_Task_2026-10-09.md) 待 S1 合并后派 pi） | — |
 | ① 一问即专业回答 | **S1** 组件目录实现（codex1 + codex2 在途）：图文按需自由组合，推荐改为组件（追问、关注公司） | S0 结论 |
 | ① | **T4** 读图核实：用户日常贴图试用，效果好即结案 | 无 |
 | ① | **T16** 渠道 bot：同一工具与知识，grok-bot 式表达；接入与跨渠道身份参考 Memoh | T14、T15 |
