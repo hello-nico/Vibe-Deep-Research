@@ -56,6 +56,7 @@ echo "[setup] 安装固定版本 DSH 与产品插件…"
 (cd "$ROOT/desktop" && node dsh/build-ui.mjs)
 node "$ROOT/desktop/dsh/setup.ts"
 node "$ROOT/orchestrator/src/init.ts" --python "$VENV_PYTHON"
+"$ROOT/scripts/install-hooks"
 
 if [ "$SKIP_DOCTOR" -eq 0 ]; then
   set +e

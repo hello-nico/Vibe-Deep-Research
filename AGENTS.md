@@ -34,11 +34,10 @@
 
 - 官网仅维护 `website/`。不展示原作者个人品牌站点、社交、赞赏码或未经确认的联系信息；LICENSE 保留版权声明。
 - Agent Runtime 与 Model Provider 分开描述，当前运行时为 DSH。历史版本说明不能当成当前能力承诺。
-- 当前只交付 Web 工作台；旧 macOS 独立客户端退出范围，不作为验收剩余项或 M9 待办，不恢复原生外壳或 Electron。
+- 当前只交付 Web 工作台；旧 macOS 独立客户端退出范围，不作为验收剩余项，不恢复原生外壳或 Electron。
 - 用户要求打开查看时使用可见浏览器或 Codex 页；短时无头验证后关闭，不遗留浏览器进程。
 - 每次公开 push/tag/Release 前扫描工作树、HEAD 和完整 Git 历史，并检查发布附件、截图及公开正文；命中需核实。不得顺手重写历史。
 - 认证、`.env`、私钥及本地数据须保持 ignored/untracked。GitHub Secret Scanning 与 Push Protection 状态需要实际检查。
-- 本轮退役须待用户收敛验收后才提交，不 push。M9 从验收提交后的基线继续。
 
 ## Project file protocol
 
@@ -46,8 +45,7 @@
 - `human-checklist.md` 记录确认的人类决策与验收边界；`todo.md` 记录顺序与未决事项。
 - `docs/contracts/` 每个模块一份契约：职责与归属、对外接口、生命周期与失败语义、验收层级。契约描述当前实现，重构时整体改写。
 - `docs/decisions/{proposed,implemented}/` 记录需要长期保留「为什么」的决策；只有拿到验证证据后才写 proposed，先证明再设计。
-- `docs/tasks/active/` 放待实施和进行中的 Task，状态由所在目录表示；Task 引用上层不复制，不超过 200 行，必须有 Out of Scope 与 Stop Conditions。
-- Task 收尾三问：有没有以后还会被问「为什么」的决定（写进 decision）；有没有会反复验证的验收（变成测试、门禁或《整体验收规范》用例）；有没有反复犯的错（加一条不变量或门禁）。处理完移到 `docs/tasks/archived/`。
+- Checklist 当前态、两仓共享、Task 规格与交接、过程记录、门禁与收尾遵循[两仓开发协议](docs/task-protocol.md)。
 - `docs/tasks/archived/` 冻结：不编辑、不作为现行依据；只允许新文件移入。
 - 工程不变量见 [invariants](docs/contracts/invariants.md) 13–18；`node scripts/verify-docs.mjs` 检查文档结构与链接，`node scripts/verify-invariants.mjs` 检查已机械化的不变量；两者都在 CI 中运行。
 - 协作方式、Task 模板、并行与合并、审阅要点见 [开发工作流范式](docs/开发工作流范式.md)。

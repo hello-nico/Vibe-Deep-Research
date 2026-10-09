@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Docs layout gate: status lives in the directory, active Tasks stay bounded,
+// Docs layout gate: status lives in the directory (Task checks: verify-protocol),
 // archived files stay frozen, and non-archived Markdown links resolve.
 // Usage: node scripts/verify-docs.mjs [repo-root]
 import { execFileSync } from "node:child_process";
@@ -12,7 +12,7 @@ const errors = [];
 const fail = (message) => errors.push(message);
 
 const allowed = {
-  [docs]: ["README.md", "整体验收规范.md", "开发工作流范式.md", "contracts", "decisions", "tasks"],
+  [docs]: ["README.md", "task-protocol.md", "整体验收规范.md", "开发工作流范式.md", "contracts", "decisions", "tasks"],
   [join(docs, "decisions")]: ["proposed", "implemented", "rejected"],
   [join(docs, "tasks")]: ["active", "archived"],
 };
@@ -21,17 +21,6 @@ for (const [dir, names] of Object.entries(allowed)) {
   for (const name of readdirSync(dir)) {
     if (name === ".DS_Store") continue;
     if (!names.includes(name)) fail(`${relative(root, join(dir, name))}: not allowed here; allowed: ${names.join(", ")}`);
-  }
-}
-
-const active = join(docs, "tasks", "active");
-if (existsSync(active)) {
-  for (const name of readdirSync(active).filter((n) => n.endsWith(".md"))) {
-    const text = readFileSync(join(active, name), "utf8");
-    const lines = text.split("\n").length - (text.endsWith("\n") ? 1 : 0);
-    if (lines > 200) fail(`docs/tasks/active/${name}: ${lines} lines (limit 200)`);
-    if (!/^## .*(Out of Scope|范围外)/m.test(text)) fail(`docs/tasks/active/${name}: missing "Out of Scope" section`);
-    if (!/^## .*(Stop Conditions|停止条件)/m.test(text)) fail(`docs/tasks/active/${name}: missing "Stop Conditions" section`);
   }
 }
 
@@ -54,7 +43,7 @@ function* markdown(dir) {
     if (path === archivedDir) continue;
     const info = statSync(path);
     if (info.isDirectory()) yield* markdown(path);
-    else if (name.endsWith(".md")) yield path;
+    else if (name.endsWith(".md") && !name.endsWith(".log.md")) yield path;
   }
 }
 const link = /\]\((<[^>]+>|[^)\s]+)(?:\s+"[^"]*")?\)/g;

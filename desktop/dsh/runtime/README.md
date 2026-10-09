@@ -14,7 +14,11 @@
 
 ## 升级与回退规则
 
-每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换，切换后打新基线。回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。完整规则见 [Human Checklist](../../../human-checklist.md)「运行时升级规则：先打基线标签」。旧基线：`baseline/dsh-0.1.2-rc.1`。
+每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换。记录带时区的 ISO 切换时间（例如 `2026-10-09T15:00:00+08:00`），切换后开一个新会话并实际发起请求，运行 `node scripts/audit-session-tools.mjs --since <切换时间>`；退出 0 才算切换完成，再打新基线。
+
+审计沿 `DSH_HOME` / `VRA_DATA_ROOT` 默认路径，自定义配置路径用 `--home` 显式指定，不加载私人配置。只读取预设名与请求头工具名；命中禁用工具退出 1，无工具表或损坏记录退出 2，都不能验收通过。`--since` 用会话目录的文件系统创建时间（平铺日志用文件创建时间），不使用修改时间；复制或恢复目录可能改变创建时间，不能据此证明原逻辑会话年龄，必须另开新会话验证。
+
+回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。共享约束见 [不变量 #16](../../../docs/contracts/invariants.md) 与 [Human Checklist](../../../human-checklist.md)「DSH 运行时与历史会话」。旧基线：`baseline/dsh-0.1.2-rc.1`。
 
 ## 补丁归属
 

@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+git -C "$ROOT" config --local core.hooksPath scripts/hooks
+echo "提交钩子已启用：scripts/hooks（与本仓 worktree 共享）；禁止 --no-verify。"

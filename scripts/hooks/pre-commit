@@ -1,0 +1,9 @@
+#!/usr/bin/env sh
+set -eu
+cd "$(git rev-parse --show-toplevel)"
+node scripts/verify-protocol.mjs
+for gate in verify-docs verify-invariants; do
+  if [ -f "scripts/$gate.mjs" ]; then
+    node "scripts/$gate.mjs"
+  fi
+done
