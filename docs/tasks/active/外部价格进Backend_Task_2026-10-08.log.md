@@ -1,3 +1,10 @@
+
+
+## 2026-10-09 阶段 D 迁移前完整文本
+
+旧规格与历轮交接原文完整保存；SHA-256：`e4d0233fb2fd73bac259189f4a72ce8933cd084de97be5bc7fc50e09eea07ab1`。
+
+~~~~~markdown
 # 外部价格进 Backend（大宗商品与宏观价格）
 
 状态：2026-10-08 Claude 写定，用户确认第一批范围；待派发，可以和[深挖行为与一类推荐 Task](深挖行为与一类推荐_Task_2026-10-08.md)并行。执行方只跑自动检查；不提交、不 push、不重建容器（由用户执行）。实施仓库：Stock-Research（`backend/`、`dsh/`）。
@@ -10,8 +17,7 @@
 
 ## 2. 现状（Claude 核实）
 
-- Backend 行情体系：`backend/app/market/` 下有 provider 注册表（`registry.py` 的 `observe_market`，`bootstrap.py` 按名称注册，已有 `market.hithink` / `market.composite` / `market.eastmoney` / `market.fixture`；`composite` 把个股、行业、大盘分给不同的 provider）。
-  请求模型 `definition.py:107` 的 `MarketObserveRequest` 只支持 `symbol`（个股）、`industry_code`（申万行业）、`market_benchmark_id`（大盘基准）三种尺度。行情成果在 `services/market_result.py`（`generate_market_result`），区间计算在 `services/market_result_analysis.py`（`calculate_market_result`）。
+- Backend 行情体系：`backend/app/market/` 下有 provider 注册表（`registry.py` 的 `observe_market`，`bootstrap.py` 按名称注册，已有 `market.hithink` / `market.composite` / `market.eastmoney` / `market.fixture`；`composite` 把个股、行业、大盘分给不同的 provider）。请求模型 `definition.py:107` 的 `MarketObserveRequest` 只支持 `symbol`（个股）、`industry_code`（申万行业）、`market_benchmark_id`（大盘基准）三种尺度。行情成果在 `services/market_result.py`（`generate_market_result`），区间计算在 `services/market_result_analysis.py`（`calculate_market_result`）。
 - Agent 工具：`observe_market` 的描述是 "an exchange-qualified A-share, a canonical Shenwan industry index, or a broad-market benchmark"，看不到任何外部价格。
 - 产品本地取数目录 `Vibe datasources/CATALOG.md` 中已有：`cn_commodity_futures`（新浪连续合约：沪铜、沪锡、沪铝、沪镍、工业硅；akshare `futures_zh_daily_sina`，无需密钥）、`treasury_yield_curve`（美国财政部，1M–30Y）。这些都在产品本地，Backend 用不到；可以作为数据源的参考，不要求复用其代码。
 - 2026-10-08 国庆外盘那次会话中，伦铝、氧化铝、黄金、美元、美债的数字都只能来自外部网页，无法出图，也无法作为跟踪条件。
@@ -60,11 +66,12 @@ Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend
 
 从注册表移除新 provider 与新尺度，恢复工具描述与快照；已保存的外部价格成果保留，只读。
 
-## 9. 当前交接
+## 9. 执行回填
 
-1. 状态与结论：待派发；原文没有实施回填，本次只迁移为规格、当前交接和同名过程记录。
-2. 改动文件：本 Task 与同名 .log.md；没有改 Backend、DSH 工具、成果或现存测试。
-3. 证据：原 Task 的现状是 Claude 写定的源码核实，不是本轮执行验证；本次只核对文本迁移和文档门禁（真实文件检查），未运行 Provider、联网冒烟或产品测试。
-4. 与规格的偏差及理由：无行为或验收规格变更；仅将长行拆开、保留旧文本至过程记录，并建立六字段交接。
-5. 未覆盖的缺口：外部序列登记、来源可得性、新尺度、工具描述与失败语义均待实施；不能把产品本机已有取数能力当作 Backend 已接入。
-6. 下一步谁做什么：Claude 派发原规格；对应执行方实现并按 §5 验证，用户负责重建和真实出图验收。本轮不承担产品实施。
+（执行方填写；Claude 审阅补记写在「9.x Claude 审阅与补修」。）
+
+~~~~~
+
+### 迁移记录
+
+只在现有句号/分号后机械折行，规格去空白逐字相等；旧规格行数 60，迁移后 61。§9 覆盖为六字段。未运行产品验收，证据等级：真实文本检查。
