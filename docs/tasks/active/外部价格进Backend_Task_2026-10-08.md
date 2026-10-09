@@ -1,12 +1,15 @@
 # 外部价格进 Backend（大宗商品与宏观价格）
 
-状态：2026-10-08 Claude 写定，用户确认第一批范围；待派发，可以和[深挖行为与一类推荐 Task](深挖行为与一类推荐_Task_2026-10-08.md)并行。执行方只跑自动检查；不提交、不 push、不重建容器（由用户执行）。实施仓库：Stock-Research（`backend/`、`dsh/`）。
+状态：2026-10-08 Claude 写定，用户确认第一批范围；2026-10-09 修订后待派发。执行方只跑自动检查；不提交、不 push、不重建容器（由用户执行）。实施仓库：Stock-Research（`backend/`、`dsh/`）。
+修订 1（2026-10-09）：用户确认数据归属与 gbrain 退役方向，provider 快照改由 Backend 自存并从 gbrain 回填，并入本 Task（目标 3、E7–E10）。旧写法见过程记录。
 
-权威：[Human Checklist](../../../human-checklist.md)「深度对话的输入分型与"每轮一类推荐"（2026-10-08）」（观察指标必须包含外部价格，并列出第一批范围；外部价格接入 Backend，与 A 股行情同一套行情成果）；不变量 1（数字回到真实证据）。
+权威：[Human Checklist](../../../human-checklist.md)「资料、来源与数据能力」（外部价格接入同一行情成果链）与「系统职责与数据归属」（provider 快照由 Backend 自存）；[数据归属与 gbrain 退役](../../decisions/proposed/数据归属与gbrain退役_讨论记录_2026-10-09.md) §2③、§6；不变量 1（数字回到真实证据）。
 
 ## 1. 目标
 
-把第一批外部价格接入 Backend 行情体系，让 Agent 能够观察、出图、计算这些价格，并把它们作为跟踪条件的数据来源。
+1. 把第一批外部价格接入 Backend 行情体系，让 Agent 能够观察、出图、计算这些价格，并把它们作为跟踪条件的数据来源。
+2. 外部价格与 A 股行情同样产生不可修改、可回读的成果。
+3. `provider:` 引用的回读不再依赖 gbrain：Backend 在返回取数结果时自存快照，历史快照从 gbrain 一次性回填。
 
 ## 2. 现状（Claude 核实）
 
@@ -14,6 +17,9 @@
   请求模型 `definition.py:107` 的 `MarketObserveRequest` 只支持 `symbol`（个股）、`industry_code`（申万行业）、`market_benchmark_id`（大盘基准）三种尺度。行情成果在 `services/market_result.py`（`generate_market_result`），区间计算在 `services/market_result_analysis.py`（`calculate_market_result`）。
 - Agent 工具：`observe_market` 的描述是 "an exchange-qualified A-share, a canonical Shenwan industry index, or a broad-market benchmark"，看不到任何外部价格。
 - 产品本地取数目录 `Vibe datasources/CATALOG.md` 中已有：`cn_commodity_futures`（新浪连续合约：沪铜、沪锡、沪铝、沪镍、工业硅；akshare `futures_zh_daily_sina`，无需密钥）、`treasury_yield_curve`（美国财政部，1M–30Y）。这些都在产品本地，Backend 用不到；可以作为数据源的参考，不要求复用其代码。
+- `provider:` 引用（2026-10-09 核实）：由 `services/provider_refs.py` 按来源、代码、指标、取数时点、数值、单位、口径计算内容哈希；取数结果只在会被覆盖的缓存 `tmp/company-financials/*.json`。
+  只有被写进 Wiki 页并发布的条目才留在 gbrain `page_versions`；`/refs/resolve`（`api/v1/wiki.py:597`）与跟踪项写入校验（`:1059`）都只经 `GBrainAdapter.provider_snapshot` 解析。
+  现存引用：会话 678 条（149 个会话）、Wiki 页 339、Wiki 报告 292、草案 83、记忆 58。成果表 `research_results` 与 alembic 迁移可沿用。
 - 2026-10-08 国庆外盘那次会话中，伦铝、氧化铝、黄金、美元、美债的数字都只能来自外部网页，无法出图，也无法作为跟踪条件。
 
 ## 3. 冻结决定
@@ -30,25 +36,36 @@ E4. **复用现有成果链**：`observe_market`、`generate_market_result`、`c
 E5. 工具描述同步更新，说明可以观察哪些外部序列，以及标识的写法。允许插件提供一个列出已登记序列的只读能力（或写在描述里），以便推荐工具判断"指标是否有数据来源"。
 E6. 失败语义：来源不可用时返回明确的缺口（哪个序列、什么原因），不回退到网页数字，也不编造数据。非交易日按最近交易日返回，并标明实际日期。
 
+E7. **provider 快照自存**：Backend 新增只追加的快照表（alembic 迁移），以 `provider:` 引用为键，保存来源、代码、指标、取数时点、数值、单位、口径与入库时间。
+公司财务与估值取数（`company_financials` 等产生 `provider:` 引用的路径）在把结果返回给调用方之前写入；同一引用重复写入幂等，内容不同则拒绝并报错。不改变 `provider_ref` 的计算方式，已有引用必须保持可解析。
+E8. **解析改道**：`/refs/resolve` 与跟踪项写入校验改为只查快照表；移除对 `GBrainAdapter.provider_snapshot` 的调用。找不到时返回现有的 `provider_snapshot_not_found_or_ambiguous`。
+E9. **一次性回填**：新增幂等脚本，从 gbrain `pages` 与 `page_versions` 的 frontmatter 中按现有 `unique_provider_snapshot` 规则取出全部 provider 条目写入快照表；同一引用出现不同内容时记为歧义、不写入。
+脚本先以只读预演输出统计（总数、可写入、歧义、已存在），再正式写入；写入行标记来源为回填，便于回滚。
+E10. **核对不倒退**：回填前后各统计一次会话、Wiki 页、报告、草案、记忆中出现的唯一 `provider:` 引用可解析数；回填后不得少于回填前。只统计引用与计数，不读对话正文。
+
 ## 4. 范围
 
-Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend/app/services/market_result*.py`、相关接口与测试；`dsh/src/` 中行情相关工具的描述与参数；模型可见面快照中涉及这些工具的角色（差异只能是这几个工具的描述与参数）。
+Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend/app/services/market_result*.py`、相关接口与测试；provider 快照表的 alembic 迁移、写入点（`services/company_financials.py` 等）、`services/ref_resolver.py` 与 `api/v1/wiki.py` 的两处解析、回填脚本及其测试；`dsh/src/` 中行情相关工具的描述与参数；模型可见面快照中涉及这些工具的角色（差异只能是这几个工具的描述与参数）。
 
 ## 5. 验收
 
 **执行方自动检查**
 - Backend：`uv run pytest` 跑相关测试并通过。新增测试使用固定夹具（不联网），覆盖：登记表校验、未登记标识被拒、新尺度的观察、出图、区间计算、来源不可用时的缺口返回、非交易日的处理。
+- provider 快照新增测试（固定夹具）：取数后快照入表；同一引用幂等、内容冲突被拒；解析在 gbrain 不可用时仍成功；回填脚本对含歧义的夹具输出正确统计并跳过歧义项；回滚只删除回填行。
 - 另写一个联网冒烟脚本（不进 CI），逐个拉取第一批序列的最近 30 天数据，结果写进回填：每个序列是否可得、最新日期、单位。
 - Stock `dsh/` 下 `pnpm test` 通过；快照差异只涉及行情工具的描述与参数，并在回填中贴出。
 - Vibe 根目录 `node scripts/verify-docs.mjs` 通过。
 
-**执行方回填**：登记表全文（标识、名称、单位、来源、口径）；联网冒烟结果；不可得的序列及替代方案；改动文件清单。
+**执行方回填**：登记表全文（标识、名称、单位、来源、口径）；联网冒烟结果；不可得的序列及替代方案；回填脚本的预演与正式统计；E10 前后可解析数；改动文件清单。
 
-**用户验收（由用户重建 Backend 并重启工作台）**：在深度对话中问"国庆期间伦铝和沪铝走势如何"，回答里有伦铝、沪铝的行情图（单位、口径、日期正确），数字能点回成果。
+**用户验收（由用户重建 Backend 并重启工作台）**
+1. 在深度对话中问"国庆期间伦铝和沪铝走势如何"，回答里有伦铝、沪铝的行情图（单位、口径、日期正确），数字能点回成果。
+2. 打开一个旧会话里带公司财务数字的回答，点数字能回到当时的取数快照；新问一次公司财务问题，数字同样能点回。
 
 ## 6. Out of Scope
 
-港股、美股；分钟级行情；期货指定合约与换月细节（只做主力连续）；跟踪的定期检查与推送；产品本地取数层的改造。
+港股、美股；分钟级行情；期货指定合约与换月细节（只做主力连续）；跟踪的定期检查与推送；产品本地取数层的改造；
+gbrain 其余职责（搜索、页面链接、发布管线）与 Wiki 迁移（归数据归属迁移 Task）；`provider:` 以外的引用类型。
 
 ## 7. Stop Conditions
 
@@ -56,15 +73,19 @@ Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend
 - 新尺度需要改变现有 A 股、行业、大盘行情的语义或成果格式：停下。
 - 需要把密钥交给插件或产品前端：停下。
 
+- 回填预演中歧义项超过总数的 5%，或 E10 回填后可解析数少于回填前：停下回填，不切换解析路径。
+- 自存需要改变 `provider_ref` 的计算方式或已有引用格式：停下。
+
 ## 8. 回滚
 
 从注册表移除新 provider 与新尺度，恢复工具描述与快照；已保存的外部价格成果保留，只读。
+provider 快照：解析改回 `GBrainAdapter.provider_snapshot`；删除标记为回填的行；快照表本身保留只读（迁移不回退，避免丢失新写入的快照）。
 
 ## 9. 当前交接
 
-1. 状态与结论：待派发；原文没有实施回填，本次只迁移为规格、当前交接和同名过程记录。
+1. 状态与结论：修订 1 完成，待派发；尚无实施。
 2. 改动文件：本 Task 与同名 .log.md；没有改 Backend、DSH 工具、成果或现存测试。
-3. 证据：原 Task 的现状是 Claude 写定的源码核实，不是本轮执行验证；本次只核对文本迁移和文档门禁（真实文件检查），未运行 Provider、联网冒烟或产品测试。
-4. 与规格的偏差及理由：无行为或验收规格变更；仅将长行拆开、保留旧文本至过程记录，并建立六字段交接。
-5. 未覆盖的缺口：外部序列登记、来源可得性、新尺度、工具描述与失败语义均待实施；不能把产品本机已有取数能力当作 Backend 已接入。
-6. 下一步谁做什么：Claude 派发原规格；对应执行方实现并按 §5 验证，用户负责重建和真实出图验收。本轮不承担产品实施。
+3. 证据：§2 新增现状为 Claude 2026-10-09 源码与数据只读核实（真实）；未运行 Provider、联网冒烟、回填或产品测试。
+4. 与规格的偏差及理由：无；范围扩大来自用户裁决（数据归属与 gbrain 退役），见修订 1。
+5. 未覆盖的缺口：外部序列可得性、快照表结构、回填歧义比例均待实施时确认。
+6. 下一步谁做什么：Claude 派发；执行方按 §5 实施并回填；用户重建 Backend 后按 §5 用户验收两项核对。
