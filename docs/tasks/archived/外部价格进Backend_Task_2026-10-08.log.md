@@ -1885,3 +1885,194 @@ git diff --check
 - E10. **核对不倒退**：
 - Stock `backend/app/market/`（新尺度、新 provider、登记表）
 - - 另写一个联网冒烟脚本（不进 CI），逐个拉取第一批序列的最近 30 天数据，结果写进回填：每个序列是否可得、最新日期、单位。
+
+## 2026-10-09 修订 2 第二轮：E11 美债来源、E12 成果单位
+
+本轮仅实施 E11、E12。先完整读取 Task（含修订 1、2、§9）与本日志末尾 Claude 审阅段，再核对两仓 AGENTS、README、Backend README、两仓协议及图表成果契约。使用 task-driven-dev 技能，以仓库协议为准。未运行迁移、回填写入、数据库统计；0012 与 551 行写入及 E10 数值沿用上轮 Claude 的真实记录，不冒充本轮重验。
+
+### 实施与证据边界
+
+- E11：`macro:UST10Y` 改为 `eastmoney.treasury_yield`，字段 `EMG00001310`。请求东方财富数据中心 `RPTA_WEB_TREASURYYIELD`，只取日期、美国十年期字段，不传 token、不需要密钥。保留原百分数，JSON 小数按字符串解析；空值行跳过，不代填中国收益率；失败、空数据、缺字段仍返回带身份与来源的明确缺口。
+- 日线截至日期参数使用接口实际支持的单引号格式；最多取 500 条源记录，当前实际覆盖近两年，足够本次最近 30 天与成果最近一年。更早的不可用请求沿既有缺口语义返回，不编历史。来源名称、字段、单位、币种、时点、口径仍随成果保存。删除不可用财政部 XML 分支，无网页数字回退，无 FRED/付费源引入。
+- 口径改为“东方财富每日美国10年期国债收益率，百分数，非债券价格”，不再声称财政部平价收益率。接口与字段线索取自 [AKShare 官方实现](https://github.com/akfamily/akshare/blob/main/akshare/bond/bond_em.py)，本轮真实请求确认省略公开示例 token 也可用；没有读用户凭据。
+- E12：价格单位优先使用保存的 `close` 列单位，其次成果顶层 `unit`，无单位不猜“元”。图注沿用保存的 basis/adjustment；数据表沿用保存列单位。计算输入表头不写死元。外部 candlestick 走已有 EChart 配置，轴名显示保存单位；A 股 candlestick 仍走原 MarketChart，line 仍为元，前复权显示保留。
+- 新增 6 项 desktop 用例真实执行 ResultCard、切换数据标签，覆盖美元/吨、元/吨、%、外部 K 线和折线、A 股 K 线和折线、单位优先级与缺失回退。HTTP 用 MockTransport，desktop 用 happy-dom，canvas/chart、无关来源和下载控件使用替身；不证明真实 ECharts 绘制、浏览器布局或用户视觉验收。
+- 自查发现第一轮 `observe_market` 工具描述仍写 `Treasury is par yield in percent`。本轮用户限定 Stock backend 与 Vibe 成果组件，不修改 dsh 源码或快照。交 Claude 审阅时核对这处旧措辞；模型应读取成果真实保存口径。DSH 本轮没有新增快照差异，既有第一轮四角色快照保留。
+- 未提交、push、暂存、重建容器或重启服务；未改 citation_* 及测试、pyproject.toml、uv.lock；未改另一线 desktop/dsh-dev.ts、desktop/test/dsh_dev_experiment.test.ts、scripts/evaluate-vibe-components*。
+
+### 本轮文件清单
+
+Stock：
+
+1. `backend/app/market/providers/external.py`
+2. `backend/app/market/external_catalog.py`
+3. `backend/tests/test_market_external.py`
+
+Vibe：
+
+1. `desktop/src/verticals/finance/components/ResearchResult.tsx`
+2. `desktop/test/research_result_units.test.ts`
+3. 本 Task §9 与同名 `.log.md`
+
+### 当前登记表全文与最终联网结果
+
+频率均 daily。下表是本轮最终冒烟，覆盖最近 30 日；共 13 项，0 失败，未触发 §7。不可得序列为空，无需替代方案。
+
+| 标识 | 名称 | 单位 | 币种 | 交易所/类别 | 来源与字段 | 口径 | 可用 | 最新日期 | 点数 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| cmdty:SHFE.AL | 沪铝 | 元/吨 | CNY | SHFE | sina.domestic / AL0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:SHFE.AO | 氧化铝 | 元/吨 | CNY | SHFE | sina.domestic / AO0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:SHFE.CU | 沪铜 | 元/吨 | CNY | SHFE | sina.domestic / CU0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:SHFE.AU | 沪金 | 元/克 | CNY | SHFE | sina.domestic / AU0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:SHFE.AG | 沪银 | 元/千克 | CNY | SHFE | sina.domestic / AG0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:INE.SC | 原油 | 元/桶 | CNY | INE | sina.domestic / SC0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:SHFE.RB | 螺纹钢 | 元/吨 | CNY | SHFE | sina.domestic / RB0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:DCE.JM | 焦煤 | 元/吨 | CNY | DCE | sina.domestic / JM0 | 主力连续，未复权，收盘价 | 是 | 2026-10-08 | 16 |
+| cmdty:LME.AL | LME 铝 | 美元/吨 | USD | LME | sina.foreign / AHD | 3个月期货，新浪日线收盘价 | 是 | 2026-10-09 | 23 |
+| cmdty:LME.CU | LME 铜 | 美元/吨 | USD | LME | sina.foreign / CAD | 3个月期货，新浪日线收盘价 | 是 | 2026-10-09 | 23 |
+| cmdty:COMEX.GC | COMEX 黄金 | 美元/金衡盎司 | USD | COMEX | sina.foreign / GC | 新浪连续期货日线收盘价，非指定合约 | 是 | 2026-10-09 | 23 |
+| macro:DXY | 美元指数 | 指数点 | USD | ICE | eastmoney.index / 100.UDI | 美元指数日线收盘点位，非期货合约 | 是 | 2026-10-09 | 23 |
+| macro:UST10Y | 10年期美债收益率 | % | USD | 美国国债 | eastmoney.treasury_yield / EMG00001310 | 东方财富每日美国10年期国债收益率，百分数，非债券价格 | 是 | 2026-10-08 | 22 |
+
+### 完整验证命令、结果与失败处理
+
+下列命令均在原有环境运行，无依赖安装；`uv --no-sync` 防止同步既有依赖文件。Stock 写文件、uv 与联网命令采用授权执行；DSH 首次沙箱写 dist 被拒，授权重跑成功，没有自动审批拒绝。
+
+```sh
+cd /Users/apple/ts/src/Stock-Research/backend
+uv run --no-sync pytest -q tests/test_market_external.py tests/test_research_results.py tests/test_market_definition.py tests/test_market_composite.py tests/test_wiki_market_observe.py
+```
+
+首次 exit 1，52 passed、1 failed：新美债夹具只有一个有效交易日，观察接口按既有 aligned_window 要求至少两个交易日而拒绝。修正夹具为两个有效日及一个 null 日，保留校验，不改生产计算或观察契约。第二次完整命令：
+
+```sh
+cd /Users/apple/ts/src/Stock-Research/backend
+uv run --no-sync pytest -q tests/test_market_external.py tests/test_research_results.py tests/test_market_definition.py tests/test_market_composite.py tests/test_wiki_market_observe.py > /private/tmp/t3-round2-backend.log 2>&1
+```
+
+结果 exit 0，53 passed，1 项既有 StarletteDeprecationWarning，0.25s。固定夹具证据，未连接新表或运行服务。
+
+```sh
+cd /Users/apple/ts/src/Stock-Research/dsh
+pnpm test > /private/tmp/t3-round2-dsh.log 2>&1
+```
+
+首次 exit 2，构建 tsc 写 dist/*.js、*.d.ts 时 EPERM，测试未执行。授权执行同一检查，完整命令：
+
+```sh
+cd /Users/apple/ts/src/Stock-Research/dsh
+pnpm test > /private/tmp/t3-round2-dsh-final.log 2>&1
+```
+
+结果 exit 0，240 tests / 240 pass / 0 fail / 0 skip；模型可见面快照测试通过，无快照刷新。本轮未修改 DSH 源码、快照或依赖。
+
+```sh
+cd /Users/apple/ts/src/Vibe-Deep-Research
+node --test desktop/test/research_result_units.test.ts desktop/test/market_chart.test.ts
+npm run typecheck --prefix desktop
+```
+
+结果分别 exit 0：10 tests / 10 pass / 0 fail（新增单位测试 6 项，既有行情测试 4 项）；tsc --noEmit 通过。
+
+```sh
+cd /Users/apple/ts/src/Stock-Research/backend
+uv run --no-sync python scripts/smoke_external_prices.py > /private/tmp/t3-round2-smoke.jsonl 2>&1
+```
+
+本轮全序列冒烟执行一次，exit 0，最终 `{"total":13,"failed":0,"stop_condition":false}`；每项日期、单位、来源、口径与点数见上表。此结果替代第一轮修正前及 Claude 12/13 的旧冒烟作为当前最终结果，不把一次可用说成长期稳定或模型验收。
+
+```sh
+cd /Users/apple/ts/src/Vibe-Deep-Research
+node scripts/verify-docs.mjs
+node scripts/verify-invariants.mjs
+node scripts/verify-protocol.mjs
+git diff --check
+cd /Users/apple/ts/src/Stock-Research
+node scripts/verify-protocol.mjs
+git diff --check
+```
+
+交接写入前全部 exit 0，分别 verify-docs: ok、verify-invariants: ok、verify-protocol: ok，两仓 diff 无空白错误。交接写入后复跑结果追加在本段末尾。
+
+### 来源只读探针与遇到的接口限制
+
+在 Stock/backend 授权执行下列首次探针；无凭据、无数据库读写。HTTP 200，success true，500 行，最新日期 2026-10-08，确认美国十年期字段可得。
+
+```sh
+uv run --no-sync python - <<'PY'
+import httpx, json
+url='https://datacenter.eastmoney.com/api/data/get'
+params={'type':'RPTA_WEB_TREASURYYIELD','sty':'SOLAR_DATE,EMG00001310','st':'SOLAR_DATE','sr':'-1','p':'1','ps':'500'}
+with httpx.Client(timeout=20, trust_env=False) as client:
+    response=client.get(url,params=params)
+    response.raise_for_status()
+    body=response.json()
+    result=body.get('result') or {}
+    rows=result.get('data') or []
+    print(json.dumps({'status':response.status_code,'success':body.get('success'),'message':body.get('message'),'pages':result.get('pages'),'count':len(rows),'first':rows[:2]},ensure_ascii=False))
+PY
+```
+
+返回 pages 19，最新两条美国十年期收益率分别为 2026-10-08：5.22，2026-10-07：5.28。无需 token 的实际证据。
+
+```sh
+uv run --no-sync python - <<'PY'
+import httpx, json
+params={'type':'RPTA_WEB_TREASURYYIELD','sty':'SOLAR_DATE,EMG00001310','st':'SOLAR_DATE','sr':'-1','p':'1','ps':'2000','filter':'(SOLAR_DATE<="2026-10-09")'}
+with httpx.Client(timeout=20,trust_env=False) as client:
+    r=client.get('https://datacenter.eastmoney.com/api/data/get',params=params)
+    r.raise_for_status()
+    b=r.json()
+    rows=b['result']['data']
+    valid=[row for row in rows if row.get('EMG00001310') is not None]
+    print(json.dumps({'success':b['success'],'count':len(rows),'valid':len(valid),'latest':valid[0]['SOLAR_DATE'],'oldest':valid[-1]['SOLAR_DATE'],'keys':list(rows[0])},ensure_ascii=False))
+PY
+```
+
+exit 1，TypeError: 'NoneType' object is not subscriptable。独立探针拆分两参数以定位接口限制：
+
+```sh
+uv run --no-sync python - <<'PY'
+import httpx, json
+base={'type':'RPTA_WEB_TREASURYYIELD','sty':'SOLAR_DATE,EMG00001310','st':'SOLAR_DATE','sr':'-1','p':'1','ps':'500'}
+with httpx.Client(timeout=20,trust_env=False) as client:
+    for extra in ({'ps':'2000'}, {'filter':'(SOLAR_DATE<="2026-10-09")'}):
+        r=client.get('https://datacenter.eastmoney.com/api/data/get',params={**base,**extra})
+        b=r.json(); rows=(b.get('result') or {}).get('data') or []
+        print(json.dumps({'extra':extra,'success':b.get('success'),'message':b.get('message'),'count':len(rows),'first':rows[:1],'last':rows[-1:]},ensure_ascii=False))
+PY
+```
+
+exit 0。ps 2000 仍只返回 500 条，范围 2024-11-18 至 2026-10-08；双引号 filter 返回 success false、日期参数格式错误。以下单引号最终探针成功：
+
+```sh
+uv run --no-sync python - <<'PY'
+import httpx, json
+params={'type':'RPTA_WEB_TREASURYYIELD','sty':'SOLAR_DATE,EMG00001310','st':'SOLAR_DATE','sr':'-1','p':'1','ps':'500','filter':"(SOLAR_DATE<='2026-10-09')"}
+with httpx.Client(timeout=20,trust_env=False) as client:
+    r=client.get('https://datacenter.eastmoney.com/api/data/get',params=params)
+    b=r.json(); rows=(b.get('result') or {}).get('data') or []
+    print(json.dumps({'success':b.get('success'),'message':b.get('message'),'count':len(rows),'first':rows[:1],'last':rows[-1:]},ensure_ascii=False))
+PY
+```
+
+exit 0，success true、message ok、500 条，同一历史范围。实现使用此已验证参数格式，并显式检查业务 success，避免 HTTP 200 的业务错误伪装为行情。
+
+### 自查、收尾三问与下一步
+
+本轮自查对照 E11/E12 与 §7，没有需停下的对应子项；没有执行独立 Claude 审阅。重要差异为外部 K 线复用 EChart、美国十年期收益率从 Treasury 口径改为东方财富每日字段口径；均保留源值与旧成果，不改变现有 A 股语义。
+
+1. 长期理由：本轮源切换证据、口径边界和无需 token 可用性已记录；没有新增人类设计决定，不另建 decision。
+2. 反复验收：美国十年期正确字段、无密钥、空值与失败拒绝以及成果单位/A 股回归已固化为测试；真实视觉与模型仍交用户。
+3. 反复错误：未出现重复同一生产行为补丁，不增门禁。首次失败来自新夹具不足两个交易日，按现有契约修正；沙箱 EPERM 按授权执行环境处理。
+
+下一步 Claude 审阅本轮 5 个源码/测试文件，核对旧 DSH par yield 措辞并复跑门禁；用户再部署与按 §5 验收。执行方回填后停下，不运行上轮已完成的 0012 或 551 行回填写入。
+
+交接写入后的最终门禁：Vibe `node scripts/verify-docs.mjs`、`node scripts/verify-invariants.mjs`、`node scripts/verify-protocol.mjs` 均 exit 0 / ok，`git diff --check` exit 0；Stock `node scripts/verify-protocol.mjs` exit 0 / ok，`git diff --check` exit 0。两仓检查全部通过，未改门禁或扩大测试范围，执行到此停止。
+
+
+## 2026-10-09 第二轮审阅、用户验收与收尾
+
+- 第二轮审阅：E11 改用东方财富 `EMG00001310`，冒烟 13/13；E12 价格轴、表头、均线输入表读保存单位，外部序列走通用图表，A 股仍走 K 线组件。Claude 复跑 Backend 56、DSH 240、desktop 相关 10 项通过，类型检查通过。DSH 描述中"par yield"沿用：美国国债收益率曲线惯例为平价口径，不改描述以免重生成快照。
+- 用户验收：重建 Backend、带 S0 实验开关重启工作台后问国庆伦铝沪铝走势，两图单位正确；旧会话财务数字可回到快照。会话 `session-a57796ec…`：1 轮 8 步、107 秒、444K tokens（缓存 82%）；`AL.SHF` 被拒后自纠；`macro:DXY` 两次 `ConnectError` / `ReadError`，正文如实写明缺口；`search_external` 1 次成功（exa，8 条）；未调用 Wiki、资料库、笔记或产业研究。
+- 收尾三问：需要长期保留的"为什么"已在[数据归属与 gbrain 退役](../../decisions/proposed/数据归属与gbrain退役_讨论记录_2026-10-09.md)，不另写决定；可重复验收已成为外部序列与快照的固定夹具测试和联网冒烟脚本；反复犯的错：Claude 给执行方的提示词把联网冒烟限制为"只跑一次"，导致修正后无法复验，以后限制写入次数而不限制只读验证次数（记入本记录，不新增不变量）。

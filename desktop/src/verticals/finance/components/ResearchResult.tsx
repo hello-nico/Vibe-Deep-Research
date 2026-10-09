@@ -16,7 +16,7 @@ const loadingSections = ['图表', '数据', '来源'];
 type Row = Record<string, string | null>;
 interface Result {
   result_id: string;
-  payload: { title: string; kind: string; chart: string; as_of: string; fetched_at: string; adjustment?: string; basis?: string; series?: string[];
+  payload: { title: string; kind: string; chart: string; as_of: string; fetched_at: string; adjustment?: string; basis?: string; unit?: string; external_series_id?: string; series?: string[];
     rows: Row[]; columns: { key: string; label: string; unit: string }[];
     missing: string[]; sources: ResultSource[]; calculations?: { windows: number[]; rounding: string; inputs: Row[] } | [] };
 }
@@ -91,6 +91,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
   const missing = listOrEmpty(payload?.missing);
   const sources = listOrEmpty(payload?.sources);
   const columns = listOrEmpty(payload?.columns);
+  const priceUnit = columns.find(column => column.key === 'close')?.unit || payload.unit || '';
   const rows = useMemo(() => {
     const all = listOrEmpty(payload?.rows);
     return range ? all.slice(-range) : all;
@@ -109,7 +110,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       animation: false, tooltip: { trigger: 'axis' }, legend: { top: 0 },
       grid: [{ left: 65, right: 25, top: 45, height: '57%' }, { left: 65, right: 25, top: '76%', height: '14%' }],
       xAxis: [0, 1].map(gridIndex => ({ type: 'category', gridIndex, data: rows.map(row => row.trading_day), axisLabel: { show: gridIndex === 1 } })),
-      yAxis: [{ scale: true, name: '元' }, { gridIndex: 1, scale: true, name: columns.find(c => c.key === 'volume')?.unit }],
+      yAxis: [{ scale: true, name: priceUnit }, { gridIndex: 1, scale: true, name: columns.find(c => c.key === 'volume')?.unit }],
       axisPointer: { link: [{ xAxisIndex: 'all' }] },
       series: [
         payload?.chart === 'candlestick'
@@ -119,7 +120,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
         { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: rows.map(row => number(row.volume)), itemStyle: { color: '#94a3b8' } },
       ],
     };
-  }, [rows, payload, columns]);
+  }, [rows, payload, columns, priceUnit]);
   return <section className="my-4 w-full min-w-0 rounded-2xl border bg-background p-5" aria-label={payload.title}>
     <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
       <div><h3 className="font-semibold">{payload.title}</h3>{presentation === 'report' && <p className="text-xs text-muted-foreground">截至 {payload.as_of} · {payload.basis ?? (payload.adjustment === 'forward_adjusted' ? '前复权' : payload.adjustment)}</p>}</div>
@@ -138,7 +139,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
     </div>
     {downloadError && <p role="alert">{downloadError}</p>}
     {payload.kind === 'market' && <label className="mb-3 flex flex-wrap items-center gap-3 text-sm">显示范围 <WorkspaceSelect aria-label="显示范围" value={String(range)} onChange={next => setRange(Number(next))} options={[{ value: "0", label: "全部已取数据" }, { value: "20", label: "最近20个交易日" }, { value: "60", label: "最近60个交易日" }]} /></label>}
-    {table ? <div className="mt-4 max-h-[60vh] overflow-auto"><table className="w-full whitespace-nowrap text-right text-sm tabular-nums"><thead><tr>{columns.map(column => <th className="p-2" key={column.key}>{column.label}{column.unit && `（${column.unit}）`}</th>)}</tr></thead><tbody>{rows.map(row => <tr className="border-t" key={row.trading_day ?? row.period}>{columns.map(column => <td className="p-2" key={column.key}>{financialNumber(row[column.key], column.unit === '股' ? 0 : column.unit ? 2 : undefined)}</td>)}</tr>)}</tbody></table></div> : payload.kind === 'market' && payload.chart === 'candlestick'
+    {table ? <div className="mt-4 max-h-[60vh] overflow-auto"><table className="w-full whitespace-nowrap text-right text-sm tabular-nums"><thead><tr>{columns.map(column => <th className="p-2" key={column.key}>{column.label}{column.unit && `（${column.unit}）`}</th>)}</tr></thead><tbody>{rows.map(row => <tr className="border-t" key={row.trading_day ?? row.period}>{columns.map(column => <td className="p-2" key={column.key}>{financialNumber(row[column.key], column.unit === '股' ? 0 : column.unit ? 2 : undefined)}</td>)}</tr>)}</tbody></table></div> : payload.kind === 'market' && payload.chart === 'candlestick' && !payload.external_series_id
       ? <MarketChart rows={rows} title={payload.title} onReady={readyMarket} />
       : presentation === 'report' && payload.kind === 'financial'
         ? <ReportFinancialChart rows={rows} series={payload.series ?? []} columns={columns} onReady={readyMarket} />
@@ -149,7 +150,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
     {payload.calculations && !Array.isArray(payload.calculations) && <details className="mt-3 text-sm">
       <summary className="cursor-pointer">均线口径与计算输入</summary>
       <p className="my-2">均线为含当日在内最近 {payload.calculations.windows.join('／')} 个交易日收盘价的算术平均；不足对应天数时不计算。{payload.calculations.rounding}。</p>
-      <div className="max-h-64 overflow-auto"><table className="w-full text-right tabular-nums"><thead><tr><th>日期</th><th>收盘价（元）</th></tr></thead><tbody>{payload.calculations.inputs.map(row => <tr key={row.trading_day}><td>{row.trading_day}</td><td>{financialNumber(row.close, 2)}</td></tr>)}</tbody></table></div>
+      <div className="max-h-64 overflow-auto"><table className="w-full text-right tabular-nums"><thead><tr><th>日期</th><th>收盘价{priceUnit && `（${priceUnit}）`}</th></tr></thead><tbody>{payload.calculations.inputs.map(row => <tr key={row.trading_day}><td>{row.trading_day}</td><td>{financialNumber(row.close, 2)}</td></tr>)}</tbody></table></div>
     </details>}
     <div className="conversation-citations mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">来源：{sources.map((source, index) => <EvidenceLink key={index} reference={`provider:${sourceKey}:${index}`} snapshot={resultSourceText(source, payload.fetched_at)}>{sourceName(source.title)}{source.endpoint?.includes('income-statements') ? ' · 利润表' : source.endpoint?.includes('cash-flow-statements') ? ' · 现金流量表' : ''}</EvidenceLink>)}<span>获取时间 {new Date(payload.fetched_at).toLocaleString()}</span></div>
   </section>;
