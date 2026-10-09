@@ -34,6 +34,21 @@ function sendJson(res: ServerResponse, status: number, body: string, extra: Reco
   res.end(body);
 }
 
+export function dshLaunchArgs(runtime: string, overlay: string, target: string, origin: string,
+  experimentPatch: string | undefined = process.env.VRA_DSH_EXPERIMENT_PATCH) {
+  if (experimentPatch !== undefined) {
+    if (!path.isAbsolute(experimentPatch)) throw new Error("VRA_DSH_EXPERIMENT_PATCH 必须为实验叠加层文件的绝对路径");
+    let isFile = false;
+    try { isFile = fs.statSync(experimentPatch).isFile(); } catch { /* Report only the experiment error. */ }
+    if (!isFile) throw new Error("VRA_DSH_EXPERIMENT_PATCH 必须指向已存在的文件");
+  }
+  return [path.join(runtime, "node_modules/@deepseek-ai/dsh/lib/bin.js"),
+    "--profile", "web", "--patch", overlay,
+    ...(experimentPatch === undefined ? [] : ["--patch", experimentPatch]),
+    "--no-open", "--port", new URL(target).port, "--trusted-host", new URL(origin).host,
+  ];
+}
+
 /** Serve DSH's original Web entry. Product code is loaded by its plugin manifest. */
 export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
   const paths = resolveDshPaths(repoRoot);
@@ -47,6 +62,9 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     if (process.env.VRA_LAN === "1") throw new Error("研究工作台仅支持本机访问");
     const port = development ? server.config.server.port : server.config.preview.port;
     origin = `http://127.0.0.1:${port}`;
+    const overlay = path.join(paths.home, "finance-runtime.patch.yml");
+    const experimentPatch = process.env.VRA_DSH_EXPERIMENT_PATCH;
+    const launchArgs = dshLaunchArgs(paths.runtime, overlay, target, origin, experimentPatch);
     prepareDshPaths(paths);
     fs.writeFileSync(path.join(paths.dataRoot, 'dsh-model.json'), JSON.stringify({ origin }), { mode: 0o600 });
     const profile = path.join(paths.home, "profiles/web/package.json");
@@ -81,7 +99,6 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     if (!fs.existsSync(bundle)) throw new Error("产品 UI 插件缺少构建产物，请运行 scripts/setup");
     // Only the preset root depends on this installation's absolute path.
     // Fixed product composition and permissions live in finance-ui/cordis.patch.yml.
-    const overlay = path.join(paths.home, "finance-runtime.patch.yml");
     fs.writeFileSync(overlay, JSON.stringify([{ id: "agent-presets", config: {
       default: "vibe",
     } }], null, 2));
@@ -94,9 +111,8 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
       VRA_FINANCE_DATA_ROOT: paths.dataRoot,
     });
     console.error(`[dsh] 传递 DSH 的环境键（${Object.keys(dshEnv).length}）:${Object.keys(dshEnv).sort().join(", ")}`);
-    const child = spawn(process.execPath, [path.join(paths.runtime, "node_modules/@deepseek-ai/dsh/lib/bin.js"),
-      "--profile", "web", "--patch", overlay, "--no-open", "--port", new URL(target).port, "--trusted-host", new URL(origin).host,
-    ], { cwd: paths.workspace, env: dshEnv, stdio: ["ignore", "pipe", "pipe"] });
+    if (experimentPatch !== undefined) console.error(`[dsh] 已加载实验叠加层：${path.basename(experimentPatch)}`);
+    const child = spawn(process.execPath, launchArgs, { cwd: paths.workspace, env: dshEnv, stdio: ["ignore", "pipe", "pipe"] });
     child.on("error", () => { failure = "DSH 进程无法启动，请检查运行环境"; console.error(`[dsh] ${failure}`); });
     child.on("exit", (code, signal) => { cookie = ""; failure = `DSH 服务已停止（退出码 ${code}，信号 ${signal ?? "无"}）`; console.error(`[dsh] ${failure}`); });
     child.stderr.on("data", () => { /* Runtime diagnostics may contain credentials. */ });
