@@ -2,6 +2,7 @@
 
 状态：2026-10-08 Claude 写定，用户确认第一批范围；2026-10-09 修订后待派发。执行方只跑自动检查；不提交、不 push、不重建容器（由用户执行）。实施仓库：Stock-Research（`backend/`、`dsh/`）。
 修订 1（2026-10-09）：用户确认数据归属与 gbrain 退役方向，provider 快照改由 Backend 自存并从 gbrain 回填，并入本 Task（目标 3、E7–E10）。旧写法见过程记录。
+修订 2（2026-10-09）：第一轮审阅后，美债来源不可用、Vibe 成果卡片单位写死；范围加入 Vibe `ResearchResult` 单位显示（E12）与美债替代来源（E11），冒烟不限次数。旧写法见过程记录。
 
 权威：[Human Checklist](../../../human-checklist.md)「资料、来源与数据能力」（外部价格接入同一行情成果链）与「系统职责与数据归属」（provider 快照由 Backend 自存）；[数据归属与 gbrain 退役](../../decisions/proposed/数据归属与gbrain退役_讨论记录_2026-10-09.md) §2③、§6；不变量 1（数字回到真实证据）。
 
@@ -41,18 +42,22 @@ E7. **provider 快照自存**：Backend 新增只追加的快照表（alembic �
 E8. **解析改道**：`/refs/resolve` 与跟踪项写入校验改为只查快照表；移除对 `GBrainAdapter.provider_snapshot` 的调用。找不到时返回现有的 `provider_snapshot_not_found_or_ambiguous`。
 E9. **一次性回填**：新增幂等脚本，从 gbrain `pages` 与 `page_versions` 的 frontmatter 中按现有 `unique_provider_snapshot` 规则取出全部 provider 条目写入快照表；同一引用出现不同内容时记为歧义、不写入。
 脚本先以只读预演输出统计（总数、可写入、歧义、已存在），再正式写入；写入行标记来源为回填，便于回滚。
+E11. **美债替代来源**：美国财政部旧接口返回 404、FRED 在当前网络不可达；改用国内可访问、无需密钥的公开来源（如东方财富、新浪的美国 10 年期国债收益率），在登记表写明来源与口径。
+E12. **成果卡片单位**：Vibe `desktop/src/verticals/finance/components/ResearchResult.tsx` 的价格轴与表头按成果保存的单位与口径显示，不写死"元"；A 股行情显示不变。
 E10. **核对不倒退**：回填前后各统计一次会话、Wiki 页、报告、草案、记忆中出现的唯一 `provider:` 引用可解析数；回填后不得少于回填前。只统计引用与计数，不读对话正文。
 
 ## 4. 范围
 
-Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend/app/services/market_result*.py`、相关接口与测试；provider 快照表的 alembic 迁移、写入点（`services/company_financials.py` 等）、`services/ref_resolver.py` 与 `api/v1/wiki.py` 的两处解析、回填脚本及其测试；`dsh/src/` 中行情相关工具的描述与参数；模型可见面快照中涉及这些工具的角色（差异只能是这几个工具的描述与参数）。
+Vibe `ResearchResult.tsx` 及其测试（E12）；Stock `backend/app/market/`（新尺度、新 provider、登记表）、`backend/app/services/market_result*.py`、相关接口与测试；provider 快照表的 alembic 迁移、写入点（`services/company_financials.py` 等）、`services/ref_resolver.py` 与 `api/v1/wiki.py` 的两处解析、回填脚本及其测试；
+`dsh/src/` 中行情相关工具的描述与参数；模型可见面快照中涉及这些工具的角色（差异只能是这几个工具的描述与参数）。
 
 ## 5. 验收
 
 **执行方自动检查**
 - Backend：`uv run pytest` 跑相关测试并通过。新增测试使用固定夹具（不联网），覆盖：登记表校验、未登记标识被拒、新尺度的观察、出图、区间计算、来源不可用时的缺口返回、非交易日的处理。
 - provider 快照新增测试（固定夹具）：取数后快照入表；同一引用幂等、内容冲突被拒；解析在 gbrain 不可用时仍成功；回填脚本对含歧义的夹具输出正确统计并跳过歧义项；回滚只删除回填行。
-- 另写一个联网冒烟脚本（不进 CI），逐个拉取第一批序列的最近 30 天数据，结果写进回填：每个序列是否可得、最新日期、单位。
+- 另写一个联网冒烟脚本（不进 CI），逐个拉取第一批序列的最近 30 天数据，结果写进回填：每个序列是否可得、最新日期、单位。修正后可重跑，以最后一次为准。
+- Vibe：`npm run typecheck --prefix desktop` 与 E12 相关测试通过；新增用例覆盖外部价格成果显示保存的单位、A 股成果仍显示"元"。
 - Stock `dsh/` 下 `pnpm test` 通过；快照差异只涉及行情工具的描述与参数，并在回填中贴出。
 - Vibe 根目录 `node scripts/verify-docs.mjs` 通过。
 
@@ -83,9 +88,10 @@ provider 快照：解析改回 `GBrainAdapter.provider_snapshot`；删除标记�
 
 ## 9. 当前交接
 
-1. 状态与结论：修订 1 完成，待派发；尚无实施。
-2. 改动文件：本 Task 与同名 .log.md；没有改 Backend、DSH 工具、成果或现存测试。
-3. 证据：§2 新增现状为 Claude 2026-10-09 源码与数据只读核实（真实）；未运行 Provider、联网冒烟、回填或产品测试。
-4. 与规格的偏差及理由：无；范围扩大来自用户裁决（数据归属与 gbrain 退役），见修订 1。
-5. 未覆盖的缺口：外部序列可得性、快照表结构、回填歧义比例均待实施时确认。
-6. 下一步谁做什么：Claude 派发；执行方按 §5 实施并回填；用户重建 Backend 后按 §5 用户验收两项核对。
+1. 状态与结论：第一轮实施通过 Claude 审阅；E7–E10 正式上线前三步已由 Claude 完成。修订 2 后待派发第二轮（E11 美债、E12 单位显示）。
+2. 改动文件：Stock 第一轮 34 个文件（清单见过程记录），未提交；数据库迁移到 `0012_provider_snapshots`；`provider_snapshots` 表写入 551 行（来源标记 `gbrain_backfill`）。
+3. 证据：（真实）Claude 复跑 Backend 指定 12 文件 97 passed、DSH 240 passed；冒烟重跑 12/13 可用（国内 8 项最新 10-08，LME 铝铜、COMEX 金、美元指数最新 10-09），美债失败。
+   迁移 `0011 → 0012` 成功；回填预演 551 可写、0 歧义；正式写入 551；E10 回填后：会话 259/259、Wiki 339/339、报告 292/292、草案 83/83、记忆 58/58，均不减少；重跑预演显示 551 已存在。
+4. 与规格的偏差及理由：第一轮冒烟"只跑一次"为 Claude 提示词限制，已由 Claude 重跑补足。会话中 453 条唯一引用有 194 条回填前后都不可解析（从未写入 Wiki 版本），属旧机制历史缺口，非本次造成。
+5. 未覆盖的缺口：美债来源（E11）；成果卡片单位（E12）；运行中的 Backend 仍是旧代码，解析改道与实时自存待重建后生效；真实模型与产品验收未做。
+6. 下一步谁做什么：执行方做第二轮 E11、E12 → Claude 审阅 → 用户重建 Backend 容器并重启工作台，按 §5 用户验收两项核对。
