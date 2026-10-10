@@ -40,7 +40,7 @@
 | dsh-llm-deepseek | 产品配置 + bug fix | ① 默认目录改官方 `deepseek-flash`（V4.1-Flash，含视觉）与 `deepseek-v4-pro`；② 错误分类区分额度、认证与服务商拒绝 | ① 上游默认目录更新后重新对照；② 上游分类等价 |
 | dsh-client-ui-conversation | 文案 | 输入框占位、首页 hero 标题改为研究场景文案，hero preview 置空（中英） | 上游提供文案配置点（当前 locale namespace 固定注册、不可重复注册，Config 无文案字段） |
 | dsh-client-ui-layout | 产品功能 | 去掉上游 `root` 插槽注册与 `AppFrame`，由产品提供根框架与插槽，只保留 `layout` 服务 | 上游允许宿主自供根框架而不重复注册 `root`，或产品改用上游 AppFrame |
-| dsh-web-frontend | 产品功能 | ① 打包后的 Markdown 链接放行 `stock-ref:` 协议，供产品引用标记（`citationMarks.ts`）使用；② `result:` 图片使用产品注册函数，单图段落按块渲染，流式末尾隐藏未完成标记；`check-inline-result.mjs` 在 postinstall 检查实际加载产物 | ① 上游 Markdown 渲染支持可配置的链接协议白名单；② 上游 Markdown 支持由插件注册内嵌协议渲染；该补丁改的是带哈希的压缩产物，每次升级都必须重做 |
+| dsh-web-frontend | 产品功能 | ① Markdown 链接放行 `stock-ref:`；② `result:` 单图段落交产品函数渲染，流式隐藏未完成标记；③ `vibe` 围栏交产品函数渲染，传入源文位置与未闭合状态，复制走文字摘要；postinstall 的 `check-inline-result.mjs` 检查实际加载产物 | 上游支持可配置链接协议、插件内嵌协议及代码块渲染与复制转换后逐项移除；带哈希压缩产物每次升级必须重做补丁并跑回归 |
 
 上游 `packages/client/ui-subagent/src/client/sidebar-chat/index.tsx` 已使用 `sessions.retain(address, { source, signal })`，是 session-controller patch 的升级替代候选；本轮未核验 0.1.6-alpha.2 远端之外的版本，不改任何 patch 内容。
 

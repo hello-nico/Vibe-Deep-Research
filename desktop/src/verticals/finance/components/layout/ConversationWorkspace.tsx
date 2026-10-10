@@ -1,4 +1,5 @@
-import { useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Maximize2, Minimize2 } from "lucide-react";
 import { PageHeader } from "@/components/ui/PageHeader";
 import { ConversationCitations } from '../ConversationCitations';
@@ -10,6 +11,17 @@ export function ConversationWorkspace({ active, title = "深度对话", subtitle
   const [headingHeight, setHeadingHeight] = useState<number>();
   const heading = useRef<HTMLDivElement>(null);
   const root = useRef<HTMLDivElement>(null);
+  const [headerActions, setHeaderActions] = useState<HTMLElement | null>(null);
+  useEffect(() => {
+    const seat = root.current;
+    if (!seat) return;
+    // Native header slots arrive asynchronously and change when the session changes.
+    const sync = () => setHeaderActions(seat.querySelector<HTMLElement>('[data-slot="conversation.session.header.utilities"]'));
+    const observer = new MutationObserver(sync);
+    observer.observe(seat, { childList: true, subtree: true });
+    sync();
+    return () => observer.disconnect();
+  }, []);
   const drag = useRef<{ x: number; y: number; inset: number; height: number; max: number }>();
   const resize = (side: "top" | "left" | "right") => ({
     role: "separator",
@@ -43,17 +55,16 @@ export function ConversationWorkspace({ active, title = "深度对话", subtitle
     onLostPointerCapture() { drag.current = undefined; },
     onDoubleClick() { setInset(34); setHeadingHeight(undefined); },
   });
+  const windowAction = <button type="button" className="finance-session-action finance-window-action" aria-pressed={expanded} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
+    {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "还原窗口" : "展开窗口"}
+  </button>;
   return <div ref={root} className={active ? "conversation-workspace" : "workspace-content"} data-expanded={active && expanded} style={active ? { "--conversation-inset": `${inset}px` } as CSSProperties : undefined}>
     <div hidden={!active} className="conversation-heading-slot" aria-hidden={expanded || undefined} {...{ inert: expanded ? "" : undefined }}>
       <div className="conversation-heading" ref={heading} style={{ height: headingHeight }}>
         <PageHeader title={title} subtitle={subtitle} />
       </div>
     </div>
-    <div hidden={!active} className="conversation-window-actions">
-      <button type="button" className="finance-session-action" aria-pressed={expanded} aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>
-        {expanded ? <Minimize2 size={14} /> : <Maximize2 size={14} />}{expanded ? "还原窗口" : "展开窗口"}
-      </button>
-    </div>
+    {active && (headerActions ? createPortal(windowAction, headerActions) : <div className="conversation-window-actions">{windowAction}</div>)}
     <div className="conversation-window" style={{ display: active ? "flex" : "none" }}>
       <ConversationCitations id="dsh-conversation" aria-label="深度对话" />
       <div className="conversation-resize conversation-resize-top" hidden={expanded} title="拖动调整高度，双击恢复默认" {...resize("top")} />

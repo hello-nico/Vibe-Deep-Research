@@ -14,6 +14,40 @@
 #dsh-conversation [data-slot="conversation.session.header.corner"],
 #dsh-conversation [data-conversation-header-corner] { display: none; }
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
+/* Native :empty does not see through an empty display:contents slot. These
+   product nodes deliberately return null when an inline result supersedes them. */
+#dsh-conversation [data-chat-flow-kind^="finance-"]:has(> [data-slot="conversation.chat.node"]:empty) {
+  display: none; margin: 0; min-height: 0;
+}
+/* A hover-only toolbar before a knowledge draft looks like reserved whitespace.
+   Keep the native actions visible and tighten just this answer footer. */
+#dsh-conversation [data-chat-flow-kind="turn-tail"]:has(+ [data-chat-flow-kind="finance-maintenance"]) {
+  margin-top: 4px;
+}
+#dsh-conversation [data-chat-flow-kind="turn-tail"]:has(+ [data-chat-flow-kind="finance-maintenance"]) [data-clock="end"] {
+  opacity: 1;
+}
+#dsh-conversation [data-chat-flow-kind="turn-tail"] + [data-chat-flow-kind="finance-maintenance"] {
+  margin-top: 0;
+}
+#dsh-conversation [data-chat-flow-kind="turn-tail"] + [data-chat-flow-kind="finance-maintenance"] > [data-slot] > details {
+  margin-top: 4px;
+}
+/* 0.1.7 ConversationRoot geometry, scoped to the product's expanded window.
+   Public header/tab anchors select the native rows without depending on hashes. */
+.conversation-workspace[data-expanded="true"] #dsh-conversation header {
+  min-height: 0; padding: 6px 16px 0;
+}
+.conversation-workspace[data-expanded="true"] #dsh-conversation header:not(:has([data-conversation-tabs])) { padding-bottom: 6px; }
+.conversation-workspace[data-expanded="true"] #dsh-conversation [data-conversation-tabs] { margin-top: 4px; padding-left: 0; gap: 24px; }
+.conversation-workspace[data-expanded="true"] #dsh-conversation [data-conversation-tabs] [role="tab"] { padding-bottom: 6px; }
+.conversation-workspace[data-expanded="true"] #dsh-conversation header div:has(> [data-slot="conversation.session.header.utilities"]) { margin-left: 8px; gap: 6px; }
+.conversation-workspace[data-expanded="true"] #dsh-conversation .finance-session-action { min-width: 0; height: 28px; padding: 4px 8px; font-size: 12px; }
+/* The native body defines its width locally and may inherit a saved drag width.
+   Widen only the expanded reading area, leaving the preference untouched. */
+.conversation-workspace[data-expanded="true"] #dsh-conversation [data-conversation-content] {
+  --dsh-chat-content-width: min(1120px, calc(100% - 48px));
+}
 /* Keep all @ groups within the composer overlay; its listbox scrolls internally. */
 /* Height is fitted at runtime to the room above the composer (dsh/trigger-menu-fit.ts). */
 #dsh-conversation [data-trigger-menu] { min-height: 0; }

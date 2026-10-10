@@ -13,6 +13,8 @@ import { SuggestionNode } from './suggestion-node';
 import { loadTopicSessions } from '../lib/topicSessions';
 import { loadAssistantSessions } from '../assistant/sessions';
 import { loadReportTasks } from '../lib/reportTasks';
+import { vibeDefinition, vibeResultReferences } from './vibe';
+import { installVibeAssistantContext, registerVibeRenderer, VibeBlock } from './vibe-node';
 
 interface ResultData { resultId: string }
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
@@ -22,12 +24,21 @@ declare module '@deepseek-ai/dsh-client-ui-chat/client' {
     'finance-suggestion': SuggestionData;
   }
 }
-function ResultNode({ node }: Pick<ChatNodeViewProps<'finance-result'>, 'node'>) {
+function ResultNode({ node, useTurnData }: Pick<ChatNodeViewProps<'finance-result'>, 'node' | 'useTurnData'>) {
+  const check = useTurnData('finance-vibe');
+  const process = useTurnData('turn-process');
+  const turn = node.location.kind === 'turn' || node.location.kind === 'step' ? node.location.turn : undefined;
+  const answer = turn?.steps.find(step => step.step === process?.answerStep)?.data.get('assistant-step');
+  const text = answer?.blocks.flatMap(block => block.kind === 'text' ? [block.text] : []).join('') ?? '';
+  if (answer?.finalNode && vibeResultReferences(text, check).has(node.data.resultId)) return null;
   return <ResearchResult key={node.data.resultId} resultId={node.data.resultId} />;
 }
 export function installResultNode(ctx: Context) {
   ctx.effect(() => registerInlineResultRenderer(resultId => <ResearchResult key={resultId} resultId={resultId} />), 'finance inline result renderer');
   ctx.uiConversation.events.register(resultDefinition);
+  ctx.uiConversation.events.register(vibeDefinition);
+  ctx.effect(() => registerVibeRenderer((code, options) => <VibeBlock code={code} options={options} />), 'finance vibe renderer');
+  installVibeAssistantContext(ctx);
   ctx.uiConversation.events.register(maintenanceDefinition);
   ctx.uiConversation.events.register(researchStatusDefinition);
   ctx.uiConversation.events.register(topicCandidateDefinition);

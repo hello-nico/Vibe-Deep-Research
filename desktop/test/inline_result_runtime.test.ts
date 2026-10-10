@@ -5,6 +5,7 @@ import test from 'node:test';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
 import { resultDefinition } from '../src/verticals/finance/dsh/result-projection.ts';
+import { vibeDefinition, vibeResultReferences } from '../src/verticals/finance/dsh/vibe.ts';
 
 const runtimeRoot = fileURLToPath(new URL('../dsh/runtime/', import.meta.url));
 const runtimeRequire = createRequire(new URL('../dsh/runtime/package.json', import.meta.url));
@@ -118,7 +119,7 @@ const turnTwo = [
 
 function harness(entries: readonly ReturnType<typeof at>[] = []) {
   const assembler = new ConversationNodeAssembler(
-    { entries: () => [chatRuntime.assistantDefinition, chatRuntime.turnProcessDefinition, resultDefinition], fallbackEntry: () => undefined },
+    { entries: () => [chatRuntime.assistantDefinition, chatRuntime.turnProcessDefinition, resultDefinition, vibeDefinition], fallbackEntry: () => undefined },
     { entries: () => [chatRuntime.chatViewDefinition] },
   );
   assembler.replaceWindow(entries, false);
@@ -164,4 +165,26 @@ test('installed cold window replay reaches the same per-turn visibility', () => 
   assert.equal(visibility(snapshot, 'embedded-call'), 'hidden');
   assert.equal(visibility(snapshot, 'separate-call'), 'visible');
   assert.equal(visibility(snapshot, 'other-turn-call'), 'visible');
+});
+
+test('late vibe checks publish to their own turn and identify only accepted charts, live and replay', () => {
+  const answer = `结论\n\n\`\`\`vibe\n<chart ref="${embeddedId}" title="走势"/>\n\`\`\``;
+  const entries = turnOne.map(entry => entry.event.type === 'assistant/message'
+    ? at(9, 'assistant/message', { turn: 1, step: 2, stream: [], message: assistantMessage('answer-1', answer) }, { surfaceOp: 'append' }) : entry);
+  const check = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'chart', status: 'ok' }] }] };
+  const late = at(21, 'stock-research/vibe-check', check, { ignorable: true });
+  const live = harness([...entries, ...turnTwo]);
+  assert.equal(visibility(live.read(), 'embedded-call'), 'visible');
+  live.assembler.append(late);
+  const snapshot = live.read();
+  assert.deepEqual(snapshot.timeline.turns.get(1).data.get('finance-vibe'), check);
+  assert.equal(snapshot.timeline.turns.get(2).data.get('finance-vibe'), undefined);
+  assert.ok(vibeResultReferences(answer, snapshot.timeline.turns.get(1).data.get('finance-vibe')).has(embeddedId));
+  assert.equal(vibeResultReferences(answer, snapshot.timeline.turns.get(2).data.get('finance-vibe')).size, 0);
+  assert.equal(visibility(snapshot, 'other-turn-call'), 'visible');
+  const replay = harness([...entries, ...turnTwo, late]).read();
+  assert.deepEqual(replay.timeline.turns.get(1).data.get('finance-vibe'), check);
+  assert.ok(vibeResultReferences(answer, replay.timeline.turns.get(1).data.get('finance-vibe')).has(embeddedId));
+  const dropped = at(21, 'stock-research/vibe-check', { ...check, blocks: [{ ...check.blocks[0], elements: [{ path: '0', component: 'chart', status: 'dropped', reason: 'unresolved_ref' }] }] });
+  assert.equal(visibility(harness([...entries, dropped]).read(), 'embedded-call'), 'visible');
 });

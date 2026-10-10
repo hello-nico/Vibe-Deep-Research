@@ -47,13 +47,15 @@ const code = [
   region('function sj(', 'function lj('),
   region('function Z6(', 'function W0('),
   region('function W0(', 'const t8='),
-  '({ S, l, Bd, qd, jj, _j, _2, X6, Cj, Z6 })',
+  region('async function er(', 'const cu='),
+  '({ S, l, Bd, qd, jj, _j, _2, X6, Cj, Z6, er })',
 ].join('\n');
 // Only style names and unrelated link icon rendering need bindings. No parser,
 // streaming, paragraph, image or protocol behavior is mocked.
-Object.assign(context, { wt: { imageAlt: 'imageAlt', image: 'image' }, ao: () => null });
+Object.assign(context, { wt: { imageAlt: 'imageAlt', image: 'image' }, ao: () => null, V6: function CodeViewBoundary() {} });
 const api = vm.runInContext(code, context, { filename });
 assert.ok(source.includes('return{react:Bd,"react/jsx-runtime":qd,'), 'React module identity changed');
+assert.ok(source.includes('MarkdownText:t8,') && source.includes('writeClipboard:er}'), 'Native Markdown/copy exports changed');
 assert.equal(api.Bd.default, api.S);
 assert.equal(api.qd.jsx, api.l.jsx);
 const ref = 'result:' + 'a'.repeat(32);
@@ -104,4 +106,42 @@ const image = elements(api._j('![普通图](https://example.org/image.png)', lab
 assert.equal(image.props.src, 'https://example.org/image.png');
 assert.equal(image.props.alt, '普通图');
 assert.equal(elements(api._j('[引用](stock-ref:abc)', labels)).find(item => item.props.href)?.props.href, 'stock-ref:abc');
-console.log(`PASS: ${path.relative(root, filename)} — shipped streaming, block, fallback, image, paragraph, stock-ref and React identity checks`);
+const componentKey = Symbol.for('vibe.finance.components');
+const sample = '正文\n\n```vibe\n<chart ref="' + ref + '"/>\n```\n\n尾段';
+const before = api._j('```js\nconst x=1\n```', labels);
+context[componentKey] = (code, options) => api.S.createElement('section', { 'data-vibe': options.pending ? 'pending' : 'ready', code, options }, options.pending ? '准备中' : '组件');
+for (const rendered of [api._j(sample, labels), new api.jj(labels).render(sample)]) {
+  const block = elements(rendered).find(item => item.props['data-vibe'] === 'ready');
+  assert.ok(block, 'vibe code was not delegated');
+  assert.equal(block.props.code, `<chart ref="${ref}"/>`);
+  assert.equal(block.props.options.source, sample);
+  assert.equal(block.props.options.offset, 4);
+  assert.ok(text(rendered).includes('正文') && text(rendered).includes('尾段'));
+  assert.ok(!elements(rendered).some(item => item.type === 'p' && elements(item.props.children).some(child => child.type === 'section')));
+}
+const open = sample.slice(0, sample.indexOf('\n```\n\n尾段'));
+for (let end = open.indexOf('<chart'); end <= open.length; end++) {
+  const result = new api.jj(labels).render(open.slice(0, end));
+  assert.ok(elements(result).some(item => item.props['data-vibe'] === 'pending'), `Open vibe fence leaked at ${end}`);
+  assert.ok(!text(result).includes('result:'));
+}
+const two = sample + '\n\n~~~vibe\n<row>';
+const twoElements = elements(new api.jj(labels).render(two));
+assert.equal(twoElements.filter(item => item.props['data-vibe'] === 'ready').length, 1);
+assert.equal(twoElements.filter(item => item.props['data-vibe'] === 'pending').length, 1);
+assert.deepEqual(api._j('```js\nconst x=1\n```', labels), before, 'Ordinary code changed');
+delete context[componentKey];
+assert.ok(elements(api._j(sample, labels)).some(item => item.props.lang === 'vibe'));
+context[componentKey] = () => null;
+assert.ok(elements(api._j(sample, labels)).some(item => item.props.lang === 'vibe'));
+let copied;
+context.navigator = { clipboard: { writeText: async value => { copied = value; } } };
+context[Symbol.for('vibe.finance.component-summary')] = value => value === sample ? '正文\n研究图表。\n尾段' : value;
+assert.equal(await api.er(sample), true);
+assert.equal(copied, '正文\n研究图表。\n尾段');
+await api.er('普通原文');
+assert.equal(copied, '普通原文');
+delete context[Symbol.for('vibe.finance.component-summary')];
+await api.er(sample);
+assert.equal(copied, sample);
+console.log(`PASS: ${path.relative(root, filename)} — shipped vibe delegation, pending fences, copy summary, ordinary code, inline images, fallback, stock-ref and React identity checks`);

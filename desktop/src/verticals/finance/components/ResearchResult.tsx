@@ -141,7 +141,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
   const option = useMemo(() => {
     const number = (value: string | null | undefined) => value == null ? null : Number(value);
     if (payload?.kind === 'financial') return {
-      color: ['#f4511e', '#64748b'], animation: false,
+      color: ['#2563eb', '#d97706', '#9333ea', '#059669', '#e11d48', '#0891b2', '#ea580c', '#64748b'], animation: false,
       tooltip: { trigger: 'axis', valueFormatter: (value: number) => financialNumber(value !== 0 && Math.abs(value) < 0.01 ? value.toPrecision(6) : value.toFixed(2)) + ' 亿元' },
       legend: { top: 0 }, grid: { left: 60, right: 20, top: 50, bottom: 40 },
       xAxis: { type: 'category', data: rows.map(row => row.period) }, yAxis: { type: 'value', name: '亿元', axisLabel: { formatter: (value: number) => financialNumber(value) } },
@@ -163,8 +163,9 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       series: [
         payload?.chart === 'candlestick'
           ? { name: '价格', type: 'candlestick', data: rows.map(row => ['open', 'close', 'low', 'high'].map(key => number(row[key]))), itemStyle: { color: '#ef4444', color0: '#16a34a', borderColor: '#ef4444', borderColor0: '#16a34a' } }
-          : { name: '收盘', type: 'line', data: rows.map(row => number(row.close)), showSymbol: false },
-        ...[5, 10, 20].map(n => ({ name: `${n}日均线`, type: 'line', data: rows.map(row => number(row[`ma${n}`])), showSymbol: false })),
+          : { name: '收盘', type: 'line', data: rows.map(row => number(row.close)), showSymbol: false, lineStyle: { color: '#2563eb' }, itemStyle: { color: '#2563eb' } },
+        ...[5, 10, 20].map((n, i) => ({ name: `${n}日均线`, type: 'line', data: rows.map(row => number(row[`ma${n}`])), showSymbol: false,
+          lineStyle: { color: ['#d97706', '#9333ea', '#059669'][i] }, itemStyle: { color: ['#d97706', '#9333ea', '#059669'][i] } })),
         { name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1, data: rows.map(row => number(row.volume)), itemStyle: { color: '#94a3b8' } },
       ],
     };

@@ -171,6 +171,22 @@ test('已知成交量单位保持不变，无成交量时不显示空坐标轴',
   await renderCard(value, async () => { assert.equal(chartOption.yAxis[1].show, false); });
 });
 
+test('收盘与三条均线的曲线、图例颜色逐一对应且互不重复', async () => {
+  for (const chart of ['line', 'candlestick']) await renderCard(payload('元/吨', true, chart), async () => {
+    const lines = chartOption.series.filter((series: any) => series.type === 'line');
+    const colors = lines.map((series: any) => {
+      assert.equal(series.lineStyle.color, series.itemStyle.color);
+      return series.itemStyle.color;
+    });
+    assert.equal(new Set(colors).size, lines.length);
+    if (chart === 'line') {
+      const close = lines.find((series: any) => series.name === '收盘');
+      const ma = lines.find((series: any) => series.name === '20日均线');
+      assert.notEqual(close.itemStyle.color, ma.itemStyle.color);
+    }
+  });
+});
+
 test('缺失说明按类型转为用户话且去重，原文保留在 CSV 与来源依据', async () => {
   const value = payload('美元/吨');
   const raw = ['来源有 14 条开高低不一致的日线；对应开高低缺失，保留真实收盘值', '开高低数据不完整，仅展示收盘走势',
