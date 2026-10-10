@@ -1,4 +1,4 @@
 {
   "python": null,
-  "paths": { "constitution": "AGENTS.md", "skills": ".agents/skills", "calc_cli": "calc/cli.py", "data_root": ".local" }
+  "paths": { "constitution": "AGENTS.md", "skills": ".agents/skills", "data_root": ".local" }
 }

@@ -102,7 +102,6 @@ def test_registry_wiring():
     reg = json.load(open(os.path.join(repo, "datasources", "registry.json"), encoding="utf-8"))
     ep = {e["id"]: e for e in reg["endpoints"]}["hiring_anchor_signal"]
     assert ep["layer"] == "17 招聘信号" and ep["stages"] == {"risk": "optional"} and ep["pass_out_dir"] is True
-    assert ep["history_fields"] == ["hiring_open_roles"], "岗位数要进温度计历史序列才能看变化"
     assert set(ep["industry_tags"]) == {"ai_compute", "storage_memory"}
 
 

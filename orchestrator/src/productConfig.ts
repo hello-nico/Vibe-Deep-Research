@@ -1,5 +1,5 @@
 /**
- * 产品配置:宪法 / skills / calc / 数据根等路径从产品自己的配置读。
+ * 产品配置:宪法 / skills / 数据根等路径从产品自己的配置读。
  * 模型接入与凭据由 DSH 配置入口拥有,这里没有任何 provider / 引擎字段。
  * 优先级(低 → 高):内置默认 ← <repo>/vibe-research.config.json(产品,入库)← <dataRoot>/config.json(用户私有,gitignore)← 环境变量。
  * 旧 provider / engine / defaults 字段是六阶段引擎退役前的遗留:读取时剥除,不参与校验,也不再生效。
@@ -12,7 +12,7 @@ import { validateWith } from "./schemas.ts";
 
 export interface ProductConfig {
   python: string | null;
-  paths: { constitution: string; skills: string; calc_cli: string; data_root: string };
+  paths: { constitution: string; skills: string; data_root: string };
 }
 
 export const PRODUCT_CONFIG_FILE = "vibe-research.config.json";
@@ -20,11 +20,13 @@ export const USER_CONFIG_FILE = "config.json"; // 位于 data_root 下
 
 export const DEFAULT_PRODUCT_CONFIG: ProductConfig = {
   python: null,
-  paths: { constitution: "AGENTS.md", skills: ".agents/skills", calc_cli: "calc/cli.py", data_root: ".local" },
+  paths: { constitution: "AGENTS.md", skills: ".agents/skills", data_root: ".local" },
 };
 
 /** 退役字段:平行 Provider 控制链与六阶段引擎遗留,读到就剥除(用户旧配置无需迁移)。 */
 const RETIRED_CONFIG_KEYS = ["provider", "engine", "defaults"] as const;
+/** 退役的路径字段:`calc/` 已移除;旧用户配置里残留的 `paths.calc_cli` 读到即剥除,不报错。 */
+const RETIRED_PATH_KEYS = ["calc_cli"] as const;
 
 export const productConfigSchema = {
   type: "object",
@@ -32,7 +34,7 @@ export const productConfigSchema = {
   properties: {
     python: { type: ["string", "null"] },
     paths: { type: "object", additionalProperties: false, properties: {
-      constitution: { type: "string", minLength: 1 }, skills: { type: "string", minLength: 1 }, calc_cli: { type: "string", minLength: 1 }, data_root: { type: "string", minLength: 1 } } },
+      constitution: { type: "string", minLength: 1 }, skills: { type: "string", minLength: 1 }, data_root: { type: "string", minLength: 1 } } },
   },
 } as const;
 
@@ -44,6 +46,8 @@ function readLayer(file: string, label: string): Partialish {
   try { parsed = JSON.parse(fs.readFileSync(file, "utf8")); } catch (e) { throw new Error(`${label} 不是合法 JSON:${file}(${e instanceof Error ? e.message : String(e)})`); }
   if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
     for (const key of RETIRED_CONFIG_KEYS) delete (parsed as Record<string, unknown>)[key];
+    const paths = (parsed as { paths?: unknown }).paths;
+    if (paths && typeof paths === "object" && !Array.isArray(paths)) for (const key of RETIRED_PATH_KEYS) delete (paths as Record<string, unknown>)[key];
   }
   const errs = validateWith("product-config", productConfigSchema, parsed);
   if (errs.length) throw new Error(`${label} 不符合 schema:${file}\n  ${errs.slice(0, 5).join("\n  ")}`);
@@ -59,7 +63,7 @@ function mergeLayer(base: ProductConfig, layer: Partialish): ProductConfig {
 
 export interface LoadedProductConfig extends ProductConfig {
   /** 已解析为绝对路径 */
-  resolved: { dataRoot: string; constitution: string; skills: string; calcCli: string; scriptsRel: string };
+  resolved: { dataRoot: string; constitution: string; skills: string; scriptsRel: string };
   sources: string[];
 }
 
@@ -99,7 +103,6 @@ export function loadProductConfig(repoRoot: string, opts: {
       dataRoot,
       constitution: abs(cfg.paths.constitution),
       skills: abs(cfg.paths.skills),
-      calcCli: abs(cfg.paths.calc_cli),
       scriptsRel: path.join(cfg.paths.skills, "data-access", "scripts"),
     },
     sources,

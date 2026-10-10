@@ -13,7 +13,7 @@ by_layer: "OrderedDict[str, list]" = OrderedDict()
 for e in reg["endpoints"]:
     by_layer.setdefault(e.get("layer", "其他"), []).append(e)
 lines = [f"# 数据源端点目录(registry v{reg['version']},共 {len(reg['endpoints'])} 个)", "",
-         "由 `datasources/gen_catalog.py` 从 `registry.json` 生成,勿手改。调用方式:`.venv/bin/python .agents/skills/data-access/scripts/fetch_endpoint.py --endpoint <id> --symbol <代码> [--args '<JSON>'] --out-dir <运行目录>`;"
+         "由 `scripts/gen_catalog.py` 从 `registry.json` 生成,勿手改。调用方式:`.venv/bin/python .agents/skills/data-access/scripts/fetch_endpoint.py --endpoint <id> --symbol <代码> [--args '<JSON>'] --out-dir <运行目录>`;"
          "legacy 端点为 Phase 0 的独立脚本。合规级:cn-public = 国内公开网页接口;S = 官方政府数据;B = 非官方 / 个人研究;C = 仅个人研究(CBOE 条款);rss-public = 公开 RSS。",
          "symbol_kind:cn6 = A 股 6 位码;us = 美股 ticker;hk = 港股 5 位;global = 美股 / 港股自动判别;raw = 原样透传(指数 / 关键词 / 期权标的);none = 不需要标的。", ""]
 for layer, eps in by_layer.items():

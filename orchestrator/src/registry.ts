@@ -33,8 +33,6 @@ export interface EndpointDef {
   sample?: string;
   /** 产业温度计:只在研究主体命中这些标签(datasources/industry_tags.json)时才取 */
   industry_tags?: string[];
-  /** 温度计历史序列:这些证据字段(白名单)在归档时写进用户数据区序列,下次运行生成 _prev / _change_* 比较证据(orchestrator/src/finance/thermo_history.ts) */
-  history_fields?: string[];
   /**
    * 快照最多能放多久(秒)。缺省 = 不限(界面打开就用上次的,直到用户点刷新)。
    * 🔴 **产出里含"按此刻算出来"的字段的端点必须写这个**,尤其是 `0` = 从不缓存。
@@ -71,7 +69,6 @@ export function loadRegistry(repoRoot: string): Registry | null {
     if (!e?.id || !e.module || !e.function || !Array.isArray(e.market)) throw new Error(`注册表端点缺字段(id/module/function/market):${JSON.stringify(e).slice(0, 120)}`);
     if (seen.has(e.id)) throw new Error(`注册表端点 id 重复:${e.id}`);
     seen.add(e.id);
-    if (e.history_fields !== undefined && !(Array.isArray(e.history_fields) && e.history_fields.length > 0 && e.history_fields.every((x) => typeof x === "string" && /^[a-z0-9_]{1,80}$/.test(x)))) throw new Error(`端点 ${e.id} 的 history_fields 非法:须为非空的小写字段名数组`);
   }
   return reg;
 }

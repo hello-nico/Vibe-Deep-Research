@@ -43,4 +43,4 @@ M6 §3（已去掉退役的六阶段编排器与 stage-model 路径）、M8.5「
 
 ## 7. 待核实
 
-- `orchestrator/` 的旧 `ledger.ts` 是否还有自选以外的消费者（M8.5 要求「保留仍有其他用途的 ledger 能力」）。
+- 无。旧 `ledger.ts` 及 `/ledger*`、`/series` 已退役（2026-10-09 死代码退役）。

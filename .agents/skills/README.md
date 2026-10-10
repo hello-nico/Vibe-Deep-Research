@@ -6,9 +6,5 @@
 | Skill | 职责 |
 |---|---|
 | data-access | 注册表端点、原始数据获取与证据信封 |
-| earnings-analysis | 财报期间、三表交叉与业绩口径 |
-| valuation | 估值输入、确定性计算与情景解释 |
-| industry-chain | 产业链关系与不可替代性分析 |
-| catalyst-risk | 催化剂、反证与可验证的裁决点 |
 
-已移除 company-research 六阶段 SOP。数据端点以 `datasources/registry.json` 为准；计算契约以 `calc/SPEC.md` 为准。
+已移除 company-research 六阶段 SOP，以及 earnings-analysis、valuation、industry-chain、catalyst-risk 四份手册和 `calc/`；研究方法与计算由 Stock-Research 的 DSH 插件提供。数据端点以 `datasources/registry.json` 为准。

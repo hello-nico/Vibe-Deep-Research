@@ -4,7 +4,7 @@
 
 A local financial research workbench. DSH owns sessions, models and execution. Stock-Research Backend owns documents, evidence, Wiki, Topics, notes, results and confirmed research links. Client SQLite owns watchlists, the research roster and persistent UI preferences.
 
-The source workspace is undergoing M8.5/M8.6 acceptance. The former six-stage engine, local report library, legacy chat execution and hidden legacy pages have been retired. Historical release screenshots and acceptance reports do not establish readiness of the current source or packaged application. M9 follows the next accepted commit.
+The source workspace is undergoing M8.5/M8.6 acceptance. The former six-stage engine, local report library, legacy chat execution and hidden legacy pages have been retired. Historical release screenshots and acceptance reports do not establish readiness of the current source. M9 follows the next accepted commit.
 
 ## Entry points
 
@@ -29,7 +29,7 @@ npm run build --prefix desktop
 
 Set `VRA_PYTHON` to the Python interpreter containing the data dependencies when needed. `scripts/doctor` checks local data-service prerequisites; it does not certify model or end-to-end research behavior.
 
-The retained MCP service only lists registered data endpoints and fetches data. Research execution belongs to DSH. Do not restore the former research startup tool or parallel model credentials.
+The product serves DSH only and offers no MCP endpoint. Research execution belongs to DSH. Do not restore the former research startup tool or parallel model credentials.
 
 Credentials must not enter source, logs or fixtures. Removing old code does not delete current Backend research, DSH sessions or Client selections. Builds and fixtures are separate from runtime and visual acceptance. The current delivery scope is Web only; the former macOS app is not an acceptance item or an M9 task.
 

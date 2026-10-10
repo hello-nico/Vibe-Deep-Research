@@ -789,8 +789,6 @@ async function macroProbabilityOf(refresh = false): Promise<MacroProbability> {
 /* ---------- 美股 / 港股 ---------- */
 
 export const api = {
-  health: () => localService.health().then((h) => ({ ok: h.ok })),
-
   quote: (codes: string, refresh = false) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean), refresh),
   announcements: announcementsOf,
   news: newsOf,

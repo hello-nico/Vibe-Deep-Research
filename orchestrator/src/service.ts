@@ -1,4 +1,4 @@
-/** 本机数据服务：端点取数、快照、页面查询和台账。DSH 与 Stock Backend 分别拥有会话和研究数据。 */
+/** 本机数据服务：端点取数、快照和页面查询。DSH 与 Stock Backend 分别拥有会话和研究数据。 */
 import { spawn } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
@@ -6,7 +6,6 @@ import { fileURLToPath } from "node:url";
 
 import { fetchEnv } from "./config.ts";
 import { nowIso } from "./fsutil.ts";
-import { LedgerError,kinds as ledgerKindDefs,labels as ledgerLabelDefs,listRecordsChecked,listRecords as listRecordsOf,removeRecord as removeLedgerRecord,upsertRecord as upsertLedgerRecord,type LedgerIssue,type LedgerRecord } from "./ledger.ts";
 import { currentPlugin } from "./plugin.ts";
 import { loadProductConfig } from "./productConfig.ts";
 import { REGISTRY_REL,fetchArgv,loadRegistry,type EndpointDef } from "./registry.ts";
@@ -357,13 +356,6 @@ function runFetchProcess(
   });
 }
 
-// ---------------- 用户自有台账 ----------------
-// 存储与校验都在 Core 的 ledger.ts;这一层只做两件事:
-// ① 把 LedgerError 翻译成 ServiceError(HTTP 层只认后者,否则 500 而不是 400)
-// ② 走一次 safePath —— ledger.ts 已按白名单挡住 kind,这里是**第二道**,
-//    专门挡"用户数据区里被人塞了符号链接"这类与 kind 无关的情形。
-
-/** 台账的记录种类(界面据此渲染表单);垂类没声明台账就是空表 */
 /* ---------------- 界面查询(BFF):按名字要一屏数据 ---------------- */
 
 export interface PageBlockResult {
@@ -447,7 +439,7 @@ function pageFailureReason(ep: EndpointDef, failed: FetchResult | Error): string
   return http ? `${source} HTTP ${http[1]}` : `${source}：${redact(raw || "本次取数失败", 160)}`;
 }
 
-/** 页面查询才允许旧快照回退；研究、MCP 与体检仍按各自一致性要求取数。 */
+/** 页面查询才允许旧快照回退；研究与体检仍按各自一致性要求取数。 */
 export async function fetchPageEndpoint(ctx: ServiceContext, req: Parameters<typeof fetchEndpoint>[1]): Promise<FetchResult> {
   const ep = endpointDef(ctx, req.endpoint);
   const needSymbol = ep.symbol_kind !== "none" || ep.module === "legacy";
@@ -573,111 +565,3 @@ export async function pageQuery(
     mixed_ages: days.size > 1,
   };
 }
-
-export function ledgerKinds(_ctx: ServiceContext): Record<string, { label: string; properties: Record<string, unknown>; required: string[] }> {
-  const out: Record<string, { label: string; properties: Record<string, unknown>; required: string[] }> = {};
-  for (const [k, def] of Object.entries(ledgerKindDefs())) {
-    out[k] = { label: def.label, properties: { ...def.properties }, required: [...def.required] };
-  }
-  return out;
-}
-
-/**
- * 字段 / 枚举的显示名。**Core 一个都不认识** —— 原样透传给界面。
- * 没声明的字段界面退回原键名,所以这里不做补全、也不报缺。
- */
-export function ledgerLabels(_ctx: ServiceContext): { fields: Record<string, string>; enums: Record<string, string> } {
-  const l = ledgerLabelDefs();
-  return { fields: { ...l.fields }, enums: { ...l.enums } };
-}
-
-function asServiceError(e: unknown): never {
-  if (e instanceof LedgerError) throw new ServiceError(e.code, e.message);
-  throw e;
-}
-
-function ledgerGuard(ctx: ServiceContext, kind: unknown): string {
-  const k = String(kind ?? "");
-  if (!Object.prototype.hasOwnProperty.call(ledgerKindDefs(), k)) throw new ServiceError("unknown_kind", `台账没有这个种类 ${show(kind)}`);
-  safePath(ctx, "ledger", `${k}.json`);
-  return k;
-}
-
-export function ledgerList(ctx: ServiceContext, kind?: string): Record<string, LedgerRecord[]> {
-  try {
-    if (kind === undefined) {
-      // 🔴 全量读取也要逐种类过一遍 safePath。原来这里直接调 listAll ——
-      //    于是"单个种类走第二道防线、全量入口不走",而全量恰恰是界面的主入口:
-      //    ledger 目录里若被放了指向数据区外的符号链接,单查挡得住、全查挡不住。
-      //    **防线只在次要入口生效 = 没有防线。**
-      return ledgerSnapshot(ctx).records;
-    }
-    const k = ledgerGuard(ctx, kind);
-    return { [k]: listRecordsOf(ctx.dataRoot, k) };
-  } catch (e) { asServiceError(e); }
-}
-
-/**
- * 界面的主入口:**一次读盘**同时给出记录与问题清单。
- *
- * 🔴 不要分两次调(先 list 再 issues)。两次之间文件可能被改 ⇒ 响应里 records 是旧版本、
- *    issues 是新版本:界面会显示"这几条都合规",而它展示的恰恰是那几条坏的;
- *    反过来也可能出现 issue 指向一个响应里根本不存在的 id。
- *    **同一个响应里的两半必须来自同一次读取。**
- */
-/**
- * 温度计历史序列(只读)。
- *
- * 🔴 端点 id 只接受**注册表里真实存在**的那些 —— 它会被拼进文件路径,
- *    直接拿用户给的字符串去拼路径就是目录穿越。用白名单比做路径清洗可靠:
- *    清洗规则总有想不到的编码形式,而"不在注册表里就拒绝"没有想不到的情形。
- * ⚠️ 序列**只在完整研究运行时才追加**。手动点看板不写序列 ⇒ 观测很稀疏是正常的,
- *    不是坏了。给出 `observations` 的真实条数,让界面自己说清楚。
- */
-export function thermoSeries(ctx: ServiceContext, endpoint: string): {
-  endpoint: string; observations: unknown[]; exists: boolean; unreadable: boolean; dropped: number;
-} {
-  const known = listEndpoints(ctx, { for_ui: false }).some((e) => e.id === endpoint);
-  if (!known) throw new ServiceError("unknown_endpoint", `未知端点:${endpoint}`);
-  const read = currentPlugin().seriesFor;
-  // 垂类没有序列这回事 ⇒ 明说"这个垂类不提供",不要返回空数组冒充"没有观测"
-  if (!read) throw new ServiceError("no_series", "当前垂类不提供观测序列");
-  const r = read(ctx.dataRoot, endpoint);
-  return { endpoint, observations: r.observations, exists: r.exists, unreadable: r.unreadable, dropped: r.dropped };
-}
-
-export function ledgerSnapshot(ctx: ServiceContext): {
-  records: Record<string, LedgerRecord[]>;
-  issues: Record<string, LedgerIssue[]>;
-} {
-  try {
-    const records: Record<string, LedgerRecord[]> = Object.create(null);
-    const issues: Record<string, LedgerIssue[]> = Object.create(null);
-    for (const k of Object.keys(ledgerKindDefs())) {
-      ledgerGuard(ctx, k); // 每个种类都过第二道 safePath(与单查同口径)
-      const r = listRecordsChecked(ctx.dataRoot, k);
-      records[k] = r.records;
-      if (r.issues.length) issues[k] = r.issues;
-    }
-    return { records, issues };
-  } catch (e) { asServiceError(e); }
-}
-
-export function ledgerUpsert(ctx: ServiceContext, req: { kind: string; record: Record<string, unknown> }): LedgerRecord {
-  const k = ledgerGuard(ctx, req.kind);
-  if (k === "note") throw new ServiceError("legacy_note", "研究记录已改由 Backend 保存，不能再写入本地 note 台账");
-  if (k === "watch") throw new ServiceError("legacy_watch", "自选已改由本地 SQLite 保存，不能再写入 watch 台账");
-  const rec = req.record;
-  if (!rec || typeof rec !== "object" || Array.isArray(rec)) throw new ServiceError("bad_record", "record 必须是对象");
-  try { return upsertLedgerRecord(ctx.dataRoot, k, rec as Record<string, unknown>); } catch (e) { asServiceError(e); }
-}
-
-export function ledgerRemove(ctx: ServiceContext, req: { kind: string; id: string }): { removed: boolean } {
-  const k = ledgerGuard(ctx, req.kind);
-  if (k === "note") throw new ServiceError("legacy_note", "研究记录已改由 Backend 保存，不能再从本地 note 台账删除");
-  if (k === "watch") throw new ServiceError("legacy_watch", "自选已改由本地 SQLite 保存，不能再从 watch 台账删除");
-  try { return { removed: removeLedgerRecord(ctx.dataRoot, k, String(req.id ?? "")) }; } catch (e) { asServiceError(e); }
-}
-
-// ---------------- 资料导入 ----------------
-// 薄封装:只做错误翻译。转写只产**草稿**,落库仍走正常的台账写入(同一套校验与锁)。

@@ -5,7 +5,7 @@ description: A 股零鉴权取数手册。当需要真实的行情 / 市值 / �
 
 # A 股零鉴权取数(data-access)
 
-本 skill 是 AGENTS.md §0 第 1 条("禁止凭记忆生成数据")与 §5("取数只用登记脚本")的落地:每个数字都来自本次运行的脚本调用,原始响应落盘,证据带齐契约字段。脚本只取数、不做算术(单季拆分 / TTM / 同比 / 分位一律交给 `calc/`)。
+本 skill 是 AGENTS.md §0 第 1 条("禁止凭记忆生成数据")与 §5("取数只用登记脚本")的落地:每个数字都来自本次运行的脚本调用,原始响应落盘,证据带齐契约字段。脚本只取数、不做算术(单季拆分 / TTM / 同比 / 分位一律不在取数层做;产品内的计算由 DSH 的 `calculate_metrics` 工具完成)。
 
 ## 1. 调用方式
 
@@ -51,14 +51,14 @@ errors[]    — 每次失败:source / endpoint / error / at
 - `id` 键含脚本名与可选 `record_key`(公告主键 / 研报 infoCode):同脚本同输入同 id;同日多条记录不撞 id;不同脚本抓同一事实是两条证据。
 - 关键字段缺失(财务:关键字段 × 最近 8 期;一致预期:每年度 mean/min/max/count 四元组 + FY T..T+2)→ `status=partial` 并在 `missing` 列出缺失矩阵。
 
-- **单位按源原样输出,取数层不做任何换算**(腾讯市值 **亿元**;东财市值 / 股本按其原单位 **元 / 股**;财务累计值 **元**;EPS **元/股**)。跨单位运算由 `calc/` 按 evidence 的 unit 归一(只认 元 / 万元 / 亿元,未知单位报错),这是唯一的换算点。
-- 序列类数据(PE 历史、K 线)的 evidence 只记条数与日期范围,序列本身在 `raw_ref` 指向的 CSV/JSON 里;calc 通过 `history_csv` 参数从运行目录确定性加载并记录 sha256。
+- **单位按源原样输出,取数层不做任何换算**(腾讯市值 **亿元**;东财市值 / 股本按其原单位 **元 / 股**;财务累计值 **元**;EPS **元/股**)。跨单位运算不在取数层做,由下游计算工具按 evidence 的 unit 归一(只认 元 / 万元 / 亿元,未知单位报错)。
+- 序列类数据(PE 历史、K 线)的 evidence 只记条数与日期范围,序列本身在 `raw_ref` 指向的 CSV/JSON 里;下游计算按 `raw_ref` 读取序列。
 
 ## 4. 字段口径与已知坑(全部来自实测,别凭印象改)
 
 - 腾讯字段索引:**44 = 流通市值,45 = 总市值**(网上很多写反);43 是振幅不是 PB,PB 在 46;39 = PE_TTM;52 = PE 静态。
 - 腾讯"僵尸报价疑似":成交额 0 且现价 == 昨收 → `is_stale=true`,是停牌 / 已迁移废码(北交所 43/83/87 老号段)/ 盘前之一;**非盘前不得用于估值**,盘前按 SOP 用交易日历判定。
-- 财务摘要给的是**报告期累计值(YTD)**:Q1 即单季;H1 − Q1 = Q2……拆分用 `calc.quarterize`,不手算。
+- 财务摘要给的是**报告期累计值(YTD)**:Q1 即单季;H1 − Q1 = Q2……拆分交给下游计算工具,不手算。
 - 同花顺一致预期:`period` 写成 `FY2026` 形式;均值 = 一致预期 EPS;**必须同时报机构数与 min/max**;机构数 < 3 脚本会在 `extra.warnings` 提示。无机构覆盖时页面无表 → 走东财逐篇备源,只能称"逐篇预测"。
 - 东财:`push2.eastmoney.com` 在部分网络(含本项目开发机)断连,`push2delay` 同字段可用,脚本自动轮询;东财 `f116/f117` 总/流通市值方向与腾讯 44/45 相反,脚本已各自处理,勿混用。
 - baostock:零鉴权 TCP,**不支持北交所**;`turn` 是百分数;`tradestatus=0` 停牌日算分位前应剔除(脚本已在 evidence 给 traded 条数)。
@@ -88,5 +88,5 @@ Phase 0 的 8 个独立脚本保留不变(上表),其余数据源**不再一端�
 - 已知源侧限制(2026-08-22 本机实测):`push2.eastmoney.com` 在部分网络被重置 → 统一多主机回退 `push2delay`(与 legacy 一致);`push2his` 不通时日级资金流只回落到最新一日,历史序列用备源 `sina_fund_flow`;百度股市通返回 ResultCode 403(源已收紧);申万分类表站点证书链不完整 → 降级不校验并在证据 note 明示;mootdx 服务器偶发全部不可达;SEC 端点需 `VRA_SEC_CONTACT`(格式 "Name email@domain",不进代码 / 配置文件);iwencai 需 `IWENCAI_API_KEY`。
 - 离线测试:`scripts/tests/test_registry_sources.py`(注册表结构 / 函数与 mapper 可导入 / legacy 阶段计划与 Phase 0 一致 / 假模块全链路 / 代表性 mapper 形状 / 守卫)。
 - **raw 绑定**:单请求端点 raw_ref 精确;多请求端点行级证据带各自请求的 raw(信封 `extra.raw_binding = per_row_or_last`),其余默认最后一次响应;Yahoo 的 cookie / crumb 握手属鉴权辅助流**不落盘**(只有业务响应落盘),crumb 不会出现在任何 raw_ref。
-- **派生量不在取数层计算**(多日合计 / 比率 / 利差 / 净头寸 / 聚合一律不做,留给 calc 读 raw);**计算型端点**(indicators_* / bs_chip_distribution,注册表 `computed: true`)例外:取数层确定性库计算,信封 `extra.computation` 记库 / 版本 / 输入 raw / 参数供复算。
+- **派生量不在取数层计算**(多日合计 / 比率 / 利差 / 净头寸 / 聚合一律不做,留给下游计算读 raw);**计算型端点**(indicators_* / bs_chip_distribution,注册表 `computed: true`)例外:取数层确定性库计算,信封 `extra.computation` 记库 / 版本 / 输入 raw / 参数供复算。
 - **validator 不变量**(编排器侧):每条 evidence 必有 raw_ref(硬测试 injected 除外);账本 exit_code ↔ status 自洽且与信封 status 一致;账本条目的产物文件必须存在;raw/ 逐文件对账本 sha。

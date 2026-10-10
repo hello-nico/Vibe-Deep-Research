@@ -107,32 +107,9 @@ def test_safe_url():
     assert len(textsafe.safe_url("https://x.com/" + "a" * 1000)) == 300
 
 
-def test_gate_words_and_trad_chars_match_orchestrator():
-    # 红线词表 2026-08-26 从 Core 的 config.ts 搬进垂类包(Core 不再认识任何一个词)。
-    # 🔴 比的是**求值后的数组**,不是源码里的双引号文本(审计 gate-r1-P2)。
-    #    按文本解析时,只要在数组块里留一段与 Python 一致的注释 / 死代码,
-    #    真实规则改成拼接或展开也照样"通过" —— 那时这条测试比对的是谁也没在用的字符串。
-    ts = pathlib.Path(REPO, "orchestrator", "src", "finance", "gate_rules.ts").resolve()
-    # 🔴 用唯一前缀认自己那一行,不取"最后一行"(审计 gate-r2-P3):
-    #    node 的实验特性告警等杂音也可能落到 stdout,那时"最后一行"是告警而不是数据 ——
-    #    表现是 json.loads 抛一个看不出根因的解析错,或者更糟:恰好解析成了别的东西。
-    mark = "__GATE_PATTERNS__"
-    got = subprocess.run(
-        ["node", "--experimental-strip-types", "-e",
-         f"import({json.dumps(ts.as_uri())}).then(m => console.log({json.dumps(mark)} + JSON.stringify(m.FINANCE_GATE.patterns)))"],
-        capture_output=True, text=True, timeout=60, cwd=REPO,
-    )
-    assert got.returncode == 0, f"求值 gate_rules.ts 失败:{got.stderr[-400:]}"
-    marked = [ln[len(mark):] for ln in got.stdout.splitlines() if ln.startswith(mark)]
-    # 恰好一行:0 行 = 什么都没打印出来(退出码却是 0),>1 行 = 打了两次,两种都不能当成功
-    assert len(marked) == 1, f"预期恰好一行 gate 输出,实际 {len(marked)} 行;stdout={got.stdout[-500:]!r} stderr={got.stderr[-300:]!r}"
-    assert json.loads(marked[0]) == textsafe.GATE_WORDS, \
-        "textsafe.GATE_WORDS 必须与 finance/gate_rules.ts 求值后的 FINANCE_GATE.patterns 逐字一致"
+def test_gate_words_cover_action_phrases():
+    # 红线词表在垂类包里(textsafe);与已删除的 Core 侧 gate.ts / gate_rules.ts 的同步校验随退役移除。
     assert "增持" not in textsafe.GATE_WORDS and "建议增持" in textsafe.GATE_WORDS
-    gate = open(os.path.join(REPO, "orchestrator", "src", "gate.ts"), encoding="utf-8").read()
-    m = re.search(r"TRAD_CHARS: Record<string, string> = \{([^}]+)\}", gate)
-    ts_map = dict(re.findall(r"(\S): \"(\S)\"", m.group(1)))
-    assert ts_map == textsafe.TRAD_CHARS, "繁简映射必须与 gate.ts TRAD_CHARS 一致"
 
 
 def _fake_env(monkeypatch, fetch=None):
@@ -244,11 +221,7 @@ from datetime import datetime, timezone  # noqa: E402
 import inspect  # noqa: E402
 
 
-def test_sep_chars_and_marks_match_gate_ts():
-    gate = open(os.path.join(REPO, "orchestrator", "src", "gate.ts"), encoding="utf-8").read()
-    m = re.search(r'export const CJK_SEP_CHARS = "((?:[^"\\]|\\.)*)"', gate)
-    ts_chars = m.group(1).encode("utf-8").decode("unicode_escape") if m else None
-    assert ts_chars == textsafe.CJK_SEP_CHARS, "汉字间分隔符集合必须与 gate.ts 逐字一致"
+def test_sep_chars_and_marks():
     M = textsafe.ACTION_MARK
     for bad in ["建/仓", "目／标／价", "建议+买入", "建́仓", "建―仓", "建＋仓", "目 ／ 标 ／ 价"]:
         assert textsafe.sanitize_untrusted(bad).startswith(M), bad

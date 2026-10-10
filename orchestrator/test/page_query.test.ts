@@ -38,7 +38,7 @@ const ctx = (): ServiceContext =>
 
 test("🔴 页面按名字要数据,端点 id 只活在垂类声明里(界面上不该印出端点名)", () => {
   const qs = currentPlugin().pageQueries ?? {};
-  assert.ok(Object.keys(qs).length >= 3, "至少声明了几屏");
+  assert.ok(Object.keys(qs).includes("review"), "现用的 review 一屏必须还在");
   for (const [name, def] of Object.entries(qs)) {
     assert.ok(def.title && def.intent, `${name} 要有标题与"在回答什么"`);
     assert.ok(def.blocks.length > 0, name);
@@ -124,8 +124,7 @@ test("页面真取失败按同端点同参数回退成功快照，且失败不�
   const otherParams = await fetchPageEndpoint(service, { endpoint, args: { top_n: 10 }, refresh: true });
   assert.equal(otherParams.envelope.status, "failed");
   assert.equal(otherParams.fallback_reason, undefined);
-  writeSnapshot(service.dataRoot, snapshotKey(endpoint, "", { top_n: 20 }), { endpoint, symbol: "" }, saved.payload, () => true);
-  const page = await pageQuery(service, { query: "today", refresh: true });
+  const page = await pageQuery(service, { query: "review", refresh: true });
   const turnover = page.blocks.find(block => block.id === "turnover");
   assert.equal(turnover?.status, "stale_fallback");
   assert.match(turnover?.error || "", /HTTP 502/);

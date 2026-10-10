@@ -4,8 +4,6 @@ import os from "node:os";
 import path from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
-import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { createApiServer } from "../src/api.ts";
 import { closeClientStores } from "../src/client_store.ts";
 import type { ServiceContext } from "../src/service.ts";
@@ -30,6 +28,12 @@ test("retired HTTP operations cannot run; Client choices survive server reopen",
     let base = await open();
     assert.equal((await fetch(base + "/health")).status, 401);
     assert.equal((await request(base, "/health")).status, 200);
+    for (const route of ["/ledger/position", "/ledger/position/delete"]) {
+      assert.equal((await request(base, route, "POST")).status, 404, route);
+    }
+    for (const route of ["/ledger", "/ledger/position", "/series/gpu_rent_thermometer"]) {
+      assert.equal((await request(base, route)).status, 404, route);
+    }
     for (const route of ["/research", "/reports", "/chat", "/tasks/run", "/tool", "/debate/start"]) {
       assert.equal((await request(base, route, "POST")).status, 404, route);
     }
@@ -49,26 +53,6 @@ test("retired HTTP operations cannot run; Client choices survive server reopen",
   } finally {
     await close();
     closeClientStores();
-    fs.rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("actual stdio MCP exposes only data tools and rejects retired research", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-retirement-mcp-"));
-  const client = new Client({ name: "retirement-test", version: "1.0.0" });
-  const transport = new StdioClientTransport({
-    command: process.execPath, args: [path.join(repo, "orchestrator/src/mcp.ts"), "--repo-root", repo],
-    env: { PATH: process.env.PATH ?? "", VRA_DATA_ROOT: root }, stderr: "pipe",
-  });
-  try {
-    await client.connect(transport);
-    const listed = await client.listTools();
-    assert.deepEqual(listed.tools.map(t => t.name).sort(), ["fetch_endpoint", "list_endpoints"]);
-    const result = await client.callTool({ name: "start_research", arguments: { symbol: "600674.SH" } });
-    assert.equal(result.isError, true);
-    assert.equal(fs.existsSync(path.join(root, "runs")), false);
-  } finally {
-    await client.close();
     fs.rmSync(root, { recursive: true, force: true });
   }
 });

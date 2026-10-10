@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * 本机 HTTP 数据服务：Bearer 鉴权，提供端点取数、页面查询、台账与 Client 选择。
+ * 本机 HTTP 数据服务：Bearer 鉴权，提供端点取数、页面查询与 Client 选择。
  * 会话由 DSH 执行，研究资料由 Stock Backend 管理。
  * 用法：node orchestrator/src/api.ts [--port 8765] [--host 127.0.0.1]
  */
@@ -17,7 +17,7 @@ touchResearchSymbol,
 removeResearchSymbol,removeWatch,setPref,
 } from "./client_store.ts";
 import { NOFOLLOW_FLAG,restrictPrivateFile } from "./fsutil.ts";
-import { ServiceError,fetchEndpoint,ledgerKinds,ledgerLabels,ledgerList,ledgerRemove,ledgerSnapshot,ledgerUpsert,listEndpoints,pageQuery,redact,safePath,serviceContext,thermoSeries,type ServiceContext } from "./service.ts";
+import { ServiceError,fetchEndpoint,listEndpoints,pageQuery,redact,safePath,serviceContext,type ServiceContext } from "./service.ts";
 
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
@@ -130,34 +130,6 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string }): h
           const b = await readBody(req);
           return send(res, 200, await fetchEndpoint(ctx, { ...b, signal } as never));
         });
-      }
-      // 端点观测序列(只读)。⚠️ 端点 id 会被拼进文件路径 —— service 层用**注册表白名单**校验,
-      //    不做路径清洗(清洗规则总有想不到的编码形式,白名单没有想不到的情形)
-      if (req.method === "GET" && parts[0] === "series" && parts[1] && parts.length === 2) {
-        return send(res, 200, thermoSeries(ctx, decodeURIComponent(parts[1])));
-      }
-
-      // ---- 用户自有台账 ----
-      // 🔴 写操作一律用 POST(含删除),不用 DELETE:crossSiteReject 的"必须 application/json"
-      //    这条只覆盖 POST，所有写操作统一接受 Bearer、来源及 JSON 内容类型检查。
-      //    路径可读性让位于"所有写操作走同一套防护"。
-      if (req.method === "GET" && url.pathname === "/ledger") {
-        // 一次读盘拿两半:分两次调会让 records 与 issues 来自不同快照(见 service.ledgerSnapshot)
-        const snap = ledgerSnapshot(ctx);
-        return send(res, 200, { kinds: ledgerKinds(ctx), labels: ledgerLabels(ctx), records: snap.records, issues: snap.issues });
-      }
-      if (req.method === "GET" && parts[0] === "ledger" && parts[1] && parts.length === 2) return send(res, 200, ledgerList(ctx, parts[1]));
-      if (req.method === "POST" && parts[0] === "ledger" && parts[1] && parts.length === 2) {
-        const b = await readBody(req);
-        // 兼容两种写法:{...字段} 或 {record:{...}}。
-        // ⚠️ 用 hasOwnProperty 而不是 `b.record ?? b` —— 后者会把显式的 `{"record": null}`
-        //    回退成"整个请求体就是记录",把一个结构错误伪装成字段校验错误。
-        const rec = Object.prototype.hasOwnProperty.call(b, "record") ? b.record : b;
-        return send(res, 200, ledgerUpsert(ctx, { kind: parts[1], record: rec as Record<string, unknown> }));
-      }
-      if (req.method === "POST" && parts[0] === "ledger" && parts[1] && parts[2] === "delete" && parts.length === 3) {
-        const b = await readBody(req);
-        return send(res, 200, ledgerRemove(ctx, { kind: parts[1], id: String(b.id ?? "") }));
       }
       if (req.method === "GET" && url.pathname === "/client/watch") return send(res, 200, listWatch(ctx));
       if (req.method === "POST" && url.pathname === "/client/watch") {

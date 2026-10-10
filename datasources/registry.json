@@ -2399,12 +2399,7 @@
         "tickers": "2383,6274,2368,3081",
         "years": 2
       },
-      "notes": "每月 10 日前披露、滞后 ~10 天;402 = 配额 / 限流必须出声;资料期 > 2 个月标 partial;证据 market=TW / symbol=台股代码,币种 TWD。读法护栏在 note 与 extra.guard;history_fields=月营收 / 环比 / 同比进用户数据区序列,下次运行出 _prev / _change_*(累计同比与差分文本不做历史)",
-      "history_fields": [
-        "tw_monthly_revenue",
-        "tw_monthly_revenue_mom_pct",
-        "tw_monthly_revenue_yoy_pct"
-      ]
+      "notes": "每月 10 日前披露、滞后 ~10 天;402 = 配额 / 限流必须出声;资料期 > 2 个月标 partial;证据 market=TW / symbol=台股代码,币种 TWD。读法护栏在 note 与 extra.guard"
     },
     {
       "id": "gpu_rent_thermometer",
@@ -2430,12 +2425,7 @@
       ],
       "enabled": true,
       "args": {},
-      "notes": "曲线 = 500.farm 对 Vast 可租挂单的逐日中位(按机型档位分组统计后聚合,**不是**逐张挂单精确中位);🔴 现货 = 曲线的最新采样点,同源同算法 ⇒ 卡片数字与曲线末端严格一致(旧版现货走 Vast bundles,与曲线对不上且只有两张卡);型号名用统计站 label 原文(H100 SXM / A100 SXM4,写错只会安静返回空序列);Prometheus 空窗会给 NaN/Inf,必须丢弃(进 JSON 会让整条端点失败);挂单卡数是规模读数不是信号本体,拿不到给 None 不算失败;Kalshi 三分判定(格式变 / 未开盘 / 有报价);$3 是折旧参考线不是保本线;证据 market=US / symbol=GPU 型号;曲线走 extra(序列不是证据)",
-      "history_fields": [
-        "gpu_spot_median_usd_per_gpu_hr",
-        "gpu_forward_p_below_lowest_strike",
-        "gpu_forward_lowest_strike_usd"
-      ]
+      "notes": "曲线 = 500.farm 对 Vast 可租挂单的逐日中位(按机型档位分组统计后聚合,**不是**逐张挂单精确中位);🔴 现货 = 曲线的最新采样点,同源同算法 ⇒ 卡片数字与曲线末端严格一致(旧版现货走 Vast bundles,与曲线对不上且只有两张卡);型号名用统计站 label 原文(H100 SXM / A100 SXM4,写错只会安静返回空序列);Prometheus 空窗会给 NaN/Inf,必须丢弃(进 JSON 会让整条端点失败);挂单卡数是规模读数不是信号本体,拿不到给 None 不算失败;Kalshi 三分判定(格式变 / 未开盘 / 有报价);$3 是折旧参考线不是保本线;证据 market=US / symbol=GPU 型号;曲线走 extra(序列不是证据)"
     },
     {
       "id": "policy_access",
@@ -2543,9 +2533,6 @@
       "args": {
         "symbols": "CU0,SN0,AL0,NI0,SI0"
       },
-      "history_fields": [
-        "commodity_futures_close"
-      ],
       "notes": "全市场证据 → symbol=MARKET / record_key=品种代码;期货价不是本公司采购价(护栏原样进 note);工业硅需求由光伏主导对半导体是弱信号;资料超 10 天未更新标 stale 并降 partial;逐品种隔离失败,全失败才抛;DataFrame 非传输层原文 → record_raw(kind=extracted)"
     },
     {
@@ -2571,9 +2558,6 @@
         "storage_memory"
       ],
       "enabled": true,
-      "history_fields": [
-        "dram_spot_avg"
-      ],
       "notes": "🔴 社区转录的 DRAMeXchange 存档不是官方一手(可能有转录误差与停更),护栏必须原样带出;DRAM 现货是 HBM 的影子指标不是 HBM 价格(HBM 走年度长约无公开现货价);ddr5 序列无 product 字段 → 规格如实写\"未在数据中标明\";全市场证据 symbol=MARKET / record_key=品类;超 14 天标 stale 降 partial"
     },
     {
@@ -2631,9 +2615,6 @@
       ],
       "pass_out_dir": true,
       "enabled": true,
-      "history_fields": [
-        "hiring_open_roles"
-      ],
       "notes": "锚点清单在 industry_tags.json 的 hiring_anchors(与温度计同一处配置);⛔ Workday 系(NVIDIA/Coherent/Lumentum/Marvell/Micron)需 host+tenant+site 非零配置,不收、如实写未接入;岗位数是招聘意图不是产能,只在同一公司内部比变化;全市场证据 symbol=MARKET / record_key=ats:slug;逐家隔离失败,全失败才抛;解析不出 jobs 数组=结构变了必须抛"
     },
     {
@@ -2658,9 +2639,6 @@
         "risk": "optional"
       },
       "enabled": true,
-      "history_fields": [
-        "macro_probability"
-      ],
       "notes": "移植自 GlobalPercent 的模块分类器与取数形态。只收 6 个核心模块(货币政策 / 宏观经济 / 地缘政治 / 政治选举 / 股指大宗 / AI科技),参考类(加密 / 体育 / 娱乐 / 其他)丢弃;每模块取前 3(排序键 = max(24h 成交量, 未平仓量) —— 月度宏观合约典型是持仓大、当日安静,只看当日量会被冷门合约挤掉)。**近端允许安静、远期必须有 24h 成交量** —— 纯日期窗口会误杀有意义的远期宏观合约(实测「Recession in 2027?」有真实成交却结算在 500 多天后),纯流动性又留不住 2099 年的僵尸盘。⚠️ 这是**市场当前的定价预期,不是事实也不是预测**,概率随时在变、只在 as_of 那一刻成立;低成交量合约噪音极大。⚠️ Kalshi 的成交量字段是 volume_24h_fp / volume_fp(不是 volume_24h),且服务端**忽略 category 查询参数**,只能翻页后本地分类。"
     },
     {

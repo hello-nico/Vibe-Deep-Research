@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """数据源健康检查:按 registry.json 逐端点实跑 fetch_endpoint.py(示例标的),汇总 ok / partial / failed / 耗时 / 失败原因,写 health_report.json + health_report.md。
-用法:.venv/bin/python datasources/health.py [--out DIR] [--only id1,id2] [--layer 前缀] [--workers 4] [--timeout 150] [--include-disabled]
+用法:.venv/bin/python scripts/health.py [--out DIR] [--only id1,id2] [--layer 前缀] [--workers 4] [--timeout 150] [--include-disabled]
 示例标的:cn6 → 300308;us → AAPL;hk → 00700;global → AAPL;raw → 端点 sample 字段;none → 不传。结果仅供评估可达性与契约形状,不作为研究证据。"""
 from __future__ import annotations
 

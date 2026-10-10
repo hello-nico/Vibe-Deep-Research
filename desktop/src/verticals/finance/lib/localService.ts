@@ -1,4 +1,4 @@
-/** 本机数据服务（orchestrator，8765）客户端：页面取数、快照、台账及 Client 选择与偏好。与 Stock Backend 客户端 `research.ts` 区分。 */
+/** 本机数据服务（orchestrator，8765）客户端：页面取数、快照及 Client 选择与偏好。与 Stock Backend 客户端 `research.ts` 区分。 */
 
 export class ApiError extends Error {
   readonly status: number;
@@ -109,18 +109,6 @@ export const localService = {
       }),
     }),
 
-  ledger: () =>
-    call<{
-      kinds: Record<string, { label: string; properties: Record<string, unknown>; required: string[] }>;
-      labels: { fields: Record<string, string>; enums: Record<string, string> };
-      records: Record<string, LedgerRecord[]>;
-      issues: Record<string, { id: string; why: string }[]>;
-    }>("/ledger"),
-  ledgerSave: (kind: string, record: Record<string, unknown>) =>
-    call<LedgerRecord>(`/ledger/${encodeURIComponent(kind)}`, { method: "POST", body: JSON.stringify(record) }),
-  ledgerDelete: (kind: string, id: string) =>
-    call<{ removed: boolean }>(`/ledger/${encodeURIComponent(kind)}/delete`, { method: "POST", body: JSON.stringify({ id }) }),
-
   clientWatch: () => call<{ symbols: string[] }>("/client/watch"),
   clientWatchAdd: (symbol: string) =>
     call<{ symbols: string[]; added: boolean }>("/client/watch", { method: "POST", body: JSON.stringify({ symbol }) }),
@@ -137,12 +125,6 @@ export const localService = {
   clientPrefSet: (key: string, value: string) =>
     call<{ prefs: Record<string, string> }>("/client/prefs", { method: "POST", body: JSON.stringify({ key, value }) }),
 
-
-  /** 端点观测序列(跨运行累积)。⚠️ 只在**完整研究运行**时追加,手动点看板不写 —— 稀疏是正常的 */
-  series: (endpoint: string) =>
-    call<{ endpoint: string; observations: ThermoObservation[]; exists: boolean; unreadable: boolean; dropped: number }>(
-      `/series/${encodeURIComponent(endpoint)}`,
-    ),
 
   /**
    * 一屏数据（BFF 查询）。页面**只说要哪个屏**，不认识物理端点。
@@ -164,18 +146,6 @@ export const localService = {
     }),
 };
 
-export interface LedgerRecord {
-  id: string;
-  kind: string;
-  created_at: string;
-  updated_at: string;
-  [field: string]: unknown;
-}
-export interface ThermoObservation {
-  run_id: string; run_date: string; as_of: string; fetched_at: string;
-  record_key: string; field: string; value: number | string | null;
-  unit: string; period: string; raw_ref: string | null; source: string;
-}
 /** 一屏里的一块。**status 与 note 要跟数字一起渲染** —— 只给数字不给读法等于替上游打包票 */
 export interface PageBlock {
   id: string;

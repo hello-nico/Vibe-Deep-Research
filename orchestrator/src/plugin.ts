@@ -1,5 +1,5 @@
 import AjvModule from "ajv";
-import { applyCoreFormats, assertKnownFormats } from "./formats.ts";
+import { applyCoreFormats } from "./formats.ts";
 
 
 
@@ -77,17 +77,6 @@ export interface PageContextDef {
   readonly unavailable: string;
 }
 
-export interface LedgerKindDef {
-  /** 显示名(界面用);Core 不解释它 */
-  readonly label: string;
-  /** 字段:JSON Schema 的 properties 片段 */
-  readonly properties: Readonly<Record<string, unknown>>;
-  /** 其中哪些必填(必须是 properties 的子集) */
-  readonly required: readonly string[];
-}
-
-export const LEDGER_ENVELOPE_KEYS = ["id", "kind", "created_at", "updated_at"] as const;
-
 const AjvCtor = ((AjvModule as unknown as { default?: unknown }).default ?? AjvModule) as new (o: object) => {
   compile: (s: object) => ((d: unknown) => boolean) & { errors?: { instancePath?: string; message?: string }[] | null };
   addFormat: (name: string, def: { type: "string"; validate: (s: string) => boolean }) => unknown;
@@ -124,25 +113,6 @@ function snapshot<T>(value: T, ancestors = new Set<object>()): T {
   return Object.freeze(out) as T;
 }
 
-const LEDGER_KIND_NAME = { type: "string", pattern: "^[a-z][a-z0-9_]{0,31}$" };
-
-const LEDGER = {
-  type: "object", additionalProperties: false, required: ["kinds"],
-  properties: {
-    kinds: {
-      type: "object",
-      // 键要过 LEDGER_KIND_NAME;ajv 的 propertyNames 就是干这个的
-      propertyNames: LEDGER_KIND_NAME,
-      additionalProperties: {
-        type: "object", additionalProperties: false, required: ["label", "properties", "required"],
-        properties: { label: NONBLANK, properties: { type: "object" }, required: strArray({ uniqueItems: true }) },
-      },
-    },
-    // 显示名:字段键 / 枚举值 → 人话。放在**种类之外**是因为 status 这类枚举跨种类共用
-    fieldLabels: mapOf(NONBLANK),
-    enumLabels: mapOf(NONBLANK),
-  },
-};
 export interface Plugin {
 readonly id: string;
 readonly evidence: {
@@ -158,21 +128,6 @@ readonly evidence: {
     readonly marketWideOnlyCodes: readonly string[];
   };
 readonly marketRegion: (market: string) => string;
-readonly seriesFor?: (dataRoot: string, endpoint: string) =>
-    { observations: unknown[]; exists: boolean; unreadable: boolean; dropped: number };
-readonly ledger?: {
-    /** 种类名 → 定义。种类名会被拼进文件路径,注册期按安全路径段校验 */
-    readonly kinds: Readonly<Record<string, LedgerKindDef>>;
-    /**
-     * 字段键 → 显示名。**这是垂类知识**:同一个键在不同垂类里叫法完全不同。
-     * 🔴 曾经写死在 Core 的表单组件里 —— 界面看着没毛病,但换个垂类就得改 Core,
-     *    而纯净度棘轮的词表里恰好一个都没收录,于是**一路绿灯**。
-     * ⚠️ 没登记的字段照样渲染(退回原键名),不能因为没起名就整块不显示。
-     */
-    readonly fieldLabels?: Readonly<Record<string, string>>;
-    /** 枚举值 → 显示名。跨种类共用(status 在好几种记录里都出现),所以不挂在种类下 */
-    readonly enumLabels?: Readonly<Record<string, string>>;
-  };
 readonly pageQueries?: Readonly<Record<string, PageQueryDef>>;
 readonly pageContext?: PageContextDef;
 }
@@ -187,7 +142,7 @@ export function registerPlugin(plugin: Plugin): void {
   const p = snapshot(plugin);
   const validate = ajv.compile(PLUGIN_SCHEMA);
   if (!validate(p)) throw new Error(`Plugin 不符契约:${JSON.stringify(validate.errors)}`);
-  if (typeof p.marketRegion !== "function" || (p.seriesFor && typeof p.seriesFor !== "function")) throw new Error("插件数据函数非法");
+  if (typeof p.marketRegion !== "function") throw new Error("插件数据函数非法");
   if (p.evidence.marketWideOnlyCodes.some(code => !p.evidence.marketWideCodes.includes(code)) || p.evidence.marketWideCodes.some(code => !p.evidence.markets.includes(code))) throw new Error("市场代码必须满足 Only ⊆ Codes ⊆ markets");
   if (p.pageContext && (typeof p.pageContext.resolve !== "function" || !p.pageContext.endpoint || !p.pageContext.unavailable)) throw new Error("页面上下文非法");
   for (const page of Object.values(p.pageQueries ?? {})) {
@@ -198,11 +153,6 @@ export function registerPlugin(plugin: Plugin): void {
       ids.add(block.id);
       if (block.injectContext && (!page.needsContext || !block.injectAs || !Object.keys(block.injectAs).length)) throw new Error(`区块缺少上下文映射:${block.id}`);
     }
-  }
-  for (const def of Object.values(p.ledger?.kinds ?? {})) {
-    if (def.required.some(key => !(key in def.properties)) || LEDGER_ENVELOPE_KEYS.some(key => key in def.properties)) throw new Error("台账字段与信封冲突或缺少必填字段定义");
-    assertKnownFormats("ledger", def.properties);
-    ajv.compile({ type: "object", properties: def.properties, required: def.required });
   }
   active = p;
   source = plugin;
@@ -255,7 +205,7 @@ const evidenceSchema = {
 export const PLUGIN_SCHEMA = {
   type: "object", additionalProperties: false,
   required: ["id", "evidence", "marketRegion"], properties: {
-    id: NONBLANK, evidence: evidenceSchema, marketRegion: {}, seriesFor: {},
-    ledger: LEDGER, pageQueries: pageQueriesSchema, pageContext: {},
+    id: NONBLANK, evidence: evidenceSchema, marketRegion: {},
+    pageQueries: pageQueriesSchema, pageContext: {},
   },
 };

@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 
 import { createApiServer } from "../src/api.ts";
 import { detectPython } from "../src/init.ts";
-import { ServiceError,fetchEndpoint,ledgerList,ledgerSnapshot,ledgerUpsert,type ServiceContext } from "../src/service.ts";
+import { ServiceError,fetchEndpoint,type ServiceContext } from "../src/service.ts";
 
 
 import "../src/finance/register.ts"; // 测试文件也是入口:插件要先注册
@@ -17,31 +17,11 @@ const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", ".
 const PY = process.env.VRA_PYTHON ?? detectPython(REPO) ?? detectPython(path.join(REPO, "..")) ?? "python3";
 const TOKEN = "t".repeat(32);
 
-const noAbs = (v: unknown, ctx: ServiceContext) => { const s = JSON.stringify(v); assert.ok(!s.includes(ctx.dataRoot) && !s.includes(ctx.repoRoot) && !s.includes(os.tmpdir()), `返回值含绝对路径:${s.slice(0, 200)}`); };
-
 async function waitUntil(check: () => boolean): Promise<void> {
   const deadline = Date.now() + 15_000;
   while (!check() && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 20));
   assert.ok(check(), "等待测试链路就绪超时");
 }
-
-test("台账全量读取也要过 safePath —— 防线只在次要入口生效等于没有防线", async () => {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), "vra-ledgersvc-"));
-  const outside = fs.mkdtempSync(path.join(os.tmpdir(), "vra-outside-"));
-  const ctx = { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath } as ServiceContext;
-
-  // 先正常写一条,确保目录与文件存在
-  ledgerUpsert(ctx, { kind: "position", record: { symbol: "300308", shares: 1, cost: 1 } });
-  const f = path.join(root, "ledger", "position.json");
-  fs.writeFileSync(path.join(outside, "evil.json"), JSON.stringify({ schema_version: 1, kind: "position", records: [] }));
-  fs.rmSync(f);
-  fs.symlinkSync(path.join(outside, "evil.json"), f); // 数据区里被塞了指向区外的链接
-
-  // 单查会被挡 —— 这条原本就过
-  assert.throws(() => ledgerList(ctx, "position"), (e: unknown) => e instanceof ServiceError && e.code === "path_symlink");
-  // 🔴 全查是界面的**主入口**,原实现直接调 listAll,绕过了这道防线
-  assert.throws(() => ledgerList(ctx), (e: unknown) => e instanceof ServiceError && e.code === "path_symlink");
-});
 
 /** 真仓库根(读得到注册表)+ 临时数据根(快照不污染本机) */
 const realRepoCtx = (): ServiceContext => ({
@@ -56,24 +36,6 @@ const svcCtx = (): ServiceContext => {
   return { repoRoot: root, dataRoot: root, python: "python3", node: process.execPath } as ServiceContext;
 };
 
-test("🔴 /ledger 的 records 与 issues 必须来自同一次读盘(分两次读会自相矛盾)", () => {
-  const ctx = svcCtx();
-  const rec = ledgerUpsert(ctx, { kind: "thesis", record: { title: "正常一条" } });
-  const snap = ledgerSnapshot(ctx);
-  assert.ok(snap.records.thesis?.some((r) => r.id === rec.id));
-  assert.deepEqual({ ...snap.issues }, {});
-
-  // 手改成不合契约的一条:同一次快照里,它既在 records 里、也在 issues 里 —— 两半对得上
-  const file = path.join(ctx.dataRoot, "ledger", "thesis.json");
-  const d = JSON.parse(fs.readFileSync(file, "utf8")) as { records: Record<string, unknown>[] };
-  d.records[0]!.title = 123; // title 应是字符串
-  fs.writeFileSync(file, JSON.stringify(d));
-  const bad = ledgerSnapshot(ctx);
-  assert.equal(bad.records.thesis?.length, 1, "坏记录仍然返回(不删不改)");
-  assert.equal(bad.issues.thesis?.length, 1, "同一份响应里必须同时报出问题");
-  assert.equal(bad.issues.thesis?.[0]!.id, rec.id, "issue 指的就是响应里那条");
-});
-
 test("请求体上限按字节算,不按字符算(一个中文 3 字节却只算 1 个字符)", async () => {
   const ctx = svcCtx();
   const server = createApiServer(ctx, { token: "t-test-token-0123456789" });
@@ -81,10 +43,10 @@ test("请求体上限按字节算,不按字符算(一个中文 3 字节却只算
   const port = (server.address() as { port: number }).port;
   try {
     const big = "中".repeat(200 * 1024); // 字符 20 万 < 256K 上限,字节约 600KB > 256KB
-    const r = await fetch(`http://127.0.0.1:${port}/ledger/thesis`, {
+    const r = await fetch(`http://127.0.0.1:${port}/client/watch`, {
       method: "POST",
       headers: { authorization: "Bearer t-test-token-0123456789", "content-type": "application/json" },
-      body: JSON.stringify({ title: big }),
+      body: JSON.stringify({ symbol: big }),
     });
     // 🔴 状态码也要断言:上一版只断言了 error 码,于是"注释说 413、代码回 400"这件事被放过去了
     assert.equal(r.status, 413, "请求体过大是 413,不是笼统的 400");

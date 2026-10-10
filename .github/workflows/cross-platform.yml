@@ -83,9 +83,11 @@ jobs:
           npm test --prefix desktop
           npm run build --prefix desktop
       - name: Python tests
+        # 只测页面取数在用的数据源模块(东财 / 概率 / 注册表装配 / 脱敏 / 产业信号)。
+        # 无产品调用方的端点测试暂留仓库、不在 CI 运行,清单见 datasources/README.md。
         run: |
-          python -m pytest calc/tests -q
-          python -m pytest .agents/skills/data-access/scripts/tests -q
+          T=.agents/skills/data-access/scripts/tests
+          python -m pytest -q $T/test_eastmoney.py $T/test_probability.py $T/test_m36_probability_budget.py $T/test_registry_sources.py $T/test_redaction.py $T/test_industry.py
       - name: Parse Windows PowerShell entrypoints
         if: runner.os == 'Windows'
         shell: powershell

@@ -17,7 +17,6 @@ test("产品配置:无文件 → 内置默认;相对路径相对产品根解析"
   assert.equal(pc.resolved.dataRoot, path.join(repo, ".local"));
   assert.equal(pc.resolved.constitution, path.join(repo, "AGENTS.md"));
   assert.equal(pc.resolved.skills, path.join(repo, ".agents", "skills"));
-  assert.equal(pc.resolved.calcCli, path.join(repo, "calc", "cli.py"));
   assert.equal(pc.resolved.scriptsRel, path.join(".agents", "skills", "data-access", "scripts"));
   assert.equal(pc.python, DEFAULT_PRODUCT_CONFIG.python);
   assert.deepEqual(Object.keys(pc), ["python", "paths", "resolved", "sources"], "配置里不允许再出现 provider / 引擎字段");
@@ -45,6 +44,10 @@ test("产品配置:产品文件 ← 用户文件 ← 环境变量 逐层覆盖;s
   // 未知字段 / 坏 JSON
   fs.writeFileSync(path.join(repo, "data", "config.json"), JSON.stringify({ python: "x", unknown: true }));
   assert.throws(() => loadProductConfig(repo, { env: {} }), /schema/);
+  // 退役的 paths.calc_cli:旧用户配置里残留也不报错、不生效
+  fs.writeFileSync(path.join(repo, "data", "config.json"), JSON.stringify({ paths: { calc_cli: "calc/cli.py" } }));
+  pc = loadProductConfig(repo, { env: {} });
+  assert.equal("calc_cli" in pc.paths, false);
   fs.writeFileSync(path.join(repo, "data", "config.json"), "{oops");
   assert.throws(() => loadProductConfig(repo, { env: {} }), /JSON/);
 });

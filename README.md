@@ -36,7 +36,7 @@
 | 不变量 | — | [invariants](docs/contracts/invariants.md) |
 | 决策、待办与进行中 | — | [Human Checklist](human-checklist.md)、[待办](todo.md)、[进行中的 Task](docs/tasks/active/) |
 
-`datasources/`、`.agents/skills/data-access/` 和 `calc/` 保留被现用取数与校验消费的能力。`orchestrator` 不再注册研究启动工具，其 MCP 仅提供端点目录和受控取数。
+`datasources/` 与 `.agents/skills/data-access/` 保留被页面取数消费的能力；产品只给 DSH 使用，`orchestrator` 不提供 MCP 接入，也不注册研究启动工具。
 
 ## 本机启动
 
