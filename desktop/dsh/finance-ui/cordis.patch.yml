@@ -31,6 +31,9 @@
   disabled: true
 - id: ui-deliverables
   disabled: true
+# Shell and file tools are disabled, so sandbox/approval presets have nothing to govern; keep the default and hide the picker.
+- id: ui-permission
+  disabled: true
 - insert:
     - id: preset-vibe
       name: '@deepseek-ai/dsh-agent-preset'
