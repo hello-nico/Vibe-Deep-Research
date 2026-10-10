@@ -1,4 +1,5 @@
 import { researchRead } from './research';
+import { watchPathOfCompany } from './routes';
 
 // Backend owns object status (T4-a); UI reads the same rows in batches.
 export type StatusRow = {
@@ -57,12 +58,12 @@ export function loadObjectBadges(slug: string): Promise<string[]> {
 }
 
 export function badgeHref(slug: string, badge: string, row?: StatusRow): string | undefined {
-  const base = slug.startsWith('companies/') ? `/research?company=${encodeURIComponent(slug)}`
+  const base = slug.startsWith('companies/') ? watchPathOfCompany(slug)
     : slug.startsWith('industries/nbs-') ? `/sectors/${encodeURIComponent(slug.slice('industries/nbs-'.length))}` : undefined;
   if (!base) return undefined;
   if (badge === '有新资料') return `${base}${base.includes('?') ? '&' : '?'}refresh=confirm`;
   if (badge === '草案待确认') return row?.drafts?.latest?.status === 'pending'
-    ? `/my-research?tab=tasks&draft=${encodeURIComponent(row.drafts.latest.draft_id)}` : '/my-research?tab=pending';
+    ? `/insights?tab=tasks&draft=${encodeURIComponent(row.drafts.latest.draft_id)}` : '/insights?tab=pending';
   if (badge === '报告已过期') return `${base}${base.includes('?') ? '&' : '?'}view=report`;
   if (badge === '建立中' || badge === '待确认维护') return base;
   return undefined;

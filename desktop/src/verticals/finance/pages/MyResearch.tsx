@@ -31,6 +31,7 @@ import { activeTaskKind, loadReportTasks, reportTaskOutcome, reportTaskTitle, re
 import { normalizeResearchTarget, objectLabel, openRegisteredObject, registeredObject, resolveObjectLabels } from "../lib/objectRegistry";
 import { discardResearchDraft, draftInvalidReason, invalidatePendingItems, loadPendingItems, loadResearchDrafts, pendingCount, type PendingItem, type ResearchDraft } from '../lib/pendingResearch';
 import { symbolFromCompanySlug } from '../lib/research';
+import { watchPathOfCompany } from '../lib/routes';
 import { trackTask } from '../lib/taskNotices';
 import { WikiDraftPublish } from '../components/WikiDraftPublish';
 import { invalidateObjectStatuses } from '../lib/objectStatus';
@@ -293,7 +294,7 @@ export function MyResearch() {
         setTopicRouteStatus(success.message);
         topicRouteTimer.current = window.setTimeout(() => {
           if (topicRouteMounted.current && attempt === topicRouteAttempt.current) {
-            navigate(`/my-research/topics/${topicHex(success.topicId)}`);
+            navigate(`/insights/topics/${topicHex(success.topicId)}`);
           }
         }, 600);
         return;
@@ -333,7 +334,7 @@ export function MyResearch() {
       await researchSessions.start(`为《${page.spec.title || slug}》生成一份图文报告。`, undefined, {
         navigate: false, task: { kind: 'report', slug, inputHash: page.input_hash, title: `报告生成 · ${page.spec.title || slug}` },
       });
-      navigate(`/research?company=${encodeURIComponent(slug)}&view=report`);
+      navigate(watchPathOfCompany(slug));
     } catch (e) { setRetryError(e instanceof Error ? e.message : String(e)); }
     finally { setRetryBusy(''); }
   };
@@ -350,8 +351,8 @@ export function MyResearch() {
       const name = page.spec.title || objectLabel(slug);
       const prompt = `${ensured.action === 'exists' ? '继续研究' : '研究'} ${name}（${symbol}）：先看已有研究页的内容、缺口和资料时间线，再按缺口补充年报、公告和行情。研究页已经建好，不用再建；研究结束后页面会自动更新。\n引用材料：${name} \`${slug}\``;
       const { sessionId } = await researchSessions.start(prompt, { symbol, name }, { navigate: false, task: { kind: 'research', slug, symbol, title: `公司研究 · ${name}` } });
-      trackTask({ kind: 'research', object: { slug, title: name, kind: 'company', path: `/research?company=${encodeURIComponent(slug)}` }, ref: sessionId });
-      navigate(`/research?company=${encodeURIComponent(slug)}`);
+      trackTask({ kind: 'research', object: { slug, title: name, kind: 'company', path: watchPathOfCompany(slug) }, ref: sessionId });
+      navigate(watchPathOfCompany(slug));
     } catch (error) { setRetryError(error instanceof Error ? error.message : String(error)); }
     finally { setRetryBusy(''); }
   };
@@ -383,16 +384,13 @@ export function MyResearch() {
   const current = RESEARCH_TABS.find(item => item.value === tab)!;
   return <div>
     {confirmDialog}
-    <PageHeader title="我的研究" subtitle="继续未完成的议题，或回看已归档的问题和记录。" />
+    <PageHeader title="洞悉" />
     <div className="mb-4">
       <WorkspaceTabs aria-label="研究类型" value={tab} onChange={setTab} options={RESEARCH_TABS} />
     </div>
-    <GlassCard glow>
+    <GlassCard>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <current.icon className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">{current.label}</h3>
-        </div>
+        <h2 className="text-sm font-semibold">{current.label}</h2>
         {tab === "topics" && <WorkspaceFilter aria-label="议题状态" value={status} onChange={setStatus} options={[{ value: "active", label: "研究中" }, { value: "archived", label: "已归档" }]} />}
       </div>
       {tab === "notes" && <WorkspaceSearch className="mb-4" placeholder="搜索记录标题或正文" value={query} onChange={value => { setQuery(value); setNotesOffset(0); }} />}
@@ -423,7 +421,7 @@ export function MyResearch() {
         </form>
         {topicRouteError && <p role="alert" className="mt-3 text-sm text-destructive">{topicRouteError}</p>}
         <WorkspaceSearch className="mb-3 mt-6" placeholder="搜索议题" value={query} onChange={value => { setQuery(value); setOffset(0); }} />
-        {topicRouteStatus && <p role="status" className="mt-3 text-sm text-primary">{topicRouteStatus}</p>}
+        {topicRouteStatus && <p role="status" className="mt-3 text-sm text-[var(--text-2)]">{topicRouteStatus}</p>}
         {topicRouteResult?.action === "choose" && <div className="mt-4 border-b border-border/30 pb-4">
           <p className="text-sm font-medium">{topicRouteResult.reason === ARCHIVED_TOPIC_TEXT_SEARCH
             ? "已归档的议题里有相近的问题，可以恢复继续，或修改问题后新建："
@@ -466,12 +464,12 @@ function PendingResearchPanel({ items, error, busy, onRetry, onAction }: {
   if (error) return <p role="alert" className="text-sm text-destructive">待处理事项暂时无法读取：{error}<button type="button" className="workspace-action ml-2" onClick={onRetry}>重试</button></p>;
   if (!items) return <ResearchLoading compact title="正在读取待处理事项" sections={['草案', '资料变化']} />;
   if (!items.length) return <p className="py-8 text-sm text-muted-foreground">目前没有待处理事项。</p>;
-  return <div className="divide-y divide-border/30">{items.map(item => {
+  return <div className="divide-y divide-[var(--line-1)]">{items.map(item => {
     const object = registeredObject(item.slug);
     const action = item.kind === 'invalid' ? '重新整理' : item.kind === 'draft' ? '审阅' : item.kind === 'refresh' ? '确认新资料' : '查看';
     return <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
       <div className="min-w-0">
-        <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={() => openRegisteredObject(item.slug)}>{object?.label || item.slug}</button>
+        <button type="button" className="text-sm font-medium hover:underline" onClick={() => openRegisteredObject(item.slug)}>{object?.label || item.slug}</button>
         <p className="mt-1 text-sm">{item.label}</p>
         {item.time && <p className="mt-1 text-xs text-muted-foreground">{new Date(item.time).toLocaleString('zh-CN')}</p>}
       </div>
@@ -708,7 +706,7 @@ function TopicRefText({ text }: { text: string }) {
   }, [refs.join(" ")]);
   if (!refs.length) return <>{text}</>;
   return <>{text.split(/(topic:[0-9a-f]{12})/).map((part, index) => /^topic:[0-9a-f]{12}$/.test(part)
-    ? <Link key={index} className="rl-topic-ref" title={objectLabel(part)} to={`/my-research/topics/${part.slice(6)}`}>「{topicShortTitle(part)}」</Link>
+    ? <Link key={index} className="rl-topic-ref" title={objectLabel(part)} to={`/insights/topics/${part.slice(6)}`}>「{topicShortTitle(part)}」</Link>
     : part)}</>;
 }
 
@@ -876,7 +874,7 @@ function TopicRows({ topics, status, poolBusy, onPool }: {
     const archived = (item.pool_state || status) === "archived";
     const state = item.judgment?.state || '';
     const stateLabel = JUDGMENT_LABEL[state] || '';
-    const href = `/my-research/topics/${topicHex(item.topic_id)}`;
+    const href = `/insights/topics/${topicHex(item.topic_id)}`;
     return <div key={item.topic_id} className="rl-task rl-topic-row">
       <div className="rl-task-head rl-topic-title-row">
         <StatusDot tone={archived ? 'off' : TOPIC_TONE[state] || 'off'} label={archived ? '已归档' : `研究中${stateLabel ? ` · ${stateLabel}` : ''}`} />

@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef, type ReactNode } from "react";
 import { localService, type PageResult } from "@/lib/localService";
 import { RefreshCw, Gauge, ArrowDownUp, TrendingUp, TrendingDown, Flame, BarChart3, Globe, type LucideIcon } from "lucide-react";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { companyQuoteObject, dailyReviewQuoteObjects, globalIndexObject, marketAssistantObject, marketIndicesObject, MARKET_INDEX_IDS } from "../lib/pageAssistantObjects";
 import { buildDailyReviewSnapshot } from "../assistant/snapshot.ts";
@@ -268,8 +267,6 @@ export function DailyReview() {
 
   return (
     <div>
-      <PageHeader title="大盘行情" subtitle="大盘 / 情绪 / 板块资金" />
-
       {pageErr && (
         <div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           本页数据没有加载完整：{pageErr}
@@ -288,13 +285,13 @@ export function DailyReview() {
           ? [1, 2, 3, 4].map((i) => (
               <GlassCard key={i} className="p-3">
                 <p className="text-xs text-muted-foreground">{idxErr ? "行情暂时取不到" : "加载中…"}</p>
-                <p className="mt-1 font-mono text-lg font-bold text-muted-foreground/40">—</p>
+                <p className="mt-1 tabular-nums text-[22px] font-semibold text-muted-foreground/40">—</p>
               </GlassCard>
             ))
           : indices.map((i) => (
               <GlassCard key={i.name} className="p-3">
                 <p className="truncate text-xs text-muted-foreground">{i.name}</p>
-                <p className={cn("mt-1 font-mono text-lg font-bold", pctColor(i.change_pct))}>{i.price ?? "—"}</p>
+                <p className={cn("mt-1 tabular-nums text-[22px] font-semibold", pctColor(i.change_pct))}>{i.price ?? "—"}</p>
                 <p className={cn("text-xs", pctColor(i.change_pct))}>{i.change_pct == null ? "—" : `${i.change_pct > 0 ? "+" : ""}${i.change_pct}%`}</p>
               </GlassCard>
             ))}
@@ -311,7 +308,7 @@ export function DailyReview() {
             {globalIdx.map((g) => (
               <GlassCard key={g.key} className="p-3">
                 <p className="truncate text-xs text-muted-foreground">{g.name} <span className="text-muted-foreground/40">{g.region}</span></p>
-                <p title={`数据时间：${g.fetched_at ?? "未知"}`} className={cn("mt-1 font-mono text-lg font-bold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
+                <p title={`数据时间：${g.fetched_at ?? "未知"}`} className={cn("mt-1 tabular-nums text-[22px] font-semibold", g.change_pct == null ? "text-foreground" : pctColor(g.change_pct))}>{g.price ?? "—"}</p>
                 <p className={cn("text-xs", g.change_pct == null ? "text-muted-foreground" : pctColor(g.change_pct))}>
                   {g.change_pct == null ? "—" : `${g.change_pct > 0 ? "+" : ""}${g.change_pct}%`}
                 </p>
@@ -334,18 +331,18 @@ export function DailyReview() {
                 { k: "大盘宽度", v: sentiment.breadth, hint: "冰点 / 偏弱 / 中性 / 偏强 / 普涨" },
                 { k: "题材投机", v: sentiment.speculation, hint: "冰点 / 普通 / 活跃 / 亢奋" },
               ].map((m) => (
-                <div key={m.k} className="rounded-lg bg-muted/25 p-4">
+                <div key={m.k} className="p-4">
                   <p className="text-xs text-muted-foreground">{m.k}</p>
-                  <p className="mt-1 text-2xl font-bold text-primary">{m.v}</p>
+                  <p className="mt-1 text-[22px] font-semibold">{m.v}</p>
                   <p className="mt-1 text-[11px] text-muted-foreground/60">{m.hint}</p>
                 </div>
               ))}
             </div>
             <div className="mt-3 grid grid-cols-4 gap-2">
               {sentCells.map((c) => (
-                <div key={c.k} className="rounded-lg bg-muted/20 p-2 text-center">
+                <div key={c.k} className="p-2 text-center">
                   <p className="truncate text-[11px] text-muted-foreground">{c.k}</p>
-                  <p className={cn("mt-0.5 font-mono text-sm font-bold", c.up === null ? "text-foreground" : c.up ? "text-danger" : "text-success")}>{c.v}</p>
+                  <p className={cn("mt-0.5 tabular-nums text-sm font-semibold", c.up === null ? "text-foreground" : c.up ? "text-danger" : "text-success")}>{c.v}</p>
                 </div>
               ))}
             </div>
@@ -365,12 +362,12 @@ export function DailyReview() {
               {[
                 { k: "涨停", v: `${emotion.zt_count}`, cls: "text-danger" },
                 { k: "跌停", v: `${emotion.dt_count}`, cls: "text-success" },
-                { k: "最高连板", v: `${emotion.max_boards} 板`, cls: "text-primary" },
-                { k: "连板（2板+）", v: `${emotion.lianban_count} 家`, cls: "text-primary" },
+                { k: "最高连板", v: `${emotion.max_boards} 板`, cls: "" },
+                { k: "连板（2板+）", v: `${emotion.lianban_count} 家`, cls: "" },
               ].map((c) => (
-                <div key={c.k} className="rounded-lg bg-muted/25 p-3 text-center">
+                <div key={c.k} className="p-3 text-center">
                   <p className="text-[11px] text-muted-foreground">{c.k}</p>
-                  <p className={cn("mt-0.5 font-mono text-xl font-bold", c.cls)}>{c.v}</p>
+                  <p className={cn("mt-0.5 tabular-nums text-[22px] font-semibold", c.cls)}>{c.v}</p>
                 </div>
               ))}
             </div>
@@ -381,9 +378,9 @@ export function DailyReview() {
                 { k: "炸板率", v: emotion.break_rate, hint: "炸板 / 尝试涨停", strong: false },
                 { k: "晋级率", v: emotion.promotion_rate, hint: "昨涨停今又停", strong: true },
               ].map((c) => (
-                <div key={c.k} className="rounded-lg bg-muted/20 p-2.5 text-center">
+                <div key={c.k} className="p-2.5 text-center">
                   <p className="text-[11px] text-muted-foreground">{c.k}</p>
-                  <p className={cn("mt-0.5 font-mono text-sm font-bold", c.strong ? "text-danger" : "text-success")}>
+                  <p className={cn("mt-0.5 tabular-nums text-sm font-semibold", c.strong ? "text-danger" : "text-success")}>
                     {c.v == null ? "—" : `${(c.v * 100).toFixed(1)}%`}
                   </p>
                   <p className="mt-0.5 text-[10px] text-muted-foreground/50">{c.hint}</p>
@@ -409,11 +406,11 @@ export function DailyReview() {
                       {emotion.lianban_stocks.map((s) => (
                         <tr key={s.code} className="border-b border-border/30">
                           <td className="px-2 py-2"><CompanyNamePeek code={s.code} name={s.name} /></td>
-                          <td className="whitespace-nowrap px-2 py-2 font-mono font-bold text-primary">{s.boards} 板</td>
-                          <td className="px-2 py-2 font-mono">{s.price}</td>
-                          <td className="px-2 py-2 font-mono text-danger">+{s.pct}%</td>
-                          <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground">{yi(s.amount)}</td>
-                          <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground">{yi(s.float_cap)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums font-semibold">{s.boards} 板</td>
+                          <td className="px-2 py-2 tabular-nums">{s.price}</td>
+                          <td className="px-2 py-2 tabular-nums text-danger">+{s.pct}%</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-muted-foreground">{yi(s.amount)}</td>
+                          <td className="whitespace-nowrap px-2 py-2 tabular-nums text-muted-foreground">{yi(s.float_cap)}</td>
                           <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{s.industry}</td>
                         </tr>
                       ))}
@@ -444,14 +441,14 @@ export function DailyReview() {
               <tbody>
                 {turnover.stocks.map((s, i) => (
                   <tr key={s.code} className="border-b border-border/30">
-                    <td className="px-2 py-2 font-mono text-xs text-muted-foreground/50">{i + 1}</td>
+                    <td className="px-2 py-2 tabular-nums text-xs text-muted-foreground/50">{i + 1}</td>
                     <td className="px-2 py-2"><CompanyNamePeek code={s.code} name={s.name} /></td>
-                    <td className="px-2 py-2 font-mono">{s.price ?? "—"}</td>
-                    <td className={cn("px-2 py-2 font-mono", s.pct == null ? "text-muted-foreground" : pctColor(s.pct))}>
+                    <td className="px-2 py-2 tabular-nums">{s.price ?? "—"}</td>
+                    <td className={cn("px-2 py-2 tabular-nums", s.pct == null ? "text-muted-foreground" : pctColor(s.pct))}>
                       {s.pct == null ? "—" : `${s.pct > 0 ? "+" : ""}${s.pct}%`}
                     </td>
-                    <td className="whitespace-nowrap px-2 py-2 font-mono">{yi(s.amount)}</td>
-                    <td className="whitespace-nowrap px-2 py-2 font-mono text-muted-foreground">{yi(s.mcap)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums">{yi(s.amount)}</td>
+                    <td className="whitespace-nowrap px-2 py-2 tabular-nums text-muted-foreground">{yi(s.mcap)}</td>
                     <td className="whitespace-nowrap px-2 py-2 text-xs text-muted-foreground">{s.industry}</td>
                   </tr>
                 ))}
@@ -482,8 +479,8 @@ export function DailyReview() {
                 {sectors.slice(0, 15).map((s) => (
                   <tr key={s.name} className="border-b border-border/30">
                     <td className="px-2 py-2 font-medium">{s.name}</td>
-                    <td className={cn("px-2 py-2 font-mono", pctColor(s.pct))}>{s.pct == null ? "—" : `${s.pct > 0 ? "+" : ""}${s.pct}%`}</td>
-                    <td className={cn("px-2 py-2 font-mono", pctColor(s.net))}>{s.net == null ? "—" : `${s.net > 0 ? "+" : ""}${fmt(s.net)} 亿`}</td>
+                    <td className={cn("px-2 py-2 tabular-nums", pctColor(s.pct))}>{s.pct == null ? "—" : `${s.pct > 0 ? "+" : ""}${s.pct}%`}</td>
+                    <td className={cn("px-2 py-2 tabular-nums", pctColor(s.net))}>{s.net == null ? "—" : `${s.net > 0 ? "+" : ""}${fmt(s.net)} 亿`}</td>
                   </tr>
                 ))}
               </tbody>
@@ -513,8 +510,8 @@ export function DailyReview() {
                   <div key={s.name} className="flex items-center gap-3 border-b border-border/30 pb-1.5 text-sm last:border-0">
                     <span className="w-5 text-xs text-muted-foreground/50">{i + 1}</span>
                     <span className="flex-1 truncate">{s.name}</span>
-                    <span className={cn("font-mono text-xs", pctColor(s.pct))}>{s.pct == null ? "—" : `${s.pct > 0 ? "+" : ""}${s.pct}%`}</span>
-                    <span className={cn("w-20 text-right font-mono text-xs", pctColor(s.net))}>{s.net == null ? "—" : `${s.net > 0 ? "+" : ""}${fmt(s.net)} 亿`}</span>
+                    <span className={cn("tabular-nums text-xs", pctColor(s.pct))}>{s.pct == null ? "—" : `${s.pct > 0 ? "+" : ""}${s.pct}%`}</span>
+                    <span className={cn("w-20 text-right tabular-nums text-xs", pctColor(s.net))}>{s.net == null ? "—" : `${s.net > 0 ? "+" : ""}${fmt(s.net)} 亿`}</span>
                   </div>
                 ))}
               </div>

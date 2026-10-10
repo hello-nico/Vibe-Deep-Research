@@ -188,7 +188,7 @@ function mentionStart(text: string, caret: number): number {
   return at;
 }
 
-export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockProps, "renderPanel"> & { showTrigger?: boolean }) {
+export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = null }: Pick<AiDockProps, "renderPanel"> & { showTrigger?: boolean; triggerHost?: HTMLElement | null }) {
   const wired = useAiWired();
   const currentPage = useCurrentAiPage();
   const sessions = useResearchSessions();
@@ -458,31 +458,28 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
 
   return (
     <>
-      {showTrigger && <button
-        onClick={openPanel}
-        disabled={!currentPage}
-        title={
-          !wired ? "问助手暂时不可用，请刷新页面"
-            : currentPage ? `问助手 · ${currentPage.title}`
-            : "这一页还没有加载出内容"
-        }
-        className={cn(
-          "ai-chat-trigger inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border px-3.5",
-          "text-sm font-medium transition-colors",
-          currentPage
-            ? "border-primary/25 bg-card text-primary hover:bg-primary/5"
-            : "cursor-not-allowed border-border bg-muted/40 text-muted-foreground/60",
-        )}
-      >
-        <Sparkles className="h-4 w-4" />
-        问助手
-      </button>}
+      {showTrigger && (() => {
+        const trigger = <button
+          onClick={openPanel}
+          disabled={!currentPage}
+          title={
+            !wired ? "问助手暂时不可用，请刷新页面"
+              : currentPage ? `问助手 · ${currentPage.title}`
+              : "这一页还没有加载出内容"
+          }
+          className="btn ai-chat-trigger"
+        >
+          <Sparkles />
+          问助手
+        </button>;
+        return triggerHost ? createPortal(trigger, triggerHost) : trigger;
+      })()}
 
       {page && renderPanel(
         open ? <>
           <header className="flex items-center justify-between gap-3 border-b border-border px-4 py-3">
             <div className="flex min-w-0 items-center gap-2.5">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary"><Sparkles className="h-3.5 w-3.5" /></span>
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--fill-2)] text-foreground"><Sparkles className="h-3.5 w-3.5" /></span>
               <div className="min-w-0"><p className="text-xs text-muted-foreground">问助手</p><h2 className="truncate text-sm font-semibold">{page.title}</h2></div>
             </div>
             <div className="flex shrink-0 items-center gap-1">
@@ -500,7 +497,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
           {chips.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-t border-border/50 px-4 py-2">
               {chips.map(item => (
-                <span key={item.id} className="inline-flex max-w-full items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+                <span key={item.id} className="tag max-w-full gap-1">
                   <span className="truncate" title={item.hint || item.label}>{item.label}</span>
                   <button type="button" aria-label={`移除 ${item.label}`} onClick={() => {
                     rememberChips(binding?.bindKey || "", chips.filter(chip => chip.id !== item.id));
@@ -527,7 +524,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true }: Pick<AiDockPr
           {sessionId && (error || seat.notice) && <p role="alert" className="px-4 text-xs text-destructive">{error || seat.notice}</p>}
           <div className="finance-assistant-composer relative border-t border-border p-3">
             {mentionQuery !== null && (
-              <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background shadow-lg" role="listbox" aria-label="本页条目">
+              <div className="finance-assistant-mentions absolute inset-x-3 bottom-full z-20 mb-1 max-h-56 overflow-auto rounded-lg border bg-background" role="listbox" aria-label="本页条目">
                 {candidates.length ? candidates.map(item => (
                   <button
                     key={item.id}

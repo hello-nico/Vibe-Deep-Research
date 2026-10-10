@@ -32,7 +32,7 @@ const TOOLTIP_STYLE = {
 function StaleBadge({ observedAt, fetchError }: { observedAt?: string | null; fetchError?: string }) {
   return (
     <span
-      className="inline-flex items-center gap-1 rounded-full bg-warning/15 px-2 py-0.5 text-[10px] text-warning"
+      className="inline-flex items-center gap-1 status-pill tone-wait"
       title={fetchError ? `这次更新失败：${fetchError}` : undefined}
     >
       <History className="h-3 w-3" /> 这次更新失败 · 显示 {observedAt || "上次"} 的数据
@@ -64,7 +64,7 @@ function SpotCard({ g }: { g: GpuSpot }) {
     );
   }
   return (
-    <div className="rounded-xl border border-primary/25 bg-primary/5 p-4">
+    <div className="rounded-2xl border border-border p-4">
       <div className="flex items-center justify-between">
         <span className="flex items-center gap-1.5 font-mono text-sm font-semibold">
           <span className="h-2 w-2 rounded-full" style={{ background: GPU_COLORS[g.gpu] || "#f97316" }} />
@@ -73,7 +73,7 @@ function SpotCard({ g }: { g: GpuSpot }) {
         {g.stale && <StaleBadge observedAt={g.observed_at} fetchError={g.fetch_error} />}
       </div>
       <div className="mt-2 flex items-baseline gap-2">
-        <span className="text-3xl font-extrabold tracking-tight text-primary text-glow">${g.median?.toFixed(2)}</span>
+        <span className="text-[26px] font-semibold tracking-tight">${g.median?.toFixed(2)}</span>
         <span className="text-xs text-muted-foreground">/卡·时（中位）</span>
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
@@ -130,11 +130,11 @@ function ForwardMonthPanel({ m }: { m: ForwardMonth }) {
   return (
     <div>
       {/* 一句话总结：预期多少钱 + 概率多少 */}
-      <div className="mb-3 rounded-xl border border-primary/25 bg-primary/5 p-3.5 text-sm leading-relaxed">
+      <div className="mb-3 rounded-2xl border border-border p-3.5 text-sm leading-relaxed">
         市场当前对 <b className="font-mono">{m.month}</b> 月均租金（B200）的预期：
-        {impliedText && <>中位约 <b className="text-primary">{impliedText}</b>/卡·时，</>}
-        最可能落在 <b className="text-primary">{m.most_likely.label}</b>
-        （概率 <b className="text-primary">{(m.most_likely.p * 100).toFixed(0)}%</b>）。
+        {impliedText && <>中位约 <b>{impliedText}</b>/卡·时，</>}
+        最可能落在 <b>{m.most_likely.label}</b>
+        （概率 <b>{(m.most_likely.p * 100).toFixed(0)}%</b>）。
         <span className="text-xs text-muted-foreground">
           按 Ornn 跨平台指数的整月平均结算——是「整月均价」，与上方「此刻」的现货挂单价口径不同，数值不能直接对比。
         </span>
@@ -260,7 +260,7 @@ function GpuRentPanel() {
           <span>{hasData ? `更新于 ${data!.generated_at}` : "历史、现货、远期三组数据，均来自免登录的公开接口"}</span>
           {/* 🔴 先给存档、后台刷 ⇒ 用户必须看得出他现在看的是哪一份 */}
           {refreshing && hasData && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+            <span className="inline-flex items-center gap-1 status-pill tone-run">
               <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
@@ -280,7 +280,7 @@ function GpuRentPanel() {
         </div>
       )}
       {data?.errors && data.errors.length > 0 && (
-        <div className="mb-3 rounded-lg border border-warning/30 bg-warning/5 p-3 text-xs text-warning">
+        <div className="mb-3 rounded-xl bg-[var(--fill-1)] p-3 text-xs text-warning">
           <p className="mb-1 font-medium">部分数据源这次没有更新成功（对应区块显示上次的数据）：</p>
           {data.errors.map((e, i) => <p key={i}>· {e}</p>)}
         </div>
@@ -294,7 +294,7 @@ function GpuRentPanel() {
         <>
           {/* ① 近一年走势 */}
           <div className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-            <LineChart className="h-4 w-4 text-primary" /> 近一年租金走势 · 每日中位价
+            <LineChart className="h-4 w-4 text-[var(--text-3)]" /> 近一年租金走势 · 每日中位价
             {histStale.length > 0 && <StaleBadge observedAt={histStale[0]!.observed_at} fetchError={histStale[0]!.fetch_error} />}
           </div>
           <p className="mb-2 text-[11px] text-muted-foreground/70">
@@ -310,7 +310,7 @@ function GpuRentPanel() {
 
           {/* ② 现货 */}
           <div className="mb-1.5 mt-6 flex items-center gap-1.5 text-sm font-semibold">
-            <Gauge className="h-4 w-4 text-primary" /> 现货租金 · 最新观测值
+            <Gauge className="h-4 w-4 text-[var(--text-3)]" /> 现货租金 · 最新观测值
           </div>
           <p className="mb-3 text-[11px] text-muted-foreground/70">{data!.spot_source}</p>
           <div className="grid gap-3 sm:grid-cols-3">
@@ -319,7 +319,7 @@ function GpuRentPanel() {
 
           {/* ③ 远期 */}
           <div className="mb-1.5 mt-6 flex items-center gap-1.5 text-sm font-semibold">
-            <CalendarClock className="h-4 w-4 text-primary" /> 远期 · 全球资金的预期概率（仅 B200）
+            <CalendarClock className="h-4 w-4 text-[var(--text-3)]" /> 远期 · 全球资金的预期概率（仅 B200）
             {fw?.stale && <StaleBadge observedAt={fw.observed_at} fetchError={fw.fetch_error} />}
           </div>
           <p className="mb-3 text-[11px] text-muted-foreground/70">
@@ -348,10 +348,10 @@ function GpuRentPanel() {
                 {months.map((m, i) => (
                   <button key={m.month} onClick={() => setActiveMonth(i)}
                     className={cn(
-                      "rounded-full border px-3 py-1 font-mono text-xs transition-colors",
+                      "h-7 rounded-full px-3 font-mono text-xs transition-colors",
                       i === Math.min(activeMonth, months.length - 1)
-                        ? "border-primary bg-primary/15 font-medium text-primary shadow-glow"
-                        : "border-primary/25 text-muted-foreground hover:border-primary/60 hover:text-foreground",
+                        ? "bg-[var(--fill-2)] font-semibold text-foreground"
+                        : "text-[var(--text-2)] hover:bg-[var(--fill-1)] hover:text-foreground",
                     )}>
                     {m.month}
                   </button>
@@ -369,7 +369,7 @@ function GpuRentPanel() {
           {/* ④ 怎么读 */}
           <div className="mt-6 rounded-xl border border-border/60 bg-muted/20 p-4">
             <div className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
-              <Info className="h-4 w-4 text-primary" /> 怎么读这组数（三条口径边界）
+              <Info className="h-4 w-4 text-[var(--text-3)]" /> 怎么读这组数（三条口径边界）
             </div>
             <ol className="list-decimal space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
               {data!.how_to_read.map((h, i) => <li key={i}>{h}</li>)}
@@ -397,21 +397,21 @@ export function Signals() {
 
   return (
     <div>
-      <PageHeader title="产业信号" subtitle="用公开数据看产业链冷热，栏目会逐步增加" />
+      <PageHeader title="产业信号" />
 
       <div className="mb-4 flex flex-wrap gap-2">
         {TABS.map(({ key, label, icon: Icon }) => (
           <button key={key} onClick={() => navigate(`/signals/${key}`)}
             className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm transition-colors",
-              tab === key ? "bg-primary/15 font-medium text-primary shadow-glow" : "text-muted-foreground hover:bg-muted/50")}>
+              tab === key ? "bg-[var(--fill-2)] font-semibold" : "text-muted-foreground hover:bg-[var(--fill-1)]")}>
             <Icon className="h-4 w-4" /> {label}
           </button>
         ))}
       </div>
 
-      <GlassCard glow>
+      <GlassCard>
         <div className="mb-3 flex items-center gap-2">
-          <cur.icon className="h-5 w-5 text-primary" />
+          <cur.icon className="h-5 w-5 text-[var(--text-3)]" />
           <h3 className="font-semibold">{cur.label}</h3>
           <span className="text-xs text-muted-foreground">{cur.desc}</span>
         </div>

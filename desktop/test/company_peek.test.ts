@@ -6,7 +6,7 @@ test("盘面预览消费能力快照，来源由 Provider 披露，不写死同�
   const peek = fs.readFileSync(new URL("../src/verticals/finance/components/CompanyPeek.tsx", import.meta.url), "utf8");
   const lib = fs.readFileSync(new URL("../src/verticals/finance/lib/companyPeek.ts", import.meta.url), "utf8");
   const css = fs.readFileSync(new URL("../src/index.css", import.meta.url), "utf8");
-  assert.match(peek, /finance-company-peek glass/);
+  assert.match(peek, /finance-company-peek card/);
   assert.match(peek, /workspace-action-primary/);
   assert.match(peek, /aria-label="关闭"/);
   assert.match(peek, /provider-snapshot/);

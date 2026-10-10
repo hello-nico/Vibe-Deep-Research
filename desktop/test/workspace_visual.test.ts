@@ -1,35 +1,40 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import test from "node:test";
 
 const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url), "utf8");
-test("V2 保留原侧栏顺序与真实 AI 入口；资讯雷达只做一级入口，来源在页内分段", () => {
+test("外壳：六个两字入口、图标栏放在外框上，页首无面包屑与小标题", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("export function Layout")).replace(/^\s*\/\/.*$/gm, "");
-  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["深度对话", "大盘行情", "资讯雷达", "行业研究", "产业研究", "个股研究", "自选股", "我的资料", "我的研究"]);
+  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["对话", "动态", "洞悉", "关注", "资料", "设置"]);
+  assert.deepEqual([...nav.matchAll(/to: "([^"]+)"/g)].map(m => m[1]), ["/", "/feed", "/insights", "/watch", "/my-reports", "/settings"]);
   assert.match(layout, /id="dsh-settings"/);
-  assert.doesNotMatch(layout, /INTEL_LINKS|NAV_GROUPS|子栏目/);
+  assert.match(layout, /id="dsh-status"/);
+  assert.match(layout, /workspace-shell/);
+  assert.match(layout, /workspace-rail/);
+  assert.match(layout, /workspace-surface/);
+  assert.doesNotMatch(layout, /workspace-topbar|工作空间 \/|currentTitle|INTEL_LINKS|NAV_GROUPS|子栏目/);
+  assert.doesNotMatch(layout, /gpu-rent|GPU租金|SIGNAL_LINKS|vr-signals-open|SECTOR_LINKS|vr-sectors-open/);
+  assert.doesNotMatch(layout, /FinanceAiConsole|consoleOpen|vr-ai-console|openAgent|打开普通对话/);
+  assert.doesNotMatch(layout, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
+  assert.doesNotMatch(layout, /ViewTransition|startViewTransition|framer-motion/);
+  assert.match(layout, /<FinanceAiDock/);
+  assert.match(layout, /key=\{pathname\}/);
+  assert.match(layout, /className="workspace-page-enter"/);
+  assert.match(layout, /aria-label=\{label\}/);
+  for (const file of ["components/layout/Layout.tsx", "components/ui/PageHeader.tsx", "pages/Watch.tsx", "pages/Feed.tsx"]) {
+    const source = read(`verticals/finance/${file}`);
+    assert.doesNotMatch(source, /VIBE FINANCE \/ WORKSPACE|Vibe Finance \/ Workspace|workspace-kicker/i, file);
+  }
+  const header = read("verticals/finance/components/ui/PageHeader.tsx");
+  assert.match(header, /<h1 className="workspace-title">/);
+  assert.match(header, /<AssistantSlot \/>/);
   const intel = read("verticals/finance/pages/Intel.tsx");
   for (const key of ["investment-news", "news", "filings", "events"]) assert.ok(intel.includes(`key: "${key}"`));
   assert.doesNotMatch(intel, /label: "Investment News"/);
-  assert.doesNotMatch(layout, /gpu-rent|GPU租金|SIGNAL_LINKS|vr-signals-open/);
-  assert.doesNotMatch(layout, /SECTOR_LINKS|vr-sectors-open/);
-  assert.doesNotMatch(layout, /FinanceAiConsole|consoleOpen|vr-ai-console|openAgent|打开普通对话/);
-  assert.doesNotMatch(layout, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
-  assert.ok(layout.includes("收起侧栏"));
-  assert.match(layout, /<FinanceAiDock/);
-  assert.match(layout, /workspace-sidebar/);
-  assert.match(layout, /workspace-nav-indicator/);
-  assert.match(layout, /a\.workspace-nav-link\[aria-current='page'\]/);
-  assert.match(layout, /animate: prev\.shown/);
-  assert.match(layout, /prev\.shown && !prev\.animate \? \{ \.\.\.prev, animate: true \}/);
-  assert.match(layout, /key=\{pathname\}/);
-  assert.match(layout, /className="workspace-page-enter"/);
-  assert.doesNotMatch(layout, /ViewTransition|startViewTransition|framer-motion/);
-  assert.match(layout, /aria-label=\{label\}/);
-  assert.match(layout, /const closeMobileNav = \(\) => \{\s*setMobileOpen\(false\);[\s\S]*?requestAnimationFrame\(\(\) => menuRef\.current\?\.focus\(\)\)/);
-  assert.equal((layout.match(/onClick=\{closeMobileNav\}/g) ?? []).length, 2);
-  assert.match(layout, /event\.key === "Escape"[^\n]*closeMobileNav\(\)/);
+  const feed = read("verticals/finance/pages/Feed.tsx");
+  assert.match(feed, /label: "资讯"/);
+  assert.match(feed, /label: "市场"/);
 });
 test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝与求索文案", () => {
   const dsh = read("verticals/finance/dsh/native-dsh.css");
@@ -40,40 +45,52 @@ test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝�
   assert.match(chatPatch, /\+.*"chat\.deepDiving": "研究中…"/);
   assert.match(chatPatch, /-.*"chat\.deepDiving": "深度求索中"/);
 });
-test("公开暖橙玻璃风保留可访问性与非绿色品牌", () => {
+test("令牌：墨色派生所有灰，近白底、无阴影渐变模糊，保留可访问性", () => {
   const css = read("index.css");
-  assert.match(css, /--radius: 1rem/);
-  assert.match(css, /--primary: 15 89% 56%/);
-  assert.match(css, /--primary: 15 82% 50%/);
-  assert.match(css, /radial-gradient/);
-  assert.match(css, /backdrop-filter: blur\(14px\)/);
-  assert.doesNotMatch(css, /--workspace-grid|217 92% 72%|263 78% 78%|Songti|STSong|Georgia/);
+  for (const token of ["--base", "--chrome", "--surface", "--raised", "--brand", "--text-2", "--text-3", "--text-4", "--fill-1", "--fill-2", "--fill-3", "--line-1", "--line-2", "--line-3"]) assert.match(css, new RegExp(`${token}:`), token);
+  assert.match(css, /--base: 220 21% 11%;/);
+  assert.match(css, /--chrome: 210 12% 97%;/);
+  assert.match(css, /--surface: 0 0% 99%;/);
+  assert.match(css, /--raised: 0 0% 100%;/);
+  assert.match(css, /--brand: 17 78% 51%;/);
+  assert.match(css, /--fill-2: color-mix\(in srgb, hsl\(var\(--base\)\) 10%, transparent\)/);
+  assert.match(css, /--line-2: color-mix\(in srgb, hsl\(var\(--base\)\) 12%, transparent\)/);
+  assert.match(css, /--primary: var\(--brand\)/);
+  const visual = css.replace(/\/\*[\s\S]*?\*\//g, "");
+  assert.doesNotMatch(visual.replace(/research-loading/g, ""), /radial-gradient|linear-gradient|backdrop-filter: blur|box-shadow: [^n]/);
+  assert.doesNotMatch(css, /\.glass\b|glass-glow|workspace-kicker|--workspace-grid|Songti|STSong|Georgia/);
   assert.match(css, /focus-visible/);
   assert.match(css, /prefers-reduced-motion/);
   assert.match(css, /@media \(forced-colors: active\)/);
-  assert.match(css, /\.workspace-nav-indicator/);
-  assert.match(css, /transition: top 380ms cubic-bezier\(\.22, 1, \.36, 1\)/);
-  assert.doesNotMatch(css, /\.workspace-nav-link\[aria-current="page"\]::before/);
-  assert.match(css, /\.workspace-nav-indicator::before/);
   assert.match(css, /@keyframes workspace-page-enter/);
   assert.match(css, /animation: workspace-page-enter 300ms cubic-bezier\(\.22, 1, \.36, 1\) both/);
   assert.match(css, /from \{ opacity: 0; transform: translateY\(8px\); \}/);
   assert.match(css, /\.conversation-heading-slot:not\(\[hidden\]\)/);
   assert.doesNotMatch(css, /::view-transition/);
+  // 控件高度 32 / 28，圆角：按钮全圆、输入 8、卡片 16。
+  assert.match(css, /\.btn, \.workspace-action \{[^}]*height: 32px;[^}]*border-radius: 999px;/);
+  assert.match(css, /\.btn-sm, \.workspace-action-compact \{ height: 28px;/);
+  assert.match(css, /\.card \{[^}]*border-radius: 16px;/);
+  assert.match(css, /\.status-pill|\.workspace-select \{[^}]*height: 28px;/);
+  const ui = read("verticals/finance/components/ui/ui.css");
+  assert.match(ui, /\.status-pill \{[^}]*height: 22px;/);
+  assert.match(ui, /\.object-card \{[^}]*grid-template-rows: auto 1fr auto;/);
+  assert.match(ui, /\.object-card \{[^}]*min-height: 176px;/);
 });
 test("左上角使用本地产品标记，不增加外部请求或原作者品牌跳转", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   const logo = read("verticals/finance/components/ui/BrandMark.tsx");
   assert.match(layout, /<BrandMark/);
   assert.doesNotMatch(layout, /PhoenixTreeLogo|phoenixtree|LineChart/);
-  assert.match(layout, /to="\/" aria-label="Vibe Finance 深度对话"/);
+  assert.match(layout, /to="\/" aria-label="Vibe Finance 对话"/);
   assert.match(logo, /viewBox="0 0 64 64"/);
   assert.match(logo, /aria-hidden="true" focusable="false"/);
   assert.doesNotMatch(logo, /<image|<script|<foreignObject|href=|fetch\(/);
 });
-test("非首页顶栏只放问助手入口，不再并排投研助手身份字", () => {
+test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用定位", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /<FinanceAiDock showTrigger=\{pathname !== "\/" && pathname !== "\/watchlist" && !pathname.startsWith\("\/my-research\/topics\/"\)\}/);
+  assert.match(layout, /<FinanceAiDock triggerHost=\{assistantHost\} showTrigger=\{pathname !== "\/" && !pathname.startsWith\("\/insights\/topics\/"\)\}/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /className="btn ai-chat-trigger"/);
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);
   assert.doesNotMatch(read("core/ai/AiDock.tsx"), /fixed right-5 top-4/);
@@ -90,7 +107,7 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
     assert.match(read(`verticals/finance/${file}`), /<SidePanelResizeHandle \/>/);
     assert.doesNotMatch(read(`verticals/finance/${file}`), /top-\[76px\]|29\.5rem/);
   }
-  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 5rem/);
+  assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--finance-assistant-top: 0\.5rem/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /margin-right: calc\(var\(--finance-assistant-width\) \+ var\(--finance-assistant-inline\)\)/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /--conversation-expand-ease|cubic-bezier\(\.22, 1, \.36, 1\)/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /page && renderPanel/);
@@ -157,64 +174,70 @@ test("非首页顶栏只放问助手入口，不再并排投研助手身份字",
   assert.match(assistantCss, /finance-assistant-menu/);
 });
 
-test("行业、个股、我的资料共用行业卡片；资料列表单独用总览表", () => {
+test("行业、产业、资料共用对象卡；关注用表格加个股卡；页面不再引用玻璃卡样式", () => {
   const card = read("verticals/finance/components/IndustryDashboardCard.tsx");
-  const panel = read("verticals/finance/components/ui/DashboardPanel.tsx");
-  const panelCss = read("verticals/finance/components/ui/dashboard-panel.css");
+  const objectCard = read("verticals/finance/components/ui/ObjectCard.tsx");
+  const cards = read("verticals/finance/components/ui/Card.tsx");
   assert.match(card, /export function DashboardCard/);
-  assert.match(panel, /export function DashboardPanel/);
-  assert.match(panel, /border-b border-border\/50/);
-  assert.match(panelCss, /th:last-child/);
-  assert.match(panelCss, /width: 1%/);
+  assert.match(card, /<ObjectCard/);
+  assert.match(objectCard, /export function ObjectCard/);
+  assert.match(objectCard, /object-card-head/);
+  assert.match(objectCard, /object-card-body/);
+  assert.match(objectCard, /object-card-foot/);
+  for (const name of ["GroupCard", "GroupRow", "Panel", "Metric", "StatusPill", "TableWrap", "Sparkline"]) assert.match(cards, new RegExp(`export function ${name}\\b`), name);
+  assert.match(read("verticals/finance/components/ui/Button.tsx"), /variant\?: ButtonVariant|ButtonVariant = "primary" \| "secondary" \| "text" \| "icon"/);
   for (const path of [
     "verticals/finance/pages/IndustryCenter.tsx",
     "verticals/finance/pages/IndustryProfiles.tsx",
     "verticals/finance/pages/UploadedReports.tsx",
   ]) {
     assert.match(read(path), /DashboardCard/, path);
+    assert.match(read(path), /object-grid/, path);
   }
-  assert.match(read("verticals/finance/pages/UploadedReports.tsx"), /DashboardPanel/);
-  assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /DashboardPanel/);
-  assert.doesNotMatch(read("verticals/finance/pages/Watchlist.tsx"), /useAiPage/);
-  const watch = read("verticals/finance/pages/Watchlist.tsx");
-  assert.match(watch, /watch-remove-action/);
-  assert.match(watch, /refresh-dialog-backdrop/);
-  assert.match(watch, /createPortal/);
-  assert.match(watch, /确认移除/);
-  assert.match(watch, /从自选移除/);
-  assert.match(watch, /setPendingRemove/);
-  assert.doesNotMatch(watch, /library-modal-backdrop/);
-  assert.doesNotMatch(watch, /onClick=\{\(\) => remove\(c\)\}/);
+  assert.match(read("verticals/finance/pages/UploadedReports.tsx"), /TableWrap/);
+  const watch = read("verticals/finance/pages/Watch.tsx");
+  assert.match(watch, /<ObjectCard/);
+  assert.match(watch, /TableWrap/);
+  assert.match(watch, /StatusDot/);
+  assert.match(watch, /className="row-actions"/);
+  assert.match(watch, /useConfirm/);
+  assert.match(watch, /移出关注/);
+  assert.match(watch, /Promise\.all\(\[removeWatch\(row\.symbol\), removeFromRoster\(row\.symbol\)\]\)/);
+  assert.match(watch, /Promise\.all\(\[addWatch\(symbol\), addToRoster\(symbol\)\]\)|await addWatch\(code\)[\s\S]*await addToRoster\(code\)/);
+  assert.doesNotMatch(watch, /useAiPage\(\{[^}]*key: "watchlist"/);
   assert.match(read("verticals/finance/assistant/snapshot.ts"), /已渲染 Wiki/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /buildWikiPageSnapshot/);
   assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);
-  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardPanel/);
-  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /DashboardCard/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /params.get\('view'\) === 'report'/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /IntersectionObserver/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /\/sectors\/profiles\//);
-  assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /to=\{`\/sectors\/\$\{/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /资料待补充/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /研究中/);
-  assert.match(read("verticals/finance/pages/CompanyWiki.tsx"), /图文报告/);
+  const stock = read("verticals/finance/pages/CompanyWiki.tsx");
+  assert.match(stock, /buildDirectorySnapshot/);
+  assert.doesNotMatch(stock, /DashboardPanel|DashboardCard|view=report|WikiReader|资料待补充|图文报告/);
+  assert.match(watch, /\/sectors\/profiles\//);
+  assert.doesNotMatch(watch, /to=\{`\/sectors\/\$\{/);
   assert.match(read("verticals/finance/components/layout/Layout.tsx"), /TaskNotices/);
+  // 页面和公共组件不再使用玻璃卡类、光晕、私有阴影。
+  const dir = new URL("../src/verticals/finance/", import.meta.url);
+  for (const folder of ["pages", "components"]) {
+    for (const file of readdirSync(new URL(`${folder}/`, dir), { recursive: true }) as string[]) {
+      if (!/\.tsx$/.test(file)) continue;
+      const source = readFileSync(new URL(`${folder}/${file}`, dir), "utf8");
+      assert.doesNotMatch(source, /className="[^"]*\bglass\b|glass-glow|shadow-glow|text-glow|workspace-kicker/, `${folder}/${file}`);
+    }
+  }
 });
 
-test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
+test("洞悉类型切换与动态页共用分段切换", () => {
   const tabs = read("verticals/finance/components/ui/WorkspaceTabs.tsx");
   const mine = read("verticals/finance/pages/MyResearch.tsx");
   const intel = read("verticals/finance/pages/Intel.tsx");
-  assert.match(tabs, /bg-primary\/15 font-medium text-primary shadow-glow/);
-  assert.match(tabs, /text-muted-foreground hover:bg-muted\/50/);
+  assert.match(tabs, /className="segmented"/);
+  assert.match(read("verticals/finance/components/ui/ui.css"), /\.segmented > button\[aria-selected="true"\][^}]*background: var\(--fill-2\)/);
   assert.match(mine, /WorkspaceTabs/);
   assert.match(mine, /aria-label="研究类型"/);
+  assert.match(mine, /<PageHeader title="洞悉" \/>/);
   assert.match(mine, /label: "议题"/);
   assert.match(mine, /label: "记录"/);
   assert.match(mine, /label: "任务"/);
   assert.match(mine, /label: "记忆"/);
   assert.match(mine, /aria-label="议题状态"/);
-  assert.match(mine, /<GlassCard glow>/);
-  // 列表用浅卡片分隔，不用整行分割线；任务状态用色点。
   // 议题沿用任务列表的行样式（状态点 + 标签）；任务、议题、记录共用每页 10 条的分页条（2026-09-26）。
   assert.match(mine, /className="rl-task rl-topic-row"/);
   assert.match(mine, /const LIST_PAGE_SIZE = 10;/);
@@ -225,6 +248,6 @@ test("我的研究类型切换与资讯雷达共用页内 Tab", () => {
   assert.doesNotMatch(mine, /justify-between gap-3">\s*<WorkspaceTabs/);
   assert.match(intel, /WorkspaceTabs/);
   assert.match(intel, /aria-label="资讯栏目"/);
-  assert.match(intel, /<GlassCard glow>/);
   assert.doesNotMatch(intel, /NAV_GROUPS/);
+  assert.doesNotMatch(intel, /investment-news<\/span>|集成/);
 });

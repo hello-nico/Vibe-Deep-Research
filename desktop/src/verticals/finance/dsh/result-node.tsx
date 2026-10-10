@@ -109,7 +109,7 @@ function TopicCandidateNode({ node, sessionId }: Pick<ChatNodeViewProps<'finance
     } finally { setBusy(''); }
   };
   if (entryScope !== 'other') return null;
-  return <div className="my-3 rounded-xl border border-primary/20 bg-primary/[0.04] p-3.5 text-sm">
+  return <div className="my-3 rounded-2xl border border-border bg-[var(--fill-1)] p-3.5 text-sm">
     <p className="font-medium">建议持续研究：{question}</p>
     <p className="mt-2 leading-6 text-muted-foreground">{node.data.reason}</p>
     {node.data.match_topic_id && <p className="mt-1 text-xs">可复用已有议题</p>}

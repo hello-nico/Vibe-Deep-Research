@@ -1,30 +1,30 @@
 import { type ReactNode } from "react";
+import { AssistantSlot } from "../layout/assistantSlot";
+import "./ui.css";
 
 interface Props {
   title: string;
+  /** 可选的一行灰字；默认不用。 */
   subtitle?: string;
   search?: ReactNode;
   actions?: ReactNode;
+  /** 对话首页等不挂「问助手」的页面设为 false。 */
+  assistant?: boolean;
 }
 
-export function PageHeader({ title, subtitle, search, actions }: Props) {
-  const actionBar = actions ? <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div> : null;
+/** 页首：左侧标题，右侧搜索、动作与「问助手」；不放面包屑、橙色小标题和装饰性说明。 */
+export function PageHeader({ title, subtitle, search, actions, assistant = true }: Props) {
   return (
-    <div className="mb-7">
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div className="min-w-0">
-          <p className="workspace-kicker mb-2">Vibe Finance / Workspace</p>
-          <h1 className="workspace-title">{title}</h1>
-          {subtitle && <p className="mt-2 max-w-4xl text-sm leading-6 text-muted-foreground">{subtitle}</p>}
-        </div>
-        {!search && actionBar}
+    <header className="page-head">
+      <div className="page-head-title">
+        <h1 className="workspace-title">{title}</h1>
+        {subtitle && <p className="page-head-sub">{subtitle}</p>}
       </div>
-      {search && (
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <div className="min-w-[12rem] flex-1 basis-64">{search}</div>
-          {actionBar}
-        </div>
-      )}
-    </div>
+      <div className="page-head-actions">
+        {search}
+        {actions}
+        {assistant && <AssistantSlot />}
+      </div>
+    </header>
   );
 }

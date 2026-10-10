@@ -1,5 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { PageHeader } from "../components/ui/PageHeader";
+import { GroupCard, GroupRow } from "../components/ui/Card";
 
 export interface SlotProps {
   renderSlot(name: string, owner: object, options?: { entryKey?: string }): React.ReactNode;
@@ -11,11 +13,14 @@ export function openModelSettings() {
   document.querySelector<HTMLButtonElement>('#dsh-settings [data-slot="sidebar.settings"] button')?.click();
 }
 export function ModelSettings() {
-  return <section className="rounded-2xl border bg-card p-8">
-    <h1 className="text-2xl font-semibold">模型设置</h1>
-    <p className="my-4 text-sm text-muted-foreground">深度对话、资讯翻译、要点提炼与研究任务共用设置中的模型，无需重复接入。</p>
-    <button type="button" onClick={openModelSettings} className="rounded-xl bg-primary/10 px-4 py-2 text-primary">打开模型设置</button>
-  </section>;
+  return <div>
+    <PageHeader title="设置" assistant={false} />
+    <GroupCard label="模型">
+      <GroupRow title="模型与接入" description="对话、资讯翻译、要点提炼与研究任务共用设置中的模型，无需重复接入。">
+        <button type="button" onClick={openModelSettings} className="btn btn-primary">打开模型设置</button>
+      </GroupRow>
+    </GroupCard>
+  </div>;
 }
 
 /** Product seats only. DSH owns the React root and plugin Loader. */

@@ -29,7 +29,7 @@ export function pendingItems(rows: readonly StatusRow[], drafts: readonly Resear
   const items: PendingItem[] = [];
   for (const draft of drafts) {
     if (draft.status === 'pending') items.push({ id: draft.draft_id, slug: draft.slug, kind: 'draft', label: '草案待确认', time: draft.created_at,
-      href: `/my-research?tab=tasks&draft=${encodeURIComponent(draft.draft_id)}`, draft });
+      href: `/insights?tab=tasks&draft=${encodeURIComponent(draft.draft_id)}`, draft });
     if (draft.status === 'invalid' && now - Date.parse(draft.updated_at) <= 7 * 86_400_000)
       items.push({ id: draft.draft_id, slug: draft.slug, kind: 'invalid', label: `草案已失效 · ${draftInvalidReason(draft.invalid_reason)}`, time: draft.updated_at, draft });
   }

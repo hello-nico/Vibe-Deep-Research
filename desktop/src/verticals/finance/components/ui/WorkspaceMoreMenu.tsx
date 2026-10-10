@@ -78,10 +78,10 @@ export function WorkspaceMoreMenu({ actions }: { actions: readonly WorkspaceMore
     };
   }, [open]);
   return <>
-    <button ref={triggerRef} type="button" className="workspace-action workspace-more-trigger"
+    <button ref={triggerRef} type="button" className="btn btn-icon workspace-more-trigger" aria-label="更多" title="更多"
       aria-haspopup="menu" aria-expanded={open} aria-controls={menuId}
       onClick={() => open ? close() : reveal()} onKeyDown={onKeyDown}>
-      <Ellipsis size={16} />更多
+      <Ellipsis size={16} />
     </button>
     {open && createPortal(<div ref={menuRef} id={menuId} role="menu" aria-label="更多操作"
       className="workspace-select-menu workspace-more-menu" style={{ ...box, visibility: box ? 'visible' : 'hidden' }}

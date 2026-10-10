@@ -1,8 +1,9 @@
 import type { LucideIcon } from "lucide-react";
-import { ArrowUpRight, Layers3 } from "lucide-react";
-import { Link } from "react-router-dom";
-import { GlassCard } from "./ui/GlassCard";
+import { Layers3 } from "lucide-react";
+import type { ReactNode } from "react";
+import { ObjectCard, type ObjectTone } from "./ui/ObjectCard";
 
+/** 行业 / 产业 / 资料目录共用的对象卡（三行骨架，同类等高）；样式全部来自 ObjectCard。 */
 export function DashboardCard({
   title,
   description,
@@ -10,7 +11,12 @@ export function DashboardCard({
   onClick,
   ready = true,
   footer,
-  icon: Icon = Layers3,
+  icon = Layers3,
+  tone = "industry",
+  code,
+  data,
+  note,
+  openLabel = "查看",
 }: {
   title: string;
   description: string;
@@ -19,25 +25,17 @@ export function DashboardCard({
   ready?: boolean;
   footer: string;
   icon?: LucideIcon;
+  tone?: ObjectTone;
+  code?: string;
+  /** 数据线：状态胶囊、关注公司数等。 */
+  data?: ReactNode;
+  /** 卡片头部右侧的小说明。 */
+  note?: ReactNode;
+  openLabel?: string;
 }) {
-  const card = (
-    <GlassCard glow className="flex h-full min-h-44 flex-col justify-between transition-transform group-hover:-translate-y-1">
-      <div>
-        <div className="mb-4">
-          <Icon size={20} className="text-primary" />
-        </div>
-        <h2 className="truncate text-base font-bold">{title}</h2>
-        <p className="mt-2 line-clamp-2 text-xs text-muted-foreground">{description}</p>
-      </div>
-      <div className="mt-5 flex items-center justify-between border-t border-border/50 pt-3 text-xs">
-        <span className="text-muted-foreground">{footer}</span>
-        <ArrowUpRight size={16} className="text-primary" />
-      </div>
-    </GlassCard>
-  );
-  if (href && ready) return <Link className="group min-w-0" to={href}>{card}</Link>;
-  if (onClick && ready) return <button type="button" className="group min-w-0 w-full text-left" onClick={onClick}>{card}</button>;
-  return <div className="min-w-0">{card}</div>;
+  return <ObjectCard icon={icon} tone={tone} name={title} code={code} keyValue={note}
+    text={description} data={data} foot={footer}
+    to={ready ? href : undefined} onOpen={ready && !href ? onClick : undefined} openLabel={openLabel} />;
 }
 
 export { DashboardCard as IndustryDashboardCard };

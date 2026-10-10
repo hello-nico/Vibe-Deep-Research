@@ -1,729 +1,99 @@
-import { useEffect, useRef, useState, useMemo, useSyncExternalStore } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
-import { PageHeader } from '../components/ui/PageHeader';
-import { GlassCard } from '../components/ui/GlassCard';
+import { useContext, useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate, useParams } from 'react-router-dom';
+import { ArrowLeft, Star, X } from 'lucide-react';
 import { Disclaimer } from '../components/ui/Disclaimer';
-import { WikiLoading, WikiReader, WikiViewTabs } from '../components/ResearchKnowledge';
-import { ResearchLoading, ResearchRefreshStatus } from '../components/ui/ResearchLoading';
-import { aShareQualified, backgroundTaskForSession, clipCompanyOneLiner, companyAsOfLabel, companyCheckedLabel, companyIndustryLabel, companySlug, loadBackgroundTasks, researchRead, symbolFromCompanySlug, wikiPages, type CompanyPageSummary, type WikiItem, type WikiPage } from '../lib/research';
-import { activeTaskKind, latestResearch, loadReportTasks, RESEARCH_SETTLEMENT_MS, researchProgressLine, researchSkipSummary, runningReport, type ReportTaskStore } from '../lib/reportTasks';
-import { isBareCompanyCode, wikiPageTitle } from '../lib/researchObject';
-import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
-import { loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
-import { api } from '../lib/api';
-import { prefGet, prefSet } from '../lib/prefs';
-import { cn } from '@/lib/utils';
-import { useResearchSessions } from '../dsh/research-session';
-import { useSlugTaskActivity } from '../dsh/task-activity';
-import { buildDirectorySnapshot, buildWikiPageSnapshot } from '../assistant/snapshot.ts';
-import { wikiAssistantObject, companyQuoteObject } from '../lib/pageAssistantObjects';
-import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
-import { ArrowLeft, ArrowRight, Building2, LayoutGrid, List, Loader2, RefreshCw, Star, X } from 'lucide-react';
-import { WikiDraftPublish } from '../components/WikiDraftPublish';
-import { CompanyRefreshConfirm, type RefreshViewState } from '../components/CompanyRefreshConfirm';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
-import { statusBadges } from '../lib/objectStatus';
-import { ObjectStatusBadges, useObjectStatusRows } from '../components/ui/ObjectStatusBadges';
-import type { StatusRow } from '../lib/objectStatus';
-import { trackTask } from '../lib/taskNotices';
-import { companyResearchStep, COMPANY_RESEARCH_STEPS } from '../lib/companyResearchProgress';
+import { useConfirm } from '../components/ui/ConfirmDialog';
+import { AssistantSlot } from '../components/layout/assistantSlot';
+import { companySlug, wikiPages, type WikiItem } from '../lib/research';
+import { normalizeMarketSymbol } from '../lib/marketSymbol';
+import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
+import { addToRoster, loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
+import { api } from '../lib/api';
+import { watchPath } from '../lib/routes';
+import { useResearchSessions } from '../dsh/research-session';
+import { buildDirectorySnapshot } from '../assistant/snapshot';
+import { companyQuoteObject } from '../lib/pageAssistantObjects';
+import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
+import { createCompanyPageServices } from '../lib/companyPageServices';
+import { CompanyPage, CompanyPageProgress, CompanyPageServicesContext, useCompanyPageState } from './CompanyPage';
+import './company-page.css';
+import type { CompanyPageServices } from '../lib/companyPage';
 
-const VIEW_KEY = 'vr-company-roster-view';
-const RECENT_LIMIT = 9;
-const noopSubscribe = () => () => {};
-const unknownResearchStep = () => null;
-
+/** 关注里的个股页（`/watch/:symbol`）：名单与自选两边同步，返回关注列表时回到离开时的筛选。 */
 export function CompanyWiki() {
   const sessions = useResearchSessions();
-  const [pages, setPages] = useState<WikiItem[] | null>(null);
-  const [params, setParams] = useSearchParams();
+  const supplied = useContext(CompanyPageServicesContext);
+  const services = useMemo(() => supplied ?? createCompanyPageServices(sessions), [supplied, sessions]);
+  const { symbol: raw = '' } = useParams();
+  const symbol = normalizeMarketSymbol(decodeURIComponent(raw)) ?? raw;
   const navigate = useNavigate();
-  const slug = params.get('company') || '';
-  const query = params.get('q') || '';
-  const [rosterRev, setRosterRev] = useState(0);
-  const report = params.get('view') === 'report';
-  const setReport = (value: boolean) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set('view', 'report'); else next.delete('view');
-    setParams(next, { replace: true });
-  };
-  const [reportSlot, setReportSlot] = useState<HTMLElement | null>(null);
-  const [refreshView, setRefreshView] = useState<RefreshViewState>('idle');
-  const overviewKey = `finance-company-overview:${query}`;
-  const setSlug = (value: string) => {
-    if (!slug) sessionStorage.setItem(overviewKey, String(document.getElementById('workspace-main')?.scrollTop || 0));
-    const next = new URLSearchParams(params);
-    next.delete('view');
-    next.delete('refresh');
-    if (value) next.set('company', value); else next.delete('company');
-    setParams(next);
-    document.getElementById('workspace-main')?.scrollTo(0, 0);
-    const symbol = symbolFromCompanySlug(value) || value;
-    if (symbol) void touchRoster(symbol).then(() => setRosterRev(x => x + 1)).catch(() => undefined);
-  };
-  const updateFilter = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (value) next.set(key, value); else next.delete(key);
-    setParams(next, { replace: true });
-  };
-  const [loaded, setLoaded] = useState({ slug: '', markdown: '' });
-  const [wikiPage, setWikiPage] = useState<WikiPage | null>(null);
-  const markdown = loaded.slug === slug ? loaded.markdown : '';
-  useEffect(() => { setWikiPage(null); }, [slug]);
+  const location = useLocation();
+  const backTo = (location.state as { from?: string } | null)?.from || '/watch';
+  const [revision, setRevision] = useState(0);
+  const [pages, setPages] = useState<WikiItem[]>([]);
+  const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
-  const [wikiError, setWikiError] = useState('');
-  const [revision, refresh] = useState(0);
-  const [listLoading, setListLoading] = useState(true);
-  const [readerState, setReaderState] = useState<'loading' | 'ready' | 'error'>('loading');
-  const [notice, setNotice] = useState({ slug: '', text: '' });
-  // Generation tracking for a missing/young Company Wiki. Phases separate the
-  // model turn (researching), Backend settlement (settling) and confirmed
-  // outcomes (done / failed / unconfirmed) — a finished session alone never
-  // means the Wiki absorbed new content. Sessions are re-discovered by title
-  // after reload so an in-flight run survives navigation.
-  const [gen, setGen] = useState<{
-    slug: string;
-    phase: 'ensuring' | 'researching' | 'settling' | 'partial' | 'review' | 'done' | 'unconfirmed' | 'failed';
-    sessionId?: string;
-    message?: string;
-    pageReady?: boolean;
-    baselineHash?: string;
-    settleAt?: number;
-    draftToken?: string;
-  } | null>(null);
-  const genRef = useRef(gen);
-  genRef.current = gen;
-  const [sessionsRev, setSessionsRev] = useState(0);
-  useEffect(() => sessions.subscribeSessionList(() => setSessionsRev(x => x + 1)), [sessions]);
-  const [quoteNames, setQuoteNames] = useState<Record<string, string>>({});
-  const [view, setView] = useState<'grid' | 'list'>(() => prefGet(VIEW_KEY) === 'list' ? 'list' : 'grid');
-  const [readyProfiles, setReadyProfiles] = useState<Set<string>>(() => new Set());
-  const [runningSymbols, setRunningSymbols] = useState<Set<string>>(() => new Set());
-  const [researchStore, setResearchStore] = useState<ReportTaskStore | null>(null);
-  const [reportFlags, setReportFlags] = useState<Record<string, true>>({});
-  const reportAsked = useRef(new Set<string>());
-  const rosterNodes = useRef(new Map<string, Element>());
-  const changeView = (next: 'grid' | 'list') => { setView(next); void prefSet(VIEW_KEY, next); };
-  const activeSlug = useRef(slug);
-  activeSlug.current = slug;
+  const [confirmElement, ask] = useConfirm();
   const roster = loadRoster();
   const watched = new Set(loadWatch());
-  const refreshData = async () => {
-    if (refreshing || slug) return;
-    setListLoading(true); refresh(x => x + 1); setNotice({ slug: '', text: '已重新读取公司列表' });
-  };
+  const slug = companySlug(symbol) || symbol;
   useEffect(() => {
-    if (slug || !pages) return;
-    const frame = requestAnimationFrame(() => document.getElementById('workspace-main')?.scrollTo(0, Number(sessionStorage.getItem(overviewKey)) || 0));
-    return () => cancelAnimationFrame(frame);
-  }, [slug, pages, overviewKey]);
-  useEffect(() => {
-    if (!markdown || !slug) return;
-    const key = `finance-scroll:/research?${params}`;
-    const saved = sessionStorage.getItem(key);
-    if (saved !== null) {
-      requestAnimationFrame(() => { document.getElementById('workspace-main')?.scrollTo(0, Number(saved) || 0); });
-      sessionStorage.removeItem(key);
-    }
-  }, [markdown, slug, params]);
-  useEffect(() => {
-    const controller = new AbortController(); setError(''); setWikiError(''); setListLoading(true);
-    void wikiPages('companies', controller.signal).then(setPages).catch(e => { if (!controller.signal.aborted) setWikiError(String(e)); }).finally(() => { if (!controller.signal.aborted) setListLoading(false); });
+    const controller = new AbortController();
+    void wikiPages('companies', controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => {});
     return () => controller.abort();
   }, [revision]);
+  const codes = [...new Set([symbol, ...roster, ...watched])];
+  const codesKey = codes.join(',');
   useEffect(() => {
-    if (slug) return;
-    const controller = new AbortController();
-    void researchRead<{ items?: { industry_code?: string; status?: string }[] }>('/industries/profiles', { signal: controller.signal })
-      .then(value => {
-        const ready = new Set<string>();
-        for (const item of value.items || []) {
-          if (item.status === 'ready' && item.industry_code) ready.add(item.industry_code.toUpperCase());
-        }
-        setReadyProfiles(ready);
-      })
-      .catch(() => {});
-    return () => controller.abort();
-  }, [slug, revision]);
-  useEffect(() => {
-    if (slug) return;
-    let cancelled = false;
-    // 名单每行显示最近一次研究的阶段；研究与整理会在列表停留期间推进，所以轮询任务台账。
-    const load = () => {
-      void sessions.listRunningCompanySymbols().then(symbols => {
-        if (!cancelled) setRunningSymbols(new Set(symbols));
-      }).catch(() => {});
-      void loadReportTasks().then(store => { if (!cancelled) setResearchStore(store); }).catch(() => {});
-    };
-    load();
-    const timer = window.setInterval(load, 6000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [sessions, sessionsRev, slug]);
-  const searching = query.trim();
-  useEffect(() => {
-    const codes = searching ? loadRoster() : loadRoster().slice(0, RECENT_LIMIT);
-    if (!codes.length) return;
-    const controller = new AbortController();
-    void api.quote(codes.join(',')).then(quotes => {
-      if (controller.signal.aborted) return;
-      setQuoteNames(previous => {
-        const names = { ...previous };
-        for (const [code, quote] of Object.entries(quotes)) if (quote.name) names[code] = quote.name;
-        return names;
-      });
-    }).catch(() => {});
-    return () => controller.abort();
-  }, [rosterRev, revision, searching]);
-  const wikiBySlug = new Map((pages ?? []).map(page => [page.slug, page]));
-  const toRow = (symbol: string, company: string | null, wiki?: WikiItem) => ({
-    symbol,
-    slug: company || symbol,
-    title: wiki?.title || quoteNames[symbol] || symbol,
-    hasWiki: Boolean(wiki),
-    aShare: Boolean(company),
-    summary: wiki?.summary,
-  });
-  const rows = roster.map(symbol => {
-    const company = companySlug(symbol);
-    return toRow(symbol, company, company ? wikiBySlug.get(company) : undefined);
-  });
-  const matches = (title: string, code: string, text: string) => `${title} ${code}`.toLowerCase().includes(text.trim().toLowerCase());
-  const matched = searching ? rows.filter(row => matches(row.title, row.symbol, searching)) : rows;
-  const visible = searching ? matched : matched.slice(0, RECENT_LIMIT);
-  const current = rows.find(row => row.slug === slug) || (slug ? toRow(symbolFromCompanySlug(slug) || slug, symbolFromCompanySlug(slug) ? slug : null, wikiBySlug.get(slug)) : undefined);
-  const objectStatuses = useObjectStatusRows(slug ? [slug] : visible.filter(row => row.aShare).map(row => row.slug));
-  const taskActivity = useSlugTaskActivity(slug, sessions);
-  const reportBlocksRefresh = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
-    : taskActivity.kind === 'report' ? '图文报告生成中，完成后可刷新资料。' : '';
-  const visibleSlugs = visible.filter(row => row.hasWiki).map(row => row.slug).join('\0');
-  const attachRoster = (rowSlug: string) => (el: HTMLElement | null) => {
-    if (el) rosterNodes.current.set(rowSlug, el);
-    else rosterNodes.current.delete(rowSlug);
-  };
-  useEffect(() => {
-    if (slug || !visibleSlugs || typeof IntersectionObserver === 'undefined') return;
-    const root = document.getElementById('workspace-main');
-    const io = new IntersectionObserver(entries => {
-      for (const entry of entries) {
-        if (!entry.isIntersecting) continue;
-        const targetSlug = (entry.target as HTMLElement).dataset.rosterSlug;
-        if (!targetSlug || reportAsked.current.has(targetSlug)) continue;
-        reportAsked.current.add(targetSlug);
-        void researchRead<{ items?: unknown[] }>('/wiki/reports?slug=' + encodeURIComponent(targetSlug))
-          .then(result => {
-            if (Array.isArray(result.items) && result.items.length) {
-              setReportFlags(prev => prev[targetSlug] ? prev : { ...prev, [targetSlug]: true });
-            }
-          })
-          .catch(() => {});
-      }
-    }, { root: root || null, rootMargin: '80px' });
-    const frame = requestAnimationFrame(() => {
-      for (const el of rosterNodes.current.values()) io.observe(el);
-    });
-    return () => { cancelAnimationFrame(frame); io.disconnect(); };
-  }, [slug, visibleSlugs]);
-  const rosterChecked = (row: RosterRow) => companyCheckedLabel(row.summary?.as_of, [
-    latestResearch(researchStore, row.slug, id => sessions.taskRunning(id))?.finishedAt,
-    objectStatuses.get(row.slug)?.refresh?.checked_at,
-  ]);
-  const rosterReportRunning = (row: RosterRow) => Boolean(runningReport(researchStore, row.slug, id => sessions.taskRunning(id)));
-  const rosterProgress = (row: RosterRow) => {
-    if (!row.hasWiki) return null;
-    const isRunning = (id: string) => sessions.taskRunning(id);
-    const research = latestResearch(researchStore, row.slug, isRunning);
-    const running = runningSymbols.has(row.symbol) && research?.status !== 'settling'
-      ? { ...(research || { sessionId: '', runFailed: false }), status: 'researching' as const } : research;
-    return researchProgressLine(running, runningReport(researchStore, row.slug, isRunning),
-      (objectStatuses.get(row.slug)?.drafts?.pending || 0) > 0, Boolean(row.summary?.one_liner?.trim()));
-  };
-  const switchOptions = rows.map(row => ({ value: row.slug, label: row.title, detail: row.symbol }));
-  if (current && !switchOptions.some(option => option.value === current.slug)) switchOptions.unshift({ value: current.slug, label: current.title, detail: current.symbol });
-  const pagesReady = pages !== null;
-  const refreshing = listLoading || (!!slug && Boolean(current?.hasWiki) && readerState === 'loading');
-  const leave = async (symbol: string) => {
-    try {
-      await removeFromRoster(symbol);
-      setRosterRev(x => x + 1);
-      if (companySlug(symbol) === slug || symbol === slug) setSlug('');
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  };
-  // Recover an in-flight company session after navigation or reload; do not
-  // resurrect finished states. Polling the page while tracked surfaces the
-  // Backend refresh that lands after a session settles.
-  useEffect(() => {
-    if (!current?.aShare) return;
-    const tracked = genRef.current;
-    if (tracked && tracked.slug === current.slug) return;
     let alive = true;
-    void sessions.findCompanySession(current.symbol).then(ref => {
-      if (!alive || !ref?.running) return;
-      setGen(prev => prev?.slug === current.slug ? prev
-        : { slug: current.slug, phase: 'researching', sessionId: ref.sessionId });
+    if (codes.length) void api.quote(codes.join(',')).then(quotes => {
+      if (alive) setNames(previous => ({ ...previous, ...Object.fromEntries(Object.entries(quotes).filter(([, quote]) => quote.name).map(([code, quote]) => [code, quote.name])) }));
     }).catch(() => {});
     return () => { alive = false; };
-  }, [slug, current?.symbol, current?.aShare, sessionsRev]);
-  useEffect(() => {
-    const g = gen;
-    if (!g || g.slug !== slug || !['ensuring', 'researching', 'settling'].includes(g.phase)) return;
-    let alive = true;
-    let timer = 0;
-    const tick = async () => {
-      const tracked = genRef.current;
-      if (!alive || !tracked || tracked.slug !== slug) return;
-      if (tracked.phase === 'researching' && tracked.sessionId) {
-        const state = sessions.sessionState(tracked.sessionId);
-        const bound = await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null);
-        const running = state ? state.running : bound?.running ?? true;
-        if (!alive) return;
-        if (state?.failed || state?.lastAgentError || state?.promptError || ['failed', 'cancelled'].includes(bound?.runStatus || '')
-          || (bound?.runStatus === 'running' && bound.status === 'interrupted')) {
-          // Raw agent errors stay in the execution conversation; the page shows a generic failure.
-          setGen(prev => prev && prev.sessionId === tracked.sessionId
-            ? { ...prev, phase: 'failed', message: '这次研究没有完成，请查看任务记录后重试。' } : prev);
-          return;
-        }
-        if (!running) {
-          setGen(prev => prev && prev.sessionId === tracked.sessionId && prev.phase === 'researching'
-            ? { ...prev, phase: 'settling', settleAt: Date.now(), message: undefined } : prev);
-        }
-      } else if (tracked.phase === 'settling') {
-        // Settlement truth comes from the background task record for this session.
-        const tasks = await loadBackgroundTasks().catch(() => null);
-        if (!alive) return;
-        const record = tasks ? backgroundTaskForSession(tasks, tracked.sessionId) : null;
-        const display = record?.display_status || record?.status || '';
-        if (!record) {
-          const bound = await sessions.findCompanySession(symbolFromCompanySlug(tracked.slug) || '').catch(() => null);
-          if (!alive) return;
-          if (['failed', 'cancelled', 'interrupted'].includes(bound?.status || '')) {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'failed', message: '结果整理没有完成，详情见任务记录。' } : prev);
-            return;
-          }
-        }
-        if (record && !['running', 'waiting_ingest'].includes(display)) {
-          refresh(x => x + 1);
-          if (display === 'awaiting_authorization' || display === 'partial') {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: display === 'partial' ? 'partial' : 'review', draftToken: record.draft_token, message: display === 'partial'
-                ? '部分内容已整理，本页暂未更新。详情见任务记录。'
-                : '草案已生成，你确认后才会显示在本页。' } : prev);
-          } else if (['ready', 'done', 'completed'].includes(display)) {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '研究已完成。详情见任务记录。' } : prev);
-          } else if (display === 'no_increment') {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '研究已结束，这次没有新增内容。' } : prev);
-          } else if (display === 'skipped') {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: researchSkipSummary(record?.settlement_reason || record?.reason) } : prev);
-          } else {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'failed', message: '结果整理没有完成，详情见任务记录。' } : prev);
-          }
-          return;
-        }
-        // No definitive record yet: a changed page hash proves the Wiki moved on
-        // (weaker signal — a task record takes precedence when it exists).
-        try {
-          const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(tracked.slug));
-          if (!alive) return;
-          if (!record && tracked.baselineHash && page.input_hash && page.input_hash !== tracked.baselineHash) {
-            refresh(x => x + 1);
-            setGen(prev => prev && prev.sessionId === tracked.sessionId
-              ? { ...prev, phase: 'done', message: '本页已更新。' } : prev);
-            return;
-          }
-          if (!tracked.baselineHash && page.input_hash) {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId ? { ...prev, baselineHash: page.input_hash } : prev);
-          }
-        } catch { /* page may still be missing; retry next tick */ }
-        if (Date.now() - (tracked.settleAt ?? Date.now()) > RESEARCH_SETTLEMENT_MS) {
-          setGen(prev => prev && prev.sessionId === tracked.sessionId
-            ? { ...prev, phase: 'unconfirmed', message: '研究已结束，结果还在整理，完成后本页会更新。' } : prev);
-          return;
-        }
-      }
-      // While the page may not exist yet, keep one light refresh channel open.
-      if (tracked.phase === 'researching' || tracked.phase === 'ensuring') {
-        try {
-          const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(tracked.slug));
-          if (alive && !tracked.baselineHash && page.input_hash) {
-            setGen(prev => prev && prev.sessionId === tracked.sessionId || prev?.slug === tracked.slug ? { ...prev!, baselineHash: page.input_hash } : prev);
-          }
-        } catch { /* next tick retries */ }
-      }
-      if (alive) timer = window.setTimeout(() => void tick(), 6000);
-    };
-    timer = window.setTimeout(() => void tick(), 1500);
-    return () => { alive = false; window.clearTimeout(timer); };
-  }, [gen?.slug, gen?.phase, gen?.sessionId, slug, sessionsRev]);
-  const startCompanyResearch = async () => {
-    // 只拦同一家公司正在进行的研究；页面上另一家公司的研究不影响这里发起（后端允许不同公司并行）。
-    if (!current || !current.aShare || (gen?.slug === current.slug && (gen.phase === 'ensuring' || gen.phase === 'researching'))) return;
-    setError('');
-    const target = current;
-    if (companyResearchDisabledReason) {
-      setError(companyResearchDisabledReason);
-      return;
-    }
-    try {
-      const bindings = await loadReportTasks();
-      if (activeTaskKind(bindings, target.slug, id => sessions.taskRunning(id)) === 'report') {
-        setError('图文报告生成中，完成后可刷新资料。');
-        return;
-      }
-    } catch { setError('任务状态暂时无法核对，请稍后重试。'); return; }
-    setGen({ slug: target.slug, phase: 'ensuring' });
-    try {
-      await researchRead<{ slug: string; action: string }>('/wiki/pages/ensure', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slug: target.slug }),
-      });
-    } catch (e) {
-      if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: e instanceof Error ? e.message : String(e) });
-      return;
-    }
-    if (activeSlug.current !== target.slug) return;
-    refresh(x => x + 1);
-    try {
-      const page = await researchRead<WikiPage>('/wiki/pages/read?slug=' + encodeURIComponent(target.slug)).catch(() => null);
-      const name = isBareCompanyCode(target.title, target.symbol) ? wikiPageTitle(page, target.symbol) : target.title;
-      const prompt = `按公司研究流程研究 ${name}（${target.symbol}）`;
-      const { sessionId } = await sessions.start(prompt, { symbol: target.symbol, name }, {
-        navigate: false, task: { kind: 'research', slug: target.slug, symbol: target.symbol, title: `公司研究 · ${name}` },
-      });
-      trackTask({ kind: 'research', object: { slug: target.slug, title: name, kind: 'company', path: `/research?company=${encodeURIComponent(target.slug)}` }, ref: sessionId });
-      if (activeSlug.current !== target.slug) return;
-      setGen({ slug: target.slug, phase: 'researching', sessionId, pageReady: true, baselineHash: page?.input_hash });
-    } catch (e) {
-      if (activeSlug.current === target.slug) setGen({ slug: target.slug, phase: 'failed', message: `研究页已建立，但研究没能开始：${e instanceof Error ? e.message : String(e)}`, pageReady: true });
-    }
+  }, [codesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  const wikiBySlug = new Map(pages.map(page => [page.slug, page]));
+  const titleOf = (code: string) => names[code] || wikiBySlug.get(companySlug(code) || code)?.title || code;
+  const title = titleOf(symbol);
+  const rows = [...new Set([...roster, ...watched])].filter(code => /^\d{6}$/.test(code));
+  const watching = watched.has(symbol) || roster.includes(symbol);
+  // 打开个股页即计入最近使用；只有已在关注里才排序，不因打开而加入关注。
+  useEffect(() => { if (roster.includes(symbol)) void touchRoster(symbol).catch(() => {}); }, [symbol]); // eslint-disable-line react-hooks/exhaustive-deps
+  const follow = async () => {
+    try { await Promise.all([addWatch(symbol), addToRoster(symbol)]); setRevision(value => value + 1); }
+    catch { setError('关注状态暂时未能更新'); }
   };
-  // HK/US and other unsupported markets keep the plain conversation path; the
-  // Wiki entry is never presented as if it could produce a page.
-  const startPlainResearch = async () => {
-    if (!current) return;
-    setError('');
-    try {
-      await sessions.start(
-        `基于公开资料研究 ${current.title}（${current.symbol}）。这家公司暂时没有研究页，结论只保留在这次对话里。`,
-        { symbol: current.symbol, name: current.title },
-      );
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
+  const unfollow = async () => {
+    const ok = await ask({ title: '移出关注', kicker: '关注', body: <><p>{title}（{symbol}）将从关注里移出。</p><p className="refresh-dialog-scope">只移出关注，已有研究和资料不受影响。</p></>, confirmLabel: '确认移出' });
+    if (!ok) return;
+    try { await Promise.all([removeWatch(symbol), removeFromRoster(symbol)]); navigate(backTo, { replace: true }); }
+    catch { setError('关注状态暂时未能更新'); }
   };
-  const toggleWatch = async (symbol: string) => {
-    try {
-      if (watched.has(symbol)) await removeWatch(symbol); else await addWatch(symbol);
-      setRosterRev(x => x + 1);
-    } catch (e) { setError(e instanceof Error ? e.message : String(e)); }
-  };
-  const pageKey = slug ? `company-wiki:${slug}` : 'company-wiki:list';
-  const genHere = gen && gen.slug === slug ? gen : null;
-  const researchSessionId = genHere?.sessionId || taskActivity.research?.sessionId;
-  const researchTrajectory = useMemo(() => {
-    try { return researchSessionId ? sessions.trajectory(researchSessionId) : null; }
-    catch { return null; }
-  }, [sessions, researchSessionId]);
-  const readResearchStep = useMemo(() => researchTrajectory
-    ? () => companyResearchStep(researchTrajectory.getSnapshot()) : unknownResearchStep, [researchTrajectory]);
-  const researchStep = useSyncExternalStore(researchTrajectory?.subscribe ?? noopSubscribe,
-    readResearchStep, unknownResearchStep);
-  const researchProgress = <div className="research-loading-compact" role="status" aria-live="polite" aria-busy="true">
-    <span className="research-loading-scan" aria-hidden="true" />
-    <span className="research-loading-beam" aria-hidden="true" />
-    <p className="research-loading-compact-title">{researchStep === null ? '研究进行中' : COMPANY_RESEARCH_STEPS[researchStep]}</p>
-    {researchStep !== null && <ol className="research-loading-compact-rail">
-      {COMPANY_RESEARCH_STEPS.map((step, index) => <li key={step} className={index === researchStep ? 'is-active' : ''} aria-current={index === researchStep ? 'step' : undefined}><i />{step}</li>)}
-    </ol>}
-  </div>;
-  const wikiWait = Boolean(genHere && !current?.hasWiki && (genHere.phase === 'ensuring' || genHere.phase === 'researching' || genHere.phase === 'settling'));
-  // 研究进行中时按钮显示阶段并可点开任务过程，而不是只变灰。
-  const researchPhase = genHere?.phase === 'settling' || taskActivity.research?.status === 'settling' ? 'settling'
-    : taskActivity.kind === 'research' || (genHere && ['ensuring', 'researching'].includes(genHere.phase)) ? 'researching'
-    : taskActivity.kind === 'report' ? 'report' : null;
-  const companyResearchDisabledReason = reportBlocksRefresh
-    || (refreshView !== 'idle' ? '资料刷新中，完成后可发起公司研究。' : '')
-    || (taskActivity.kind === 'research' || genHere && ['ensuring', 'researching', 'settling'].includes(genHere.phase)
-      ? '公司研究进行中，完成后可再次研究。' : '');
-  const wikiLoadState = wikiWait
-    ? 'loading'
-    : !current?.hasWiki
-      ? 'missing'
-      : (readerState === 'error' || wikiError)
-        ? 'error'
-        : (readerState === 'loading' || (!wikiPage && !markdown))
-          ? 'loading'
-          : 'ready';
-  useAiPage({
-    key: pageKey,
-    title: current ? `个股研究 · ${current.title}` : '个股研究',
-    context: slug && current
-      ? buildWikiPageSnapshot({
-        kind: 'company',
-        title: current.title,
-        slug,
-        symbol: current.symbol,
-        loadState: wikiLoadState,
-        page: wikiPage,
-        markdown,
-      })
-      : buildDirectorySnapshot({
-        heading: `研究名单 ${visible.length} 家。`,
-        items: visible.map(row => ({ title: row.title, id: row.slug })),
-        loading: listLoading && !pages,
-      }),
-    suggestions: slug ? ['研究这家公司需要核对哪些证据？'] : ['当前名单里哪些公司最值得先看？'],
-  });
-  const companyObjects = slug && current
-    ? [
-      wikiAssistantObject({ slug: current.slug, title: current.title, inputHash: wikiPage?.input_hash, section: '个股研究' }),
-      current.aShare ? companyQuoteObject({ symbol: aShareQualified(current.symbol) || current.symbol, name: current.title }) : null,
-    ].flatMap(item => item ? [item] : [])
-    : visible.flatMap(row => {
-      const wiki = wikiAssistantObject({ slug: row.slug, title: row.title, inputHash: wikiBySlug.get(row.slug)?.input_hash, section: '个股研究' });
-      return wiki ? [wiki] : [];
-    });
-  useAiPageObjects(pageKey, companyObjects);
-  const wikiWaitTitle = genHere?.phase === 'ensuring' ? '正在建立研究页'
-    : genHere?.phase === 'settling' ? '研究已结束，正在整理结果…'
-    : `${genHere?.pageReady ? '研究页已建立，' : ''}研究进行中，结果会陆续更新到本页。`;
-  const genActions = genHere ? <div className="mt-3 flex flex-wrap gap-2">
-    {genHere.phase !== 'ensuring' && <Link className="workspace-action workspace-action-compact" to="/my-research?tab=tasks">查看任务记录</Link>}
-    {genHere.phase === 'failed' && current?.aShare && <button type="button" className="workspace-action workspace-action-compact" onClick={() => void startCompanyResearch()}>重试</button>}
-    {['done', 'partial', 'review', 'failed', 'unconfirmed'].includes(genHere.phase) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => setGen(null)}>收起</button>}
-  </div> : null;
-  return <div><PageHeader title="个股研究" subtitle="只显示已加入研究的公司。自选与研究名单分开。" actions={!slug ? <div className="flex flex-col items-end gap-2">{refreshing ? <ResearchRefreshStatus /> : <button className="workspace-action" onClick={() => void refreshData()}><RefreshCw size={14} />刷新列表</button>}{notice.slug === slug && notice.text && !refreshing && <span role="status" className="text-xs text-muted-foreground">{notice.text}</span>}</div> : undefined} />
-    {error && <p role="alert" className="mb-4">{error}</p>}
-    {wikiError && <p role="alert" className="mb-4">公司资料暂时读不到：{wikiError}<button className="workspace-action ml-2" onClick={() => refresh(x => x + 1)}>重试</button></p>}
-    {!slug && listLoading && <ResearchLoading title="正在读取公司资料" sections={['研究名单', '公司资料']} />}
-    {slug && <div className="object-toolbar">
-      <div className="object-toolbar-group">
-        <button className="workspace-action" onClick={() => setSlug('')}><ArrowLeft size={14} />研究名单</button>
-        <WorkspaceSelect
-          aria-label="切换公司"
-          className="max-w-full"
-          value={current?.slug || slug}
-          onChange={setSlug}
-          searchPlaceholder="搜索已加入的公司"
-          emptyText="名单里没有匹配的公司"
-          options={switchOptions}
-        />
-        <ObjectStatusBadges slug={slug} row={objectStatuses.get(slug)} badges={statusBadges(objectStatuses.get(slug)).filter(badge => badge !== '报告已过期')} />
-        {current?.hasWiki && <WikiViewTabs report={report} onChange={setReport} reportStale={Boolean(objectStatuses.get(slug)?.report?.stale)} />}
-      </div>
-      <div className="object-toolbar-group object-toolbar-actions">
-        {current && <button className="workspace-action" onClick={() => void toggleWatch(current.symbol)}><Star size={14} className={watched.has(current.symbol) ? 'fill-primary text-primary' : ''} />{watched.has(current.symbol) ? '已自选' : '加入自选'}</button>}
-        {/* 图文报告的动作（重新生成）由报告组件投送到下面的槽位。刷新组件只隐藏不卸载，避免中断进行中的检查。 */}
-        {current?.hasWiki && <span className={report ? 'hidden' : 'contents'}><CompanyRefreshConfirm key={slug} slug={slug} version={wikiPage?.input_hash} title={current.title} disabledReason={reportBlocksRefresh} onUpdated={() => refresh(x => x + 1)} onStateChange={setRefreshView} /></span>}
-        {current?.hasWiki && !report && current.aShare && (researchPhase
-          ? <button type="button" className="workspace-action" title={researchPhase === 'report' ? '查看图文报告的生成进度' : '查看这次研究的过程'}
-              onClick={() => researchPhase === 'report' ? setReport(true) : navigate('/my-research?tab=tasks')}>
-              <Loader2 size={14} className="animate-spin text-primary" />{researchPhase === 'settling' ? '整理中…' : researchPhase === 'report' ? '报告生成中…' : '研究中…'}</button>
-          : <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>公司研究</button>)}
-        {current?.hasWiki && report && <span ref={setReportSlot} className="contents" />}
-        {current && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出研究', icon: <X size={14} />, onSelect: () => void leave(current.symbol) }]} />}
-      </div>
-      {notice.slug === slug && notice.text && !refreshing && <span role="status" className="object-toolbar-notice">{notice.text}</span>}
-    </div>}
-    {slug ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7">
-      {current && pagesReady && !current.hasWiki && !wikiWait && <div className="mb-4 space-y-3">
-        <h2 className="text-base font-semibold">{current.title}<span className="ml-2 font-mono text-xs font-normal text-muted-foreground">{current.symbol}</span></h2>
-        <p className="text-sm text-muted-foreground">{current.aShare
-          ? '已加入研究，还没有研究页。开始研究后会先建立研究页，再补充资料。'
-          : '已加入研究。港股 / 美股暂时没有研究页，可以在深度对话中研究。'}</p>
-        <div className="flex flex-wrap gap-2">
-          {current.aShare
-            ? <button type="button" className="workspace-action workspace-action-primary" title={companyResearchDisabledReason} disabled={!!companyResearchDisabledReason} onClick={() => void startCompanyResearch()}>{gen?.slug === slug && gen.phase === 'failed' ? '重试研究' : '开始研究'}</button>
-            : <button type="button" className="workspace-action" onClick={() => void startPlainResearch()}>在深度对话中研究</button>}
-          <Link className="workspace-action" to="/my-reports">上传研报补充</Link>
-        </div>
-      </div>}
-      {wikiWait && genHere && <>{genHere.phase === 'researching' ? researchProgress : <WikiLoading slug={slug} title={wikiWaitTitle} />}{genHere.phase !== 'ensuring' && genActions}</>}
-      {genHere && !wikiWait && <div className="mb-4 rounded-xl border border-border p-4" role="status">
-        {genHere.phase === 'researching' && researchProgress}
-        {genHere.phase === 'settling' && <p className="text-sm">研究已结束，正在整理结果…</p>}
-        {genHere.phase === 'done' && <p className="text-sm">{genHere.message || '研究已结束。'}</p>}
-        {(genHere.phase === 'partial' || genHere.phase === 'review') && <p className="text-sm">{genHere.message}</p>}
-        {genHere.phase === 'review' && genHere.draftToken && <WikiDraftPublish draftToken={genHere.draftToken} onPublished={() => { refresh(x => x + 1); setGen(prev => prev && prev.slug === slug ? { ...prev, phase: 'done', message: '本页已更新。' } : prev); }} />}
-        {genHere.phase === 'unconfirmed' && <p className="text-sm">{genHere.message || '研究已结束，结果还在整理。'}</p>}
-        {genHere.phase === 'failed' && <p role="alert" className="text-sm">{genHere.message || '研究没有完成，可以重试。'}</p>}
-        {genActions}
-      </div>}
-      {current?.hasWiki && !report && refreshView !== 'idle' && <WikiLoading slug={slug} title={refreshView === 'checking' ? '正在检查资料' : '正在更新资料'} />}
-      {current?.hasWiki ? <div hidden={!report && refreshView !== 'idle'}><WikiReader key={slug} slug={slug} revision={revision} hideToggle report={report} reportActionSlot={reportSlot} onReportChange={setReport} onLoadState={setReaderState} onPage={setWikiPage} onMarkdown={value => setLoaded(previous => previous.slug === slug && previous.markdown === value ? previous : { slug, markdown: value })} /></div> : null}
-    </GlassCard>
-    : !listLoading ? <>
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <input aria-label="搜索研究名单" placeholder="搜索名称或代码" className="workspace-field min-w-0 flex-1" value={query} onChange={event => updateFilter('q', event.target.value)} />
-        <div role="tablist" aria-label="名单视图" className="flex shrink-0 rounded-full border border-border p-0.5">
-          {([['grid', LayoutGrid, '卡片'], ['list', List, '列表']] as const).map(([id, Icon, label]) => (
-            <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} className={cn('rounded-full p-2 text-muted-foreground', view === id && 'bg-muted text-foreground')} onClick={() => changeView(id)}>
-              <Icon size={16} />
-            </button>
-          ))}
-        </div>
-        <Link className="workspace-action workspace-action-compact" to="/watchlist">去自选股</Link>
-      </div>
-      <p className="mb-3 text-[11px] text-muted-foreground">{searching ? `匹配 ${visible.length} / ${rows.length}` : `最近 ${visible.length} 家${rows.length > RECENT_LIMIT ? ` · 共 ${rows.length} 家，输入关键字搜索` : ''}`}</p>
-      {visible.length === 0 ? <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{rows.length === 0 ? '还没有加入研究的公司。到自选股把公司加进名单。' : '没有匹配的公司，请调整搜索。'}</p></GlassCard>
-      : view === 'grid' ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{visible.map(row => (
-        <CompanyRosterCard
-          key={row.symbol}
-          row={row}
-          industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
-          researching={runningSymbols.has(row.symbol)}
-          hasReport={Boolean(reportFlags[row.slug])}
-          objectStatus={objectStatuses.get(row.slug)}
-          progress={rosterProgress(row)}
-          reportRunning={rosterReportRunning(row)}
-          checked={rosterChecked(row)}
-          onOpen={() => setSlug(row.slug)}
-          attach={attachRoster(row.slug)}
-        />
-      ))}</div>
-      : <GlassCard className="!p-2 sm:!p-3">
-        <div className="divide-y divide-border/60">
-          {visible.map(row => <CompanyRosterRow
-            key={row.symbol}
-            row={row}
-            industryReady={readyProfiles.has((row.summary?.industry_code || '').toUpperCase())}
-            researching={runningSymbols.has(row.symbol)}
-            hasReport={Boolean(reportFlags[row.slug])}
-            objectStatus={objectStatuses.get(row.slug)}
-            progress={rosterProgress(row)}
-            reportRunning={rosterReportRunning(row)}
-            checked={rosterChecked(row)}
-            watched={watched.has(row.symbol)}
-            onOpen={() => setSlug(row.slug)}
-            onWatch={() => void toggleWatch(row.symbol)}
-            onLeave={() => void leave(row.symbol)}
-            attach={attachRoster(row.slug)}
-          />)}
-        </div>
-      </GlassCard>}
-    </> : null}
-    <Disclaimer /></div>;
-}
-
-type RosterRow = {
-  symbol: string;
-  slug: string;
-  title: string;
-  hasWiki: boolean;
-  aShare: boolean;
-  summary?: CompanyPageSummary;
-};
-
-function RosterIndustryTag({ summary, ready }: { summary?: CompanyPageSummary; ready: boolean }) {
-  const name = companyIndustryLabel(summary);
-  if (!name) return null;
-  const cls = 'inline-flex h-[22px] shrink-0 items-center rounded-[6px] border border-border bg-transparent px-1.5 text-xs leading-none';
-  const code = summary?.industry_code?.trim();
-  if (ready && code) {
-    return <Link to={`/sectors/profiles/${encodeURIComponent(code)}`} onClick={event => event.stopPropagation()} className={cn(cls, 'hover:border-primary')}>{name}</Link>;
-  }
-  return <span className={cls}>{name}</span>;
-}
-
-function RosterStatusTags({ slug, researching, hasReport }: { slug: string; researching: boolean; hasReport: boolean }) {
-  const tag = 'inline-flex h-[22px] shrink-0 items-center rounded-[6px] px-1.5 text-xs leading-none';
-  return <>
-    {researching && <span className={cn(tag, 'bg-primary/10 text-primary')}>研究中</span>}
-    {hasReport && <Link to={`/research?company=${encodeURIComponent(slug)}&view=report`} onClick={event => event.stopPropagation()} className={cn(tag, 'border border-border hover:border-primary')}>图文报告</Link>}
-  </>;
-}
-
-type RosterProgress = ReturnType<typeof researchProgressLine>;
-
-function RosterOneLiner({ text, lines, progress }: { text?: string | null; lines: 1 | 2; progress?: RosterProgress }) {
-  if (progress) return <p className={cn('text-[13px]', progress.tone === 'active' ? 'text-primary' : 'text-muted-foreground/70', lines === 1 ? 'truncate' : 'line-clamp-2')}>{progress.text}</p>;
-  const clipped = clipCompanyOneLiner(text);
-  if (!clipped) return <p className={cn('text-[13px] text-muted-foreground/50', lines === 1 ? 'truncate' : 'line-clamp-2')}>资料待补充</p>;
-  return <p className={cn('text-[13px] text-muted-foreground', lines === 1 ? 'truncate' : 'line-clamp-2')}>{clipped}</p>;
-}
-
-function CompanyRosterRow({
-  row, industryReady, researching, hasReport, objectStatus, progress, reportRunning, checked, watched, onOpen, onWatch, onLeave, attach,
-}: {
-  row: RosterRow;
-  industryReady: boolean;
-  researching: boolean;
-  hasReport: boolean;
-  objectStatus?: StatusRow;
-  progress?: RosterProgress;
-  reportRunning?: boolean;
-  checked?: string | null;
-  watched: boolean;
-  onOpen: () => void;
-  onWatch: () => void;
-  onLeave: () => void;
-  attach: (el: HTMLElement | null) => void;
-}) {
-  const asOf = companyAsOfLabel(row.summary?.as_of);
-  return <div ref={attach} data-roster-slug={row.slug} className="px-2 py-4 hover:bg-muted/40">
-    <div className="flex min-w-0 items-center gap-2">
-      <button type="button" onClick={onOpen} className="flex min-w-0 items-center gap-2 overflow-hidden text-left">
-        <span className="truncate font-medium">{row.title}</span>
-        <span className="shrink-0 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</span>
-      </button>
-      <RosterIndustryTag summary={row.summary} ready={industryReady} />
-      <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
-      <ObjectStatusBadges slug={row.slug} row={objectStatus} badges={statusBadges(objectStatus).filter(badge => !(reportRunning && badge === '报告已过期'))} />
-      <div className="ml-auto flex shrink-0 items-center gap-2">
-        {asOf && <span className="text-xs text-muted-foreground">资料截至 {asOf}{checked ? ` · ${checked} 已核对` : ''}</span>}
-        <ArrowRight size={14} className="text-muted-foreground/60" />
-        <button type="button" className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted" onClick={onWatch} aria-label={watched ? '移出自选' : '加入自选'}>
-          <Star size={14} className={watched ? 'fill-current text-primary' : ''} />
-        </button>
-        <button type="button" className="workspace-action workspace-action-compact" onClick={onLeave}>移除</button>
-      </div>
-    </div>
-    <button type="button" onClick={onOpen} className="mt-1 block w-full min-w-0 text-left">
-      <RosterOneLiner text={row.summary?.one_liner} lines={1} progress={progress} />
-    </button>
+  const pageKey = `company-wiki:${slug}`;
+  useAiPage({ key: pageKey, title: `个股研究 · ${title}`,
+    context: buildDirectorySnapshot({ heading: `${title} 个股页：商业模式、利润变量、弹性、现金、估值与观察。`, items: [{ title, id: slug }], loading: false }),
+    suggestions: ['这家公司的利润最取决于什么？'] });
+  useAiPageObjects(pageKey, [companyQuoteObject({ symbol, name: title })].filter(item => item !== null));
+  const openTask = (sessionId: string) => sessions.openTaskProcess({ sessionId, title: '个股页研究', kind: 'research' });
+  return <div>
+    <div className="object-toolbar"><div className="object-toolbar-group">
+      <button type="button" className="btn" onClick={() => navigate(backTo)}><ArrowLeft />关注</button>
+      <WorkspaceSelect aria-label="切换公司" value={symbol} onChange={code => navigate(watchPath(code), { state: location.state, replace: true })} searchPlaceholder="搜索关注的公司" emptyText="关注里没有匹配的公司"
+        options={[...rows, ...(rows.includes(symbol) ? [] : [symbol])].map(code => ({ value: code, label: titleOf(code), meta: code }))} />
+    </div><div className="object-toolbar-group object-toolbar-actions">
+      <SelectedProgress symbol={symbol} name={title} services={services} onTask={openTask} />
+      {!watching && <button type="button" className="btn btn-primary" onClick={() => void follow()}><Star />添加关注</button>}
+      {watching && <WorkspaceMoreMenu actions={[{ id: 'leave', label: '移出关注', icon: <X size={14} />, onSelect: () => void unfollow() }]} />}
+      <AssistantSlot />
+    </div></div>
+    {error && <p role="alert" className="mb-3 text-sm text-[var(--text-2)]">{error}</p>}
+    <CompanyPage key={symbol} symbol={symbol} name={title} services={services} onTask={openTask} />
+    {confirmElement}
+    <Disclaimer />
   </div>;
 }
-
-function CompanyRosterCard({
-  row, industryReady, researching, hasReport, objectStatus, progress, reportRunning, checked, onOpen, attach,
-}: {
-  row: RosterRow;
-  industryReady: boolean;
-  researching: boolean;
-  hasReport: boolean;
-  objectStatus?: StatusRow;
-  progress?: RosterProgress;
-  reportRunning?: boolean;
-  checked?: string | null;
-  onOpen: () => void;
-  attach: (el: HTMLElement | null) => void;
-}) {
-  const asOf = companyAsOfLabel(row.summary?.as_of);
-  return <div ref={attach} data-roster-slug={row.slug} className="min-w-0">
-    <GlassCard glow className="flex h-full min-h-44 flex-col justify-between">
-      <div className="min-w-0">
-        <Building2 size={20} className="mb-4 text-primary" />
-        <button type="button" onClick={onOpen} className="block min-w-0 text-left">
-          <h2 className="truncate text-base font-bold">{row.title}</h2>
-          <p className="mt-1 font-mono text-[11px] text-muted-foreground">{row.symbol}{!row.hasWiki ? ' · 资料待生成' : ''}</p>
-        </button>
-        <div className="mt-2 flex min-w-0 flex-wrap items-center gap-1.5">
-          <RosterIndustryTag summary={row.summary} ready={industryReady} />
-          <RosterStatusTags slug={row.slug} researching={researching} hasReport={hasReport} />
-          <ObjectStatusBadges slug={row.slug} row={objectStatus} badges={statusBadges(objectStatus).filter(badge => !(reportRunning && badge === '报告已过期'))} />
-        </div>
-        <button type="button" onClick={onOpen} className="mt-2 block w-full min-w-0 text-left">
-          <RosterOneLiner text={row.summary?.one_liner} lines={2} progress={progress} />
-        </button>
-      </div>
-      <div className="mt-5 flex items-center justify-between gap-2 border-t border-border/50 pt-3 text-xs">
-        <span className="min-w-0 truncate text-muted-foreground">{asOf ? `资料截至 ${asOf}${checked ? ` · ${checked} 已核对` : ''}` : row.hasWiki ? '打开资料' : '资料待生成'}</span>
-        <button type="button" onClick={onOpen} className="inline-flex shrink-0 items-center gap-1 text-primary">
-          {row.hasWiki ? '打开资料' : '资料待生成'}<ArrowRight size={16} />
-        </button>
-      </div>
-    </GlassCard>
-  </div>;
+function SelectedProgress({ symbol, name, services, onTask }: { symbol: string; name: string; services: CompanyPageServices; onTask: (id: string) => void }) {
+  const state = useCompanyPageState(services, symbol, name);
+  return <CompanyPageProgress state={state} location="toolbar" onOpen={onTask} />;
 }

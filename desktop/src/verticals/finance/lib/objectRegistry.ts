@@ -3,6 +3,7 @@ import { companyIndustryLabel } from './companyRoster';
 import { cachedObjectLabel, rememberObjectLabel } from './objectLabels';
 import { researchRead, wikiPages, type ResearchTopicSummary } from './research';
 import { companySlug } from './researchSymbol';
+import { watchPathOfCompany } from './routes';
 import { researchTarget } from './researchTarget';
 export { rememberObjectLabel } from './objectLabels';
 
@@ -109,7 +110,7 @@ function wikiEntry(kind: 'company' | 'industry' | 'theme' | 'comparison', prefix
   };
 }
 const entries: Entry[] = [
-  wikiEntry('company', 'companies/', 'companies', '公司研究', id => `/research?company=${encodeURIComponent(id)}`),
+  wikiEntry('company', 'companies/', 'companies', '公司研究', watchPathOfCompany),
   wikiEntry('industry', 'industries/', 'industries', '行业研究', id => {
     const key = id.replace(/^industries\/(?:nbs-)?/, '');
     return key ? `/sectors/${encodeURIComponent(key)}` : undefined;
@@ -134,7 +135,7 @@ const entries: Entry[] = [
   },
   {
     kind: 'topic', parse: ref => researchTarget(ref)?.kind === 'topic' ? ref : undefined,
-    href: id => `/my-research/topics/${id.slice(6)}`,
+    href: id => `/insights/topics/${id.slice(6)}`,
     label: ref => cachedObjectLabel(ref) || '议题',
     resolve: () => batch('topics', async () => {
       await Promise.all((['active', 'archived'] as const).map(async pool => {

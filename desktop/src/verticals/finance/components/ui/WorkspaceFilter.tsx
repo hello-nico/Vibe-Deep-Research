@@ -1,10 +1,11 @@
-import { cn } from "@/lib/utils";
+import "./ui.css";
 
 export interface WorkspaceFilterOption<T extends string> {
   value: T;
   label: string;
 }
 
+/** 筛选分段：与分段切换同一外观（无底文字，选中项 10% 底色）。 */
 export function WorkspaceFilter<T extends string>({
   value,
   onChange,
@@ -17,14 +18,13 @@ export function WorkspaceFilter<T extends string>({
   "aria-label"?: string;
 }) {
   return (
-    <div className="flex flex-wrap gap-2" role="tablist" aria-label={ariaLabel}>
+    <div className="segmented" role="tablist" aria-label={ariaLabel}>
       {options.map(option => (
         <button
           key={option.value}
           type="button"
           role="tab"
           aria-selected={value === option.value}
-          className={cn("workspace-action", value === option.value && "workspace-action-primary")}
           onClick={() => onChange(option.value)}
         >
           {option.label}

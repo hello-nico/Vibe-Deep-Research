@@ -21,6 +21,7 @@ import { useResearchSessions } from "../dsh/research-session";
 import { topicOpeningQuestions } from "../dsh/side-panel";
 import { useAiPage } from "../../../core/ai/pageContext";
 import "./my-research.css";
+import { WorkspaceTabs } from "../components/ui/WorkspaceTabs";
 
 function DraftPreview({ draft }: { draft: WikiDraft }) {
   return <div className="space-y-4">
@@ -228,14 +229,14 @@ function TopicContent({ topicHex }: { topicHex: string }) {
     spec: { slug: topicId, title: topic.title, type: 'topic', as_of: topic.last_touched_at || '', blocks: [] } } : null;
   return <div className="topic-panel">
     <header className="topic-head">
-      <Link className="topic-back" to="/my-research"><ChevronLeft size={14} />全部议题</Link>
+      <Link className="topic-back" to="/insights"><ChevronLeft size={14} />全部议题</Link>
       <h1 className="topic-panel-title">{topic?.title || "议题工作区"}</h1>
       {topic?.pool_state === "archived" && <p className="text-xs text-muted-foreground">已归档。恢复后可以继续研究。</p>}
     </header>
     <div className="object-toolbar">
-      <div className="object-toolbar-group">{topic && <div role="tablist" aria-label="议题视图" className="flex h-10 items-stretch gap-0.5 rounded-xl border border-border p-[3px]">{([['research', '研究页'], ['wall', '证据墙'], ['report', '图文报告']] as const).map(([id, label]) => <button key={id} type="button" role="tab" aria-selected={view === id} className={`rounded-[9px] px-3.5 text-[13px] ${view === id ? 'bg-muted font-medium' : 'text-muted-foreground hover:text-foreground'}`} onClick={() => setView(id)}>{label}</button>)}</div>}</div>
+      <div className="object-toolbar-group">{topic && <WorkspaceTabs aria-label="议题视图" value={view} onChange={setView} options={[{ value: 'research', label: '研究页' }, { value: 'wall', label: '证据墙' }, { value: 'report', label: '图文报告' }]} />}</div>
       <div className="object-toolbar-group object-toolbar-actions">
-      <button type="button" className="workspace-action workspace-action-primary" disabled={!!busy} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
+      <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => void start(false)}>{busy === "continue" ? "正在接上…" : "继续研究"}</button>
       <WorkspaceMoreMenu actions={[
         { id: 'new', label: busy === 'new' ? '正在新开会话…' : '新会话', icon: <Plus size={14} />, disabled: !!busy, onSelect: () => void start(true) },
         { id: 'refresh', label: busy === 'refresh' ? '正在刷新材料…' : '刷新材料', icon: <RefreshCw size={14} />, disabled: !!busy, onSelect: () => void refresh() },

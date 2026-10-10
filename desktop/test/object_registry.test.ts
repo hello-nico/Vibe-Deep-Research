@@ -6,11 +6,11 @@ import { loadFinanceModule } from './load_finance_module.ts';
 const { objectHref, objectLabel, registeredObject, resolveObjectLabels, rememberObjectLabel, loadReadyIndustryProfiles, readableRelatedWikiRefs } = await loadFinanceModule<typeof import('../src/verticals/finance/lib/objectRegistry.ts') & { rememberObjectLabel: (ref: string, label: string) => void }>('lib/objectRegistry.ts');
 
 test('对象登记层给出主页、版本查询和抽屉', () => {
-  assert.equal(objectHref('companies/600309'), '/research?company=companies%2F600309-sh');
+  assert.equal(objectHref('companies/600309'), '/watch/600309');
   assert.equal(objectHref('industries/nbs-电力'), '/sectors/%E7%94%B5%E5%8A%9B');
   const doc = `document:${'a'.repeat(32)}/r1/${'b'.repeat(64)}`;
   assert.match(objectHref(doc) || '', /\/my-reports\/read\/a{32}\?from=%2F&revision=r1&hash=b{64}/);
-  assert.equal(objectHref('topic:abcdef123456'), '/my-research/topics/abcdef123456');
+  assert.equal(objectHref('topic:abcdef123456'), '/insights/topics/abcdef123456');
   assert.equal(objectHref(`profile:sw2:801010:${'a'.repeat(64)}`), '/sectors/profiles/801010');
   assert.equal(registeredObject('themes/example')?.drawer, true);
   assert.equal(objectHref('themes/example'), undefined);
@@ -46,8 +46,9 @@ test('同类对象并发补名复用一次 Wiki 列表请求', async () => {
 
 test('研究材料页面已下线，旧路径由通配路由重定向', () => {
   const source = readFileSync(new URL('../src/verticals/finance/router.tsx', import.meta.url), 'utf8');
-  assert.doesNotMatch(source, /path: "\/my-research\/material"/);
-  assert.match(source, /path: "\/my-research\/\*", element: <Navigate to="\/my-research" replace \/>/);
+  assert.doesNotMatch(source, /path: "\/(?:my-research|insights)\/material"/);
+  assert.match(source, /path: "\/insights\/\*", element: <Navigate to="\/insights" replace \/>/);
+  assert.match(source, /path: "\/my-research\/\*", element: <LegacyRedirect \/>/);
 });
 
 test('申万旧页仅在产业研究已就绪时映射到主页', async () => {

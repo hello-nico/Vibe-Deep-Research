@@ -10,8 +10,8 @@ test('对象链接：公司用完整 slug，行业走行业页，旧代码目标
   assert.equal(normalizeResearchTarget('companies/600585-sh'), 'companies/600585-sh');
   assert.equal(normalizeResearchTarget('companies/600309'), 'companies/600309-sh');
   assert.equal(normalizeResearchTarget('600309'), 'companies/600309-sh');
-  assert.equal(researchObjectHref('companies/600585-sh'), '/research?company=companies%2F600585-sh');
-  assert.equal(researchObjectHref('companies/600309'), '/research?company=companies%2F600309-sh');
+  assert.equal(researchObjectHref('companies/600585-sh'), '/watch/600585');
+  assert.equal(researchObjectHref('companies/600309'), '/watch/600309');
   assert.equal(researchObjectHref('industries/nbs-电力'), '/sectors/%E7%94%B5%E5%8A%9B');
   assert.equal(researchObjectHref('industries/电力'), '/sectors/%E7%94%B5%E5%8A%9B');
   assert.equal(researchObjectHref(''), undefined);
@@ -42,10 +42,9 @@ test('公司名取不到时先用研究页标题，再回退代码', () => {
   assert.equal(isBareCompanyCode('海螺水泥', '600585'), false);
   assert.equal(wikiPageTitle({ spec: { title: '海螺水泥' } }, '600585'), '海螺水泥');
   assert.equal(wikiPageTitle(null, '600585'), '600585');
-  const wiki = readFileSync(new URL('../src/verticals/finance/pages/CompanyWiki.tsx', import.meta.url), 'utf8');
-  assert.match(wiki, /isBareCompanyCode\(target\.title, target\.symbol\)/);
-  assert.match(wiki, /wikiPageTitle\(page, target\.symbol\)/);
-  assert.match(wiki, /\/wiki\/pages\/read\?slug=/);
+  const wiki = readFileSync(new URL('../src/verticals/finance/pages/Watch.tsx', import.meta.url), 'utf8');
+  assert.match(wiki, /quote\?\.name \|\| page\?\.title \|\| symbol/);
+  assert.doesNotMatch(wiki, /\/wiki\/pages\/read\?slug=/);
   const mine = readFileSync(new URL('../src/verticals/finance/pages/MyResearch.tsx', import.meta.url), 'utf8');
   assert.match(mine, /skipped: '未整理'/);
   assert.match(mine, /openRegisteredObject/);

@@ -20,7 +20,7 @@ export function WikiDrawer() {
   }, []);
   useEffect(() => { if (slug) closeButton.current?.focus(); }, [slug]);
   if (!slug) return null;
-  return <aside role="dialog" aria-label={objectLabel(slug)} className="finance-side-panel finance-wiki-drawer flex-col rounded-2xl border border-border bg-card shadow-xl"
+  return <aside role="dialog" aria-label={objectLabel(slug)} className="finance-side-panel finance-wiki-drawer flex-col rounded-2xl border border-border bg-card"
     onKeyDown={event => { if (event.key === 'Escape') { event.stopPropagation(); setSlug(''); } }}>
     <SidePanelResizeHandle />
     <header className="flex shrink-0 items-center justify-between border-b p-5"><h2 className="font-semibold">{objectLabel(slug)}</h2>

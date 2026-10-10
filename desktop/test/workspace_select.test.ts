@@ -21,7 +21,7 @@ test("产品下拉共用 WorkspaceSelect，页面不再各自写原生 select", 
   assert.doesNotMatch(read("verticals/finance/pages/CompanyWiki.tsx"), /<details[\s\S]*aria-label="切换公司"/);
   const css = read("index.css");
   assert.match(css, /\.workspace-select-menu \{/);
-  assert.match(css, /background: Highlight/);
+  assert.match(css, /\.workspace-select-option\[data-active="true"\] \{ background: var\(--fill-2\)/);
 });
 
 test("下拉菜单优先出现在触发器下方，底部空间不够时翻到上方", () => {
@@ -72,11 +72,9 @@ test("行业与产业研究列表共用检索条，按名称和附加信息过�
   assert.match(profiles, /placeholder="搜索产业名称"/);
   assert.match(profiles, /没有匹配的产业/);
   assert.match(header, /search\?: ReactNode/);
-  assert.match(header, /\{search && \(/);
-  assert.match(header, /subtitle && <p className="mt-2 max-w-4xl/);
-  assert.match(header, /!search && actionBar/);
-  assert.doesNotMatch(header, /!search && subtitle/);
-  assert.doesNotMatch(header, /\{subtitle && <p className="shrink-0/);
+  // 页首：标题在左，搜索、动作与问助手在右同一行；说明默认不用。
+  assert.match(header, /\{search\}\s*\{actions\}\s*\{assistant && <AssistantSlot \/>\}/);
+  assert.match(header, /subtitle && <p className="page-head-sub">/);
   assert.equal(workspaceSelectMatches({ label: "林业", detail: "forestry 行业资料待补充。" }, "林"), true);
   assert.equal(workspaceSelectMatches({ label: "农产品加工", detail: "801120 牧原股份" }, "801120"), true);
   assert.equal(workspaceSelectMatches({ label: "农产品加工", detail: "801120 牧原股份" }, "牧原"), true);

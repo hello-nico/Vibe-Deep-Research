@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/ui/PageHeader";
 import { ConversationCitations } from '../ConversationCitations';
 
 /** Finance owns the window geometry; the DSH portal seat stays mounted. */
-export function ConversationWorkspace({ active, title = "深度对话", subtitle = "查阅资料、核对证据，深入探讨你的研究问题", children }: { active: boolean; title?: string; subtitle?: string; children: ReactNode }) {
+export function ConversationWorkspace({ active, title = "对话", subtitle, children }: { active: boolean; title?: string; subtitle?: string; children: ReactNode }) {
   const [expanded, setExpanded] = useState(false);
   const [inset, setInset] = useState(34);
   const [headingHeight, setHeadingHeight] = useState<number>();
@@ -61,7 +61,7 @@ export function ConversationWorkspace({ active, title = "深度对话", subtitle
   return <div ref={root} className={active ? "conversation-workspace" : "workspace-content"} data-expanded={active && expanded} style={active ? { "--conversation-inset": `${inset}px` } as CSSProperties : undefined}>
     <div hidden={!active} className="conversation-heading-slot" aria-hidden={expanded || undefined} {...{ inert: expanded ? "" : undefined }}>
       <div className="conversation-heading" ref={heading} style={{ height: headingHeight }}>
-        <PageHeader title={title} subtitle={subtitle} />
+        <PageHeader title={title} subtitle={subtitle} assistant={false} />
       </div>
     </div>
     {active && (headerActions ? createPortal(windowAction, headerActions) : <div className="conversation-window-actions">{windowAction}</div>)}

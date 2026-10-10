@@ -18,6 +18,15 @@
 - 对话统一用 DSH 原生渲染：右侧面板（`finance-side-panel`）嵌入原生对话，交互与只读两种模式；嵌入不调用 `uiWorkspace.openSession`，不切换主区前台会话。
 - 用户确认用 DSH 原生选项组件（`ask_user_question`），不自建聊天确认组件。
 
+## 外壳与路由的现行实现
+
+- 外壳（`components/layout/Layout.tsx`）：外框上的图标栏（`workspace-rail`）与近白大圆角内容面（`#workspace-main`，`workspace-surface`）；没有顶栏、面包屑与页面小标题。窄屏图标栏落到底部。
+- 六个入口：对话 `/`、动态 `/feed`、洞悉 `/insights`、关注 `/watch`（个股页 `/watch/:symbol`）、资料 `/my-reports`、设置 `/settings`。动态与洞悉是过渡页，分别承载原资讯雷达与大盘行情、原我的研究，由 T8b 替换。
+- 旧地址由 `lib/routes.ts` 的 `legacyRedirect` 对照跳转：`/watchlist`、`/research` → `/watch`；`/research?company=<slug>` → `/watch/<symbol>`；`/daily-review` → `/feed?tab=market`；`/intel`、`/intel/:tab` → `/feed?tab=intel`（带小栏目时 `&sub=`）；`/my-research` → `/insights`；`/my-research/topics/:hex` → `/insights/topics/:hex`。`/evidence` 深链不变。`/sectors`、`/sectors/profiles`、`/signals` 已从导航撤下，路由保留。
+- 关注把自选与研究名单合成一张表（可切卡片）：添加同时写入两处，移出关注两处同时移除且只动 Client 选择；打开个股页才触发研究。
+- 「问助手」按钮由 `AssistantSlot` 落在页首（或对象页工具栏）右侧；没有占位的页面回落到内容面右上角。
+- 公共组件在 `components/ui/`：`Button`、`Card`（`GroupCard`、`Panel`、`Metric`、`StatusPill`、`Tag`、`Sparkline`、`TableWrap`）、`ObjectCard`、`StatusDot`；令牌与按钮、输入类样式在 `src/index.css`，公共组件样式在 `components/ui/ui.css`。
+
 ## 3. 三条模型执行路径
 
 | 入口 | 调用链 | 规则 |

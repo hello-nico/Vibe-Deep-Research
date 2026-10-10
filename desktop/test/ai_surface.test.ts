@@ -13,28 +13,16 @@ test("所有对话入口共用主题适配表面，普通数据卡不染色", ()
   const css = read("index.css");
   assert.match(css, /\.ai-surface\s*\{/);
   assert.match(css, /\.ai-surface \.prose/);
-  assert.match(css, /color-scheme: light/);
-  assert.match(css, /\.dark \.ai-surface\s*\{/);
-  assert.match(css, /color-scheme: dark/);
-  assert.match(css, /\.dark \.ai-surface \.ai-composer/);
-  assert.match(css, /\.dark \.ai-chat-trigger/);
-  assert.match(css, /\.ai-surface\s*\{[^}]*background-color: #fff7f0;/);
-  assert.match(css, /\.dark \.ai-surface\s*\{[^}]*background-color: #191a1e;/);
-  assert.match(css, /\.dark \.ai-surface \.prose\s*\{[^}]*--tw-prose-body: #e4e4e7;/);
-  assert.match(css, /\.ai-surface\s*\{[^}]*--primary: 20 80% 36%;/);
-  assert.match(css, /\.dark \.ai-surface\s*\{[^}]*--primary: 15 100% 60%;/);
-  assert.match(css, /\.dark \.ai-surface \.ai-message-user\s*\{[^}]*background: #2c2d32;/);
-  assert.match(css, /\.dark \.ai-surface \.ai-send\s*\{[^}]*background: #ff6429;/);
-  for (const hook of ["ai-message-assistant", "ai-message-user", "ai-input", "ai-send"]) {
-    assert.ok(css.includes(`.dark .ai-surface .${hook}`), hook);
-  }
-  assert.match(css, /\.dark \.ai-surface \.ai-input:focus-within/);
+  assert.match(css, /\.ai-surface\s*\{[^}]*background-color: hsl\(var\(--raised\)\);/);
+  assert.match(css, /\.ai-surface\s*\{[^}]*border: 1px solid var\(--line-2\);/);
+  assert.doesNotMatch(css, /\.ai-surface\s*\{[^}]*(gradient|box-shadow: [^n])/);
+  for (const hook of ["ai-message-assistant", "ai-message-user", "ai-input", "ai-send"]) assert.ok(css.includes(`.ai-surface .${hook}`), hook);
+  assert.match(css, /\.ai-surface \.ai-input:focus-within/);
+  assert.match(css, /\.ai-chat-trigger \{[^}]*background: var\(--fill-2\)/);
 });
 
 test("M3 侧栏展示 DSH 状态，不提供旧 Agent 开关", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /data-ai-identity/);
-  assert.match(layout, /!compact && <div data-ai-identity/);
   assert.doesNotMatch(layout, /<AgentToggle/);
   assert.match(layout, /id="dsh-status"/);
 });

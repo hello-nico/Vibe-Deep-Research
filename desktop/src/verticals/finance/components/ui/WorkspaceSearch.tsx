@@ -15,10 +15,10 @@ export function WorkspaceSearch({
   className?: string;
 }) {
   return (
-    <label className={cn("relative mb-5 block", className)}>
-      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+    <label className={cn("relative block w-60 max-w-full", className)}>
+      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--text-3)]" />
       <input
-        className="workspace-field w-full pl-9"
+        className="workspace-field workspace-search w-full pl-9"
         placeholder={placeholder}
         aria-label={ariaLabel || placeholder}
         value={value}

@@ -4,7 +4,8 @@ import test from "node:test";
 
 import { clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel } from "../src/verticals/finance/lib/companyRoster.ts";
 
-const companyWiki = readFileSync(new URL("../src/verticals/finance/pages/CompanyWiki.tsx", import.meta.url), "utf8");
+const companyWiki = readFileSync(new URL("../src/verticals/finance/pages/Watch.tsx", import.meta.url), "utf8");
+const stockPage = readFileSync(new URL("../src/verticals/finance/pages/CompanyWiki.tsx", import.meta.url), "utf8");
 
 test("名单摘要辅助函数按预览卡规则取值", () => {
   assert.equal(companyIndustryLabel({
@@ -35,14 +36,13 @@ test("名单摘要辅助函数按预览卡规则取值", () => {
   assert.equal(clipCompanyOneLiner("  "), null);
 });
 
-test("个股名单不把申万标签链到行业研究页，报告状态懒加载", () => {
-  assert.match(companyWiki, /\/sectors\/profiles\/\$\{encodeURIComponent\(code\)\}/);
+test("关注保持画像入口，改为独立个股页研究进度，撤下报告入口", () => {
+  assert.match(companyWiki, /\/sectors\/profiles\/\$\{encodeURIComponent\(row\.summary\.industry_code\.trim\(\)\)\}/);
   assert.doesNotMatch(companyWiki, /to=\{`\/sectors\/\$\{/);
-  assert.match(companyWiki, /IntersectionObserver/);
-  assert.match(companyWiki, /\/wiki\/reports\?slug=/);
-  assert.match(companyWiki, /view=report/);
-  assert.match(companyWiki, /listRunningCompanySymbols/);
-  assert.match(companyWiki, /status === 'ready'/);
-  assert.match(companyWiki, /function CompanyRosterRow[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{1\} progress=\{progress\} \/>/);
-  assert.match(companyWiki, /function CompanyRosterCard[\s\S]*<RosterOneLiner text=\{row\.summary\?\.one_liner\} lines=\{2\} progress=\{progress\} \/>/);
+  assert.doesNotMatch(companyWiki, /\/wiki\/reports\?slug=|view=report|WikiReader/);
+  assert.match(companyWiki, /companyPageProgress\(state\)/);
+  assert.match(companyWiki, /status === "ready"/);
+  assert.doesNotMatch(stockPage, /WikiReader|view=report/);
+  assert.match(companyWiki, /state\?\.research\?\.sections/);
+  assert.doesNotMatch(companyWiki, /row\.summary\?\.one_liner/);
 });

@@ -14,8 +14,8 @@ const tasks = await loadFinanceModule<typeof import('../src/verticals/finance/li
 test('徽标排序与去处映射', () => {
   const row = { slug: 'companies/600900-sh', existence: 'building' as const, drafts: { pending: 1, latest: { draft_id: 'draft-123', status: 'pending' as const, created_at: '2026-09-24' } }, maintenance: { pending: 1 }, refresh: { state: 'candidate' as const }, report: { exists: true, stale: true } };
   assert.deepEqual(status.statusBadges(row), ['建立中', '草案待确认', '待确认维护', '有新资料', '报告已过期']);
-  assert.equal(status.badgeHref(row.slug, '草案待确认', row), '/my-research?tab=tasks&draft=draft-123');
-  assert.equal(status.badgeHref(row.slug, '有新资料', row), '/research?company=companies%2F600900-sh&refresh=confirm');
+  assert.equal(status.badgeHref(row.slug, '草案待确认', row), '/insights?tab=tasks&draft=draft-123');
+  assert.equal(status.badgeHref(row.slug, '有新资料', row), '/watch/600900?refresh=confirm');
   assert.equal(status.badgeHref('industries/nbs-电力', '报告已过期', row), '/sectors/%E7%94%B5%E5%8A%9B?view=report');
   assert.equal(status.badgeHref(row.slug, '检查资料中', row), undefined);
 });

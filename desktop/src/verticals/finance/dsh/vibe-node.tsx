@@ -120,7 +120,7 @@ export function VibeBlock({ code, options }: { code: string; options: VibeRender
             if (!content.length) return null;
             return <figure className="rounded-xl border border-border bg-card p-4"><ol className="flex flex-wrap items-center gap-3">{content.map((step, i) => <li key={step.path}>{i > 0 && <span className="mr-3 text-muted-foreground" aria-hidden="true">→</span>}{step.content}</li>)}</ol>{node.attrs.note && <figcaption className="mt-3 text-sm text-muted-foreground">{node.attrs.note}</figcaption>}</figure>;
           }
-          case 'step': return <span className="inline-block rounded-lg bg-primary/10 px-3 py-2">{node.text.trim()}</span>;
+          case 'step': return <span className="inline-block rounded-lg bg-[var(--fill-2)] px-3 py-2">{node.text.trim()}</span>;
           case 'suggest':
             if (suggest?.items.length && context.suggestionTarget) suggestion = createPortal(<Suggest data={suggest} actions={context.actions} />, context.suggestionTarget, node.path);
             return null;

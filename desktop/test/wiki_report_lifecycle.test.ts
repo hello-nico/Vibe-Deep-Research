@@ -1,5 +1,5 @@
-// Component-level lifecycle tests for the generated-report pane and the
-// Company Wiki research tracker. Async behaviour is driven by deferred fetches
+// Component-level lifecycle tests for the generated-report pane.
+// T7 company-page lifecycle coverage lives in company_page.test.ts. Async behaviour is driven by deferred fetches
 // and manually flushed timers — no real network, no wall-clock waits.
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -157,32 +157,6 @@ test('重新生成立刻卸下旧报告 HTML，改显示生成中', async () => 
     assert.equal(sessions.startCalls.length, 1);
   } finally { await env.cleanup(); }
 });
-
-for (const [status, expected] of [['partial', '部分内容已整理'], ['awaiting_authorization', '你确认后才会显示']]) {
-  test(`后台 ${status} 保留真实业务状态，不宣告 Wiki 已发布`, async () => {
-    const env = await bootCompany();
-    try {
-      const { CompanyWiki } = await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx');
-      let running = true;
-      let started = false;
-      globalThis.fetch = companyFetch(() => [{ id: 'bg-review', parent_session_id: 's-review', display_status: status }]);
-      const sessions = sessionMock({
-        start: async () => { started = true; return { sessionId: 's-review', status: 'started' }; },
-        findCompanySession: async () => started ? { sessionId: 's-review', running } : null,
-        sessionState: () => started ? { running } : null,
-      });
-      await env.render(createElement(env.Provider, { value: sessions }, createElement(env.MemoryRouter,
-        { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
-      await env.act(async () => { [...env.container.querySelectorAll('button')].find(b => b.textContent.includes('开始研究')).click(); });
-      running = false;
-      await env.runTimers(5);
-      assert.ok(env.container.textContent.includes(expected));
-      assert.ok(!env.container.textContent.includes('研究成果已沉淀'));
-      assert.ok(env.container.textContent.includes('查看任务记录'));
-      assert.ok(!env.container.textContent.includes('正在整理结果'));
-    } finally { await env.cleanup(); }
-  });
-}
 
 test('报告任务首问只含用户可读的一句话，不含工具名与页面标识', async () => {
   const env = await boot();
@@ -482,104 +456,6 @@ test('引用点击只放行当前制品白名单内的引用', async () => {
   } finally { await env.cleanup(); }
 });
 
-// ─── CompanyWiki 沉淀状态机：执行结束 ≠ 完成 ───
-
-async function bootCompany() {
-  const env = await boot();
-  const timers = [];
-  env.win.setTimeout = (cb) => { timers.push(cb); return timers.length; };
-  env.runTimers = async (max = 20) => {
-    for (let i = 0; i < max && timers.length; i++) {
-      const cb = timers.shift();
-      await env.act(async () => { cb(); });
-      await env.act(async () => {});
-    }
-  };
-  return env;
-}
-
-const COMPANY_SLUG = 'companies/600900-sh';
-
-function companyFetch(bgTasks, pageHash = HASH_A) {
-  return async (url, init) => {
-    const u = String(url);
-    if (u.includes('/wiki/pages?')) return Response.json({ items: [], total: 0 });
-    if (u.includes('/wiki/pages/ensure')) return Response.json({ slug: COMPANY_SLUG, action: 'created' });
-    if (u.includes('/wiki/pages/read')) return Response.json({ markdown: '# p', published: true, input_hash: pageHash, spec: { slug: COMPANY_SLUG, title: '长江电力', type: 'company', as_of: '2026-09-01', blocks: [] } });
-    if (u.includes('/finance-background-tasks') || u.includes('background-tasks')) return Response.json({ items: bgTasks() });
-    return Response.json({});
-  };
-}
-
-test('已有研究页可从工具栏继续公司研究，进行中的任务会禁用入口', async () => {
-  for (const kind of [null, 'research', 'report']) {
-    const env = await bootCompany();
-    try {
-      let ensured = 0;
-      const baseFetch = companyFetch(() => []);
-      globalThis.fetch = async (url, init) => {
-        const path = String(url);
-        if (path.includes('/wiki/pages?')) return Response.json({ items: [{ slug: COMPANY_SLUG, title: '长江电力' }], total: 1 });
-        if (path.includes('/finance-report-tasks')) return Response.json({ sessions: kind ? { active: { kind, slug: COMPANY_SLUG } } : {} });
-        if (path.includes('/wiki/pages/ensure')) { ensured++; return Response.json({ slug: COMPANY_SLUG, action: 'exists' }); }
-        if (path.includes('/finance-maintenance-refresh')) return Response.json(null);
-        return baseFetch(url, init);
-      };
-      const sessions = sessionMock({
-        taskRunning: id => id === 'active',
-        findCompanySession: async () => null,
-        start: async (...args) => { sessions.startCalls.push(args); return { sessionId: 'new-research', status: 'started' }; },
-      });
-      const CompanyWiki = (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx')).CompanyWiki;
-      await env.render(createElement(env.Provider, { value: sessions }, createElement(env.MemoryRouter,
-        { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
-      await env.act(async () => {});
-      // 研究进行中时入口换成可点开任务过程的"研究中…"，而不是变灰的"公司研究"。
-      const label = kind === 'research' ? '研究中…' : kind === 'report' ? '报告生成中…' : '公司研究';
-      const action = [...env.container.querySelectorAll('button')].find(button => button.textContent === label);
-      assert.ok(action, '已有研究页的工具栏应有公司研究入口');
-      assert.equal(action.disabled, false);
-      if (kind) assert.equal(action.title, kind === 'report' ? '查看图文报告的生成进度' : '查看这次研究的过程');
-      else {
-        await env.act(async () => { action.click(); });
-        assert.equal(ensured, 1);
-        assert.equal(sessions.startCalls.length, 1);
-        assert.equal(sessions.startCalls[0][0], '按公司研究流程研究 长江电力（600900）');
-      }
-    } finally { await env.cleanup(); }
-  }
-});
-
-test('刷新资料检查期间禁用已有研究页的公司研究入口', async () => {
-  const env = await bootCompany();
-  try {
-    const baseFetch = companyFetch(() => []);
-    let prepareStarted = false;
-    globalThis.fetch = async (url, init) => {
-      const path = String(url);
-      if (path.includes('/wiki/pages?')) return Response.json({ items: [{ slug: COMPANY_SLUG, title: '长江电力' }], total: 1 });
-      if (path.includes('/finance-report-tasks')) return Response.json({ sessions: {} });
-      if (path.includes('/finance-maintenance-refresh')) {
-        const body = JSON.parse(init.body);
-        if (body.operation === 'prepare') { prepareStarted = true; return new Promise(() => {}); }
-        return Response.json(null);
-      }
-      return baseFetch(url, init);
-    };
-    const CompanyWiki = (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx')).CompanyWiki;
-    await env.render(createElement(env.Provider, { value: sessionMock({ taskRunning: () => false, findCompanySession: async () => null }) }, createElement(env.MemoryRouter,
-      { initialEntries: ['/research?company=' + COMPANY_SLUG] }, createElement(CompanyWiki))));
-    await env.act(async () => {});
-    const buttons = () => [...env.container.querySelectorAll('button')];
-    assert.equal(buttons().find(button => button.textContent === '公司研究')?.disabled, false);
-    await env.act(async () => { buttons().find(button => button.textContent === '刷新资料').click(); });
-    assert.equal(prepareStarted, true);
-    const action = buttons().find(button => button.textContent === '公司研究');
-    assert.equal(action.disabled, true);
-    assert.match(action.title, /资料刷新中/);
-  } finally { await env.cleanup(); }
-});
-
 test('旧任务过程显示灰色清理说明，临时读取失败保留红色错误', async () => {
   for (const temporaryFailure of [false, true]) {
     const env = await boot();
@@ -611,74 +487,9 @@ test('旧任务过程显示灰色清理说明，临时读取失败保留红色�
   }
 });
 
-test('会话结束后：后台整理中 → 无新增确认 → done；原始错误不外泄', async () => {
-  const env = await bootCompany();
-  try {
-    const CompanyWiki = (await (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx'))).CompanyWiki;
-    let running = true;
-    let started = false;
-    let tasks = [];
-    globalThis.fetch = companyFetch(() => tasks);
-    const sessions = sessionMock({
-      start: async () => { started = true; return { sessionId: 's-co-1', status: 'started' }; },
-      findCompanySession: async () => started ? { sessionId: 's-co-1', title: 'x', running } : null,
-      sessionState: () => started ? { running, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false } : null,
-    });
-    const element = createElement(env.Provider, { value: sessions },
-      createElement(env.MemoryRouter, { initialEntries: ['/research?company=' + COMPANY_SLUG] },
-        createElement(CompanyWiki, {})));
-    await env.render(element);
-    await env.act(async () => {});
-    const startButton = [...env.container.querySelectorAll('button')].find(b => b.textContent.includes('开始研究'));
-    assert.ok(startButton, '缺页应展示开始研究入口');
-    await env.act(async () => { startButton.click(); });
-    await env.act(async () => {});
-    assert.ok(env.container.querySelector('.research-loading-scan'), '缺页执行中应使用 Wiki 等待扫描');
-    assert.ok(env.container.textContent.includes('研究进行中'), '应进入执行中');
-    // 执行结束 → 进入后台整理语义，不是 done。
-    running = false;
-    tasks = [{ id: 'bg-1', parent_session_id: 's-co-1', display_status: 'running', started_at: '2026-09-12T00:00:00Z' }];
-    await env.runTimers(4);
-    assert.ok(env.container.textContent.includes('正在整理结果'), '执行结束后应显示后台整理中');
-    // 沉淀确认：无新增。
-    tasks = [{ id: 'bg-1', parent_session_id: 's-co-1', display_status: 'no_increment', started_at: '2026-09-12T00:00:00Z' }];
-    await env.runTimers(4);
-    assert.ok(env.container.textContent.includes('没有新增内容'), '应如实报告本轮无新增');
-  } finally { await env.cleanup(); }
-});
 
-test('查不到后台任务且页面未变：超时后明确"尚未确认"而非 done', async () => {
-  const env = await bootCompany();
-  try {
-    const CompanyWiki = (await (await env.serverLoad('/src/verticals/finance/pages/CompanyWiki.tsx'))).CompanyWiki;
-    let running = true;
-    let started = false;
-    globalThis.fetch = companyFetch(() => []);
-    const sessions = sessionMock({
-      start: async () => { started = true; return { sessionId: 's-co-2', status: 'started' }; },
-      findCompanySession: async () => started ? { sessionId: 's-co-2', title: 'x', running } : null,
-      sessionState: () => started ? { running, lastAgentError: null, promptError: null, removed: false, awaitingFirstTurn: false } : null,
-    });
-    const realNow = Date.now;
-    let offset = 0;
-    Date.now = () => realNow() + offset;
-    try {
-      await env.render(createElement(env.Provider, { value: sessions },
-        createElement(env.MemoryRouter, { initialEntries: ['/research?company=' + COMPANY_SLUG] },
-          createElement(CompanyWiki, {}))));
-      await env.act(async () => {});
-      const startButton = [...env.container.querySelectorAll('button')].find(b => b.textContent.includes('开始研究'));
-      await env.act(async () => { startButton.click(); });
-      await env.act(async () => {});
-      running = false;
-      await env.runTimers(2); // researching → settling（settleAt 以此刻为准）
-      assert.ok(env.container.textContent.includes('正在整理结果'), '应先进入后台整理中');
-      offset = 200_000; // 沉淀窗口之外
-      await env.runTimers(4);
-      assert.ok(env.container.textContent.includes('结果还在整理'), '超时后应显示结果待确认而非完成');
-    } finally { Date.now = realNow; }
-  } finally { await env.cleanup(); }
-});
+
+
 
 test('生成中显示完整加载效果，不提供生成过程入口', async () => {
   const env = await boot();

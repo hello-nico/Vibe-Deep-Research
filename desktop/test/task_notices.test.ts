@@ -30,7 +30,7 @@ test('登记后状态完成即产生一条提醒，停留发起页或无变化�
   });
   assert.equal(done.status, 'done');
   if (done.status !== 'done') throw new Error('expected done');
-  const away = noticeFromOutcome(track, done, '/watchlist');
+  const away = noticeFromOutcome(track, done, '/watch');
   assert.ok(away);
   assert.match(away.title, /图文报告已生成/);
   assert.equal(away.href, objectHref(object.path, { view: 'report' }));
@@ -58,21 +58,21 @@ test('清单持久化读写失败不抛错，超时条目被清理', () => {
 
 test('对象路径去掉分段参数，失败与待确认跳转符合规格', () => {
   assert.equal(objectPathFromLocation('/sectors/煤炭开采和洗选业?view=report&refresh=confirm'), '/sectors/煤炭开采和洗选业');
-  assert.equal(sameOriginPage('/research?company=companies/600309-sh&view=report', '/research?company=companies/600309-sh&view=report'), true);
-  assert.equal(sameOriginPage('/research?company=companies/600309-sh&view=report', '/research?company=companies/600309-sh'), false);
+  assert.equal(sameOriginPage('/watch/600309?view=report', '/watch/600309?view=report'), true);
+  assert.equal(sameOriginPage('/watch/600309?view=report', '/watch/600309'), false);
   const track = trackTask({ kind: 'refresh', object, ref: 'chk', phase: 'check' }, memoryStore());
-  const pending = noticeFromOutcome(track, { status: 'done', variant: 'refresh-pending', detail: '点击查看并确认' }, '/watchlist');
+  const pending = noticeFromOutcome(track, { status: 'done', variant: 'refresh-pending', detail: '点击查看并确认' }, '/watch');
   assert.ok(pending?.href.includes('refresh=confirm'));
   assert.equal(pending?.sticky, true);
 });
 
 test('公司研究完成提醒按草案和无新增分别显示，原页也能收到', () => {
-  const company = { slug: 'companies/600900-sh', title: '长江电力', kind: 'company' as const, path: '/research?company=companies%2F600900-sh' };
+  const company = { slug: 'companies/600900-sh', title: '长江电力', kind: 'company' as const, path: '/watch/600900' };
   const track = trackTask({ kind: 'research', object: company, ref: 'research-1', originHref: company.path }, memoryStore());
   const pending = noticeFromOutcome(track, { status: 'done', variant: 'research-pending', detail: '' }, company.path);
   assert.match(pending?.title || '', /研究完成，草案待你审阅/);
-  assert.equal(pending?.href, '/my-research?tab=tasks');
-  const unchanged = noticeFromOutcome(track, { status: 'done', variant: 'research-no-increment', detail: '' }, '/watchlist');
+  assert.equal(pending?.href, '/insights?tab=tasks');
+  const unchanged = noticeFromOutcome(track, { status: 'done', variant: 'research-no-increment', detail: '' }, '/watch');
   assert.match(unchanged?.title || '', /没有需要更新的内容/);
 });
 

@@ -94,7 +94,7 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.doesNotMatch(page, /<select\b/);
   assert.match(page, /打开资料/);
   assert.match(page, /DashboardCard/);
-  assert.match(page, /DashboardPanel/);
+  assert.match(page, /TableWrap/);
   assert.doesNotMatch(page, /type="checkbox"/);
   assert.match(page, /\/my-reports\/read\//);
   assert.match(page, /资料已经保存/);

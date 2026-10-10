@@ -4,15 +4,16 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, LayoutGrid, List, MoreHorizontal, Upload } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
 import { Disclaimer } from '../components/ui/Disclaimer';
+import { WorkspaceSearch } from '../components/ui/WorkspaceSearch';
+import { StatusPill, TableWrap } from '../components/ui/Card';
+import { StatusDot } from '../components/ui/StatusDot';
 import { GlassCard } from '../components/ui/GlassCard';
-import { DashboardPanel, DashboardTable } from '../components/ui/DashboardPanel';
 import { DashboardCard } from '../components/IndustryDashboardCard';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { useAiPage } from '../../../core/ai/pageContext';
 import { asResearchErrorMessage } from '../lib/researchSymbol';
 import { prefGet, prefSet } from '../lib/prefs';
 import { workspaceSelectMenuBox } from '../lib/workspaceSelect';
-import { cn } from '@/lib/utils';
 import {
   LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_MAX_BYTES,
   libraryCiteFromItem, libraryFileKind, libraryKindFromItem, libraryNeedsRetry, librarySizeLabel, libraryStatusLabel, librarySummary, libraryUploadError,
@@ -163,21 +164,21 @@ export function UploadedReports() {
   const empty = items && items.length === 0 && !query && type === 'all' && status === 'all';
 
   return <div className="library-page">
-    <PageHeader title="我的资料" subtitle="上传 PDF、TXT 或 Markdown，阅读原文并用 @ 引用到深度对话。"
-      actions={<button className="workspace-action workspace-action-primary" onClick={() => setUploadOpen(true)}><Upload size={14} />上传资料</button>} />
-    <div className="mb-4 flex flex-wrap items-center gap-2">
-      <input className="workspace-field min-w-0 flex-1" value={query} placeholder="搜索资料" aria-label="搜索资料" onChange={event => setQuery(event.target.value)} />
+    <PageHeader title="资料"
+      search={<WorkspaceSearch aria-label="搜索资料" placeholder="搜索资料" value={query} onChange={setQuery} />}
+      actions={<button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}><Upload size={14} />上传资料</button>} />
+    <div className="mb-3 flex flex-wrap items-center gap-2">
       <WorkspaceSelect aria-label="按类型筛选" value={type} onChange={setType} options={TYPE_FILTERS} />
       <WorkspaceSelect aria-label="按处理状态筛选" value={status} onChange={setStatus} options={STATUS_FILTERS} />
-      <div role="tablist" aria-label="资料视图" className="flex shrink-0 rounded-full border border-border p-0.5">
+      <div role="tablist" aria-label="资料视图" className="segmented ml-auto">
         {([['grid', LayoutGrid, '卡片'], ['list', List, '列表']] as const).map(([id, Icon, label]) => (
-          <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} className={cn('rounded-full p-2 text-muted-foreground', view === id && 'bg-muted text-foreground')} onClick={() => changeView(id)}>
-            <Icon size={16} />
+          <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} onClick={() => changeView(id)}>
+            <Icon size={14} />
           </button>
         ))}
       </div>
     </div>
-    <p className="mb-3 text-[11px] text-muted-foreground">{items === null ? '正在读取资料…' : `共 ${total} 份`}</p>
+    <p className="section-label !mt-0">{items === null ? '正在读取资料…' : `共 ${total} 份`}</p>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
     {items === null ? <GlassCard><p role="status" className="py-12 text-center text-sm text-muted-foreground">正在读取资料…</p></GlassCard>
       : empty ? <label className="library-empty library-drop" data-active={dropActive} onDragOver={event => { event.preventDefault(); setDropActive(true); }} onDragLeave={() => setDropActive(false)} onDrop={onDrop}>
@@ -188,41 +189,46 @@ export function UploadedReports() {
         <button type="button" className="workspace-action workspace-action-primary mt-4" onClick={() => fileRef.current?.click()}>选择文件</button>
       </label>
       : items.length === 0 ? <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">没有符合条件的资料。试试其他关键词，或清空类型和状态筛选。</p></GlassCard>
-      : view === 'grid' ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{items.map(item => (
+      : view === 'grid' ? <div className="object-grid">{items.map(item => (
         <DashboardCard
           key={item.document_id}
           title={item.title || '未命名资料'}
           description={librarySummary(item)}
           footer={item.has_parsed ? '打开资料' : '正文尚未就绪'}
           icon={FileText}
+          tone="material"
+          openLabel="打开"
+          data={libraryNeedsRetry(item) || !item.has_parsed ? <span><StatusPill tone={libraryNeedsRetry(item) ? 'bad' : 'run'}>{libraryStatusLabel(item)}</StatusPill></span> : undefined}
           onClick={() => openItem(item.document_id)}
         />
       ))}</div>
-      : <DashboardPanel title="资料总览" icon={FileText} count={total}>
-        <DashboardTable columns={['名称', '类型', '状态', '时间', '']}>
-          {items.map(item => (
-            <tr key={item.document_id} className="border-b border-border/30">
-              <td className="px-2 py-2.5">
-                <button type="button" className="text-left hover:text-primary" onClick={() => openItem(item.document_id)}>
-                  <span className="block font-medium">{item.title || '未命名资料'}</span>
-                  <span className="mt-0.5 block max-w-xl truncate text-xs text-muted-foreground">{librarySummary(item)}</span>
-                </button>
+      : <TableWrap><table className="data-table">
+        <thead><tr><th>名称</th><th>类型</th><th className="col-num">时间</th><th className="col-action"><span className="sr-only">操作</span></th></tr></thead>
+        <tbody>
+          {items.map(item => {
+            const abnormal = libraryNeedsRetry(item) || !item.has_parsed;
+            return <tr key={item.document_id} className="cursor-pointer" onClick={event => { if (!(event.target as HTMLElement).closest('button, a')) openItem(item.document_id); }}>
+              <td>
+                <div className="flex items-center gap-2">
+                  <button type="button" className="text-left font-medium hover:underline" onClick={() => openItem(item.document_id)}>{item.title || '未命名资料'}</button>
+                  {abnormal && <StatusDot tone={libraryNeedsRetry(item) ? 'bad' : 'run'} label={libraryStatusLabel(item)} />}
+                </div>
+                <span className="mt-0.5 block max-w-xl truncate text-xs text-[var(--text-3)]">{librarySummary(item)}</span>
               </td>
-              <td className="px-2 py-2.5 text-xs text-muted-foreground">{libraryKindFromItem(item)}</td>
-              <td className="px-2 py-2.5 text-xs text-muted-foreground">{libraryStatusLabel(item)}</td>
-              <td className="px-2 py-2.5 font-mono text-xs text-muted-foreground">{item.created_at ? new Date(item.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</td>
-              <td className="px-2 py-2.5">
+              <td className="text-[var(--text-2)]">{libraryKindFromItem(item)}</td>
+              <td className="col-num text-[var(--text-3)]">{item.created_at ? new Date(item.created_at).toLocaleString('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}</td>
+              <td className="col-action"><div className="row-actions">
                 <LibraryMenu item={item} open={menuId === item.document_id} retrying={retryingId === item.document_id} onToggle={() => setMenuId(current => current === item.document_id ? '' : item.document_id)} onClose={() => setMenuId('')} onCite={() => { setMenuId(''); cite([item]); }} onRetry={() => retry(item)} onRename={() => { setRenameId(item.document_id); setRenameTitle(item.title || ''); setMenuId(''); }} onHide={() => { setHideId(item.document_id); setMenuId(''); }} />
-              </td>
-            </tr>
-          ))}
-        </DashboardTable>
-      </DashboardPanel>}
+              </div></td>
+            </tr>;
+          })}
+        </tbody>
+      </table></TableWrap>}
     {items && items.length < total && <div className="pt-3"><button className="workspace-action" disabled={busy} onClick={() => { const next = offset + 50; void load(next, true).catch(err => setError(asResearchErrorMessage(err))); }}>加载更多（{items.length}/{total}）</button></div>}
     {uploadOpen && <div className="library-modal-backdrop" role="dialog" aria-label="上传资料" onClick={() => !busy && setUploadOpen(false)}>
       <div className="library-modal" onClick={event => event.stopPropagation()}>
         <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="font-semibold">上传资料</h2><p className="mt-1 text-xs text-muted-foreground">一次最多 10 个文件，最多同时处理 4 个。开始上传后即保存到我的资料。</p></div><button className="workspace-action workspace-action-compact" onClick={() => setUploadOpen(false)} aria-label="关闭">关闭</button></div>
-        <label className="text-xs text-muted-foreground">公司代码（可选）<input className="workspace-field mt-2 block h-10 w-full" placeholder="例如 000933" value={symbol} disabled={busy} onChange={event => setSymbol(event.target.value)} /></label>
+        <label className="text-xs text-muted-foreground">公司代码（可选）<input className="workspace-field mt-2 block w-full" placeholder="例如 000933" value={symbol} disabled={busy} onChange={event => setSymbol(event.target.value)} /></label>
         <label className="library-drop mt-4" data-active={dropActive} onDragOver={event => { event.preventDefault(); setDropActive(true); }} onDragLeave={() => setDropActive(false)} onDrop={onDrop}>
           <p className="text-sm">拖入 PDF / TXT / MD，或选择文件</p>
           <input className="sr-only" type="file" multiple accept=".pdf,.txt,.md,application/pdf,text/plain,text/markdown" disabled={busy} onChange={event => { enqueue(Array.from(event.target.files || [])); event.target.value = ''; }} />
@@ -238,7 +244,7 @@ export function UploadedReports() {
       }}>
         <h2 className="mb-3 font-semibold">修改显示标题</h2>
         <p className="mb-3 text-xs text-muted-foreground">只改显示名称，文件内容和历史引用不变。</p>
-        <input className="workspace-field h-10 w-full" value={renameTitle} onChange={event => setRenameTitle(event.target.value)} />
+        <input className="workspace-field w-full" value={renameTitle} onChange={event => setRenameTitle(event.target.value)} />
         <div className="mt-4 flex justify-end gap-2"><button type="button" className="workspace-action" onClick={() => setRenameId('')}>取消</button><button className="workspace-action workspace-action-primary" disabled={!renameTitle.trim()}>保存</button></div>
       </form>
     </div>}
@@ -309,7 +315,7 @@ function LibraryMenu({
     };
   }, [open, onClose]);
   return <>
-    <button ref={triggerRef} type="button" className="workspace-action workspace-action-compact" aria-label="更多操作" aria-expanded={open} aria-haspopup="menu" onClick={event => { event.stopPropagation(); onToggle(); }}><MoreHorizontal size={14} /></button>
+    <button ref={triggerRef} type="button" className="btn btn-icon" aria-label="更多操作" aria-expanded={open} aria-haspopup="menu" onClick={event => { event.stopPropagation(); onToggle(); }}><MoreHorizontal size={14} /></button>
     {open && createPortal(
       <div ref={menuRef} role="menu" className="library-menu" style={{ ...box, visibility: box ? 'visible' : 'hidden' }} onClick={event => event.stopPropagation()}>
         <Link role="menuitem" to={`/my-reports/read/${encodeURIComponent(item.document_id)}?from=${encodeURIComponent('/my-reports')}`}>阅读</Link>

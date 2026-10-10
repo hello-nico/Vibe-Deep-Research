@@ -1,0 +1,43 @@
+/* 个股页：卡片、面板与指标来自公共组件（components/ui/Card.tsx）；这里只放个股页自己的排版。 */
+.company-page { display: grid; gap: 12px; color: hsl(var(--foreground)); }
+.company-page-hero { padding: 22px 26px; }
+.company-page p, .company-page-detail > div { max-width: 72ch; }
+.company-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 20px; }
+.company-page-code { margin-top: 2px; font-family: var(--workspace-mono-font); font-size: 11px; color: var(--text-3); }
+.company-page-label { color: var(--text-3); font-size: 12px; }
+.company-page-price { text-align: right; min-width: 130px; }
+.company-page-price > strong { display: block; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.company-page-price small { font-size: 12px; font-weight: 400; color: var(--text-3); }
+.company-page-price > span { font-size: 13px; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.company-page-price > span.is-up { color: hsl(var(--up)); }
+.company-page-price > span.is-down { color: hsl(var(--down)); }
+.company-page-lead { padding-top: 4px; }
+.company-page-conclusion { font-size: 13px; line-height: 1.9; margin-top: 8px; }
+.company-page-lead .company-page-conclusion { font-size: 18px; font-weight: 600; line-height: 1.7; }
+.company-page-section { min-width: 0; }
+.company-page-section .company-page-conclusion { margin-top: 0; }
+.company-page-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 4px; }
+.company-page-metrics:not(:empty) + .company-page-conclusion { margin-top: 14px; }
+.company-page-detail { margin-top: 8px; font-size: 12px; color: var(--text-3); }
+.company-page-detail > summary { cursor: pointer; width: fit-content; }
+.company-page-detail > div { margin-top: 12px; color: hsl(var(--foreground)); font-size: 13px; line-height: 1.8; }
+.company-page-sources { display: flex; align-items: center; gap: 8px; }
+.company-page-gap { font-size: 13px; color: var(--text-3); }
+.company-page-progress { margin-top: 10px; font-size: 13px; color: hsl(var(--brand)); }
+.company-page-progress.is-toolbar { margin-top: 0; }
+.company-page-progress > span { display: inline-flex; align-items: center; gap: 8px; }
+.company-page-skeleton { display: grid; gap: 8px; max-width: 400px; padding: 8px 0; }
+.company-page-skeleton > span { height: 12px; border-radius: 6px; background: var(--fill-1); animation: company-page-pulse 1.5s ease-in-out infinite; }
+.company-page-skeleton > span:last-child { width: 65%; }
+.company-page-relations { display: flex; flex-wrap: wrap; gap: 8px; }
+.company-page [data-change-hint] { text-decoration: underline dotted var(--text-4); text-underline-offset: 5px; cursor: help; }
+@keyframes company-page-pulse { 50% { opacity: .45; } }
+@media (prefers-reduced-motion: reduce) { .company-page-skeleton > span { animation: none; } }
+@media (max-width: 640px) { .company-page-hero { padding: 18px 16px; } .company-page-header { gap: 12px; } .company-page-price > strong { font-size: 20px; } .company-page-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.company-page-conclusion.is-muted { color: var(--text-3); font-weight: 400; }
+.company-page-progress.is-page { display: grid; gap: 8px; justify-items: start; }
+.company-page-link { font-size: 12px; color: var(--text-3); text-decoration: underline; text-underline-offset: 3px; }
+.company-page-link:hover { color: hsl(var(--foreground)); }
+/* 指标里的出处链接：灰底小胶囊 */
+.metric-label .finance-citation { padding: 1px 8px; border-radius: 999px; background: var(--fill-1); color: var(--text-3); font-size: 11px; text-decoration: none; }
+.metric-label .finance-citation:hover { color: hsl(var(--foreground)); }

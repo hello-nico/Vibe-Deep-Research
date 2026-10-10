@@ -21,7 +21,7 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
   }, [onClose]);
   return <div className="finance-task-process finance-side-panel">
     <SidePanelResizeHandle />
-    <aside role="dialog" aria-label="任务过程" className="task-process-panel relative flex w-full flex-col overflow-hidden rounded-2xl border bg-background shadow-lg">
+    <aside role="dialog" aria-label="任务过程" className="task-process-panel relative flex w-full flex-col overflow-hidden rounded-2xl border bg-background">
       <header className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
         <div className="min-w-0">
           <p className="text-xs text-muted-foreground">{task.kind === 'report' ? '图文报告' : task.kind === 'research' ? '公司研究' : '知识整理'}</p>

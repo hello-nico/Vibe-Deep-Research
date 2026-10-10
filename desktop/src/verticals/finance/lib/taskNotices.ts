@@ -171,7 +171,7 @@ export function dismissNotice(id: string) {
 export function noticeFromOutcome(task: TrackedTask, outcome: Extract<TrackOutcome, { status: 'done' }>, currentHref: string, now = Date.now()): TaskNotice | null {
   if (task.kind !== 'research' && sameOriginPage(task.originHref, currentHref)) return null;
   const name = task.object.title || task.object.slug;
-  const href = outcome.variant === 'research-pending' || outcome.variant === 'research-invalid' || outcome.variant === 'research-fail' ? '/my-research?tab=tasks'
+  const href = outcome.variant === 'research-pending' || outcome.variant === 'research-invalid' || outcome.variant === 'research-fail' ? '/insights?tab=tasks'
     : outcome.variant === 'report-success' ? objectHref(task.object.path, { view: 'report' })
     : outcome.variant === 'refresh-pending' ? objectHref(task.object.path, { refresh: 'confirm' })
       : objectHref(task.object.path);

@@ -56,7 +56,7 @@ function NoticeCard({ notice }: { notice: TaskNotice }) {
       {(notice.variant === 'report-fail' || notice.variant === 'research-fail') && <button type="button" className="task-notice-link" onClick={event => {
         event.stopPropagation();
         onDismiss();
-        navigate('/my-research?tab=tasks');
+        navigate('/insights?tab=tasks');
       }}>查看任务记录</button>}
     </div>
     <button type="button" aria-label="关闭提醒" onClick={event => { event.stopPropagation(); onDismiss(); }}><X size={16} /></button>

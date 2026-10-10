@@ -5,6 +5,6 @@
   text-align: left; cursor: pointer;
 }
 .workspace-more-option:hover:not(:disabled), .workspace-more-option[data-active="true"] {
-  background: Highlight; color: HighlightText;
+  background: var(--fill-2); color: hsl(var(--foreground));
 }
 .workspace-more-option:disabled { opacity: .45; cursor: not-allowed; }

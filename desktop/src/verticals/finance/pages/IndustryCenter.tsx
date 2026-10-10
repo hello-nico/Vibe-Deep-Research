@@ -6,6 +6,7 @@ import { GlassCard } from "../components/ui/GlassCard";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { DashboardCard } from "../components/IndustryDashboardCard";
+import { StatusPill } from "../components/ui/Card";
 import { WorkspaceSelect } from "../components/ui/WorkspaceSelect";
 import { WorkspaceSearch } from "../components/ui/WorkspaceSearch";
 import { statusBadges } from '../lib/objectStatus';
@@ -108,7 +109,7 @@ export function IndustryCenter() {
   if (key && /^\d{6}$/.test(key)) return <Navigate replace to={`/sectors/profiles/${key}`} />;
   const profilesLink = <Link className="workspace-action shrink-0" to="/sectors/profiles"><Layers3 />{profileCount != null ? `${profileCount} 个产业研究` : "产业研究"}</Link>;
   return <div>
-    <PageHeader title={selected?.official_name || "行业研究"} subtitle={selected ? undefined : "了解行业如何运转，沿着问题持续研究。"}
+    <PageHeader title={selected?.official_name || "行业研究"}
       search={selected ? undefined : <WorkspaceSearch className="mb-0" placeholder="搜索行业名称" value={query} onChange={setQuery} />}
       actions={selected ? undefined : profilesLink} />
     {selected && <div className="object-toolbar">
@@ -130,14 +131,15 @@ export function IndustryCenter() {
       ? <GlassCard className="min-h-[440px] !p-4 sm:!p-7"><WikiLoading slug={`industries/${key}`} /></GlassCard>
       : <ResearchLoading title="正在读取行业入口" sections={["行业身份", "经营结构"]} />)}
     {items && !selected && (visible?.length
-      ? <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{visible.map(item => (
+      ? <div className="object-grid">{visible.map(item => (
       <div key={item.subject_id} className="min-w-0"><DashboardCard
         title={item.official_name}
         description={item.summary || "行业资料待补充。"}
         href={`/sectors/${encodeURIComponent(item.short_name)}`}
-        footer={item.published ? "查看研究方向" : "资料待补充"}
+        footer=""
         icon={industryIcon(item.official_name)}
-      /><div className="mt-2"><ObjectStatusBadges slug={item.slug} row={objectStatuses.get(item.slug)} /></div></div>
+        data={<span className="flex flex-wrap items-center gap-2">{!item.published && <StatusPill tone="off">资料待补充</StatusPill>}<ObjectStatusBadges slug={item.slug} row={objectStatuses.get(item.slug)} /></span>}
+      /></div>
     ))}</div>
       : <GlassCard><p className="py-12 text-center text-sm text-muted-foreground">{items.length ? "没有匹配的行业，请调整搜索。" : "暂无行业资料。"}</p></GlassCard>)}
     {selected && <GlassCard className="min-h-[440px] !p-4 sm:!p-7">

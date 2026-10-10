@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { TrendingUp, FileText, Newspaper, Rss, RefreshCw, Loader2, AlertCircle, Sparkles, Lightbulb, Star } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { PageHeader } from "@/components/ui/PageHeader";
 import { WorkspaceTabs } from "@/components/ui/WorkspaceTabs";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { useArchiveThenRefresh } from "../../../core/data/useArchiveThenRefresh";
@@ -177,7 +176,7 @@ function InvestmentNewsPanel() {
           {/* 🔴 先给存档、后台刷 ⇒ 用户必须看得出他现在看的是**哪一份**：
               刷新中 = 下面是存档、新的在路上；刷新没成功 = 下面仍是存档，别让他以为是最新的。 */}
           {refreshing && hasData && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+            <span className="status-pill tone-run">
               <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
@@ -187,7 +186,7 @@ function InvestmentNewsPanel() {
         <div className="flex flex-wrap items-center gap-2">
           {hasData && (
             <button onClick={genAll} disabled={bulk.running || refreshing}
-              className="workspace-action workspace-action-primary">
+              className="btn btn-primary">
               {bulk.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {bulk.running ? `提炼中 ${bulk.done}/${bulk.total}` : "一键提炼全部要点"}
             </button>
@@ -217,10 +216,10 @@ function InvestmentNewsPanel() {
             {industries.map((ind) => (
               <button key={ind.key} onClick={() => setActive(ind.key)}
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs transition-colors",
+                  "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs transition-colors",
                   active === ind.key
-                    ? "border-primary bg-primary/15 font-medium text-primary shadow-glow"
-                    : "border-primary/25 text-muted-foreground hover:border-primary/60 hover:text-foreground",
+                    ? "bg-[var(--fill-2)] font-semibold text-foreground"
+                    : "text-[var(--text-2)] hover:bg-[var(--fill-1)] hover:text-foreground",
                 )}>
                 <span className="h-2 w-2 rounded-full" style={{ background: ind.accent }} />
                 {ind.name}<span className="text-muted-foreground/50">{ind.items.length}</span>
@@ -233,7 +232,7 @@ function InvestmentNewsPanel() {
               <div className="mb-3 flex min-h-7 flex-wrap items-center justify-between gap-2 text-xs">
                 <span className="text-muted-foreground">
                   {tr?.status === "running" ? (
-                    <span className="inline-flex items-center gap-1.5 text-primary"><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI 正在翻译标题 {tr.done}/{tr.total}</span>
+                    <span className="inline-flex items-center gap-1.5 text-brand"><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI 正在翻译标题 {tr.done}/{tr.total}</span>
                   ) : tr?.status === "done" ? (
                     <span className="text-success">AI 标题翻译 {tr.done}/{tr.total}</span>
                   ) : tr?.status === "partial" ? (
@@ -246,7 +245,7 @@ function InvestmentNewsPanel() {
                   <button
                     onClick={() => void translateIndustry(cur, data?.generated_at ?? "manual", tr.status === "done")}
                     disabled={refreshing}
-                    className="text-muted-foreground hover:text-primary disabled:opacity-50"
+                    className="text-muted-foreground hover:text-foreground disabled:opacity-50"
                   >
                     {tr.status === "done" ? "重新翻译" : "继续翻译"}
                   </button>
@@ -254,13 +253,13 @@ function InvestmentNewsPanel() {
               </div>
 
               {/* 今日要点总结框（暖橙框） */}
-              <div className="mb-4 rounded-xl border border-primary/30 bg-primary/5 p-4">
+              <div className="mb-4 rounded-2xl border border-border p-4">
                 <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold text-primary">
-                    <Lightbulb className="h-4 w-4" /> 今日要点 · {cur.name}
+                  <span className="flex items-center gap-1.5 text-sm font-semibold">
+                    <Lightbulb className="h-4 w-4 text-[var(--text-3)]" /> 今日要点 · {cur.name}
                   </span>
                   {(dg?.text || dg?.err) && (
-                    <button onClick={() => genDigest(cur)} className="text-xs text-muted-foreground hover:text-primary">重新提炼</button>
+                    <button onClick={() => genDigest(cur)} className="text-xs text-muted-foreground hover:text-foreground">重新提炼</button>
                   )}
                 </div>
                 {dg?.loading ? (
@@ -274,7 +273,7 @@ function InvestmentNewsPanel() {
                   <p className="text-sm text-destructive">{dg.err}</p>
                 ) : (
                   <button onClick={() => genDigest(cur)}
-                    className="workspace-action workspace-action-primary">
+                    className="btn">
                     <Sparkles className="h-4 w-4" /> 让助手提炼今日要点
                   </button>
                 )}
@@ -292,7 +291,7 @@ function InvestmentNewsPanel() {
                       <div key={i} className="group flex items-start gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
                         <span className="w-24 shrink-0 pt-0.5 font-mono text-xs text-muted-foreground/70">{it.time}</span>
                         <span className="w-20 shrink-0 truncate pt-0.5 text-xs text-muted-foreground">{it.source}</span>
-                        <a href={it.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 hover:text-primary">
+                        <a href={it.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 hover:underline">
                           <span className="block">{zh || it.title}</span>
                           {translated && <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground/65">{it.title}</span>}
                         </a>
@@ -389,7 +388,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   if (!codes.length) {
     return (
       <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">
-        还没有关注股票。到<Link to="/watchlist" className="text-primary">「自选股」</Link>加自选（6 位代码），这里会汇总它们的{kind === "filings" ? "公告" : "新闻"}。
+        还没有关注股票。到<Link to="/watch" className="underline">「关注」</Link>添加公司，这里会汇总它们的{kind === "filings" ? "公告" : "新闻"}。
       </div>
     );
   }
@@ -398,10 +397,10 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
     <div>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
-          <Star className="h-3.5 w-3.5 text-primary/70" /> 关注 {codes.length} 只 · 共 {rows.length} 条{kind === "filings" ? "公告" : "新闻"}（近期）
+          <Star className="h-3.5 w-3.5" /> 关注 {codes.length} 只 · 共 {rows.length} 条{kind === "filings" ? "公告" : "新闻"}（近期）
           {/* 🔴 先给存档、后台刷 ⇒ 得让人看得出现在这一屏是哪一份 */}
           {refreshing && rows.length > 0 && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+            <span className="status-pill tone-run">
               <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
@@ -431,9 +430,9 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
           {rows.map((r, i) => (
             <div key={i} className="group flex items-baseline gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
               <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground/70">{(r.when || "").slice(kind === "filings" ? 0 : 5, kind === "filings" ? 10 : 16)}</span>
-              <span className="w-16 shrink-0 truncate text-xs text-primary/90" title={r.code}>{r.name}</span>
+              <span className="w-16 shrink-0 truncate text-xs text-[var(--text-2)]" title={r.code}>{r.name}</span>
               {kind === "filings" && r.meta && <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block">{r.meta}</span>}
-              {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:text-primary">{r.title}</a> : <span className="flex-1">{r.title}</span>}
+              {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:underline">{r.title}</a> : <span className="flex-1">{r.title}</span>}
             </div>
           ))}
         </div>
@@ -452,39 +451,29 @@ function IntelOverviewContext({ tab, label }: { tab: string; label: string }) {
   return null;
 }
 
-export function Intel() {
-  // 当前分段由路由驱动（/intel/:tab）；不认识的参数回落到第一个
-  const { tab: tabParam } = useParams();
-  const navigate = useNavigate();
+/** 动态页「资讯」分段的内容；小栏目由 `/feed?tab=intel&sub=` 驱动，不认识的回落到第一个。 */
+export function Intel({ sub, onSub }: { sub?: string | null; onSub?: (key: string) => void } = {}) {
+  const tabParam = sub ?? undefined;
   const tab = TABS.some((t) => t.key === tabParam) ? tabParam! : TABS[0]!.key;
   const cur = TABS.find((t) => t.key === tab)!;
 
   return (
     <div>
       {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && tab !== 'events' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
-      <PageHeader title="资讯雷达" subtitle="汇总多个来源的资讯，AI 帮你提炼要点" />
-
       <div className="mb-4">
         <WorkspaceTabs
           aria-label="资讯栏目"
           value={tab}
-          onChange={key => navigate(`/intel/${key}`)}
-          options={TABS.map(({ key, label, icon, integrated }) => ({
+          onChange={key => onSub?.(key)}
+          options={TABS.map(({ key, label, icon }) => ({
             value: key,
             label,
             icon,
-            badge: integrated ? "集成" : undefined,
           }))}
         />
       </div>
 
-      <GlassCard glow>
-        <div className="mb-3 flex items-center gap-2">
-          <cur.icon className="h-5 w-5 text-primary" />
-          <h3 className="font-semibold">{cur.label}</h3>
-          {/* ⚠️ 徽章上印的是**源名**,不是"已接入" —— 别的 tab 接入了别的源,不能共用这一个标签 */}
-          {cur.key === "investment-news" && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary">investment-news</span>}
-        </div>
+      <GlassCard>
         {cur.key === "investment-news" ? (
           <InvestmentNewsPanel />
         ) : cur.key === "filings" ? (
@@ -551,7 +540,7 @@ function EventsPanel() {
         {data.partial && <span className="text-warning">· 部分源没取到，这不是完整清单</span>}
         <span className="text-[11px] text-muted-foreground/60">{`更新于 ${data.updated}`}</span>
         {refreshing && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] text-primary">
+          <span className="status-pill tone-run">
             <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
           </span>
         )}

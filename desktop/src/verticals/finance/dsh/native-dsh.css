@@ -178,13 +178,11 @@ html body.vibe-dsh-host {
 }
 #dsh-settings [data-slot="sidebar.settings"] button:not([role="dialog"] *):hover { background: hsl(var(--muted) / .5); color: hsl(var(--foreground)); }
 #dsh-settings [data-slot="sidebar.settings"] button:not([role="dialog"] *) svg { width: 16px; height: 16px; flex-shrink: 0; color: currentColor; }
-.workspace-sidebar.w-14 #dsh-settings [data-slot="sidebar.settings"] button:not([role="dialog"] *) {
-  justify-content: center; gap: 0; font-size: 0;
-}
+/* 栏上的「设置」入口是 /settings 页；DSH 的触发按钮只作为座位保留（设置页的按钮会代为点击），对话框照常显示。 */
+#dsh-settings.workspace-dsh-seat [data-slot="sidebar.settings"] button:not([role="dialog"] *) { display: none; }
 #dsh-settings [role="dialog"] {
   width: 880px; color: hsl(var(--foreground)); background: hsl(var(--card));
-  border: 1px solid hsl(var(--border)); border-radius: 18px;
-  box-shadow: 0 16px 48px rgb(0 0 0 / .16); font-size: 14px;
+  border: 1px solid var(--line-2); border-radius: 16px; font-size: 14px;
 }
 #dsh-settings [role="dialog"] > nav {
   width: 200px; padding: 24px 12px; border-right: 1px solid hsl(var(--border));
@@ -195,7 +193,6 @@ html body.vibe-dsh-host {
 #dsh-settings [role="dialog"] input { border-radius: 10px; }
 #dsh-conversation {
   background: hsl(var(--card));
-  box-shadow: 0 8px 28px rgb(0 0 0 / .06);
   /* Theme writes DeepSeek blues on body; conversation must re-declare so
      rc.1 composer stop/send (info-fill) and turn-status shimmer inherit product primary. */
   --dsw-alias-button-info-fill: hsl(var(--primary));
@@ -216,7 +213,6 @@ html body.vibe-dsh-host {
 
 /* Native settings uses a fixed overlay inside its trigger. A filtered sidebar
    becomes its containing block and clips the entire dialog to sidebar width. */
-.workspace-sidebar { backdrop-filter: none; -webkit-backdrop-filter: none; }
 #dsh-settings [role="dialog"] { flex-shrink: 0; }
 @media (max-width: 640px) {
   #dsh-settings [role="dialog"] { width: calc(100vw - 24px); max-width: none; height: calc(100dvh - 24px); border-radius: 16px; flex-direction: column; }

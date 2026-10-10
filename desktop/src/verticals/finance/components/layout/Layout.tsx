@@ -1,41 +1,30 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
-import {
-  Activity, ChevronsLeft, ChevronsRight, FileText, MessagesSquare, LayoutGrid, Microscope, Menu, X, NotebookPen, Radar, Star, Thermometer,
-} from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Activity, FileText, Lightbulb, MessagesSquare, Settings, Star } from "lucide-react";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { ConversationWorkspace } from "./ConversationWorkspace";
 import { FinanceAssistantSurface } from './FinanceAssistantSurface';
+import { AssistantSlotProvider } from "./assistantSlot";
 import { AiPageProvider } from "../../../../core/ai/pageContext";
 import { EvidenceProvider } from '../EvidenceCard';
 import { FinanceAiDock } from "@/components/ui/FinanceAiDock";
 import { useDarkMode } from "@/hooks/useDarkMode";
-import { prefGet, prefSet } from "@/lib/prefs";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { TaskNotices } from "../ui/TaskNotices";
 import { WikiDrawer } from '../WikiDrawer';
 import { loadPendingItems, pendingCount } from '../../lib/pendingResearch';
 
+/** 六个两字入口：按用户与 Agent 的关系收敛（对话 / 动态 / 洞悉 / 关注 / 资料 / 设置）。 */
 const NAV = [
-  { to: "/", icon: MessagesSquare, label: "深度对话" },
-  { to: "/daily-review", icon: Activity, label: "大盘行情" },
-  { to: "/intel", icon: Radar, label: "资讯雷达" },
-  { to: "/sectors", icon: LayoutGrid, label: "行业研究" },
-  { to: "/sectors/profiles", icon: Thermometer, label: "产业研究" },
-  { to: "/research", icon: Microscope, label: "个股研究" },
-  { to: "/watchlist", icon: Star, label: "自选股" },
-  // 暂时隐藏，待持仓模块的产品方案确定后恢复。
-  { to: "/my-reports", icon: FileText, label: "我的资料" },
-  { to: "/my-research", icon: NotebookPen, label: "我的研究" },
+  { to: "/", icon: MessagesSquare, label: "对话", match: (p: string) => p === "/" },
+  { to: "/feed", icon: Activity, label: "动态", match: (p: string) => p === "/feed" || p.startsWith("/feed/") },
+  { to: "/insights", icon: Lightbulb, label: "洞悉", match: (p: string) => p === "/insights" || p.startsWith("/insights/") },
+  { to: "/watch", icon: Star, label: "关注", match: (p: string) => p === "/watch" || p.startsWith("/watch/") },
+  { to: "/my-reports", icon: FileText, label: "资料", match: (p: string) => p === "/my-reports" || p.startsWith("/my-reports/") },
+  { to: "/settings", icon: Settings, label: "设置", match: (p: string) => p === "/settings" },
 ];
 
 export function Layout() {
-  useEffect(() => {
-    const toggle = () => setCollapsed(value => !value);
-    window.addEventListener("vibe-toggle-sidebar", toggle);
-    return () => window.removeEventListener("vibe-toggle-sidebar", toggle);
-  }, []);
   const { pathname } = useLocation();
   const [pendingNavCount, setPendingNavCount] = useState<number>();
   useEffect(() => {
@@ -49,181 +38,39 @@ export function Layout() {
   }, [pathname]);
   const navigation = useNavigation();
   useDarkMode();
-  const navRef = useRef<HTMLElement | null>(null);
-  const sidebarRef = useRef<HTMLElement | null>(null);
-  const menuRef = useRef<HTMLButtonElement | null>(null);
   const mainRef = useRef<HTMLElement | null>(null);
-  const [mobile, setMobile] = useState(() => typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches);
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const closeMobileNav = () => {
-    setMobileOpen(false);
-    // The opener is inert until React commits the closed state.
-    requestAnimationFrame(() => menuRef.current?.focus());
-  };
-  const [collapsed, setCollapsed] = useState(() => prefGet("vr-sidebar") === "collapsed");
-  useEffect(() => {
-    void prefSet("vr-sidebar", collapsed ? "collapsed" : "expanded");
-  }, [collapsed]);
-
-  // 品牌区与底部链接固定，导航本身会滚动。窗口偏矮时当前页可能刚好落在
-  // 可视区外（例如最底部的「接入 AI」只露出一条边）—— 路由变化后把当前项拉回视野。
-  useEffect(() => {
-    const nav = navRef.current;
-    const active = nav?.querySelector<HTMLElement>('[aria-current="page"]');
-    if (!nav || !active) return;
-    const n = nav.getBoundingClientRect();
-    const a = active.getBoundingClientRect();
-    const breathingRoom = 8;
-    if (a.top < n.top + breathingRoom) nav.scrollTop -= n.top + breathingRoom - a.top;
-    if (a.bottom > n.bottom - breathingRoom) nav.scrollTop += a.bottom - (n.bottom - breathingRoom);
-  }, [pathname, collapsed]);
-
-  useEffect(() => {
-    const query = window.matchMedia("(max-width: 767px)");
-    const update = () => {
-      setMobile(query.matches);
-      setMobileOpen(false);
-      if (query.matches && sidebarRef.current?.contains(document.activeElement)) {
-        requestAnimationFrame(() => menuRef.current?.focus());
-      }
-    };
-    query.addEventListener("change", update);
-    return () => query.removeEventListener("change", update);
-  }, []);
-  useEffect(() => { setMobileOpen(false); }, [pathname]);
-  useEffect(() => {
-    if (!mobileOpen || !mobile) return;
-    sidebarRef.current?.querySelector<HTMLElement>("a,button")?.focus();
-    const keyboard = (event: KeyboardEvent) => {
-      if (event.key === "Escape") { event.preventDefault(); closeMobileNav(); }
-      if (event.key !== "Tab") return;
-      const items = [...(sidebarRef.current?.querySelectorAll<HTMLElement>("a,button:not(:disabled)") ?? [])];
-      const first = items[0], last = items.at(-1);
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
-    };
-    document.addEventListener("keydown", keyboard);
-    return () => document.removeEventListener("keydown", keyboard);
-  }, [mobile, mobileOpen]);
-  const compact = collapsed && !mobile;
-  const [navIndicator, setNavIndicator] = useState({ top: 0, left: 0, width: 0, height: 40, shown: false, animate: false });
-  useLayoutEffect(() => {
-    const nav = navRef.current;
-    const place = () => {
-      const active = nav?.querySelector<HTMLElement>("a.workspace-nav-link[aria-current='page']");
-      if (!nav || !active) {
-        setNavIndicator(prev => prev.shown ? { ...prev, shown: false } : prev);
-        return;
-      }
-      const navBox = nav.getBoundingClientRect();
-      const item = active.getBoundingClientRect();
-      const next = {
-        top: item.top - navBox.top + nav.scrollTop,
-        left: item.left - navBox.left,
-        width: item.width,
-        height: item.height,
-        shown: true as const,
-      };
-      setNavIndicator(prev => {
-        if (prev.shown && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.left - next.left) < 0.5 && Math.abs(prev.width - next.width) < 0.5 && Math.abs(prev.height - next.height) < 0.5) return prev;
-        return { ...next, animate: prev.shown };
-      });
-    };
-    place();
-    const box = sidebarRef.current;
-    if (!box) return;
-    const observer = new ResizeObserver(place);
-    observer.observe(box);
-    window.addEventListener("resize", place);
-    return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", place);
-    };
-  }, [pathname, compact, mobileOpen]);
-  useEffect(() => {
-    if (!navIndicator.shown || navIndicator.animate) return;
-    setNavIndicator(prev => prev.shown && !prev.animate ? { ...prev, animate: true } : prev);
-  }, [navIndicator.shown, navIndicator.animate]);
-  const currentTitle = NAV.find(n => n.to === pathname)?.label
-    ?? (pathname === '/research' || pathname.startsWith('/research/') ? '个股研究' : undefined)
-    ?? (pathname.startsWith('/sectors/profiles') || pathname.startsWith('/signals') ? '产业研究' : undefined)
-    ?? (pathname.startsWith('/my-reports/read/') ? '资料阅读' : undefined)
-    ?? NAV.find(n => n.to !== '/' && n.to !== '/sectors' && pathname.startsWith(n.to + '/'))?.label
-    ?? (pathname.startsWith('/sectors/') ? '行业研究' : "工作空间");
+  const [assistantHost, setAssistantHost] = useState<HTMLElement | null>(null);
 
   return (
     <AiPageProvider>
       <EvidenceProvider>
+      <AssistantSlotProvider onHost={setAssistantHost}>
       <a className="workspace-skip" href="#workspace-main" onClick={e => {
-        e.preventDefault(); setMobileOpen(false);
+        e.preventDefault();
         requestAnimationFrame(() => mainRef.current?.focus());
       }}>跳到内容</a>
-      <div className="flex h-dvh overflow-hidden">
-        {mobile && mobileOpen && <button className="fixed inset-0 z-40 bg-black/60" tabIndex={-1}
-          aria-label="关闭导航遮罩" onClick={closeMobileNav} />}
-        <aside ref={sidebarRef} aria-label="产品侧栏" className={cn(
-          "workspace-sidebar z-50 flex shrink-0 flex-col",
-          mobile ? (mobileOpen ? "fixed inset-y-0 left-0 w-[228px]" : "hidden") : compact ? "w-14" : "w-[228px]",
-        )}>
-          <div className={cn("flex h-16 shrink-0 flex-col justify-center border-b border-border", compact ? "px-3" : "px-5")}>
-            <div className="flex items-center justify-between">
-              <Link to="/" aria-label="Vibe Finance 深度对话" className="flex items-center gap-2.5">
-                <BrandMark className="h-8 w-8 shrink-0 text-primary" />
-                {!compact && <span className="workspace-brand text-lg font-semibold tracking-tight">Vibe-<span className="text-primary">Finance</span></span>}
-              </Link>
-              {mobile && <button aria-label="关闭导航" className="p-1" onClick={closeMobileNav}><X className="h-4 w-4" /></button>}
-            </div>
-            {!compact && <div data-ai-identity>
-              <p className="text-[10px] leading-4 text-muted-foreground">投研助手 · A股 / 美股 / 港股</p>
-            </div>}
-          </div>
-          <div id="dsh-status" data-testid="ai-runtime-badge" className="px-3 text-[10px] text-muted-foreground empty:hidden" />
-          <nav ref={navRef} aria-label="原产品板块导航" className={cn("relative min-h-0 flex-1 overflow-auto py-3", compact ? "px-1.5" : "px-3")}>
-            <div className="workspace-nav-indicator" aria-hidden="true" data-shown={navIndicator.shown || undefined} data-animate={navIndicator.animate || undefined} style={{ top: navIndicator.top, left: navIndicator.left, width: navIndicator.width, height: navIndicator.height }} />
-            <div className="space-y-0.5">
-            {NAV.map(({ to, icon: Icon, label }) => {
-              const active = pathname === to
-                || (to === "/intel" && pathname.startsWith("/intel/"))
-                || (to === "/sectors" && (pathname === "/sectors" || (/^\/sectors\//.test(pathname) && !pathname.startsWith("/sectors/profiles"))))
-                || (to === "/sectors/profiles" && (pathname.startsWith("/sectors/profiles") || pathname.startsWith("/signals")))
-                || (to === "/my-research" && pathname.startsWith("/my-research"));
-              return <div key={to}>
-                <div className="flex items-center">
-                  <Link to={to} aria-label={label} aria-current={active ? "page" : undefined} title={compact ? label : undefined}
-                    onClick={() => { if (mobile) { setMobileOpen(false); requestAnimationFrame(() => mainRef.current?.focus()); } }}
-                    className={cn("workspace-nav-link relative z-[1] flex min-w-0 flex-1 items-center text-[13px] transition-colors",
-                      compact ? "justify-center p-2.5" : "gap-3 px-3 py-2.5",
-                      active ? "font-medium" : "text-muted-foreground hover:bg-muted/50 hover:text-foreground")}>
-                    <Icon className="h-4 w-4 shrink-0" />{!compact && <span>{label}</span>}{to === '/my-research' && pendingNavCount ? <span className="ml-auto rounded-full bg-primary/10 px-1.5 text-[11px] text-primary" aria-label={`${pendingNavCount} 项待处理`}>{pendingNavCount}</span> : null}
-                  </Link>
-                </div>
-              </div>;
+      <div className="workspace-shell">
+        <aside aria-label="产品侧栏" className="workspace-rail">
+          <Link to="/" aria-label="Vibe Finance 对话" className="workspace-rail-brand"><BrandMark className="h-7 w-7" /></Link>
+          <nav aria-label="工作台导航" className="workspace-rail-nav">
+            {NAV.map(({ to, icon: Icon, label, match }) => {
+              const active = match(pathname);
+              return <Link key={to} to={to} aria-label={label} aria-current={active ? "page" : undefined} className="workspace-nav-link relative">
+                <Icon aria-hidden="true" /><span>{label}</span>
+                {to === '/insights' && pendingNavCount ? <span className="workspace-nav-badge" aria-label={`${pendingNavCount} 项待处理`}>{pendingNavCount}</span> : null}
+              </Link>;
             })}
-            <div className={cn(
-              "workspace-nav-link flex min-w-0 items-center text-[13px] text-muted-foreground hover:bg-muted/50 hover:text-foreground",
-              compact && "justify-center",
-            )}>
-              <div id="dsh-settings" aria-label="设置" className="min-w-0 w-full" />
-            </div>
-            </div>
           </nav>
-          <div className={cn("border-t border-border", compact ? "p-1.5" : "p-3")}>
-            <div className={cn("flex items-center text-muted-foreground", compact ? "flex-col gap-3" : "justify-end gap-2")}>
-              {!mobile && <button onClick={() => setCollapsed(!collapsed)} aria-label={compact ? "展开侧栏" : "收起侧栏"} title={compact ? "展开侧栏" : "收起侧栏"}>
-                {compact ? <ChevronsRight className="h-3.5 w-3.5" /> : <ChevronsLeft className="h-3.5 w-3.5" />}
-              </button>}
-            </div>
+          <div className="workspace-rail-foot">
+            <div id="dsh-status" data-testid="ai-runtime-badge" className="px-1 text-center text-[10px] leading-3 text-[var(--text-3)] empty:hidden" />
+            <div id="dsh-settings" aria-label="模型设置座位" className="workspace-dsh-seat" />
           </div>
         </aside>
-        <div {...{ inert: mobile && mobileOpen ? "" : undefined }} className="flex min-w-0 flex-1 flex-col overflow-hidden">
-          <header className="workspace-topbar flex h-16 shrink-0 items-center justify-between gap-3 px-4 md:px-8">
-            <div className="flex min-w-0 items-center gap-3 text-xs">
-              <button ref={menuRef} aria-label="打开导航" onClick={() => setMobileOpen(true)} className="p-1 md:hidden"><Menu className="h-4 w-4" /></button>
-              <span className="hidden text-muted-foreground sm:inline">工作空间 /</span><strong className="truncate font-medium">{currentTitle}</strong>
+        <div className="workspace-stage">
+          <main ref={mainRef} id="workspace-main" tabIndex={-1} className="workspace-surface relative">
+            <div className="workspace-assistant-fallback absolute right-5 top-4 z-10 empty:hidden">
+              <FinanceAiDock triggerHost={assistantHost} showTrigger={pathname !== "/" && !pathname.startsWith("/insights/topics/")} renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />
             </div>
-            <FinanceAiDock showTrigger={pathname !== "/" && pathname !== "/watchlist" && !pathname.startsWith("/my-research/topics/")} renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />
-          </header>
-          <main ref={mainRef} id="workspace-main" tabIndex={-1} className="min-h-0 flex-1 overflow-auto">
             <ConversationWorkspace active={pathname === "/"}>
               <div key={pathname} className="workspace-page-enter">
                 {navigation.state !== "idle" && <p role="status" className="mb-3 text-sm text-muted-foreground">正在打开页面…</p>}
@@ -236,6 +83,7 @@ export function Layout() {
       </div>
       <TaskNotices />
       <WikiDrawer />
+      </AssistantSlotProvider>
       </EvidenceProvider>
     </AiPageProvider>
   );

@@ -73,7 +73,7 @@ export function CompanyNamePeek({ code, name }: { code: string; name: string }) 
       <span className="text-xs text-muted-foreground/50">{code}</span>
     </button>
     {open && rect && createPortal(
-      <div ref={panel} role="dialog" aria-label={`${name} 基本面`} className="finance-company-peek glass" style={{ width, left, top }}>
+      <div ref={panel} role="dialog" aria-label={`${name} 基本面`} className="finance-company-peek card" style={{ width, left, top }}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <p className="truncate font-medium">{name}</p>

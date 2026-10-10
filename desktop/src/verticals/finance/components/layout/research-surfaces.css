@@ -5,8 +5,8 @@
 :root {
   --finance-assistant-width: 36rem;
   --finance-assistant-inline: 1rem;
-  /* 顶栏 4rem + 与左侧内容卡片同样的呼吸间距，避免圆角顶到顶栏分隔线。 */
-  --finance-assistant-top: 5rem;
+  /* 与内容面同高：外壳没有顶栏，右侧面板和内容面一样上下各留 8px。 */
+  --finance-assistant-top: 0.5rem;
 }
 @media (min-width: 768px) {
   :root { --finance-assistant-inline: 2rem; }
@@ -26,7 +26,7 @@
   position: fixed;
   top: var(--finance-assistant-top);
   right: var(--finance-assistant-inline);
-  bottom: 0.75rem;
+  bottom: 0.5rem;
   z-index: 50;
   display: flex;
   width: min(var(--finance-assistant-width), calc(100vw - 1.5rem));
@@ -110,7 +110,6 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
   border: 1px solid hsl(var(--border));
   border-radius: 0.5rem;
   background: hsl(var(--card));
-  box-shadow: 0 12px 28px hsl(var(--foreground) / .08);
 }
 .finance-assistant-menu [role="option"] {
   display: block;
