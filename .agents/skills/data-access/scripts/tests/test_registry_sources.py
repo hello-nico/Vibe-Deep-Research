@@ -50,19 +50,15 @@ def test_all_modules_functions_and_mappers_importable():
         assert callable(getattr(mm, e["mapper"], None)), f"{e['id']}: mapper {e['mapper']} 不存在"
 
 
-def test_legacy_stage_plan_matches_phase0():
-    """legacy 8 脚本的阶段计划必须与 Phase 0 的 STAGE_SCRIPTS 一致(TS 侧从注册表读取,行为不变)。"""
+def test_only_trade_calendar_remains_legacy():
+    """独立脚本只保留在用交易日历，其余legacy端点不得重新进入动态注册表。"""
     reg = load_reg()
     plan: dict = {}
     for e in reg["endpoints"]:
         for st, lvl in e["stages"].items():
             if e["module"] == "legacy":
                 plan.setdefault(st, {"required": [], "optional": []})[lvl].append(e["id"])
-    assert plan["profile"]["required"] == ["fetch_profile", "fetch_quote", "fetch_trade_calendar"]
-    assert plan["financials"]["required"] == ["fetch_financials"]
-    assert plan["estimates"]["required"] == ["fetch_estimates"]
-    assert plan["valuation"]["optional"] == ["fetch_pe_history"]
-    assert plan["risk"]["optional"] == ["fetch_announcements", "fetch_kline"]
+    assert plan == {"profile": {"required": ["fetch_trade_calendar"], "optional": []}}
 
 
 def _ctx(**kw):
@@ -144,10 +140,10 @@ def test_fetch_endpoint_guards(tmp_path):
     p = subprocess.run([sys.executable, os.path.join(SCRIPTS, "fetch_endpoint.py"), "--endpoint", "no_such_ep", "--out-dir", str(out_dir)], capture_output=True, text=True)
     d = json.loads(p.stdout)
     assert p.returncode == 3 and d["status"] == "failed" and "注册表无端点" in d["errors"][0]["error"]
-    env = {k: v for k, v in os.environ.items() if k != "VRA_SEC_CONTACT"}
-    p = subprocess.run([sys.executable, os.path.join(SCRIPTS, "fetch_endpoint.py"), "--endpoint", "sec_filings", "--symbol", "AAPL", "--out-dir", str(out_dir)], capture_output=True, text=True, env=env)
-    d = json.loads(p.stdout)
-    assert p.returncode == 3 and "VRA_SEC_CONTACT" in d["errors"][0]["error"]
+    for retired in ["fetch_quote", "sec_filings"]:
+        p = subprocess.run([sys.executable, os.path.join(SCRIPTS, "fetch_endpoint.py"), "--endpoint", retired, "--out-dir", str(out_dir)], capture_output=True, text=True)
+        d = json.loads(p.stdout)
+        assert p.returncode == 3 and "注册表无端点" in d["errors"][0]["error"]
 
 
 def test_registry_args_match_function_signatures():

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """A 股交易日历(全市场维度):最近一个交易日、今天是否交易日、近 N 天日历。源:baostock `query_trade_dates`(零鉴权 TCP)。
 
-用途:判定 fetch_quote 的报价日期差异是"全市场休市 / 盘前"还是"个股停牌 / 陈旧"(company-research §2 依赖矩阵)。
+用途:判定报价日期差异是"全市场休市 / 盘前"还是"个股停牌 / 陈旧"。
 输出(均为 evidence,symbol=MARKET,market=CN):
   last_trading_day       最近一个交易日(≤ 今天)
   previous_trading_day   上一个交易日(< last_trading_day)
@@ -9,7 +9,7 @@
   session_phase          pre_open(交易日 09:30 前)/ trading(09:30–15:00)/ post_close(15:00 后)/ non_trading_day
   reference_quote_day    此刻一条"新鲜"报价应携带的日期:pre_open → previous_trading_day;其余 → last_trading_day
 判定规则(SOP 引用):quote_date == reference_quote_day → 正常;quote_date < reference_quote_day → 该股停牌或数据陈旧 → stale;
-  pre_open 时 fetch_quote 的 is_stale=true(成交额 0 且现价 == 昨收)是盘前正常现象,不算僵尸。
+  pre_open 时报价成交额 0 且现价 == 昨收可以是盘前状态,不能单凭它判为陈旧。
 与个股无关,--symbol 仅用于落盘归档(仍校验格式)。
 用法:python fetch_trade_calendar.py --symbol 300308 --days 30 [--out-dir ...]
 """

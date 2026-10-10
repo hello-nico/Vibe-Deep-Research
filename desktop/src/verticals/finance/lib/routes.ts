@@ -17,6 +17,7 @@ export const insightsTopicPath = (hex: string) => `/insights/topics/${hex}`;
 export function legacyRedirect(pathname: string, search = ''): string | null {
   const params = new URLSearchParams(search);
   const path = pathname.replace(/\/+$/, '') || '/';
+  if (path === '/sectors' || path.startsWith('/sectors/') || path === '/signals' || path.startsWith('/signals/')) return '/watch';
   if (path === '/watchlist') return '/watch';
   if (path === '/research') {
     const company = params.get('company');

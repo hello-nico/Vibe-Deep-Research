@@ -59,7 +59,7 @@ export function loadObjectBadges(slug: string): Promise<string[]> {
 
 export function badgeHref(slug: string, badge: string, row?: StatusRow): string | undefined {
   const base = slug.startsWith('companies/') ? watchPathOfCompany(slug)
-    : slug.startsWith('industries/nbs-') ? `/sectors/${encodeURIComponent(slug.slice('industries/nbs-'.length))}` : undefined;
+    : slug.startsWith('industries/nbs-') ? '/watch' : undefined;
   if (!base) return undefined;
   if (badge === '有新资料') return `${base}${base.includes('?') ? '&' : '?'}refresh=confirm`;
   if (badge === '草案待确认') return row?.drafts?.latest?.status === 'pending'

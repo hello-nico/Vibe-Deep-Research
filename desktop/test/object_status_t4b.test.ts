@@ -16,7 +16,7 @@ test('徽标排序与去处映射', () => {
   assert.deepEqual(status.statusBadges(row), ['建立中', '草案待确认', '待确认维护', '有新资料', '报告已过期']);
   assert.equal(status.badgeHref(row.slug, '草案待确认', row), '/insights?tab=tasks&draft=draft-123');
   assert.equal(status.badgeHref(row.slug, '有新资料', row), '/watch/600900?refresh=confirm');
-  assert.equal(status.badgeHref('industries/nbs-电力', '报告已过期', row), '/sectors/%E7%94%B5%E5%8A%9B?view=report');
+  assert.equal(status.badgeHref('industries/nbs-电力', '报告已过期', row), '/watch?view=report');
   assert.equal(status.badgeHref(row.slug, '检查资料中', row), undefined);
 });
 

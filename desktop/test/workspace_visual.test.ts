@@ -174,7 +174,7 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   assert.match(assistantCss, /finance-assistant-menu/);
 });
 
-test("行业、产业、资料共用对象卡；关注用表格加个股卡；页面不再引用玻璃卡样式", () => {
+test("资料共用对象卡；关注用表格加个股卡；页面不再引用玻璃卡样式", () => {
   const card = read("verticals/finance/components/IndustryDashboardCard.tsx");
   const objectCard = read("verticals/finance/components/ui/ObjectCard.tsx");
   const cards = read("verticals/finance/components/ui/Card.tsx");
@@ -185,10 +185,7 @@ test("行业、产业、资料共用对象卡；关注用表格加个股卡；�
   assert.match(objectCard, /object-card-body/);
   assert.match(objectCard, /object-card-foot/);
   for (const name of ["GroupCard", "GroupRow", "Panel", "Metric", "StatusPill", "TableWrap", "Sparkline"]) assert.match(cards, new RegExp(`export function ${name}\\b`), name);
-  assert.match(read("verticals/finance/components/ui/Button.tsx"), /variant\?: ButtonVariant|ButtonVariant = "primary" \| "secondary" \| "text" \| "icon"/);
   for (const path of [
-    "verticals/finance/pages/IndustryCenter.tsx",
-    "verticals/finance/pages/IndustryProfiles.tsx",
     "verticals/finance/pages/UploadedReports.tsx",
   ]) {
     assert.match(read(path), /DashboardCard/, path);
@@ -206,12 +203,10 @@ test("行业、产业、资料共用对象卡；关注用表格加个股卡；�
   assert.match(watch, /Promise\.all\(\[addWatch\(symbol\), addToRoster\(symbol\)\]\)|await addWatch\(code\)[\s\S]*await addToRoster\(code\)/);
   assert.doesNotMatch(watch, /useAiPage\(\{[^}]*key: "watchlist"/);
   assert.match(read("verticals/finance/assistant/snapshot.ts"), /已渲染 Wiki/);
-  assert.match(read("verticals/finance/pages/IndustryCenter.tsx"), /buildWikiPageSnapshot/);
   const stock = read("verticals/finance/pages/CompanyWiki.tsx");
   assert.match(stock, /buildDirectorySnapshot/);
   assert.doesNotMatch(stock, /DashboardPanel|DashboardCard|view=report|WikiReader|资料待补充|图文报告/);
-  assert.match(watch, /\/sectors\/profiles\//);
-  assert.doesNotMatch(watch, /to=\{`\/sectors\/\$\{/);
+  assert.doesNotMatch(watch, /\/sectors\//);
   assert.match(read("verticals/finance/components/layout/Layout.tsx"), /TaskNotices/);
   // 页面和公共组件不再使用玻璃卡类、光晕、私有阴影。
   const dir = new URL("../src/verticals/finance/", import.meta.url);

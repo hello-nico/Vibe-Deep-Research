@@ -6,7 +6,6 @@ import { workspaceSelectMatches, workspaceSelectMenuBox } from "../src/verticals
 const read = (path: string) => readFileSync(new URL(`../src/${path}`, import.meta.url), "utf8");
 
 const SELECT_PAGES = [
-  "verticals/finance/pages/IndustryCenter.tsx",
   "verticals/finance/pages/CompanyWiki.tsx",
   "verticals/finance/components/ResearchResult.tsx",
   "verticals/finance/pages/UploadedReports.tsx",
@@ -57,20 +56,8 @@ test("可搜索下拉按名称和附加信息过滤", () => {
   assert.equal(workspaceSelectMatches(option, "贵州茅台"), false);
 });
 
-test("行业与产业研究列表共用检索条，按名称和附加信息过滤", () => {
-  const center = read("verticals/finance/pages/IndustryCenter.tsx");
-  const profiles = read("verticals/finance/pages/IndustryProfiles.tsx");
+test("公共页首容纳检索条，名称和附加信息均可过滤", () => {
   const header = read("verticals/finance/components/ui/PageHeader.tsx");
-  for (const source of [center, profiles]) {
-    assert.match(source, /WorkspaceSearch/);
-    assert.match(source, /workspaceSelectMatches/);
-    assert.match(source, /search=\{/);
-  }
-  assert.match(center, /placeholder="搜索行业名称"/);
-  assert.match(center, /没有匹配的行业/);
-  assert.match(center, /searchPlaceholder="搜索行业"/);
-  assert.match(profiles, /placeholder="搜索产业名称"/);
-  assert.match(profiles, /没有匹配的产业/);
   assert.match(header, /search\?: ReactNode/);
   // 页首：标题在左，搜索、动作与问助手在右同一行；说明默认不用。
   assert.match(header, /\{search\}\s*\{actions\}\s*\{assistant && <AssistantSlot \/>\}/);

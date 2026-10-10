@@ -898,7 +898,7 @@ function TopicSubject({ subject, industries }: { subject: string; industries: Ma
   const industry = /^industry:sw2:([0-9A-Z.]+)$/.exec(subject)?.[1];
   if (industry) {
     const name = industries.get(industry);
-    return <Link to={`/sectors/profiles/${encodeURIComponent(industry)}`} className="rl-chip rl-object-chip" title={`打开产业研究：${name || industry}`}>{name || industry}</Link>;
+    return <span className="rl-chip rl-object-chip">{name || industry}</span>;
   }
   // company:600900.SH → companies/600900-sh，与任务列表的对象标签同一套登记。
   const company = /^company:(\d{6}\.(?:SH|SZ|BJ))$/i.exec(subject)?.[1];

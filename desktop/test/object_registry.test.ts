@@ -7,11 +7,11 @@ const { objectHref, objectLabel, registeredObject, resolveObjectLabels, remember
 
 test('对象登记层给出主页、版本查询和抽屉', () => {
   assert.equal(objectHref('companies/600309'), '/watch/600309');
-  assert.equal(objectHref('industries/nbs-电力'), '/sectors/%E7%94%B5%E5%8A%9B');
+  assert.equal(objectHref('industries/nbs-电力'), '/watch');
   const doc = `document:${'a'.repeat(32)}/r1/${'b'.repeat(64)}`;
   assert.match(objectHref(doc) || '', /\/my-reports\/read\/a{32}\?from=%2F&revision=r1&hash=b{64}/);
   assert.equal(objectHref('topic:abcdef123456'), '/insights/topics/abcdef123456');
-  assert.equal(objectHref(`profile:sw2:801010:${'a'.repeat(64)}`), '/sectors/profiles/801010');
+  assert.equal(objectHref(`profile:sw2:801010:${'a'.repeat(64)}`), '/watch');
   assert.equal(registeredObject('themes/example')?.drawer, true);
   assert.equal(objectHref('themes/example'), undefined);
   assert.equal(registeredObject('comparisons/example')?.drawer, true);
@@ -51,9 +51,9 @@ test('研究材料页面已下线，旧路径由通配路由重定向', () => {
   assert.match(source, /path: "\/my-research\/\*", element: <LegacyRedirect \/>/);
 });
 
-test('申万旧页仅在产业研究已就绪时映射到主页', async () => {
+test('申万旧页不论是否就绪均回关注，产业读取契约保留', async () => {
   const original = globalThis.fetch;
-  assert.equal(objectHref('industries/801161-si'), undefined);
+  assert.equal(objectHref('industries/801161-si'), '/watch');
   assert.equal(objectLabel('industries/801161-si'), '产业研究');
   globalThis.fetch = async () => new Response(JSON.stringify({ items: [
     { industry_code: '801161.SI', industry_name: '电力', status: 'ready' },
@@ -61,8 +61,8 @@ test('申万旧页仅在产业研究已就绪时映射到主页', async () => {
   ] }), { status: 200, headers: { 'content-type': 'application/json' } });
   try {
     await loadReadyIndustryProfiles();
-    assert.equal(objectHref('industries/801161-si'), '/sectors/profiles/801161.SI');
-    assert.equal(objectHref('industries/801162-si'), undefined);
+    assert.equal(objectHref('industries/801161-si'), '/watch');
+    assert.equal(objectHref('industries/801162-si'), '/watch');
   } finally { globalThis.fetch = original; }
 });
 

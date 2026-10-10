@@ -423,10 +423,6 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   const reader = readFileSync(new URL("../src/verticals/finance/components/ResearchKnowledge.tsx", import.meta.url), "utf8");
   assert.match(reader, /图文报告/);
   assert.match(reader, /WikiViewTabs/);
-  const industry = readFileSync(new URL("../src/verticals/finance/pages/IndustryCenter.tsx", import.meta.url), "utf8");
-  assert.match(industry, /WikiViewTabs/);
-  assert.match(industry, /hideToggle/);
-  assert.match(industry, /selected\.published && <WikiViewTabs/);
   assert.match(stock, /location="toolbar"/);
   assert.match(company, /companyPageProgress/);
   assert.doesNotMatch(stock, /ResearchRefreshSurface/);
@@ -559,17 +555,10 @@ test("开发代理把宿主绑定和发布入口转到 DSH", () => {
   assert.doesNotMatch(source, /finance-stage-model/);
 });
 
-test("板块中心目录页不会把空 key 当成第一项行业", () => {
-  const source = readFileSync(new URL("../src/verticals/finance/pages/IndustryCenter.tsx", import.meta.url), "utf8");
-  assert.match(source, /const selected = key/);
-  assert.doesNotMatch(source, /endsWith\(key \|\| ""\)/);
-});
-
-test("路由区分我的研究、议题工作区与 41 行业入口", () => {
+test("路由区分洞悉、议题工作区与退役行业入口", () => {
   const source = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
   assert.match(source, /path: "\/insights"/);
   assert.match(source, /path: "\/insights\/topics\/:topicHex"/);
-  assert.match(source, /IndustryCenter/);
-  assert.match(source, /path: "\/sectors\/profiles"/);
+  assert.match(source, /path: "\/sectors\/\*", element: <LegacyRedirect \/>/);
   assert.doesNotMatch(source, /notes\/legacy|sectors\/legacy/);
 });

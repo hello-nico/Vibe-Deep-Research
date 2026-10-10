@@ -215,19 +215,13 @@ test('Wiki 快照看加载中与缺页，目录不静默丢条目', () => {
   assert.doesNotMatch(directory, /【页面快照】/);
 });
 
-test('五页 snapshot builder 与页面组装都不自写【页面快照】', () => {
+test('现用 snapshot builder 与页面组装都不自写【页面快照】', () => {
   const pages = [
     readFileSync(new URL('../src/verticals/finance/pages/CompanyWiki.tsx', import.meta.url), 'utf8'),
-    readFileSync(new URL('../src/verticals/finance/pages/IndustryCenter.tsx', import.meta.url), 'utf8'),
-    readFileSync(new URL('../src/verticals/finance/pages/IndustryProfiles.tsx', import.meta.url), 'utf8'),
     readFileSync(new URL('../src/verticals/finance/lib/feedPageContext.ts', import.meta.url), 'utf8'),
     readFileSync(new URL('../src/verticals/finance/pages/DailyReview.tsx', import.meta.url), 'utf8'),
   ];
   for (const source of pages) assert.doesNotMatch(source, /【页面快照】/);
-  assert.doesNotMatch(
-    readFileSync(new URL('../src/verticals/finance/pages/IndustryProfiles.tsx', import.meta.url), 'utf8'),
-    /slice\(0,\s*5\)/,
-  );
 });
 
 test('研究纪律文件保留 shared-research-principles 标记', () => {

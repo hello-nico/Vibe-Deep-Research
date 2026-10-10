@@ -57,7 +57,7 @@ export async function readableRelatedWikiRefs(refs: readonly string[]): Promise<
   }));
 }
 
-/** A legacy SW industry link is navigable only when its current profile is ready. */
+/** 研究材料仍调用产业就绪读取；退役页面链接统一回关注。 */
 export async function loadReadyIndustryProfiles(): Promise<void> {
   if (profilesUntil > Date.now()) return;
   if (!profilesRequest) profilesRequest = researchRead<{ items: { industry_code: string; industry_name?: string; status: string }[] }>('/industries/profiles')
@@ -111,10 +111,7 @@ function wikiEntry(kind: 'company' | 'industry' | 'theme' | 'comparison', prefix
 }
 const entries: Entry[] = [
   wikiEntry('company', 'companies/', 'companies', '公司研究', watchPathOfCompany),
-  wikiEntry('industry', 'industries/', 'industries', '行业研究', id => {
-    const key = id.replace(/^industries\/(?:nbs-)?/, '');
-    return key ? `/sectors/${encodeURIComponent(key)}` : undefined;
-  }),
+  wikiEntry('industry', 'industries/', 'industries', '行业研究', () => '/watch'),
   {
     kind: 'document', parse: ref => researchTarget(ref)?.kind === 'document' ? ref : undefined,
     href: ref => { const doc = parseDocumentRef(ref); return doc ? `/my-reports/read/${encodeURIComponent(doc.document_id)}?${documentReadSearch(doc)}` : undefined; },
@@ -156,7 +153,7 @@ const entries: Entry[] = [
   },
   {
     kind: 'profile', parse: ref => researchTarget(ref)?.kind === 'profile' ? ref : undefined,
-    href: id => { const code = /^profile:sw2:([^:]+):/.exec(id)?.[1]; return code ? `/sectors/profiles/${encodeURIComponent(code)}` : undefined; },
+    href: () => '/watch',
     label: ref => cachedObjectLabel(ref) || '产业研究', resolve: async () => {},
   },
   wikiEntry('theme', 'themes/', 'themes', '主题研究', () => undefined),
@@ -174,7 +171,7 @@ export function registeredObject(ref: string): RegisteredObject | undefined {
   const legacyIndustry = /^industries\/(\d{6})-si$/i.exec(ref);
   if (legacyIndustry) {
     const code = `${legacyIndustry[1]}.SI`;
-    return { kind: 'profile', ref, id: code, label: '产业研究', href: readyProfiles.has(code) ? `/sectors/profiles/${encodeURIComponent(code)}` : undefined };
+    return { kind: 'profile', ref, id: code, label: '产业研究', href: '/watch' };
   }
   for (const entry of entries) {
     const id = entry.parse(ref);

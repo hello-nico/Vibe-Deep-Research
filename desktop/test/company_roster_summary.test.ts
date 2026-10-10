@@ -37,11 +37,10 @@ test("名单摘要辅助函数按预览卡规则取值", () => {
 });
 
 test("关注保持画像入口，改为独立个股页研究进度，撤下报告入口", () => {
-  assert.match(companyWiki, /\/sectors\/profiles\/\$\{encodeURIComponent\(row\.summary\.industry_code\.trim\(\)\)\}/);
-  assert.doesNotMatch(companyWiki, /to=\{`\/sectors\/\$\{/);
+  assert.doesNotMatch(companyWiki, /\/sectors\//);
   assert.doesNotMatch(companyWiki, /\/wiki\/reports\?slug=|view=report|WikiReader/);
   assert.match(companyWiki, /companyPageProgress\(state\)/);
-  assert.match(companyWiki, /status === "ready"/);
+  assert.doesNotMatch(companyWiki, /industryReady|\/industries\/profiles/);
   assert.doesNotMatch(stockPage, /WikiReader|view=report/);
   assert.match(companyWiki, /state\?\.research\?\.sections/);
   assert.doesNotMatch(companyWiki, /row\.summary\?\.one_liner/);

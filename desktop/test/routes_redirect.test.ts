@@ -19,16 +19,19 @@ test("旧入口按 N3 对照表重定向，/evidence 与新地址不动", () => 
   assert.equal(legacyRedirect("/my-research", "?tab=tasks&draft=d1"), "/insights?tab=tasks&draft=d1");
   assert.equal(legacyRedirect("/my-research/topics/abc123def456"), "/insights/topics/abc123def456");
   assert.equal(legacyRedirect("/my-research/material"), "/insights");
-  for (const kept of ["/evidence", "/watch", "/watch/600863", "/feed", "/insights", "/insights/topics/abc", "/sectors", "/signals", "/my-reports", "/settings", "/"]) assert.equal(legacyRedirect(kept), null, kept);
+  for (const retired of ["/sectors", "/sectors/", "/sectors/电力", "/sectors/profiles", "/sectors/profiles/801010", "/sectors/profiles/801010/deep", "/signals", "/signals/gpu", "/signals/gpu/history"])
+    assert.equal(legacyRedirect(retired, "?view=report&refresh=confirm"), "/watch", retired);
+  for (const kept of ["/evidence", "/watch", "/watch/600863", "/feed", "/insights", "/insights/topics/abc", "/my-reports", "/settings", "/sectors-other", "/signals-other", "/"]) assert.equal(legacyRedirect(kept), null, kept);
   assert.equal(watchPath("00700.HK"), "/watch/00700.HK");
   assert.equal(watchPathOfCompany("companies/600863-sh"), "/watch/600863");
 });
 
 test("路由表为旧入口挂重定向，议题与证据深链不失效", () => {
   const source = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
-  for (const path of ["/watchlist", "/research", "/daily-review", "/intel", "/intel/:tab", "/my-research", "/my-research/topics/:topicHex", "/my-research/*"])
+  for (const path of ["/sectors", "/sectors/*", "/signals", "/signals/*", "/watchlist", "/research", "/daily-review", "/intel", "/intel/:tab", "/my-research", "/my-research/topics/:topicHex", "/my-research/*"])
     assert.match(source, new RegExp(`path: "${path.replace(/[/*:]/g, "\\$&")}", element: <LegacyRedirect />`), path);
   assert.match(source, /path: "\/evidence", lazy/);
   assert.match(source, /path: "\/insights\/topics\/:topicHex", lazy/);
   assert.match(source, /legacyRedirect\(pathname, search\) \?\? "\/"/);
+  assert.doesNotMatch(source, /import\("@\/pages\/(?:IndustryCenter|IndustryProfiles|Signals)"\)/);
 });

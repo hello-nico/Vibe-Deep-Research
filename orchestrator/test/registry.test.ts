@@ -20,8 +20,8 @@ test("用户端点目录与当前注册表逐项一致，不只验证标题数�
 
 test("fetchArgv:legacy 走脚本自身;其余走 fetch_endpoint.py;symbol_kind=none 不传 --symbol", () => {
   const o = { scriptsDir: "/s", symbol: "300308", runDir: "/r" };
-  assert.deepEqual(fetchArgv({ id: "fetch_quote", module: "legacy", function: "fetch_quote.py", market: ["CN"] }, "fetch_quote", o), ["/s/fetch_quote.py", "--symbol", "300308", "--out-dir", "/r"]);
-  assert.deepEqual(fetchArgv(undefined, "fetch_quote", o), ["/s/fetch_quote.py", "--symbol", "300308", "--out-dir", "/r"]);
+  assert.deepEqual(fetchArgv({ id: "fetch_trade_calendar", module: "legacy", function: "fetch_trade_calendar.py", market: ["CN"] }, "fetch_trade_calendar", o), ["/s/fetch_trade_calendar.py", "--symbol", "300308", "--out-dir", "/r"]);
+  assert.deepEqual(fetchArgv(undefined, "fetch_trade_calendar", o), ["/s/fetch_trade_calendar.py", "--symbol", "300308", "--out-dir", "/r"]);
   assert.deepEqual(fetchArgv({ id: "em_reports", module: "eastmoney", function: "eastmoney_reports", market: ["CN"], symbol_kind: "cn6" }, "em_reports", o), ["/s/fetch_endpoint.py", "--endpoint", "em_reports", "--out-dir", "/r", "--symbol", "300308"]);
   assert.deepEqual(fetchArgv({ id: "em_hot_rank", module: "eastmoney", function: "em_hot_rank", market: ["CN"], symbol_kind: "none" }, "em_hot_rank", o), ["/s/fetch_endpoint.py", "--endpoint", "em_hot_rank", "--out-dir", "/r"]);
 });

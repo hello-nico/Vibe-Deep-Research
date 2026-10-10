@@ -107,7 +107,7 @@ test("single-flight 取消只影响该订阅者;全部取消后可立即重试",
 test("🔴 cache_only 没快照就报错,绝不偷偷联网", async () => {
   const ctx = realRepoCtx();
   await assert.rejects(
-    () => fetchEndpoint(ctx, { endpoint: "fetch_quote", symbol: "300308", consistency: { mode: "cache_only" } }),
+    () => fetchEndpoint(ctx, { endpoint: "tx_quote", symbol: "300308", consistency: { mode: "cache_only" } }),
     (e: unknown) => e instanceof ServiceError && e.code === "no_snapshot",
   );
 });

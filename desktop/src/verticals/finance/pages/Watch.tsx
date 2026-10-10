@@ -1,5 +1,5 @@
 import { Fragment, useContext, useEffect, useMemo, useState } from "react";
-import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { ChartCandlestick, LayoutGrid, List, Plus, RefreshCw, TrendingUp, X } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
@@ -13,7 +13,7 @@ import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { ResultCard } from "../components/ResearchResult";
 import { addCodes, addWatch, loadWatch, removeWatch } from "../lib/watchlist";
 import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/researchRoster";
-import { aShareQualified, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, researchRead, wikiPages, type CompanyPageSummary, type WikiItem } from "../lib/research";
+import { aShareQualified, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, wikiPages, type CompanyPageSummary, type WikiItem } from "../lib/research";
 import { marketOfSymbol } from "../lib/marketSymbol";
 import { watchPath } from "../lib/routes";
 import { companyPageProgress, companyPageTaskActive, type CompanyPageServices, type CompanyPageState } from "../lib/companyPage";
@@ -60,7 +60,7 @@ function WatchMarketPreview({ symbol }: { symbol: string }) {
   return <ResultCard payload={payload} sourceKey={`watch:${symbol}`} />;
 }
 
-type Row = { symbol: string; name: string; quote?: Quote; summary?: CompanyPageSummary; supported: boolean; industryReady: boolean };
+type Row = { symbol: string; name: string; quote?: Quote; summary?: CompanyPageSummary; supported: boolean };
 type ItemProps = {
   row: Row; view: "grid" | "list"; state?: CompanyPageState; chartOpen: boolean;
   onOpen: () => void; onChart: () => void; onRemove: () => void;
@@ -104,8 +104,7 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: It
       <td className={cn("col-num", tone(quote?.change_pct))}>{quote?.price != null ? financialNumber(quote.price) : "—"}</td>
       <td className={cn("col-num", tone(quote?.change_pct))}>{pct(quote?.change_pct)}</td>
       <td className="col-num text-[var(--text-2)]">{quote?.pe_ttm != null ? financialNumber(quote.pe_ttm) : "—"}</td>
-      <td className="text-[var(--text-2)]">{industry && row.industryReady && row.summary?.industry_code
-        ? <Link className="hover:underline" to={`/sectors/profiles/${encodeURIComponent(row.summary.industry_code.trim())}`}>{industry}</Link> : industry || "—"}</td>
+      <td className="text-[var(--text-2)]">{industry || "—"}</td>
       <td className="max-w-[26rem] text-[var(--text-2)]"><span className="line-clamp-1">{judgment || <span className="text-[var(--text-4)]">—</span>}</span></td>
       <td className="col-num text-[var(--text-3)]">{asOf || "—"}</td>
       <td className="col-action"><div className="row-actions">
@@ -141,7 +140,6 @@ export function Watch() {
   const [input, setInput] = useState("");
   const [hint, setHint] = useState("");
   const [chartOpen, setChartOpen] = useState<string | null>(null);
-  const [readyProfiles, setReadyProfiles] = useState(new Set<string>());
   const [confirmElement, ask] = useConfirm();
   const overviewKey = `finance-watch-scroll:${query}`;
   const watched = loadWatch();
@@ -151,8 +149,6 @@ export function Watch() {
   useEffect(() => {
     const controller = new AbortController();
     void wikiPages("companies", controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => {});
-    void researchRead<{ items: { code?: string; industry_code?: string; status: string }[] }>("/industries/profiles", { signal: controller.signal })
-      .then(result => { if (!controller.signal.aborted) setReadyProfiles(new Set(result.items.filter(item => item.status === "ready").map(item => (item.industry_code || item.code || "").toUpperCase()))); }).catch(() => {});
     return () => controller.abort();
   }, [revision]);
   useEffect(() => {
@@ -164,7 +160,7 @@ export function Watch() {
   const rows: Row[] = symbols.map(symbol => {
     const quote = quotes[symbol];
     const page = wikiBySlug.get(companySlug(symbol) || symbol);
-    return { symbol, name: quote?.name || page?.title || symbol, quote, summary: page?.summary, supported: marketOfSymbol(symbol) === "CN", industryReady: readyProfiles.has((page?.summary?.industry_code || "").toUpperCase()) };
+    return { symbol, name: quote?.name || page?.title || symbol, quote, summary: page?.summary, supported: marketOfSymbol(symbol) === "CN" };
   });
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter(row => `${row.symbol} ${row.name}`.toLowerCase().includes(needle)) : rows;
