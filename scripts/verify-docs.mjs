@@ -12,7 +12,7 @@ const errors = [];
 const fail = (message) => errors.push(message);
 
 const allowed = {
-  [docs]: ["README.md", "task-protocol.md", "整体验收规范.md", "开发工作流范式.md", "contracts", "decisions", "tasks"],
+  [docs]: ["README.md", "task-protocol.md", "design.md", "整体验收规范.md", "开发工作流范式.md", "contracts", "decisions", "tasks"],
   [join(docs, "decisions")]: ["proposed", "implemented", "rejected"],
   [join(docs, "tasks")]: ["active", "archived"],
 };

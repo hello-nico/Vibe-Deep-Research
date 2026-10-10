@@ -49,3 +49,4 @@
 - `docs/tasks/archived/` 冻结：不编辑、不作为现行依据；只允许新文件移入。
 - 工程不变量见 [invariants](docs/contracts/invariants.md) 13–18；`node scripts/verify-docs.mjs` 检查文档结构与链接，`node scripts/verify-invariants.mjs` 检查已机械化的不变量；两者都在 CI 中运行。
 - 协作方式、Task 模板、并行与合并、审阅要点见 [开发工作流范式](docs/开发工作流范式.md)。
+- 界面视觉遵循[视觉设计协议](docs/design.md)：改界面先改协议再改代码，不按截图逐页修补。
