@@ -2,9 +2,9 @@
 
 工作台所有页面（关注、个股、行业、产业链、动态、洞悉、资料、设置、任务和以后新增的对象）共同遵守的视觉规格。改界面先改本文件，再改代码；不按截图逐页修补。
 
-样张：Artifact「工作台卡片体系」（https://claude.ai/artifact/C3GiU3WjJiskExCYDTwEUc）与「工作台外壳样张」（https://claude.ai/artifact/MJrxZZqBLSsaSwYvuoefJQ）。两者与本文件不一致时以本文件为准。设计方法参考 grok bot（本地参考源码与参数见[视觉基础过程记录](tasks/active/工作台视觉基础_Task_2026-10-10.log.md)），只借方法，不照搬外观。
+样张：Artifact「工作台卡片体系」（https://claude.ai/artifact/C3GiU3WjJiskExCYDTwEUc）与「工作台外壳样张」（https://claude.ai/artifact/MJrxZZqBLSsaSwYvuoefJQ）。两者与本文件不一致时以本文件为准。设计方法参考 grok bot（本地参考源码与参数见[视觉基础过程记录](tasks/archived/工作台视觉基础_Task_2026-10-10.log.md)），只借方法，不照搬外观。
 
-状态：2026-10-10 用户确认方向；落地见 [工作台视觉基础](tasks/active/工作台视觉基础_Task_2026-10-10.md)（UI-0，与 T8a 导航收敛合并实施）。落地前的页面逐步迁移，新页面直接遵守。
+状态：2026-10-10 用户确认方向；落地见 [工作台视觉基础](tasks/archived/工作台视觉基础_Task_2026-10-10.md)（UI-0，与 T8a 导航收敛合并实施）。落地前的页面逐步迁移，新页面直接遵守。
 
 ## 1. 原则
 
