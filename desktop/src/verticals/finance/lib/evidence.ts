@@ -1,5 +1,5 @@
 import { researchRead } from './research';
-import { documentDisplayTitle } from './documentTitle';
+import { documentDisplayTitle, reportTitleForDisplay } from './documentTitle';
 import { objectLabel } from './objectRegistry';
 import { providerDisclosure, providerSnapshot } from './wikiFacts';
 
@@ -53,7 +53,8 @@ export async function loadEvidence(ref: string, signal: AbortSignal): Promise<Ev
     const document = await researchRead<{ title?: string; symbol?: string; reporting_period?: string | null; document_type?: string }>(`/documents/${encodeURIComponent(block.document_id)}`, { signal });
     const companySlug = document.symbol ? `companies/${document.symbol.toLowerCase().replace('.', '-')}` : '';
     const company = companySlug && objectLabel(companySlug) !== companySlug ? objectLabel(companySlug) : document.symbol || '';
-    const title = documentDisplayTitle(document.title, document.reporting_period, DOCUMENT_KIND[document.document_type || ''] || '资料', company);
+    const named = documentDisplayTitle(document.title, document.reporting_period, DOCUMENT_KIND[document.document_type || ''] || '资料', company);
+    const title = document.document_type === 'research_report' ? reportTitleForDisplay(named) : named;
     return { title, text: block.text, page: block.page, block, related: [] };
   }
   const groups = Array.isArray(data.support_groups) ? data.support_groups : [];

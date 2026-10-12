@@ -1,0 +1,1557 @@
+{
+ "packets": {
+  "300750": {
+   "symbol": "300750.SZ",
+   "as_of": "2026-10-12",
+   "basisVersion": "ecd92487ce96f89af96a82158bcd04844be5dad12704af3378058fccd89ac346",
+   "financial_period": "FY2025",
+   "identity": {
+    "symbol": "300750.SZ",
+    "name": "宁德时代",
+    "industry_name": "电池",
+    "parent": "电力设备"
+   },
+   "fields": {
+    "revenue": {
+     "field_id": "revenue",
+     "metric": "revenue",
+     "value": "423701834000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:300750.SZ:revenue:2026-10-12T14:50:04.982741+08:00:54dfd26640693a31ec575dee"
+    },
+    "gross_margin": {
+     "field_id": "gross_margin",
+     "metric": "gross_margin",
+     "value": "26.27284757044502195853133834",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度合并收入与营业成本计算",
+     "status": "sourced",
+     "source_ref": 2
+    },
+    "net_profit_attributable": {
+     "field_id": "net_profit_attributable",
+     "metric": "net_profit_attributable",
+     "value": "72201282000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:300750.SZ:net_profit_attributable:2026-10-12T14:50:04.982741+08:00:2577e58113270822ea8b7d9f"
+    },
+    "net_profit_ex_nonrecurring": {
+     "field_id": "net_profit_ex_nonrecurring",
+     "metric": "net_profit_ex_nonrecurring",
+     "value": "64507864000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "合并",
+     "status": "verified",
+     "source_ref": "source:87f5ce98386e4f71ab2f0311a887fcbf:5dda69e10f29:r-e39e561a317744cc:p4:b8"
+    },
+    "operating_cash_flow": {
+     "field_id": "operating_cash_flow",
+     "metric": "operating_cash_flow",
+     "value": "133219982000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:300750.SZ:operating_cash_flow:2026-10-12T14:50:04.982741+08:00:ef44c0fccc0df3c9d38c32bf"
+    },
+    "capex_cash": {
+     "field_id": "capex_cash",
+     "metric": "capex_cash",
+     "value": "42344558000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:300750.SZ:capex_cash:2026-10-12T14:50:04.982741+08:00:7e4b0e01e5a49f6bf4f4cc68"
+    },
+    "dividend_paid": {
+     "field_id": "dividend_paid",
+     "metric": "dividend_paid",
+     "period": "FY2025",
+     "status": "gap",
+     "reason": "方案输入缺口：缺上一年度方案；缺方案股本基数；缺年内已实施中期分红或明确无中期分红的原文"
+    },
+    "residual_cash": {
+     "field_id": "residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "输入缺失或未核对，不能计算"
+    },
+    "shares": {
+     "field_id": "shares",
+     "metric": "shares",
+     "value": 4627249686,
+     "unit": "股",
+     "period": "2026-10-12",
+     "scope": "报价时点期末总股数，非报告期末变动生效日",
+     "status": "sourced",
+     "reason": "未取得可对账的定期报告股数读数",
+     "source_ref": "provider:tencent:300750.SZ:shares:2026-10-12T14:50:06+08:00:09c43579b0abbc9441866303"
+    },
+    "dividend_per_share": {
+     "field_id": "dividend_per_share",
+     "metric": "dividend_per_share",
+     "value": "6.957",
+     "unit": "元/股",
+     "period": "FY2025",
+     "scope": "普通股含税利润分配方案，非当期付款",
+     "status": "verified",
+     "source_ref": "source:7facbbe90e5c4558a6b229ba1f2d34bb:ddeae5252007:r-521d8f08c6744c66:p58:b10"
+    },
+    "price": {
+     "field_id": "price",
+     "metric": "price",
+     "value": "298.44",
+     "unit": "元/股",
+     "period": "2026-10-12",
+     "scope": "前复权序列最后交易日收盘（最新基准价）",
+     "status": "sourced",
+     "source_ref": "result:f10e8f5474034c1ba2a08e05d1b038d2"
+    },
+    "pe": {
+     "field_id": "pe",
+     "metric": "pe",
+     "value": "16.24651346182997687827473706",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / provider TTM归母净利",
+     "status": "verified",
+     "source_ref": 4
+    },
+    "pb": {
+     "field_id": "pb",
+     "metric": "pb",
+     "value": "3.640286001157073170577401233",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / 同期普通股归母净资产",
+     "status": "verified",
+     "source_ref": 2
+    },
+    "dividend_yield": {
+     "field_id": "dividend_yield",
+     "metric": "dividend_yield",
+     "value": "2.331121833534378769601930036",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度普通股含税方案每股分红 / 当前不复权收盘价；不是当期付款率",
+     "status": "sourced",
+     "source_ref": 2
+    },
+    "peers": {
+     "field_id": "peers",
+     "metric": "peers",
+     "scope": "申万二级同行；逐指标排除冲突与缺口",
+     "status": "sourced",
+     "source_ref": 20,
+     "items": [
+      {
+       "symbol": "000009.SZ",
+       "name": "中国宝安",
+       "pe": {
+        "status": "gap"
+       },
+       "pb": {
+        "value": "1.821973101420906063889262199",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "2.038578184129434449645414714",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "23036275300.7",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "203041725.86",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "000049.SZ",
+       "name": "德赛电池",
+       "pe": {
+        "value": "21.33738800751843433836960992",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "1.249430931075534191679360501",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "4.393412452669152952179845619",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "22399427302.94",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "292270104.15",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "000695.SZ",
+       "name": "滨海能源",
+       "pe": {
+        "status": "gap"
+       },
+       "pb": {
+        "value": "8.503879494905545384627420676",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "-78.05491036517760083342285963",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "574738669.26",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "-88136070.86",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "001283.SZ",
+       "name": "豪鹏科技",
+       "pe": {
+        "value": "27.49265974953594811868691621",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "1.737098346906822022726722580",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "6.841480123286162349379402103",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "5866522544.05",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "203074851.02",
+        "status": "sourced"
+       }
+      }
+     ]
+    },
+    "roe": {
+     "field_id": "roe",
+     "metric": "roe",
+     "value": "24.72486694268305725016624781",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度归母净利 / 期初期末归母净资产平均",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "net_assets": {
+     "field_id": "net_assets",
+     "metric": "net_assets",
+     "value": "379353710000.000000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "consolidated",
+     "status": "sourced",
+     "source_ref": "provider:sina:300750.SZ:net_assets:2026-10-12T14:50:04.982741+08:00:8b6eec4cc3a66994047e777e"
+    },
+    "ttm_profit": {
+     "field_id": "ttm_profit",
+     "metric": "ttm_profit",
+     "value": "85000145000",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "other_equity_tools": {
+     "field_id": "other_equity_tools",
+     "metric": "other_equity_tools",
+     "value": "0",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "资产负债表未列示其他权益工具，按零",
+     "status": "sourced",
+     "source_ref": 1
+    },
+    "common_equity": {
+     "field_id": "common_equity",
+     "metric": "common_equity",
+     "value": "379353710000.000000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "同期期末归母权益减其他权益工具（优先股、永续债）",
+     "status": "sourced",
+     "source_ref": 1
+    },
+    "market_cap": {
+     "field_id": "market_cap",
+     "metric": "market_cap",
+     "value": "1380956000000.00",
+     "unit": "元",
+     "period": "报价时点",
+     "scope": "provider 报价时点",
+     "status": "sourced",
+     "source_ref": "provider:tencent:300750.SZ:market_cap:2026-10-12T14:50:06+08:00:99706b2b8818ae8c4de674b3"
+    },
+    "eps_ttm": {
+     "field_id": "eps_ttm",
+     "metric": "eps_ttm",
+     "value": "18.36947447577178354148577060",
+     "unit": "元/股",
+     "period": "TTM:2026H1",
+     "scope": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+     "status": "sourced",
+     "source_ref": 4
+    },
+    "eps_forecast": {
+     "field_id": "eps_forecast",
+     "metric": "eps_forecast",
+     "value": "20.8375000000",
+     "unit": "元/股",
+     "period": "FY2026E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "institution_count": 10,
+     "latest_published_at": "2026-10-09 00:00:00.000",
+     "source_ref": "provider:eastmoney:300750.SZ:eps_forecast_reports:2026-10-12T14:50:14.287113+08:00:20d74bb36e3f45e6f8afb668"
+    },
+    "eps_forecast_next": {
+     "field_id": "eps_forecast_next",
+     "metric": "eps_forecast_next",
+     "value": "26.1050000000",
+     "unit": "元/股",
+     "period": "FY2027E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "institution_count": 10,
+     "latest_published_at": "2026-10-09 00:00:00.000",
+     "source_ref": "provider:eastmoney:300750.SZ:eps_forecast_reports:2026-10-12T14:50:14.287113+08:00:20d74bb36e3f45e6f8afb668"
+    },
+    "forward_pe": {
+     "field_id": "forward_pe",
+     "metric": "forward_pe",
+     "value": "14.32225554889022195560887822",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "当前不复权价格 / 当年机构预测EPS中位数",
+     "status": "sourced",
+     "source_ref": 2
+    }
+   },
+   "lenses": {
+    "ttm_profit": {
+     "field_id": "lens:ttm_profit.ttm_profit",
+     "metric": "ttm_profit",
+     "value": "85000145000",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "cash_conversion": {
+     "field_id": "lens:cash_conversion.cash_conversion",
+     "metric": "cash_conversion",
+     "value": "1.845119342894770206434838650",
+     "unit": "倍",
+     "period": "FY2025",
+     "scope": "合并经营现金流 / 同期归母净利；非归母现金流",
+     "status": "verified",
+     "source_ref": 2
+    },
+    "residual_cash": {
+     "field_id": "lens:residual_cash.residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "输入缺失或未核对，不能计算"
+    },
+    "peer_comparison": {
+     "pe": {
+      "field_id": "lens:peer_comparison.pe",
+      "metric": "peer_pe",
+      "status": "gap",
+      "reason": "不足三家同期间同口径已核对同行"
+     },
+     "pb": {
+      "field_id": "lens:peer_comparison.pb",
+      "metric": "pb",
+      "value": "1.779535724163864043307992390",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / 同期普通股归母净资产",
+      "status": "verified",
+      "median": "1.779535724163864043307992390",
+      "rank_descending": 2,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "roe": {
+      "field_id": "lens:peer_comparison.roe",
+      "metric": "roe",
+      "value": "3.215995318399293700912630166",
+      "unit": "%",
+      "period": "FY2025",
+      "scope": "年度归母净利 / 期初期末归母净资产平均",
+      "status": "sourced",
+      "median": "3.215995318399293700912630166",
+      "rank_descending": 1,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "revenue": {
+      "field_id": "lens:peer_comparison.revenue",
+      "metric": "revenue",
+      "value": "14132974923.495",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "median": "14132974923.495",
+      "rank_descending": 1,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "net_profit_attributable": {
+      "field_id": "lens:peer_comparison.net_profit_attributable",
+      "metric": "net_profit_attributable",
+      "value": "203058288.44",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "median": "203058288.44",
+      "rank_descending": 1,
+      "sample_count": 4,
+      "source_ref": 5
+     }
+    },
+    "single_quarters": [
+     {
+      "field_id": "lens:single_quarters.2026Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "129131041000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "20737710000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "33680852000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "147785539000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "22546292000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "26535999000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "84704589000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "13962558000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "32868257000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "94181664000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "16522581000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "25818809000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "104185734000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "18548970000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "21973364000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "140629847000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "23167173000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "52559552000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     }
+    ],
+    "valuation_percentile": {
+     "pe": {
+      "field_id": "lens:valuation_percentile.pe",
+      "metric": "pe_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     },
+     "pb": {
+      "field_id": "lens:valuation_percentile.pb",
+      "metric": "pb_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     }
+    }
+   },
+   "industry_drivers": {
+    "definition": {
+     "kind": "industrial",
+     "formula": {
+      "operation": "volume_price_cost",
+      "inputs": [
+       "sales:动力电池",
+       "product_price",
+       "unit_cost"
+      ]
+     },
+     "elasticity_input": "sales:动力电池",
+     "metrics": [
+      {
+       "metric": "sales:动力电池",
+       "unit": "GWh",
+       "locator": "电池销量，储能/动力边界分别保留"
+      },
+      {
+       "metric": "product_price",
+       "unit": "元/GWh",
+       "locator": "相同业务每GWh实际收入"
+      },
+      {
+       "metric": "unit_cost",
+       "unit": "元/GWh",
+       "locator": "相同业务每GWh成本"
+      }
+     ]
+    },
+    "fields": {
+     "sales:动力电池": {
+      "field_id": "driver:sales:动力电池",
+      "metric": "sales:动力电池",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     },
+     "product_price": {
+      "field_id": "driver:product_price",
+      "metric": "product_price",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     },
+     "unit_cost": {
+      "field_id": "driver:unit_cost",
+      "metric": "unit_cost",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     }
+    },
+    "calculation": {
+     "field_id": "driver:industry_formula",
+     "metric": "industry_formula",
+     "status": "gap",
+     "reason": "缺已登记同口径行业公式输入，不填行业平均值"
+    }
+   },
+   "provider_snapshots": [
+    {
+     "observed_at": "2026-10-12T14:43:07+08:00"
+    }
+   ]
+  },
+  "601288": {
+   "symbol": "601288.SH",
+   "as_of": "2026-10-12",
+   "basisVersion": "9a1e4eb381f134279cab5578421ab997fb3cdf713c6d65b0e071f7cd399dda60",
+   "financial_period": "FY2025",
+   "identity": {
+    "symbol": "601288.SH",
+    "name": "农业银行",
+    "industry_name": "国有大型银行Ⅱ",
+    "parent": "银行"
+   },
+   "fields": {
+    "revenue": {
+     "field_id": "revenue",
+     "metric": "revenue",
+     "value": "725306000000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:601288.SH:revenue:2026-10-12T14:43:07.866398+08:00:3d2a7f5fdf1ce9b8a6be6e65"
+    },
+    "gross_margin": {
+     "field_id": "gross_margin",
+     "metric": "gross_margin",
+     "period": "FY2025",
+     "status": "gap",
+     "reason": "银行/电信不用工业毛利口径"
+    },
+    "net_profit_attributable": {
+     "field_id": "net_profit_attributable",
+     "metric": "net_profit_attributable",
+     "value": "291041000000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:601288.SH:net_profit_attributable:2026-10-12T14:43:07.866398+08:00:94bc35238e4f78fb2b6cfb9c"
+    },
+    "net_profit_ex_nonrecurring": {
+     "field_id": "net_profit_ex_nonrecurring",
+     "metric": "net_profit_ex_nonrecurring",
+     "period": "FY2025",
+     "status": "gap",
+     "reason": "缺原文行列、期间或单位；冲突值保留缺口"
+    },
+    "operating_cash_flow": {
+     "field_id": "operating_cash_flow",
+     "metric": "operating_cash_flow",
+     "value": "2112907000000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "sourced",
+     "source_ref": "provider:hithink:601288.SH:operating_cash_flow:2026-10-12T14:43:07.866398+08:00:d8f95a3336301705407a53dd"
+    },
+    "capex_cash": {
+     "field_id": "capex_cash",
+     "metric": "capex_cash",
+     "value": "27348000000",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "source_ref": "provider:hithink:601288.SH:capex_cash:2026-10-12T14:43:07.866398+08:00:0d75b5e85c687e9808f78d88"
+    },
+    "dividend_paid": {
+     "field_id": "dividend_paid",
+     "metric": "dividend_paid",
+     "period": "FY2025",
+     "status": "gap",
+     "reason": "方案输入缺口：缺上一年度方案；缺方案股本基数；缺年内已实施中期分红或明确无中期分红的原文"
+    },
+    "residual_cash": {
+     "field_id": "residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "银行不套工业企业自由现金口径；资本开支付现原值仍保留"
+    },
+    "shares": {
+     "field_id": "shares",
+     "metric": "shares",
+     "value": 349983033873,
+     "unit": "股",
+     "period": "2026-10-12",
+     "scope": "报价时点期末总股数，非报告期末变动生效日",
+     "status": "sourced",
+     "reason": "未取得可对账的定期报告股数读数",
+     "source_ref": "provider:tencent:601288.SH:shares:2026-10-12T14:43:11+08:00:38d53a2f4de37de3862a128b"
+    },
+    "dividend_per_share": {
+     "field_id": "dividend_per_share",
+     "metric": "dividend_per_share",
+     "value": "0.2495",
+     "unit": "元/股",
+     "period": "FY2025",
+     "scope": "普通股含税利润分配方案，非当期付款",
+     "status": "verified",
+     "source_ref": "source:205100b45d6b4b0c8ce69b7fa7b3fe91:1eeca6741021:r-89fa16465b944a57:p3:b3"
+    },
+    "price": {
+     "field_id": "price",
+     "metric": "price",
+     "value": "7.17",
+     "unit": "元/股",
+     "period": "2026-10-12",
+     "scope": "前复权序列最后交易日收盘（最新基准价）",
+     "status": "sourced",
+     "source_ref": "result:431b8dc14fbc4c64b2d36ce2b0992ed7"
+    },
+    "pe": {
+     "field_id": "pe",
+     "metric": "pe",
+     "value": "8.423218937135798490829506700",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / provider TTM归母净利",
+     "status": "verified",
+     "source_ref": 4
+    },
+    "pb": {
+     "field_id": "pb",
+     "metric": "pb",
+     "value": "0.8780145933504874363806475406",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / 同期普通股归母净资产",
+     "status": "verified",
+     "source_ref": 3
+    },
+    "dividend_yield": {
+     "field_id": "dividend_yield",
+     "metric": "dividend_yield",
+     "value": "3.479776847977684797768479777",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度普通股含税方案每股分红 / 当前不复权收盘价；不是当期付款率",
+     "status": "sourced",
+     "source_ref": 2
+    },
+    "peers": {
+     "field_id": "peers",
+     "metric": "peers",
+     "scope": "申万二级同行；逐指标排除冲突与缺口",
+     "status": "sourced",
+     "source_ref": 25,
+     "items": [
+      {
+       "symbol": "601328.SH",
+       "name": "交通银行",
+       "pe": {
+        "value": "7.152133771029954862535904801",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "0.5969910261679682148239484861",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "7.923803147081172950249799257",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "265071000000",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "95622000000",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "601398.SH",
+       "name": "工商银行",
+       "pe": {
+        "value": "8.030408321996252749631823297",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "0.7582676143923471252253725588",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "8.973886366126538513044642748",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "838270000000",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "368562000000",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "601658.SH",
+       "name": "邮储银行",
+       "pe": {
+        "value": "7.432375472518649851135717392",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "0.6370096116077103118587761710",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "7.982774800611010519153444469",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "355728000000",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "87404000000",
+        "status": "sourced"
+       }
+      },
+      {
+       "symbol": "601939.SH",
+       "name": "建设银行",
+       "pe": {
+        "value": "8.548981795296685277458616489",
+        "status": "verified"
+       },
+       "pb": {
+        "value": "0.8271358762975863113983696464",
+        "status": "verified"
+       },
+       "roe": {
+        "value": "9.703075124636069548258129868",
+        "status": "sourced"
+       },
+       "revenue": {
+        "value": "761049000000",
+        "status": "sourced"
+       },
+       "net_profit_attributable": {
+        "value": "338906000000",
+        "status": "sourced"
+       }
+      }
+     ]
+    },
+    "roe": {
+     "field_id": "roe",
+     "metric": "roe",
+     "value": "9.198529074793101759010365061",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度归母净利 / 期初期末归母净资产平均",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "net_assets": {
+     "field_id": "net_assets",
+     "metric": "net_assets",
+     "value": "3328014000000.000000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "consolidated",
+     "status": "sourced",
+     "source_ref": "provider:sina:601288.SH:net_assets:2026-10-12T14:43:07.866398+08:00:d832999b797ef2bff7623b31"
+    },
+    "ttm_profit": {
+     "field_id": "ttm_profit",
+     "metric": "ttm_profit",
+     "value": "297912000000",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "other_equity_tools": {
+     "field_id": "other_equity_tools",
+     "metric": "other_equity_tools",
+     "value": "470000000000.000000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "consolidated",
+     "status": "sourced",
+     "source_ref": "provider:sina:601288.SH:other_equity_tools:2026-10-12T14:43:07.866398+08:00:ca353260702a719516ac7681"
+    },
+    "common_equity": {
+     "field_id": "common_equity",
+     "metric": "common_equity",
+     "value": "2858014000000.000000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "同期期末归母权益减其他权益工具（优先股、永续债）",
+     "status": "sourced",
+     "source_ref": 2
+    },
+    "market_cap": {
+     "field_id": "market_cap",
+     "metric": "market_cap",
+     "value": "2509378000000.00",
+     "unit": "元",
+     "period": "报价时点",
+     "scope": "provider 报价时点",
+     "status": "sourced",
+     "source_ref": "provider:tencent:601288.SH:market_cap:2026-10-12T14:43:11+08:00:a125aba7c47ae88973d92f2d"
+    },
+    "eps_ttm": {
+     "field_id": "eps_ttm",
+     "metric": "eps_ttm",
+     "value": "0.8512184053702007094492914479",
+     "unit": "元/股",
+     "period": "TTM:2026H1",
+     "scope": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+     "status": "sourced",
+     "source_ref": 4
+    },
+    "eps_forecast": {
+     "field_id": "eps_forecast",
+     "metric": "eps_forecast",
+     "value": "0.8200000000",
+     "unit": "元/股",
+     "period": "FY2026E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "reason": "样本少",
+     "institution_count": 2,
+     "latest_published_at": "2026-09-21 00:00:00.000",
+     "source_ref": "provider:eastmoney:601288.SH:eps_forecast_reports:2026-10-12T14:43:17.465968+08:00:135c52fb0a82814fe21bedaf"
+    },
+    "eps_forecast_next": {
+     "field_id": "eps_forecast_next",
+     "metric": "eps_forecast_next",
+     "value": "0.8600000000",
+     "unit": "元/股",
+     "period": "FY2027E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "reason": "样本少",
+     "institution_count": 2,
+     "latest_published_at": "2026-09-21 00:00:00.000",
+     "source_ref": "provider:eastmoney:601288.SH:eps_forecast_reports:2026-10-12T14:43:17.465968+08:00:135c52fb0a82814fe21bedaf"
+    },
+    "forward_pe": {
+     "field_id": "forward_pe",
+     "metric": "forward_pe",
+     "value": "8.743902439024390243902439024",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "当前不复权价格 / 当年机构预测EPS中位数",
+     "status": "sourced",
+     "source_ref": 2
+    }
+   },
+   "lenses": {
+    "ttm_profit": {
+     "field_id": "lens:ttm_profit.ttm_profit",
+     "metric": "ttm_profit",
+     "value": "297912000000",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": 3
+    },
+    "cash_conversion": {
+     "field_id": "lens:cash_conversion.cash_conversion",
+     "metric": "cash_conversion",
+     "status": "gap",
+     "reason": "银行现金流受存贷款变动影响，不套工业企业解释"
+    },
+    "residual_cash": {
+     "field_id": "lens:residual_cash.residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "银行不套工业企业自由现金口径；资本开支付现原值仍保留"
+    },
+    "peer_comparison": {
+     "pe": {
+      "field_id": "lens:peer_comparison.pe",
+      "metric": "pe",
+      "value": "7.731391897257451300383770345",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / provider TTM归母净利",
+      "status": "verified",
+      "median": "7.731391897257451300383770345",
+      "rank_descending": 2,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "pb": {
+      "field_id": "lens:peer_comparison.pb",
+      "metric": "pb",
+      "value": "0.697638613000028718542074365",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / 同期普通股归母净资产",
+      "status": "verified",
+      "median": "0.697638613000028718542074365",
+      "rank_descending": 1,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "roe": {
+      "field_id": "lens:peer_comparison.roe",
+      "metric": "roe",
+      "value": "8.47833058336877451609904361",
+      "unit": "%",
+      "period": "FY2025",
+      "scope": "年度归母净利 / 期初期末归母净资产平均",
+      "status": "sourced",
+      "median": "8.47833058336877451609904361",
+      "rank_descending": 2,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "revenue": {
+      "field_id": "lens:peer_comparison.revenue",
+      "metric": "revenue",
+      "value": "558388500000",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "median": "558388500000",
+      "rank_descending": 3,
+      "sample_count": 4,
+      "source_ref": 5
+     },
+     "net_profit_attributable": {
+      "field_id": "lens:peer_comparison.net_profit_attributable",
+      "metric": "net_profit_attributable",
+      "value": "217264000000",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "median": "217264000000",
+      "rank_descending": 3,
+      "sample_count": 4,
+      "source_ref": 5
+     }
+    },
+    "single_quarters": [
+     {
+      "field_id": "lens:single_quarters.2026Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "206255000000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "75185000000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1184837000000",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "204616000000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "71196000000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "-897225000000",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "186674000000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "71931000000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "-768830000000",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 1
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "183263000000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "67579000000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1774634000000",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "180939000000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "81349000000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1028324000000",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "174430000000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "70182000000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "78779000000",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": 2
+     }
+    ],
+    "valuation_percentile": {
+     "pe": {
+      "field_id": "lens:valuation_percentile.pe",
+      "metric": "pe_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     },
+     "pb": {
+      "field_id": "lens:valuation_percentile.pb",
+      "metric": "pb_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     }
+    }
+   },
+   "industry_drivers": {
+    "definition": {
+     "kind": "bank",
+     "formula": {
+      "operation": "bank_interest",
+      "inputs": [
+       "average_earning_assets",
+       "net_interest_margin"
+      ]
+     },
+     "elasticity_input": "average_earning_assets",
+     "metrics": [
+      {
+       "metric": "average_earning_assets",
+       "unit": "元",
+       "locator": "生息资产平均余额，非期末总资产"
+      },
+      {
+       "metric": "net_interest_margin",
+       "unit": "%",
+       "locator": "净利息收益率；非净利差；中期标明年化"
+      },
+      {
+       "metric": "credit_cost",
+       "unit": "%",
+       "locator": "信贷成本，分母贷款平均余额"
+      }
+     ]
+    },
+    "fields": {
+     "average_earning_assets": {
+      "field_id": "driver:average_earning_assets",
+      "metric": "average_earning_assets",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     },
+     "net_interest_margin": {
+      "field_id": "driver:net_interest_margin",
+      "metric": "net_interest_margin",
+      "value": "1.28",
+      "unit": "%",
+      "period": "FY2025",
+      "scope": "合并",
+      "status": "verified",
+      "source_ref": "source:205100b45d6b4b0c8ce69b7fa7b3fe91:1eeca6741021:r-89fa16465b944a57:p11:b4"
+     },
+     "credit_cost": {
+      "field_id": "driver:credit_cost",
+      "metric": "credit_cost",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     }
+    },
+    "calculation": {
+     "field_id": "driver:industry_formula",
+     "metric": "industry_formula",
+     "status": "gap",
+     "reason": "缺已登记同口径行业公式输入，不填行业平均值"
+    }
+   },
+   "provider_snapshots": [
+    {
+     "observed_at": "2026-10-12T14:43:07+08:00"
+    }
+   ]
+  }
+ },
+ "reportTitles": [
+  "2季度出货超预期，关注盈利修复节奏及供需变化；维持买入",
+  "1季度业绩超预期，盈利维持韧性；维持买入"
+ ],
+ "researchTitles": [],
+ "plainTitles": [
+  "宁德时代2026年中报点评：出货高增业绩稳健，回购彰显龙头信心",
+  "2026年一季报点评：龙头份额再提升，业绩持续超预期",
+  "技术迭代引领行业，盈利与规模共振向上"
+ ]
+}

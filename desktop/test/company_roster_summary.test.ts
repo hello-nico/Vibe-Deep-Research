@@ -42,6 +42,6 @@ test("关注保持画像入口，改为独立个股页研究进度，撤下报�
   assert.match(companyWiki, /companyPageProgress\(state\)/);
   assert.doesNotMatch(companyWiki, /industryReady|\/industries\/profiles/);
   assert.doesNotMatch(stockPage, /WikiReader|view=report/);
-  assert.match(companyWiki, /state\?\.research\?\.sections/);
+  assert.match(companyWiki, /state\?\.research\?\.thesis/);
   assert.doesNotMatch(companyWiki, /row\.summary\?\.one_liner/);
 });

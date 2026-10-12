@@ -25,6 +25,8 @@
 - 旧地址由 `lib/routes.ts` 的 `legacyRedirect` 对照跳转：`/watchlist`、`/research` → `/watch`；`/research?company=<slug>` → `/watch/<symbol>`；`/daily-review` → `/feed?tab=market`；`/intel`、`/intel/:tab` → `/feed?tab=intel`（带小栏目时 `&sub=`）；`/my-research` → `/insights`；`/my-research/topics/:hex` → `/insights/topics/:hex`。`/evidence` 深链不变。
 - 行业、产业研究与信号页面已删除；`/sectors`、`/sectors/profiles`、`/signals` 及其全部子路径统一跳到 `/watch`，不携带旧页面查询参数。行业与产业对象链接也回关注；现有知识与资料读取保留。
 - 关注把自选与研究名单合成一张表（可切卡片）：添加同时写入两处，移出关注两处同时移除且只动 Client 选择；打开个股页才触发研究。
+- 个股页（T7.2）：数据层只读 Backend 当日数据包（`/wiki/companies/{代码}/data-packet`），先显示已有数据，缺当日快照时后台 ensure（每股每日一次），完成后静默刷新。
+  字段按已核对、来源、冲突（两值并列）、缺口显示，按稳定 `field_id` 查找（主字段、`driver:`、`lens:`）。研究层读 `page-research`：六节、支柱与证伪条件（阈值 level / yoy_pct）、五档结论；三档目标价由 `scenarioRef` 读回 `calculate_metrics` 凭据（`payload.calculation.extra`，每股或总利润模式）。资料过期显示 stale；第三方研报标题去掉末尾评级字样。
 - 「问助手」按钮由 `AssistantSlot` 落在页首（或对象页工具栏）右侧；没有占位的页面回落到内容面右上角。
 - 公共组件在 `components/ui/`：`Card`（`GroupCard`、`Panel`、`Metric`、`StatusPill`、`Tag`、`Sparkline`、`TableWrap`）、`ObjectCard`、`StatusDot`；令牌与按钮、输入类样式在 `src/index.css`，公共组件样式在 `components/ui/ui.css`。无调用的 `Button.tsx` 已删除，按钮仍遵循视觉协议；资料页在用的 `IndustryDashboardCard` 保留。
 

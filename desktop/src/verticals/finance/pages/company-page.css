@@ -17,6 +17,11 @@
 .company-page-section { min-width: 0; }
 .company-page-section .company-page-conclusion { margin-top: 0; }
 .company-page-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 4px; }
+.company-page-grade { margin-top: 8px; font-size: 13px; color: var(--text-2); }
+.company-page-conflict { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
+.company-scenario { margin-top: 12px; }
+.company-scenario td { text-align: right; font-variant-numeric: tabular-nums; }
+.company-scenario tbody th { text-align: left; }
 .company-page-metrics:not(:empty) + .company-page-conclusion { margin-top: 14px; }
 .company-page-detail { margin-top: 8px; font-size: 12px; color: var(--text-3); }
 .company-page-detail > summary { cursor: pointer; width: fit-content; }

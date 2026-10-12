@@ -1,16 +1,30 @@
 import type { Quote } from './api';
-import type { CompanyPeekSnapshot } from './companyPeek';
+import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
 import type { ResearchTaskStatus } from './reportTasks';
 
-export const COMPANY_PAGE_SECTIONS = ['一句话判断', '靠什么赚钱', '利润由什么决定', '关键变量的弹性', '利润是不是真金白银', '估值', '接下来看什么'] as const;
-export type CompanyType = 'generic' | 'commodity_cycle' | 'leveraged_cyclical_utility' | 'scarce_asset_rent';
-// Research fields follow Stock's page-research contract; task is a DSH projection.
-export interface CompanyPageSection {
-  id: number; summary: string; details?: string; change?: string; refs?: string[];
-  components?: { markdown: string; check: unknown };
+export const COMPANY_PAGE_BLOCKS = [
+  ['business', '商业模式'],
+  ['profit_formula', '利润公式'],
+  ['variables', '变量试算'],
+  ['cash', '现金'],
+  ['valuation', '估值'],
+  ['tracking', '跟踪'],
+] as const;
+export type CompanyPageBlockId = (typeof COMPANY_PAGE_BLOCKS)[number][0];
+export type CompanyType = 'generic' | 'commodity_cycle' | 'leveraged_cyclical_utility' | 'scarce_asset_rent' | 'bank';
+export type ValuationGrade = '明显低估' | '偏低' | '合理' | '偏高' | '明显高估';
+/** Research fields follow D5 until A line publishes a page-research sample. Task state is a DSH projection. */
+export interface CompanyPageBlock {
+  summary: string; details?: string; fieldIds?: string[]; calculationRefs?: string[];
 }
 export interface CompanyPageResearch {
-  companyType: CompanyType; researchedAt: string; basisVersion: string; sections: CompanyPageSection[];
+  companyType?: CompanyType; thesis?: string; gapNote?: string; researchedAt?: string; basisVersion?: string;
+  sections?: Partial<Record<CompanyPageBlockId, CompanyPageBlock>>;
+  pillars?: { id: string; text: string; fieldIds?: string[] }[];
+  falsifiers?: { pillarId?: string; text: string; fieldId?: string; window?: string; threshold?: PacketThreshold | null }[];
+  catalysts?: { date: string; event: string }[];
+  valuation?: { grade?: ValuationGrade; basis?: string[]; conditions?: string; scenarioRef?: string | null };
+  changes?: Partial<Record<CompanyPageBlockId | 'thesis', string>>;
   related?: { topicId: string; title: string }[];
 }
 export interface CompanyPageTask {
@@ -23,19 +37,16 @@ const blocksStart = (task: CompanyPageTask | undefined, now: number) => !!task &
 export interface CompanyPageResearchRead {
   research: CompanyPageResearch | null; stale: boolean; basisVersion: string; task?: CompanyPageTask;
 }
-export interface CompanyPageFact { metric: string; value: unknown; unit?: string | null; period?: string | null; ref?: string | null; source?: string; provider?: string | null }
-// Fields consumed from Backend CompanyFactsResponse; retain its fact categories.
-export interface CompanyPageFacts {
-  symbol: string; as_of: string;
-  facts: { operating_facts: CompanyPageFact[]; financial_facts: CompanyPageFact[]; valuation_facts: CompanyPageFact[] };
-}
 export interface CompanyPageDocument { document_id: string; title: string; reporting_period?: string; document_type?: string }
 export interface CompanyPageData {
-  quote: Quote | null; snapshot: CompanyPeekSnapshot | null; facts: CompanyPageFacts; documents: { items: CompanyPageDocument[] };
+  quote: Quote | null; packet: DataPacket; documents: { items: CompanyPageDocument[] };
 }
 export interface CompanyPageServices {
   data: { [K in keyof CompanyPageData]: (symbol: string, signal: AbortSignal) => Promise<CompanyPageData[K]> };
+  /** Background ensure finished for this symbol; re-read the packet quietly. Returns an unsubscribe. */
+  subscribePacket?(symbol: string, listener: () => void): () => void;
   readResearch(symbol: string): Promise<CompanyPageResearchRead>;
+  readScenario?(ref: string, signal?: AbortSignal): Promise<ScenarioTableData | null>;
   subscribeResearch?(listener: () => void): () => void;
   startResearch(symbol: string, name: string, basisVersion: string): Promise<CompanyPageTask>;
 }
@@ -139,6 +150,6 @@ export function companyPageProgress(state: CompanyPageState): string | null {
   if (state.task?.status === 'partial') return '部分内容已整理，尚未形成完整判断';
   if (state.task?.status === 'awaiting_authorization') return '研究草案待确认';
   if (state.task?.status === 'no_increment') return '研究已结束，没有新增内容';
-  if (state.task?.status === 'skipped') return '本次研究未整理';
+  if (state.task?.status === 'skipped') return state.research ? null : '本次研究未整理';
   return null;
 }

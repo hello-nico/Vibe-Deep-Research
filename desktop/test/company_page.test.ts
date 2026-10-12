@@ -7,7 +7,7 @@ import { createServer } from 'vite';
 import * as React from 'react';
 import { Window } from 'happy-dom';
 import { CompanyPageStore, companyPageStore, companyPageProgress } from '../src/verticals/finance/lib/companyPage.ts';
-import { companyPageFixture, fixtureData, fixtureFacts, fixturePageResearch, fixtureResearch } from './fixtures/company_page.ts';
+import { companyPageFixture, fixtureData, fixturePacket, fixturePageResearch, fixtureResearch, fixtureScenario } from './fixtures/company_page.ts';
 import type { ReportTaskStore } from '../src/verticals/finance/lib/reportTasks.ts';
 import { researchRoute } from '../dsh/finance-ui/research.mjs';
 
@@ -79,8 +79,8 @@ test('启动失败不循环自动重试；任务绑定回读暂未到达时保�
   assert.equal(lagStore.getSnapshot().task?.status, 'researching');
   assert.equal(lag.starts.length, 1);
 });
-test('公司事实、资料与个股页研究只读代理范围限定交易所与路径', () => {
-  for (const part of ['facts', 'documents', 'provider-snapshot', 'page-research']) {
+test('公司数据包、资料与个股页研究只读代理范围限定交易所与路径', () => {
+  for (const part of ['data-packet', 'documents', 'page-research']) {
     assert.equal(researchRoute('GET', `/wiki/companies/600863.SH/${part}`), true);
     assert.equal(researchRoute('POST', `/wiki/companies/600863.SH/${part}`), false);
     assert.equal(researchRoute('GET', `/wiki/companies/600863/${part}`), false);
@@ -88,6 +88,9 @@ test('公司事实、资料与个股页研究只读代理范围限定交易所�
     assert.equal(researchRoute('PUT', `/wiki/companies/600863.SH/${part}`), false);
     assert.equal(researchRoute('GET', `/wiki/companies/600863.SH/${part}/extra`), false);
   }
+  assert.equal(researchRoute('POST', '/wiki/companies/600863.SH/coverage/ensure'), true);
+  assert.equal(researchRoute('GET', '/wiki/companies/600863.SH/coverage/ensure'), false);
+  assert.equal(researchRoute('POST', '/wiki/companies/600863/coverage/ensure'), false);
 });
 test('订阅中的任务自动回读完成结果；无订阅停止轮询，不取消 DSH 任务', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
@@ -112,6 +115,8 @@ test('后台待确认、部分完成、无新增与中止保留各自语义', ()
   for (const [status, label] of [['awaiting_authorization', '研究草案待确认'], ['partial', '部分内容已整理'], ['no_increment', '没有新增内容'], ['interrupted', '研究已中止']] as const) {
     assert.ok(companyPageProgress({ loaded: true, research: null, stale: false, task: { sessionId: 'state', status, stage: '' } })?.includes(label));
   }
+  assert.equal(companyPageProgress({ loaded: true, research: null, stale: false, task: { sessionId: 'state', status: 'skipped', stage: '' } }), '本次研究未整理');
+  assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: { sessionId: 'state', status: 'skipped', stage: '本次研究未整理' } }), null);
 });
 
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>;
@@ -140,71 +145,97 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services, onTask: () => {} }))));
 }
-test('页面按 0–6 连续叙事：数字、出处详情、变化悬停、资料、证据墙及已清理的 S1 组件', async () => {
+test('页面按方法论模板渲染数据包、情景表、变化悬停、资料与证据墙', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
   await mountPage(fixture);
-  assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(element => element.getAttribute('data-company-section')), ['0', '1', '2', '3', '4', '5', '6']);
+  assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(element => element.getAttribute('data-company-section')), ['thesis', 'business', 'profit_formula', 'variables', 'cash', 'valuation', 'tracking']);
   assert.match(container.textContent!, /71.00 亿元/);
   assert.match(container.textContent!, /18.00 亿元/);
-  assert.match(container.textContent!, /550.*元\/吨/);
-  assert.match(container.textContent!, /发电售电.*回收现金/);
-  assert.doesNotMatch(container.textContent!, /坏指标|生成报告|开始研究|历史分位数/);
+  assert.match(container.textContent!, /4\.56 人民币/);
+  assert.equal(container.querySelector('.company-page-price span')?.getAttribute('title'), '行情时点 2026-10-10T09:30:00+08:00');
+  assert.match(container.textContent!, /\+1\.20%/);
+  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /4\.28 元\/股/);
+  assert.match(container.textContent!, /偏高/);
+  assert.match(container.textContent!, /每股收益（TTM）/);
+  assert.match(container.textContent!, /机构预测每股收益/);
+  assert.match(container.textContent!, /前瞻市盈率/);
+  assert.match(container.querySelector('[data-pillar="spread"]')!.textContent!, /71\.00 亿元/);
+  assert.match(container.querySelector('[data-falsifier]')!.textContent!, /0 元 · 下一份定期报告/);
+  assert.match(container.textContent!, /22.23/);
+  assert.match(container.querySelector('[data-scenario="table"] thead')!.textContent!, /情景\s*每股收益\s*倍数\s*目标价/);
+  assert.match(container.textContent!, /数量 ×（单价 − 单位成本）/);
+  assert.doesNotMatch(container.textContent!, /生成报告|开始研究|历史分位|field_id|packet_field|scenarioRef|basisVersion|valuation_percentile|hithink/);
   assert.equal(container.querySelector('[data-change-hint]')?.getAttribute('title'), '最新定期报告后更新');
   assert.ok([...container.querySelectorAll('details')].every(detail => !detail.open));
   assert.ok(container.querySelector('a[href^="/insights/topics/"]'));
   assert.ok(container.querySelector('a[href^="/my-reports/read/"]'));
-  const lead = container.querySelector('[data-company-section="0"]')!;
+  const lead = container.querySelector('[data-company-section="thesis"]')!;
   assert.equal([...lead.querySelectorAll('p')].find(element => element.textContent?.startsWith('研究于 '))?.textContent, '研究于 2026-10-10');
   assert.doesNotMatch(lead.textContent!, /依据版本|aaaaaaaa|T01:00/);
   assert.equal(fixture.starts.length, 0);
+  assert.equal(container.querySelector('[data-scenario="table"]')?.textContent?.includes('中性'), true);
 });
-test('真实 facts 结构与必填 as_of：每次读取用上海当天日期，缺日期失败，数据区不读经营事实', async t => {
-  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-09T15:59:00Z').getTime() });
+test('数据包按上海当天读取；当日已有快照不 ensure，缺当日快照每天只 ensure 一次', async t => {
+  t.mock.timers.enable({ apis: ['Date'], now: new Date('2026-10-09T16:30:00Z').getTime() });
   const originalFetch = globalThis.fetch;
-  const requests: URL[] = [];
-  const signal = new AbortController().signal;
+  const calls: { method: string; path: string; asOf: string | null }[] = [];
+  const resetPacketEnsureMemory = serviceModule.resetPacketEnsureMemory as () => void;
+  resetPacketEnsureMemory();
+  let snapshots = [{ observed_at: '2026-10-10T09:00:00+08:00' }];
   globalThis.fetch = async (input, init) => {
     const url = new URL(String(input), 'http://fixture');
-    requests.push(url);
-    assert.equal(init?.signal, signal);
-    if (!url.searchParams.has('as_of')) return Response.json({ detail: [{ type: 'missing', loc: ['query', 'as_of'], msg: 'Field required', input: null }] }, { status: 422 });
-    return Response.json({ ...fixtureFacts, as_of: url.searchParams.get('as_of'), facts: {
-      ...fixtureFacts.facts,
-      // Same metric in the wrong category must never override a financial fact.
-      operating_facts: [...fixtureFacts.facts.operating_facts, { ...fixtureFacts.facts.financial_facts[0], value: 99900000000, period: '2030' }],
-    } });
+    calls.push({ method: init?.method ?? 'GET', path: url.pathname, asOf: url.searchParams.get('as_of') });
+    if (url.pathname.endsWith('/coverage/ensure')) return Response.json({ ok: true });
+    if (!url.searchParams.has('as_of')) return Response.json({ detail: 'missing as_of' }, { status: 422 });
+    return Response.json({ ...fixturePacket, as_of: url.searchParams.get('as_of'), provider_snapshots: snapshots, lenses: { valuation_percentile: { pe: { status: 'gap', reason: '不可交付' } } } });
   };
   try {
-    const services = serviceModule.createCompanyPageServices({ start: async () => { throw new Error('读取事实不能启动研究'); } });
-    const first = await services.data.facts('600863', signal);
-    assert.equal(requests[0].pathname, '/finance-research/wiki/companies/600863.SH/facts');
-    assert.equal(requests[0].searchParams.get('as_of'), '2026-10-09');
-    assert.equal(first.as_of, '2026-10-09');
-    assert.deepEqual(Object.keys(first.facts), ['operating_facts', 'financial_facts', 'valuation_facts']);
-    t.mock.timers.tick(120000);
-    const current = await services.data.facts('600863', signal);
-    assert.equal(requests[1].searchParams.get('as_of'), '2026-10-10');
-    const { researchRead } = await server.ssrLoadModule('/src/verticals/finance/lib/research.ts');
-    await assert.rejects(researchRead('/wiki/companies/600863.SH/facts', { signal }), { status: 422 });
+    const services = serviceModule.createCompanyPageServices({ start: async () => { throw new Error('读取数据包不能启动研究'); } });
+    const signal = new AbortController().signal;
+    const fresh = await services.data.packet('600863', signal);
+    assert.equal(fresh.as_of, '2026-10-10');
+    assert.equal(calls.filter(call => call.method === 'POST').length, 0);
+    snapshots = [{ observed_at: '2026-10-09T09:00:00+08:00' }];
+    resetPacketEnsureMemory();
+    calls.length = 0;
+    // R6：包立即返回，ensure 在后台；两次并发打开只 ensure 一次，完成后通知订阅者。
+    let notified = 0;
+    const unsubscribe = services.subscribePacket('600863', () => { notified += 1; });
+    const [first] = await Promise.all([services.data.packet('600863', signal), services.data.packet('600863', signal)]);
+    assert.equal(first.as_of, '2026-10-10');
+    await new Promise(resolve => setTimeout(resolve, 20));
+    await services.data.packet('600863', signal);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    unsubscribe();
+    assert.equal(calls.filter(call => call.path.endsWith('/coverage/ensure')).length, 1);
+    assert.equal(notified, 1);
+    assert.ok(calls.every(call => call.method === 'POST' || call.asOf === '2026-10-10'));
     const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
-    fixture.services.data.snapshot = () => new Promise(() => {});
-    fixture.services.data.facts = async () => current;
     await mountPage(fixture);
-    assert.match(container.querySelector('[data-company-section="1"]')!.textContent!, /71.00 亿元/);
-    assert.match(container.querySelector('[data-company-section="5"]')!.textContent!, /9.50 倍/);
-    assert.doesNotMatch(container.querySelector('[data-company-section="1"]')!.textContent!, /999.00|入炉煤价|550/);
+    assert.doesNotMatch(container.textContent!, /历史分位|不可交付/);
     assert.ok(container.querySelector('[data-evidence-ref="claim:fixture-revenue"]'));
-    assert.doesNotMatch(container.textContent!, /部分数据暂不可用/);
-  } finally { globalThis.fetch = originalFetch; }
+  } finally { globalThis.fetch = originalFetch; resetPacketEnsureMemory(); t.mock.timers.reset(); }
 });
-test('快行情与已到现金先显示，慢资料留骨架；研究接口失败不会显示虚假研究中', async () => {
+test('研究缺失仍显示数据包；过期更新期间保留上一版且不设横幅', async () => {
+  const missing = companyPageFixture();
+  await mountPage(missing);
+  assert.match(container.textContent!, /71.00 亿元/);
+  assert.match(container.textContent!, /核对利润变量/);
+  assert.equal(missing.starts.length, 1);
+  assert.doesNotMatch(container.textContent!, /生成报告|开始研究/);
+  const stale = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v2' });
+  await mountPage(stale);
+  assert.match(container.textContent!, /煤价与电价的价差决定利润/);
+  assert.doesNotMatch(container.textContent!, /系统更新了判断/);
+});
+test('数据包已到时资料可后到；研究接口失败不会显示虚假研究中', async () => {
   const fixture = companyPageFixture();
   let finish!: (value: typeof fixtureData.documents) => void;
   fixture.services.data.documents = () => new Promise(resolve => { finish = resolve; });
-  fixture.services.data.facts = () => new Promise(() => {});
   fixture.services.readResearch = async () => { throw new Error('fixture unbound'); };
   await mountPage(fixture);
-  assert.match(container.textContent!, /4.28.*人民币/);
+  assert.match(container.textContent!, /4\.56 人民币/);
+  assert.match(container.textContent!, /4.28 元\/股/);
   assert.match(container.textContent!, /18.00 亿元/);
   assert.ok(container.querySelector('[aria-label="正在读取资料"]'));
   assert.match(container.textContent!, /研究暂不可用/);
@@ -212,35 +243,104 @@ test('快行情与已到现金先显示，慢资料留骨架；研究接口失�
   await React.act(async () => finish(fixtureData.documents));
   assert.equal(container.querySelector('[aria-label="正在读取资料"]'), null);
 });
-test('格式错误和缺校验的组件整块隐藏，零占位；正文仍显示', async () => {
-  const fixture = companyPageFixture({ research: { ...fixtureResearch, sections: fixtureResearch.sections.map(section => ({ ...section, components: section.components ? { ...section.components, check: { invalid: true } } : undefined })) }, stale: false, basisVersion: 'bad' });
+test('研究正文不渲染未登记组件；利润公式仍显示', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'bad' });
   await mountPage(fixture);
   assert.equal(container.querySelector('[data-vibe-block]'), null);
-  assert.doesNotMatch(container.textContent!, /正在准备研究组件|550|<stat>|坏指标/);
+  assert.doesNotMatch(container.textContent!, /正在准备研究组件|<stat>|坏指标/);
   assert.match(container.textContent!, /利润取决于/);
 });
-test('四类公司公式由已保存研究提供，布局共用；旧报告期不盖住新数据、缺失数不补零', async () => {
-  for (const companyType of ['generic', 'commodity_cycle', 'leveraged_cyclical_utility', 'scarce_asset_rent'] as const) {
-    const fixture = companyPageFixture({ research: { ...fixtureResearch, companyType, sections: [{ id: 2, summary: `已保存的 ${companyType} 利润公式` }] }, stale: false, basisVersion: companyType });
-    fixture.services.data.facts = async () => ({ ...fixtureFacts, facts: { operating_facts: [], financial_facts: [{ metric: 'revenue', value: 100000000, unit: '元', period: '2025' }, { metric: 'cash_dividend', value: null, unit: '元' }], valuation_facts: [] } });
+test('五类公司共用布局；缺口写原因，不把缺失数补成零', async () => {
+  for (const companyType of ['generic', 'commodity_cycle', 'leveraged_cyclical_utility', 'scarce_asset_rent', 'bank'] as const) {
+    const fixture = companyPageFixture({ research: { ...fixtureResearch, companyType, sections: { ...fixtureResearch.sections, profit_formula: { summary: `已保存的 ${companyType} 利润公式` } } }, stale: false, basisVersion: companyType });
     await mountPage(fixture);
     assert.match(container.textContent!, new RegExp(`已保存的 ${companyType} 利润公式`));
-    const business = container.querySelector('[data-company-section="1"]')!.textContent!;
+    const business = container.querySelector('[data-company-section="business"]')!.textContent!;
     assert.match(business, /71.00 亿元/);
-    assert.deepEqual([...container.querySelectorAll('[data-company-section="1"] strong')].map(element => element.textContent), ['71.00 亿元']);
-    assert.doesNotMatch(container.querySelector('[data-company-section="4"]')!.textContent!, /现金分红.*0.00/);
+    assert.match(container.querySelector('[data-company-section="cash"]')!.textContent!, /暂时取不到现金分红/);
+    assert.doesNotMatch(container.querySelector('[data-company-section="cash"]')!.textContent!, /现金分红[\s\S]*0\.00 亿元/);
   }
 });
-test('公司事实先到时立即填收入和估值，不等待慢财务快照', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
-  fixture.services.data.snapshot = () => new Promise(() => {});
-  fixture.services.data.facts = async () => ({ ...fixtureFacts, facts: {
-    operating_facts: [], financial_facts: [{ metric: 'revenue', value: 2500000000, unit: '元', period: '2026-06-30' }],
-    valuation_facts: [{ metric: 'pe_ttm', value: 9.1, unit: '倍', period: '2026-10-10' }],
-  } });
+test('冲突两值并列，情景表缺口单独显示', async () => {
+  const conflict = { ...fixturePacket, fields: { ...fixturePacket.fields, pe: {
+    metric: 'pe', status: 'conflict', value: null, unit: '倍', period: '2026-10-10', reason: 'provider 与同期合并报告不一致，保留两值和出处',
+    provider_values: [{ provider: 'hithink', value: 19.8, unit: '倍', period: '2026-10-10' }],
+    report_comparisons: [{ consistent: false, report: { value: 18.2, unit: '倍', period: 'FY2025' } }],
+  } } };
+  const fixture = companyPageFixture({ research: { ...fixtureResearch, valuation: { grade: '合理', conditions: '条件变了就改档。' } }, stale: false, basisVersion: 'v1' });
+  fixture.services.data.packet = async () => conflict;
+  fixture.services.readScenario = async () => null;
   await mountPage(fixture);
-  assert.match(container.querySelector('[data-company-section="1"]')!.textContent!, /25.00 亿元/);
-  assert.match(container.querySelector('[data-company-section="5"]')!.textContent!, /9.10 倍/);
+  const valuation = container.querySelector('[data-company-section="valuation"]')!.textContent!;
+  assert.match(valuation, /19\.80 倍/);
+  assert.match(valuation, /18\.20 倍/);
+  assert.match(valuation, /同花顺/);
+  assert.match(valuation, /定期报告/);
+  assert.match(valuation, /暂时取不到市盈率/);
+  assert.doesNotMatch(valuation, /行情来源与定期报告不一致|hithink|provider/);
+  assert.match(container.querySelector('[data-scenario="gap"]')!.textContent!, /三档目标价暂时算不出来/);
+  assert.equal(fixtureScenario.length, 3);
+});
+test('情景表读取计算结果回读里的 extra，旧模式名不当成利润模式', async () => {
+  const packetModule = await server.ssrLoadModule('/src/verticals/finance/lib/companyPacket.ts');
+  const scenarios = [
+    { name: '悲观', multiple: '6.5', price: '5.33', earnings: '0.82' },
+    { name: '中性', multiple: '7.7', price: '6.314', earnings: '0.82' },
+    { name: '乐观', multiple: '8.6', price: '7.32', earnings: '0.85' },
+  ];
+  const readback = { status: 200, body: { payload: { calculation: { extra: { mode: 'per_share', scenarios } } } } };
+  assert.equal(packetModule.scenarioTable(readback)?.mode, 'per_share');
+  assert.equal(packetModule.scenarioTable(readback)?.rows[1].price, '6.314');
+  assert.equal(packetModule.scenarioTable({ payload: { calculation: { extra: { mode: 'total', scenarios } } } })?.mode, 'total');
+  assert.equal(packetModule.scenarioTable({ extra: { mode: 'total_profit', scenarios } })?.mode, 'per_share');
+});
+test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口研究仍显示数据包', async () => {
+  const packetModule = await server.ssrLoadModule('/src/verticals/finance/lib/companyPacket.ts');
+  assert.equal(packetModule.findField(fixturePacket, 'revenue')?.source_ref, 'claim:fixture-revenue');
+  assert.equal(packetModule.findField(fixturePacket, 'driver:power_price')?.value, 321);
+  assert.equal(packetModule.findField(fixturePacket, 'lens:peer_comparison.pe')?.value, 12.5);
+  assert.equal(packetModule.findField(fixturePacket, 'lens:single_quarters.2026Q1.revenue')?.value, 2500000000);
+  assert.equal(packetModule.findField(fixturePacket, 'lens:ttm_profit.ttm_profit')?.value, 3600000000);
+  assert.equal(packetModule.findField(fixturePacket, 'lens:missing.revenue'), undefined);
+  const cited = companyPageFixture({ research: {
+    ...fixtureResearch,
+    pillars: [{ id: 'cited', text: '驱动和镜头可以引用。', fieldIds: ['driver:power_price', 'lens:peer_comparison.pe', 'lens:single_quarters.2026Q1.revenue', 'lens:missing.revenue'] }],
+    falsifiers: [{ text: '滚动利润变弱。', fieldId: 'lens:ttm_profit.ttm_profit', window: '下一份定期报告' }],
+  }, stale: false, basisVersion: 'cited' });
+  await mountPage(cited);
+  const pillar = container.querySelector('[data-pillar="cited"]')!.textContent!;
+  assert.match(pillar, /321\.00 元\/兆瓦时/);
+  assert.match(pillar, /12\.50 倍/);
+  assert.match(pillar, /25\.00 亿元/);
+  assert.match(pillar, /暂时取不到相关指标/);
+  assert.doesNotMatch(pillar, /这项数据/);
+  assert.doesNotMatch(pillar, /lens:missing|driver:power_price/);
+  assert.match(container.querySelector('[data-falsifier]')!.textContent!, /36\.00 亿元/);
+  const gap = companyPageFixture({
+    research: { companyType: 'bank', gapNote: '核心字段 net_profit_attributable 暂不可用', researchedAt: '2026-10-12T08:00:00+00:00' },
+    stale: false, basisVersion: 'a'.repeat(64),
+  });
+  await mountPage(gap);
+  assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /核心字段 net_profit_attributable 暂不可用/);
+  assert.match(container.textContent!, /71\.00 亿元/);
+  assert.equal(container.querySelector('[data-valuation-grade]'), null);
+  assert.equal(container.querySelector('[data-scenario]'), null);
+});
+test('缺口说明不显示五档和情景表；利润模式情景表用利润列', async () => {
+  const noted = companyPageFixture({ research: { ...fixtureResearch, gapNote: '营业收入暂时取不到，这次不写判断。', thesis: undefined, valuation: { grade: '偏高', scenarioRef: fixtureResearch.valuation?.scenarioRef } }, stale: false, basisVersion: 'gap' });
+  await mountPage(noted);
+  assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /营业收入暂时取不到，这次不写判断。/);
+  assert.equal(container.querySelector('[data-valuation-grade]'), null);
+  assert.equal(container.querySelector('[data-scenario]'), null);
+  assert.match(container.textContent!, /71.00 亿元/);
+  const profit = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'profit' });
+  profit.services.readScenario = async () => ({ mode: 'total', rows: [{ name: '中性', multiple: '19', price: '26.81', earnings: '32000000000' }] });
+  await mountPage(profit);
+  const table = container.querySelector('[data-scenario="table"]')!;
+  assert.equal(table.getAttribute('data-scenario-mode'), 'total');
+  assert.match(table.querySelector('thead')!.textContent!, /利润/);
+  assert.doesNotMatch(table.querySelector('thead')!.textContent!, /每股收益/);
+  assert.match(table.textContent!, /320\.00 亿元/);
 });
 test('真实路由挂夹具：工具栏、页内、返回关注显示同一进度；重新打开不重复', async () => {
   const fixture = companyPageFixture();
@@ -429,7 +529,7 @@ test('完成后的补读失败保留旧判断并显示研究暂不可用，不�
     const model = await server.ssrLoadModule('/src/verticals/finance/lib/companyPage.ts');
     await React.act(async () => model.companyPageStore(fixture.services, '600863', '华能蒙电（夹具）').refresh());
     assert.equal(pageReads, 3);
-    assert.match(container.querySelector('[data-company-section="0"]')!.textContent!, /煤价与电价的价差决定利润.*研究暂不可用/);
+    assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /煤价与电价的价差决定利润.*研究暂不可用/);
     assert.equal(starts, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
@@ -459,17 +559,16 @@ test('接通后首次打开只在研究缺失或过期时，每个 basisVersion 
     assert.equal(starts, 2);
   } finally { globalThis.fetch = originalFetch; }
 });
-test('数据节：快照慢于事实时显示骨架，确实没有数据时整节不渲染', async () => {
+test('数据包未到时估值节保留骨架；读取失败时不把缺口写成零', async () => {
   const pending = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
-  pending.services.data.facts = async () => ({ ...fixtureData.facts, facts: { ...fixtureData.facts.facts, valuation_facts: [] } });
-  pending.services.data.snapshot = () => new Promise(() => {});
+  pending.services.data.packet = () => new Promise(() => {});
   await mountPage(pending);
-  const valuation = container.querySelector('[data-company-section="5"]');
-  assert.ok(valuation, '快照未到时估值节保留并显示骨架');
+  const valuation = container.querySelector('[data-company-section="valuation"]');
+  assert.ok(valuation, '数据包未到时估值节保留并显示骨架');
   assert.ok(valuation!.querySelector('[role="status"]'));
-  const empty = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
-  empty.services.data.facts = async () => ({ ...fixtureData.facts, facts: { ...fixtureData.facts.facts, valuation_facts: [] } });
-  empty.services.data.snapshot = async () => { throw new Error('fixture snapshot outage'); };
-  await mountPage(empty);
-  assert.equal(container.querySelector('[data-company-section="5"]'), null, '没有估值数据也没有研究时不出现空面板');
+  const failed = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+  failed.services.data.packet = async () => { throw new Error('fixture packet outage'); };
+  await mountPage(failed);
+  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /数据暂时取不到/);
+  assert.doesNotMatch(container.textContent!, /0\.00 倍/);
 });

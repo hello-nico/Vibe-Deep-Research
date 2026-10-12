@@ -72,7 +72,7 @@ function statusOf(state?: CompanyPageState): { tone: StatusTone; label: string }
   if (!label) return null;
   return { tone: companyPageTaskActive(state?.task) ? "run" : "wait", label };
 }
-const judgmentOf = (state?: CompanyPageState) => clipCompanyOneLiner(state?.research?.sections.find(section => section.id === 0)?.summary);
+const judgmentOf = (state?: CompanyPageState) => clipCompanyOneLiner(state?.research?.thesis);
 
 function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: ItemProps) {
   const status = statusOf(state);

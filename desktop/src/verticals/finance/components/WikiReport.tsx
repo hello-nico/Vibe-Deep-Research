@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { documentDisplayTitle } from '../lib/documentTitle';
+import { documentDisplayTitle, reportTitleForDisplay } from '../lib/documentTitle';
 import { Link, useLocation } from 'react-router-dom';
 import ReactMarkdown, { defaultUrlTransform, type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -44,7 +44,8 @@ export function SourceTimeline({ content }: { content?: Record<string, unknown> 
     const period = typeof item.reporting_period === 'string' ? item.reporting_period : '';
     const raw = typeof item.title === 'string' ? item.title.trim() : '';
     // Older ingests kept a placeholder title ("legacy:…"); name them from the report period instead.
-    const title = raw ? documentDisplayTitle(raw, period, kind) : '未命名资料';
+    const named = raw ? documentDisplayTitle(raw, period, kind) : '未命名资料';
+    const title = item.document_type === 'research_report' ? reportTitleForDisplay(named) : named;
     const id = typeof item.document_id === 'string' && /^[a-f0-9]+$/.test(item.document_id) ? item.document_id : null;
     return <li key={index} className="flex flex-col gap-2 py-3 first:pt-0 sm:flex-row sm:items-baseline sm:gap-4"><span className="shrink-0 text-xs text-muted-foreground sm:w-24">{[period, kind].filter(Boolean).join(' · ')}</span>{id ? <Link className="text-sm font-medium leading-6 hover:underline" to={`/my-reports/read/${encodeURIComponent(id)}?from=${encodeURIComponent(location.pathname + location.search)}`} onClick={() => sessionStorage.setItem(`finance-scroll:${location.pathname}${location.search}`, String(document.getElementById('workspace-main')?.scrollTop ?? 0))}>{title}<span className="ml-2 text-[var(--text-3)]" aria-hidden="true">↗</span></Link> : <span className="text-sm font-medium leading-6">{title}</span>}</li>;
   })}</ul>;
