@@ -238,3 +238,9 @@ git diff --check > artifacts/t7-provider/diff-stock.log 2>&1
 两个协议日志均为 `verify-protocol: ok`；两个 diff 日志为空，无空白错误。另逐行对照本记录与 `matrix.csv` 的 17×15 格，全部相同。前后哈希核对和统计断言通过，结果已保存在 `integrity.json`。本轮未运行产品测试，因为未改产品代码、配置或测试。
 
 验证产物共 36 个文件，均位于 Stock `artifacts/t7-provider/`；四个脚本为 `fetch.py`、`analyze.py`、`read-reference.py`、`baseline.py`，其余为响应、证据、统计及门禁日志。Task §9 已覆盖六字段；留待 Claude 审阅，codex1 停止执行。
+
+## 2026-10-11 · Claude 审阅
+
+- 复核 `summary.md`、`columns.md` 与 `comparison.csv`：营业收入、归母净利、经营现金流结论成立；购建资产付现唯一差异是 T7.1 把宁德时代母公司现金流量表当合并表（2,056,300 千元 vs 合并 42,344,558 千元），错在报告抽取，不在 provider，因此 T7.1c 把它也作主来源并修母公司段排除。
+- P5 停止合理：没有股数与 TTM 利润金额。T7.1c 改用「总市值 / TTM 归母净利」「总市值 / 归母净资产（新浪 PARESHARRIGH）」复算，避开股数。
+- 用户同意取数思路（2026-10-10）；Checklist 本仓条目已改写，落点 T7.1c。
