@@ -63,7 +63,7 @@
 
 - **设置页写入凭据后的模型接入实测**（优先级提高：Web 端用户自带模型是商业模式的前提）。
 - 原始 `source:` 块的不透明身份与固定版本入口；source / Wiki 身份缺口；读取稳定性（Reader 与直连都失败过）。
-- Stock `backend/Dockerfile` 拆分构建目标：migrate 镜像不装 Chromium。
+- Chromium 去留：Dockerfile 已拆分构建目标，迁移镜像不装 Chromium（[Stock 零散遗留](docs/tasks/active/Stock零散遗留_Task_2026-10-12.md)）。后端镜像中的 Chromium 只服务 HTML 报告排版检查（`report_quality.py`），随 T7.2 后 S-04 报告运行时裁决一并定去留（2026-10-12 用户同意）。
 - 农业银行旧报告脚本死循环（`ad67a69b…`）：刷新资料后重新生成即可替换。
 - 向 DSH 上游反馈：`cjkFriendlyStrong` 不处理"中文字 + 引号"开头的粗体；Markdown 支持插件注册内嵌协议渲染（需求草稿见内嵌交互图 Task §9.2 第 5 项）。
 - 提示词改进（2026-09-26 审计，仍有效）：知识整理按对象类型组织写回方式；深度对话遇到买卖、目标价类问题时拒绝，并给出可以验证的裁决条件；精简随报告附带的 Lieflat `SKILL.md`。

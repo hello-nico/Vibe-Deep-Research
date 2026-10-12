@@ -69,5 +69,5 @@ test("侧栏不展示原作者品牌站点或个人联系入口", () => {
   const layoutSrc = fs.readFileSync(path.join(FINANCE, "components", "layout", "Layout.tsx"), "utf8");
   assert.doesNotMatch(layoutSrc, /phoenixtree|linsizhen|simonlin|buymeacoffee|联系作者/i);
   assert.doesNotMatch(layoutSrc, /APP_VERSION|· 本地工作台/);
-  assert.match(layoutSrc, /to="\/" aria-label="Vibe Finance 深度对话"/);
+  assert.match(layoutSrc, /to="\/" aria-label="Vibe Finance 对话"/);
 });

@@ -51,8 +51,6 @@ const TOOL_LABELS: Record<string, string> = {
   read_composition_skill: '读取写作方法',
   note_list: '列出研究记录',
   note_read: '读取研究记录',
-  propose_maintenance: '提出维护',
-  review_maintenance: '核对维护',
 };
 
 const OPERATION_LABELS: Record<string, string> = {

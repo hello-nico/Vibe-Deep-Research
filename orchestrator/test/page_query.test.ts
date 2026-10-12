@@ -13,6 +13,7 @@ import { readSnapshot, snapshotKey, writeSnapshot } from "../src/snapshot.ts";
 import type { EndpointDef } from "../src/registry.ts";
 
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+const PYTHON = process.env.VRA_PYTHON ?? path.join(REPO, ".venv", "bin", "python");
 /**
  * 上下文真正会注入哪些键 —— **从垂类的 pageContext.resolve 真实产出里取**,
  * 不在测试里手写一份(手写的那份迟早与实现漂移,而漂移的表现是"棘轮全绿但没查到东西")。
@@ -147,9 +148,8 @@ test("🔴 块状态跟着信封走:信封 failed / partial 不许被记成 ok(�
 });
 
 test("🔴 传给端点的参数键必须**函数真的收得下** —— 白名单放行 ≠ 收得下(全局键 limit/date 对任何端点都放行,而全市场龙虎榜收的是 trade_date:整包注入进去 TypeError,信封 failed、证据 0 条,界面上曾一直显示正常)", () => {
-  const py = process.env.VRA_PYTHON ?? path.join(REPO, "..", ".venv", "bin", "python");
   const helper = path.join(path.dirname(fileURLToPath(import.meta.url)), "helpers", "endpoint_signatures.py");
-  const r = spawnSync(py, [helper], { encoding: "utf8", cwd: REPO });
+  const r = spawnSync(PYTHON, [helper], { encoding: "utf8", cwd: REPO });
   // 🔴 取不到签名就**判红**,不许跳过 —— 跳过的棘轮等于没有棘轮
   assert.equal(r.status, 0, `签名导出失败(退出码 ${r.status}):${(r.stderr || "").slice(-400)}`);
   const sigs = JSON.parse(r.stdout) as Record<string, { module: string; params?: string[]; var_kw?: boolean; error?: string }>;
@@ -173,9 +173,8 @@ test("🔴 传给端点的参数键必须**函数真的收得下** —— 白名
 });
 
 test("🔴 页面注入的上下文参数,改名后必须是该端点函数真收的参数名", () => {
-  const py = process.env.VRA_PYTHON ?? path.join(REPO, "..", ".venv", "bin", "python");
   const helper = path.join(path.dirname(fileURLToPath(import.meta.url)), "helpers", "endpoint_signatures.py");
-  const r = spawnSync(py, [helper], { encoding: "utf8", cwd: REPO });
+  const r = spawnSync(PYTHON, [helper], { encoding: "utf8", cwd: REPO });
   assert.equal(r.status, 0, `签名导出失败:${(r.stderr || "").slice(-300)}`);
   const sigs = JSON.parse(r.stdout) as Record<string, { module: string; params?: string[]; var_kw?: boolean; error?: string }>;
   const ctxDef = currentPlugin().pageContext;
