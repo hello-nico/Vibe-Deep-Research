@@ -17,9 +17,9 @@ export function plainNumber(value: number, digits = 0) {
 export function yuanText(value: number) {
   return formatFactValue({ value, unit: '元' });
 }
-/** 利润变动统一按亿元显示（不足一亿也一样），避免贡献条旁出现长串元。 */
+/** 利润变动统一按亿元显示（不足一亿也一样），避免贡献条旁出现长串元；四舍五入到两位小数。 */
 export function yiText(value: number) {
-  return `${plainNumber(Math.trunc(value / 1e6) / 100, 2)} 亿元`;
+  return `${plainNumber(Math.round(value / 1e6) / 100, 2)} 亿元`;
 }
 
 // ---------------------------------------------------------------- 句中数字槽
@@ -69,8 +69,7 @@ export function resolveSlot(token: string, packet: DataPacket | undefined, calcs
   if (calc) {
     const raw = calcs[calc.resultId];
     const value = raw ? pathValue(calculationExtra(raw), calc.path) ?? pathValue(calculationBody(raw), calc.path) : undefined;
-    const key = calc.path.split('.').at(-1) ?? '';
-    const text = formatCalcValue(key, value);
+    const text = formatCalcValue(calc.path, value, calculationExtra(raw));
     return text ? { text, title: '来源 计算凭据' } : null;
   }
   const field = findField(packet, token);
@@ -79,13 +78,24 @@ export function resolveSlot(token: string, packet: DataPacket | undefined, calcs
   return { text: showField(field), title };
 }
 
-function formatCalcValue(key: string, value: unknown): string {
+const CALC_YUAN_KEYS = new Set(['profit_delta', 'base_profit', 'profit', 'profit_at_current']);
+/** 按占位路径最后一段的键名定单位；current / anchor 取同一个 variables 项里的 unit；其他键原样显示。 */
+function formatCalcValue(path: string, value: unknown, extra: Record<string, unknown> | undefined): string {
   const parsed = num(value);
   if (parsed == null) return '';
-  if (/eps|per_share|price/.test(key)) return formatFactValue({ value: parsed, unit: '元/股' });
-  if (/profit|earnings|net_income/.test(key)) return yuanText(parsed);
-  if (/multiple|(^|_)pe$/.test(key)) return formatFactValue({ value: parsed, unit: '倍' });
-  return plainNumber(parsed, Number.isInteger(parsed) ? 0 : 2);
+  const segments = path.split('.');
+  const key = segments.at(-1) ?? '';
+  if (CALC_YUAN_KEYS.has(key)) return yiText(parsed);
+  if (key === 'pe' || key === 'pb' || key === 'multiple') return `${plainNumber(parsed, 1)} 倍`;
+  if (key === 'price') return `${plainNumber(parsed, 2)} 元`;
+  if (key === 'eps') return `${plainNumber(parsed, 2)} 元/股`;
+  const raw = plainNumber(parsed, Number.isInteger(parsed) ? 0 : 2);
+  if (key === 'current' || key === 'anchor' || (key === 'value' && segments.at(-2) === 'anchor')) {
+    const at = segments.indexOf('variables');
+    const unit = at >= 0 ? record(pathValue(extra, segments.slice(0, at + 2).join('.')))?.unit : undefined;
+    return typeof unit === 'string' && unit.trim() ? `${raw} ${unit.trim()}` : raw;
+  }
+  return raw;
 }
 function pathValue(root: unknown, path: string): unknown {
   let node: unknown = root;

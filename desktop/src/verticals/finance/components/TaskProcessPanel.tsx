@@ -37,9 +37,9 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
       <div className="task-process-native min-h-0 flex-1">
         {slots?.renderSlot('finance.panel.conversation', { sessionId: selectedId, parentSessionId: task.parentSessionId })}
       </div>
-      <footer className="flex flex-wrap gap-2 border-t border-border px-4 py-3">
-        {running && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { void (task.kind !== 'knowledge' && selectedId === task.sessionId ? sessions.cancelTask(selectedId) : sessions.cancelSession(selectedId)).catch(() => {}); }}>中止</button>}
+      <footer className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-3">
         {task.resultRef && (registeredObject(task.resultRef)?.href || registeredObject(task.resultRef)?.drawer) && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { onClose(); openRegisteredObject(task.resultRef!); }}>打开成果</button>}
+        {running && <button type="button" className="workspace-action workspace-action-compact" onClick={() => { void (task.kind !== 'knowledge' && selectedId === task.sessionId ? sessions.cancelTask(selectedId) : sessions.cancelSession(selectedId)).catch(() => {}); }}>中止</button>}
       </footer>
     </aside>
   </div>;

@@ -410,6 +410,12 @@ test('研究过程面板：知识整理未完成只在面板注明；不显示�
   await show({});
   assert.match(container.querySelector('nav')!.textContent!, /本次没有需要展示的整理过程/);
   assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成/);
+  const running = { subscribeSessionList: () => () => {}, taskRunning: () => true };
+  await React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: running },
+    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 's', title: '个股页研究', kind: 'research', resultRef: undefined }, onClose: () => {} }))));
+  const footer = container.querySelector('footer')!;
+  assert.match(footer.className, /justify-end/);
+  assert.equal(footer.lastElementChild?.textContent, '中止', '中止在右下角');
   const css = readFileSync(new URL('../src/verticals/finance/components/task-process.css', import.meta.url), 'utf8');
   assert.match(css, /\.task-process-native \[data-chat-flow-kind="user"\] \{ display: none; \}/);
 });

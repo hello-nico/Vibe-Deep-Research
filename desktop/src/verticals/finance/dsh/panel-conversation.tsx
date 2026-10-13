@@ -59,6 +59,9 @@ type PanelSeatProps = {
   renderSlot(name: string, owner: object): ReactNode;
 };
 
+/** A task's session log may not be written yet when the panel first opens: keep loading and retry before reporting a failure. */
+export const taskLogRetry = { windowMs: 10_000, intervalMs: 1_000 };
+
 export function installPanelConversation(ctx: Context, activePanel: () => FinanceSidePanel | null) {
   type NativeSessionId = Parameters<typeof ctx.sessions.subagentAddress>[0];
   const id = (value: string) => value as NativeSessionId;
@@ -71,7 +74,7 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
       let retained: SessionReference | undefined;
       setReference(null);
       setError(null);
-      void (async () => {
+      const load = async () => {
         if (topic || assistant) await ctx.sessions.refresh().catch(() => {});
         else await ctx.sessions.refresh();
         const parent = topic || assistant ? undefined : parentSessionId || ctx.sessions.subagentAddress(id(sessionId))?.parentSessionId
@@ -92,6 +95,20 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
         }, { source: topic || assistant ? 'financePanel' : 'taskProcess', signal: controller.signal });
         await retained.ready;
         if (active) setReference(retained);
+      };
+      const opened = Date.now();
+      void (async () => {
+        for (;;) {
+          try { return await load(); }
+          catch (error) {
+            retained?.release();
+            retained = undefined;
+            // Only a task's process retries, and not when its record is known to be gone; after the window the failure is reported.
+            if (topic || assistant || !active || isMissingSessionError(error) || Date.now() - opened + taskLogRetry.intervalMs > taskLogRetry.windowMs) throw error;
+            await new Promise(resolve => setTimeout(resolve, taskLogRetry.intervalMs));
+            if (!active) return;
+          }
+        }
       })().catch(error => {
         retained?.release();
         retained = undefined;
@@ -104,7 +121,7 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
       };
     }, [sessionId, parentSessionId, topic, assistant]);
     if (error) return <p role={error === 'missing' ? 'status' : 'alert'} className={`p-4 text-sm ${error === 'missing' ? 'text-muted-foreground' : 'text-destructive'}`}>{error === 'missing' ? '这次任务的执行记录已清理，无法查看过程' : '执行记录读取失败，请稍后重试'}</p>;
-    if (!reference) return <p role="status" className="p-4 text-sm text-muted-foreground">{topic || assistant ? '正在打开对话…' : '正在读取执行记录…'}</p>;
+    if (!reference) return <p role="status" className="p-4 text-sm text-muted-foreground">{topic || assistant ? '正在打开对话…' : '正在加载…'}</p>;
     return <SessionProvider session={reference}>{renderSlot('finance.panel.chat', { topic, assistant })}</SessionProvider>;
   }
   ctx.slots.inject('finance.panel.conversation', () => ctx.slots.register({

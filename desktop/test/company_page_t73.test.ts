@@ -82,6 +82,34 @@ test('句中占位：字段与计算凭据按取值填入，缺口为 null；占
   assert.equal(resolveSlot(`calc:${sensitivityRef}.rule_of_thumb.0.profit_delta`, huaneng.packet, {}), null);
 });
 
+test('计算占位按路径末段的键名定单位：神火真实 profit_delta 显示为亿元', () => {
+  const { resolveSlot } = narrative;
+  const ref = 'result:' + 'a'.repeat(32);
+  const calcs = { [ref]: { extra: {
+    rule_of_thumb: [{ var_id: 'cmdty:SHFE.AL', delta: 1000, profit_delta: 827213777.939459 }],
+    variables: [{ var_id: 'cmdty:SHFE.AL', unit: '元/吨', current: 23465, anchor: 21000.5 }],
+    base_profit: 2.5e9, profit_at_current: 3.1e9, price: 12.345, eps: 1.234, implied: { pe: 14.25, pb: 0.96, multiple: 7.98 }, shares: 2250000000,
+  } } };
+  const text = (path: string) => resolveSlot(`calc:${ref}.${path}`, undefined, calcs)?.text;
+  assert.equal(text('rule_of_thumb.0.profit_delta'), '8.27 亿元');
+  assert.equal(text('base_profit'), '25.00 亿元');
+  assert.equal(text('profit_at_current'), '31.00 亿元');
+  assert.equal(text('price'), '12.35 元');
+  assert.equal(text('eps'), '1.23 元/股');
+  assert.equal(text('variables.0.current'), '23,465 元/吨');
+  assert.equal(text('variables.0.anchor'), '21,000.50 元/吨');
+  assert.equal(text('shares'), '2,250,000,000', '其他键原样显示');
+  assert.equal(text('implied.pe'), '14.3 倍');
+  assert.equal(text('implied.pb'), '1.0 倍');
+  assert.equal(text('implied.multiple'), '8.0 倍');
+  assert.equal(text('rule_of_thumb.0.delta'), '1,000');
+  // 亿元四舍五入到两位小数，不截断：8.275 亿 → 8.28，8.274 亿 → 8.27，负数对称
+  assert.equal(narrative.yiText(827_500_000), '8.28 亿元');
+  assert.equal(narrative.yiText(827_400_000), '8.27 亿元');
+  assert.equal(narrative.yiText(996_999_999), '9.97 亿元');
+  assert.equal(narrative.yiText(0), '0.00 亿元');
+});
+
 test('敏感性：页面只做 基数 + Σ 系数 × 变动 与 ÷ 股本；神火样张数值', () => {
   const model = narrative.parseSensitivity(shenhuo.sensitivityResult);
   assert.equal(model.variables.length, 3);
@@ -376,7 +404,7 @@ test('神火关键变量：公式行、滑块按真实单位，滑轨标参考�
   assert.deepEqual([...variables.querySelectorAll('.narrative-slider-actions button')].map(item => item.textContent), ['回到今天价格', '回到基数期均价']);
   const result = variables.querySelector('[data-result]')!.textContent!;
   assert.match(result, /年化归母净利（估算）\s*92\.38 亿元/);
-  assert.match(result, /相对基数 -3\.23 亿元/);
+  assert.match(result, /相对基数 -3\.24 亿元/);
   assert.match(result, /基数：2026 上半年 × 2/);
   assert.match(variables.querySelector('.narrative-result-pair')!.textContent!, /对应每股收益[\s\S]*现价 52\.67 元对应市盈率/);
   assert.equal(variables.closest('[data-company-section]')!.querySelector('.panel-meta')!.textContent, '基数：2026 上半年 × 2');
@@ -384,7 +412,7 @@ test('神火关键变量：公式行、滑块按真实单位，滑轨标参考�
   assert.match(variables.querySelector('[data-pe]')!.textContent!, /12\.8 倍/);
   const initial = [...variables.querySelectorAll('.narrative-contrib li')].map(item => item.textContent!);
   assert.match(initial[0]!, /沪铝-9\.52 亿元/);
-  assert.match(initial[1]!, /氧化铝\+6\.33 亿元/);
+  assert.match(initial[1]!, /氧化铝\+6\.34 亿元/);
   assert.match(variables.textContent!, /氧化铝单耗 1\.93 吨/);
   assert.equal(variables.querySelector('[data-chart="quarters"]'), null);
 });
@@ -401,7 +429,7 @@ test('拖动滑块：利润、贡献正负条、每股收益、现价对应市�
   assert.match(variables.querySelector('[data-eps]')!.textContent!, /4\.79 元\/股/);
   assert.match(variables.querySelector('[data-pe]')!.textContent!, /11\.0 倍/);
   const contribution = [...variables.querySelectorAll('.narrative-contrib li')].map(item => item.textContent);
-  assert.match(contribution[0]!, /沪铝\+5\.76 亿元/);
+  assert.match(contribution[0]!, /沪铝\+5\.77 亿元/);
   assert.ok(variables.querySelector('.narrative-contrib-track .is-up'));
   const adjusted = valuation.querySelector('[data-band-adjusted]')!;
   assert.match(adjusted.getAttribute('title')!, /调整后的中性价 57\.45 元\/股/);

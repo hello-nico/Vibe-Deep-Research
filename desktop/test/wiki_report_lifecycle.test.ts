@@ -472,7 +472,9 @@ test('旧任务过程显示灰色清理说明，临时读取失败保留红色�
         inject: (_name, factory) => factory(),
         register: (options, Component) => { registrations.set(options.name, Component); },
       } };
-      (await env.serverLoad('/src/verticals/finance/dsh/panel-conversation.tsx')).installPanelConversation(ctx, () => null);
+      const panel = await env.serverLoad('/src/verticals/finance/dsh/panel-conversation.tsx');
+      Object.assign(panel.taskLogRetry, { windowMs: 0 });
+      panel.installPanelConversation(ctx, () => null);
       const PanelSeat = registrations.get('finance.panel.conversation');
       await env.render(createElement(PanelSeat, {
         sessionId: 'child', parentSessionId: 'host', SessionProvider: ({ children }) => children, renderSlot: () => null,
@@ -490,6 +492,40 @@ test('旧任务过程显示灰色清理说明，临时读取失败保留红色�
 
 
 
+
+test('任务过程首次打开时会话日志还没写出：先显示正在加载并重试，窗口内读到就不报错，超时才报错', async () => {
+  for (const succeeds of [true, false]) {
+    const env = await boot();
+    try {
+      const registrations = new Map();
+      let attempts = 0;
+      const sessions = {
+        refresh: async () => { attempts += 1; if (!succeeds || attempts < 3) throw new Error('session log not written'); },
+        refreshProjections: async () => {},
+        subagentAddress: () => ({ parentSessionId: 'host', childSessionId: 'child', mode: 'one-shot' }),
+        list: { getSnapshot: () => ({ byId: { child: {} }, projectionsBySession: {} }) },
+        retain: () => ({ ready: Promise.resolve(), release() {} }),
+      };
+      const ctx = { sessions, slots: { inject: (_name, factory) => factory(), register: (options, Component) => { registrations.set(options.name, Component); } } };
+      const panel = await env.serverLoad('/src/verticals/finance/dsh/panel-conversation.tsx');
+      Object.assign(panel.taskLogRetry, { windowMs: 400, intervalMs: 20 });
+      panel.installPanelConversation(ctx, () => null);
+      const PanelSeat = registrations.get('finance.panel.conversation');
+      await env.render(createElement(PanelSeat, {
+        sessionId: 'child', parentSessionId: 'host', SessionProvider: ({ children }) => createElement('main', null, children), renderSlot: () => createElement('i', null, '过程'),
+      }));
+      await env.act(async () => {});
+      assert.equal(env.container.querySelector('p')?.textContent, '正在加载…', '重试期间不报错');
+      await env.act(async () => { await new Promise(resolve => setTimeout(resolve, 600)); });
+      if (succeeds) {
+        assert.equal(env.container.querySelector('i')?.textContent, '过程', '读到后显示过程');
+        assert.equal(env.container.querySelector('[role="alert"]'), null);
+      } else {
+        assert.equal(env.container.querySelector('p')?.textContent, '执行记录读取失败，请稍后重试');
+      }
+    } finally { await env.cleanup(); }
+  }
+});
 
 test('生成中显示完整加载效果，不提供生成过程入口', async () => {
   const env = await boot();
