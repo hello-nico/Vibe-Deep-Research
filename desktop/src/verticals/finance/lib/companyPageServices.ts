@@ -83,8 +83,22 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
         return null;
       }
     },
+    readResult: async (ref, signal) => {
+      const id = /^result:([0-9a-f]{32})$/i.exec(ref)?.[1];
+      if (!id) return null;
+      try { return await researchRead(`/research-results/result:${id}`, { signal }); }
+      catch (error) {
+        console.warn('[finance/company-page] result unavailable', error);
+        return null;
+      }
+    },
+    revertResearch: async (symbol, expectedResearchVersion) => {
+      await researchRead(`/wiki/companies/${qualified(symbol)}/page-research/revert`, {
+        method: 'POST', body: JSON.stringify(expectedResearchVersion ? { expectedResearchVersion } : {}), headers: { 'Content-Type': 'application/json' },
+      });
+    },
     readResearch: async symbol => {
-      const { research, stale, basisVersion } = await researchRead<Omit<CompanyPageResearchRead, 'task'>>(`/wiki/companies/${qualified(symbol)}/page-research`);
+      const { research, stale, basisVersion, researchVersion, canRevert, changedFrom } = await researchRead<Omit<CompanyPageResearchRead, 'task'>>(`/wiki/companies/${qualified(symbol)}/page-research`);
       if (typeof basisVersion !== 'string' || !basisVersion || typeof stale !== 'boolean' || !(research === null || research && typeof research === 'object')) {
         throw new Error('个股页研究读取失败');
       }
@@ -97,7 +111,8 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
         task = { sessionId: latest.sessionId, status, stage: '', startedAt: latest.startedAt };
         task.stage = companyPageProgress({ loaded: true, research, stale, task }) ?? '';
       }
-      return { research, stale, basisVersion, task };
+      return { research, stale, basisVersion, task,
+        ...(researchVersion !== undefined ? { researchVersion } : {}), ...(canRevert !== undefined ? { canRevert } : {}), ...(changedFrom !== undefined ? { changedFrom } : {}) };
     },
     subscribeResearch: listener => sessions.subscribeSessionList(listener),
     startResearch: async (symbol, name) => {

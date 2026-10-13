@@ -1,0 +1,1985 @@
+{
+ "huaneng": {
+  "packet": {
+   "symbol": "600863.SH",
+   "as_of": "2026-10-12",
+   "financial_period": "FY2025",
+   "identity": {
+    "symbol": "600863.SH",
+    "name": "华能蒙电",
+    "weight": 1.4248,
+    "added_date": "2021-12-13",
+    "industry_code": "801161.SI",
+    "industry_name": "电力",
+    "parent": "公用事业",
+    "taxonomy": "SW2021",
+    "taxonomy_version": "2021",
+    "as_of_date": "2026-08-12"
+   },
+   "fields": {
+    "revenue": {
+     "field_id": "revenue",
+     "metric": "revenue",
+     "value": "21050468832.2",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "ref": "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287",
+     "source_ref": "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287",
+     "provider": "hithink",
+     "provider_values": [
+      {
+       "value": "21050468832.2",
+       "unit": "元",
+       "period": "FY2025",
+       "provider": "hithink"
+      }
+     ]
+    },
+    "gross_margin": {
+     "field_id": "gross_margin",
+     "metric": "gross_margin",
+     "value": "23.15676149470610744167670700",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度合并收入与营业成本计算",
+     "status": "sourced",
+     "source_ref": [
+      "provider:hithink:600863.SH:cost:2026-10-12T14:33:51.591310+08:00:d0016ba4b85ded3a6d0833f2",
+      "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287"
+     ],
+     "formula": "年度合并收入与营业成本计算"
+    },
+    "net_profit_attributable": {
+     "field_id": "net_profit_attributable",
+     "metric": "net_profit_attributable",
+     "value": "2493439065.89",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+     "source_ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+     "provider": "hithink",
+     "provider_values": [
+      {
+       "value": "2493439065.89",
+       "unit": "元",
+       "period": "FY2025",
+       "provider": "hithink"
+      }
+     ]
+    },
+    "net_profit_ex_nonrecurring": {
+     "field_id": "net_profit_ex_nonrecurring",
+     "metric": "net_profit_ex_nonrecurring",
+     "value": "1858282854.91",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "合并",
+     "status": "verified",
+     "ref": "source:323eb45422ee46ba9c8141da7a89695d:260dd6d486fe:r-4a3bbec55c9d4fb7:p7:b5",
+     "source_ref": "source:323eb45422ee46ba9c8141da7a89695d:260dd6d486fe:r-4a3bbec55c9d4fb7:p7:b5"
+    },
+    "operating_cash_flow": {
+     "field_id": "operating_cash_flow",
+     "metric": "operating_cash_flow",
+     "value": "6731988052.2",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "ref": "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:d081e93dc74aa93e0f7a939c",
+     "source_ref": "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:d081e93dc74aa93e0f7a939c",
+     "provider": "hithink",
+     "provider_values": [
+      {
+       "value": "6731988052.2",
+       "unit": "元",
+       "period": "FY2025",
+       "provider": "hithink"
+      }
+     ]
+    },
+    "capex_cash": {
+     "field_id": "capex_cash",
+     "metric": "capex_cash",
+     "value": "3771344604.19",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "consolidated",
+     "status": "verified",
+     "ref": "provider:hithink:600863.SH:capex_cash:2026-10-12T14:33:51.591310+08:00:32514f7289d20053868dedf1",
+     "source_ref": "provider:hithink:600863.SH:capex_cash:2026-10-12T14:33:51.591310+08:00:32514f7289d20053868dedf1",
+     "provider": "hithink",
+     "provider_values": [
+      {
+       "value": "3771344604.19",
+       "unit": "元",
+       "period": "FY2025",
+       "provider": "hithink"
+      }
+     ]
+    },
+    "dividend_paid": {
+     "field_id": "dividend_paid",
+     "metric": "dividend_paid",
+     "period": "FY2025",
+     "status": "gap",
+     "reason": "方案输入缺口：缺上一年度方案；缺方案股本基数；缺年内已实施中期分红或明确无中期分红的原文"
+    },
+    "residual_cash": {
+     "field_id": "residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "输入缺失或未核对，不能计算"
+    },
+    "shares": {
+     "field_id": "shares",
+     "metric": "shares",
+     "value": 7835189560,
+     "unit": "股",
+     "period": "2026-10-12",
+     "scope": "报价时点期末总股数，非报告期末变动生效日",
+     "status": "verified",
+     "ref": "provider:tencent:600863.SH:shares:2026-10-12T14:33:52+08:00:b46121c713ec765ba78980e3",
+     "source_ref": "provider:tencent:600863.SH:shares:2026-10-12T14:33:52+08:00:b46121c713ec765ba78980e3",
+     "provider": "tencent"
+    },
+    "dividend_per_share": {
+     "field_id": "dividend_per_share",
+     "metric": "dividend_per_share",
+     "value": "0.22",
+     "unit": "元/股",
+     "period": "FY2025",
+     "scope": "普通股含税利润分配方案，非当期付款",
+     "status": "verified",
+     "ref": "source:5bf92d597108487ab3f4427d8056030c:8801cf3af7ef:r-0fced499c6d74bcd:p2:b9",
+     "source_ref": "source:5bf92d597108487ab3f4427d8056030c:8801cf3af7ef:r-0fced499c6d74bcd:p2:b9"
+    },
+    "price": {
+     "field_id": "price",
+     "metric": "price",
+     "value": "5.21",
+     "unit": "元/股",
+     "period": "2026-10-12",
+     "scope": "前复权序列最后交易日收盘（最新基准价）",
+     "status": "sourced",
+     "ref": "result:432bcba68e634600907778e579728e5e",
+     "source_ref": "result:432bcba68e634600907778e579728e5e"
+    },
+    "pe": {
+     "field_id": "pe",
+     "metric": "pe",
+     "value": "19.77015339903588101910223500",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / provider TTM归母净利",
+     "status": "verified",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:98014a8a5af8c89745c5e8ae",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9",
+      "provider:tencent:600863.SH:market_cap:2026-10-12T14:33:52+08:00:a759c7b398ca14804d088598"
+     ],
+     "deviation": "0.000008275148948867494671860226447",
+     "formula": "已存总市值 / provider TTM归母净利",
+     "provider_value": {
+      "value": "19.770317",
+      "unit": "倍",
+      "period": "TTM",
+      "scope": "provider TTM",
+      "status": "sourced"
+     },
+     "recalculated": {
+      "value": "19.77015339903588101910223500",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / provider TTM归母净利",
+      "status": "sourced"
+     }
+    },
+    "pb": {
+     "field_id": "pb",
+     "metric": "pb",
+     "value": "2.052098005640861582777516366",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "已存总市值 / 同期普通股归母净资产",
+     "status": "verified",
+     "source_ref": [
+      "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:0d2383abdc83506eb6dc70d1",
+      "provider:sina:600863.SH:other_equity_tools:2026-10-12T14:33:51.591310+08:00:0f94e76d59160789c9f806bb",
+      "provider:tencent:600863.SH:market_cap:2026-10-12T14:33:52+08:00:a759c7b398ca14804d088598"
+     ],
+     "deviation": "0.000008281455901084000881898963779",
+     "formula": "已存总市值 / 同期普通股归母净资产",
+     "provider_value": {
+      "value": "2.052115",
+      "unit": "倍",
+      "period": "MRQ",
+      "scope": "provider MRQ",
+      "status": "sourced"
+     },
+     "recalculated": {
+      "value": "2.052098005640861582777516366",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / 同期普通股归母净资产",
+      "status": "sourced"
+     }
+    },
+    "dividend_yield": {
+     "field_id": "dividend_yield",
+     "metric": "dividend_yield",
+     "value": "4.222648752399232245681381958",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度普通股含税方案每股分红 / 当前不复权收盘价；不是当期付款率",
+     "status": "sourced",
+     "source_ref": [
+      "result:432bcba68e634600907778e579728e5e",
+      "source:5bf92d597108487ab3f4427d8056030c:8801cf3af7ef:r-0fced499c6d74bcd:p2:b9"
+     ],
+     "formula": "年度普通股含税方案每股分红 / 当前不复权收盘价；不是当期付款率"
+    },
+    "peers": {
+     "field_id": "peers",
+     "metric": "peers",
+     "scope": "申万二级同行；逐指标排除冲突与缺口",
+     "status": "sourced",
+     "source_ref": [
+      "pe_recalculated:bc035749250f00aefe29",
+      "pe_recalculated:5a93fcfb56a3d2658513",
+      "pe_recalculated:e00b372f532b370c5b1d",
+      "pe_recalculated:2f0eb809ab815c54298e",
+      "pe_recalculated:1a9b2ee3f2049a68d280",
+      "pb_recalculated:7def255c4b9dab1e6310",
+      "pb_recalculated:2dc60d265aa87c789a39",
+      "pb_recalculated:db98b1e1c6d939902227",
+      "pb_recalculated:de888a026873524831e2",
+      "pb_recalculated:1621dee1d7bb6221dd48",
+      "roe:a26cf7e1199b9c0da403",
+      "roe:a4c5a3f7f794d4f7cc0d",
+      "roe:2a7f0e9ccdd79698fab6",
+      "roe:d1133cef81d5807b4cc1",
+      "roe:209c23f58101c5524ea3",
+      "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287",
+      "provider:hithink:000027.SZ:revenue:2026-10-12T14:38:58.608028+08:00:c27e8e8c282b77c8240a87d1",
+      "provider:hithink:000037.SZ:revenue:2026-10-12T14:39:05.965478+08:00:3b9c1a916a67ca93750cf126",
+      "provider:hithink:000155.SZ:revenue:2026-10-12T14:39:12.889428+08:00:d8b763ee8dc686119244b76f",
+      "provider:hithink:000507.SZ:revenue:2026-10-12T14:39:21.101985+08:00:2b738809d950ae386ae73307",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:000027.SZ:net_profit_attributable:2026-10-12T14:38:58.608028+08:00:c6f6d2fae7e0352c2c71659e",
+      "provider:hithink:000037.SZ:net_profit_attributable:2026-10-12T14:39:05.965478+08:00:ba1eac30cd1de7fc4af06636",
+      "provider:hithink:000155.SZ:net_profit_attributable:2026-10-12T14:39:12.889428+08:00:06f1f8bb7f6a635b60a418e3",
+      "provider:hithink:000507.SZ:net_profit_attributable:2026-10-12T14:39:21.101985+08:00:4e96987a05a124e9ffa99d7c"
+     ],
+     "items": [
+      {
+       "symbol": "000027.SZ",
+       "name": "深圳能源",
+       "pe": {
+        "field_id": "pe_recalculated:5a93fcfb56a3d2658513",
+        "metric": "pe",
+        "value": "13.08618692891435611053230821",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       },
+       "pb": {
+        "field_id": "pb_recalculated:2dc60d265aa87c789a39",
+        "metric": "pb",
+        "value": "0.8994680404403103887581952925",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       }
+      },
+      {
+       "symbol": "000037.SZ",
+       "name": "深南电A",
+       "pe": {
+        "field_id": "pe_recalculated:e00b372f532b370c5b1d",
+        "metric": "pe",
+        "value": "26.92351186982000793268825899",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       },
+       "pb": {
+        "field_id": "pb_recalculated:db98b1e1c6d939902227",
+        "metric": "pb",
+        "value": "3.250440240867110631125796798",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       }
+      },
+      {
+       "symbol": "000155.SZ",
+       "name": "川能动力",
+       "pe": {
+        "field_id": "pe_recalculated:2f0eb809ab815c54298e",
+        "metric": "pe",
+        "value": "22.29640506874463377229556044",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       },
+       "pb": {
+        "field_id": "pb_recalculated:de888a026873524831e2",
+        "metric": "pb",
+        "value": "1.799053811447090329881615968",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       }
+      },
+      {
+       "symbol": "000507.SZ",
+       "name": "珠海港",
+       "pe": {
+        "field_id": "pe_recalculated:1a9b2ee3f2049a68d280",
+        "metric": "pe",
+        "value": "19.69412732718921989554541354",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       },
+       "pb": {
+        "field_id": "pb_recalculated:1621dee1d7bb6221dd48",
+        "metric": "pb",
+        "value": "0.5295003118850188585095723693",
+        "unit": "倍",
+        "period": "2026-10-12",
+        "status": "verified"
+       }
+      }
+     ]
+    },
+    "roe": {
+     "field_id": "roe",
+     "metric": "roe",
+     "value": "13.62214716941710124152019831",
+     "unit": "%",
+     "period": "FY2025",
+     "scope": "年度归母净利 / 期初期末归母净资产平均",
+     "status": "sourced",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:51c0e6af0d6f3cf312381270",
+      "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:aa1fff779ff775da64005706"
+     ],
+     "formula": "年度归母净利 / 期初期末归母净资产平均"
+    },
+    "net_assets": {
+     "field_id": "net_assets",
+     "metric": "net_assets",
+     "value": "20844720875.850000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "consolidated",
+     "status": "sourced",
+     "ref": "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:0d2383abdc83506eb6dc70d1",
+     "source_ref": "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:0d2383abdc83506eb6dc70d1",
+     "provider": "sina",
+     "provider_values": [
+      {
+       "value": "20844720875.850000",
+       "unit": "元",
+       "period": "2026H1",
+       "provider": "sina"
+      }
+     ]
+    },
+    "ttm_profit": {
+     "field_id": "ttm_profit",
+     "metric": "ttm_profit",
+     "value": "2064779123.16",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:98014a8a5af8c89745c5e8ae",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9"
+     ],
+     "formula": "最新年度provider累计 + 当年最新累计 - 上年同期累计"
+    },
+    "other_equity_tools": {
+     "field_id": "other_equity_tools",
+     "metric": "other_equity_tools",
+     "value": "952396100.040000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "consolidated",
+     "status": "sourced",
+     "ref": "provider:sina:600863.SH:other_equity_tools:2026-10-12T14:33:51.591310+08:00:0f94e76d59160789c9f806bb",
+     "source_ref": "provider:sina:600863.SH:other_equity_tools:2026-10-12T14:33:51.591310+08:00:0f94e76d59160789c9f806bb",
+     "provider": "sina",
+     "provider_values": [
+      {
+       "value": "952396100.040000",
+       "unit": "元",
+       "period": "2026H1",
+       "provider": "sina"
+      }
+     ]
+    },
+    "common_equity": {
+     "field_id": "common_equity",
+     "metric": "common_equity",
+     "value": "19892324775.810000",
+     "unit": "元",
+     "period": "2026H1",
+     "scope": "同期期末归母权益减其他权益工具（优先股、永续债）",
+     "status": "sourced",
+     "source_ref": [
+      "provider:sina:600863.SH:net_assets:2026-10-12T14:33:51.591310+08:00:0d2383abdc83506eb6dc70d1",
+      "provider:sina:600863.SH:other_equity_tools:2026-10-12T14:33:51.591310+08:00:0f94e76d59160789c9f806bb"
+     ],
+     "formula": "同期期末归母权益减其他权益工具（优先股、永续债）"
+    },
+    "market_cap": {
+     "field_id": "market_cap",
+     "metric": "market_cap",
+     "value": "40821000000.00",
+     "unit": "元",
+     "period": "报价时点",
+     "scope": "provider 报价时点",
+     "status": "sourced",
+     "ref": "provider:tencent:600863.SH:market_cap:2026-10-12T14:33:52+08:00:a759c7b398ca14804d088598",
+     "source_ref": "provider:tencent:600863.SH:market_cap:2026-10-12T14:33:52+08:00:a759c7b398ca14804d088598",
+     "provider": "tencent"
+    },
+    "eps_ttm": {
+     "field_id": "eps_ttm",
+     "metric": "eps_ttm",
+     "value": "0.2635263776770705213161428605",
+     "unit": "元/股",
+     "period": "TTM:2026H1",
+     "scope": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+     "status": "sourced",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:98014a8a5af8c89745c5e8ae",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9",
+      "provider:tencent:600863.SH:shares:2026-10-12T14:33:52+08:00:b46121c713ec765ba78980e3"
+     ],
+     "formula": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径"
+    },
+    "eps_forecast": {
+     "field_id": "eps_forecast",
+     "metric": "eps_forecast",
+     "value": "0.343",
+     "unit": "元/股",
+     "period": "FY2026E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "reason": "样本少",
+     "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T14:33:59.954563+08:00:f9f9afc43a4bd254ec5ed555",
+     "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T14:33:59.954563+08:00:f9f9afc43a4bd254ec5ed555",
+     "institution_count": 1,
+     "latest_published_at": "2026-07-08 00:00:00.000"
+    },
+    "eps_forecast_next": {
+     "field_id": "eps_forecast_next",
+     "metric": "eps_forecast_next",
+     "value": "0.381",
+     "unit": "元/股",
+     "period": "FY2027E",
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "status": "sourced",
+     "reason": "样本少",
+     "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T14:33:59.954563+08:00:f9f9afc43a4bd254ec5ed555",
+     "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T14:33:59.954563+08:00:f9f9afc43a4bd254ec5ed555",
+     "institution_count": 1,
+     "latest_published_at": "2026-07-08 00:00:00.000"
+    },
+    "forward_pe": {
+     "field_id": "forward_pe",
+     "metric": "forward_pe",
+     "value": "15.18950437317784256559766764",
+     "unit": "倍",
+     "period": "2026-10-12",
+     "scope": "当前不复权价格 / 当年机构预测EPS中位数",
+     "status": "sourced",
+     "source_ref": [
+      "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T14:33:59.954563+08:00:f9f9afc43a4bd254ec5ed555",
+      "result:432bcba68e634600907778e579728e5e"
+     ],
+     "formula": "当前不复权价格 / 当年机构预测EPS中位数"
+    }
+   },
+   "lenses": {
+    "ttm_profit": {
+     "field_id": "lens:ttm_profit.ttm_profit",
+     "metric": "ttm_profit",
+     "value": "2064779123.16",
+     "unit": "元",
+     "period": "TTM:2026H1",
+     "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+     "status": "sourced",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:98014a8a5af8c89745c5e8ae",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9"
+     ],
+     "formula": "最新年度provider累计 + 当年最新累计 - 上年同期累计"
+    },
+    "cash_conversion": {
+     "field_id": "lens:cash_conversion.cash_conversion",
+     "metric": "cash_conversion",
+     "value": "2.699880716674785137434044825",
+     "unit": "倍",
+     "period": "FY2025",
+     "scope": "合并经营现金流 / 同期归母净利；非归母现金流",
+     "status": "verified",
+     "source_ref": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+      "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:d081e93dc74aa93e0f7a939c"
+     ],
+     "formula": "合并经营现金流 / 同期归母净利；非归母现金流"
+    },
+    "residual_cash": {
+     "field_id": "lens:residual_cash.residual_cash",
+     "metric": "residual_cash",
+     "status": "gap",
+     "reason": "输入缺失或未核对，不能计算"
+    },
+    "peer_comparison": {
+     "pe": {
+      "field_id": "lens:peer_comparison.pe",
+      "metric": "pe",
+      "value": "20.99526619796692683392048699",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / provider TTM归母净利",
+      "status": "verified",
+      "source_ref": [
+       "pe_recalculated:bc035749250f00aefe29",
+       "pe_recalculated:5a93fcfb56a3d2658513",
+       "pe_recalculated:e00b372f532b370c5b1d",
+       "pe_recalculated:2f0eb809ab815c54298e",
+       "pe_recalculated:1a9b2ee3f2049a68d280"
+      ],
+      "median": "20.99526619796692683392048699",
+      "rank_descending": 3,
+      "sample_count": 4
+     },
+     "pb": {
+      "field_id": "lens:peer_comparison.pb",
+      "metric": "pb",
+      "value": "1.349260925943700359319905630",
+      "unit": "倍",
+      "period": "2026-10-12",
+      "scope": "已存总市值 / 同期普通股归母净资产",
+      "status": "verified",
+      "source_ref": [
+       "pb_recalculated:7def255c4b9dab1e6310",
+       "pb_recalculated:2dc60d265aa87c789a39",
+       "pb_recalculated:db98b1e1c6d939902227",
+       "pb_recalculated:de888a026873524831e2",
+       "pb_recalculated:1621dee1d7bb6221dd48"
+      ],
+      "median": "1.349260925943700359319905630",
+      "rank_descending": 2,
+      "sample_count": 4
+     },
+     "roe": {
+      "field_id": "lens:peer_comparison.roe",
+      "metric": "roe",
+      "value": "4.551937847180220811209491165",
+      "unit": "%",
+      "period": "FY2025",
+      "scope": "年度归母净利 / 期初期末归母净资产平均",
+      "status": "sourced",
+      "source_ref": [
+       "roe:a26cf7e1199b9c0da403",
+       "roe:a4c5a3f7f794d4f7cc0d",
+       "roe:2a7f0e9ccdd79698fab6",
+       "roe:d1133cef81d5807b4cc1",
+       "roe:209c23f58101c5524ea3"
+      ],
+      "median": "4.551937847180220811209491165",
+      "rank_descending": 1,
+      "sample_count": 4
+     },
+     "revenue": {
+      "field_id": "lens:peer_comparison.revenue",
+      "metric": "revenue",
+      "value": "3993215688.645",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287",
+       "provider:hithink:000027.SZ:revenue:2026-10-12T14:38:58.608028+08:00:c27e8e8c282b77c8240a87d1",
+       "provider:hithink:000037.SZ:revenue:2026-10-12T14:39:05.965478+08:00:3b9c1a916a67ca93750cf126",
+       "provider:hithink:000155.SZ:revenue:2026-10-12T14:39:12.889428+08:00:d8b763ee8dc686119244b76f",
+       "provider:hithink:000507.SZ:revenue:2026-10-12T14:39:21.101985+08:00:2b738809d950ae386ae73307"
+      ],
+      "median": "3993215688.645",
+      "rank_descending": 2,
+      "sample_count": 4
+     },
+     "net_profit_attributable": {
+      "field_id": "lens:peer_comparison.net_profit_attributable",
+      "metric": "net_profit_attributable",
+      "value": "371845640.30",
+      "unit": "元",
+      "period": "FY2025",
+      "scope": "consolidated",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+       "provider:hithink:000027.SZ:net_profit_attributable:2026-10-12T14:38:58.608028+08:00:c6f6d2fae7e0352c2c71659e",
+       "provider:hithink:000037.SZ:net_profit_attributable:2026-10-12T14:39:05.965478+08:00:ba1eac30cd1de7fc4af06636",
+       "provider:hithink:000155.SZ:net_profit_attributable:2026-10-12T14:39:12.889428+08:00:06f1f8bb7f6a635b60a418e3",
+       "provider:hithink:000507.SZ:net_profit_attributable:2026-10-12T14:39:21.101985+08:00:4e96987a05a124e9ffa99d7c"
+      ],
+      "median": "371845640.30",
+      "rank_descending": 1,
+      "sample_count": 4
+     }
+    },
+    "single_quarters": [
+     {
+      "field_id": "lens:single_quarters.2026Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "4707562475.44",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:d0fca06be8597624d6b456ec"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "694366411.62",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:ea99177f2acf05b5ee3da5ad"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "880181137.3",
+      "unit": "元",
+      "period": "2026Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:a76a4b7d35e21867db2fcff4"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "4322916859.80",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:0041559862938f26ec463347",
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:d0fca06be8597624d6b456ec"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "795790469.17",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:98014a8a5af8c89745c5e8ae",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:ea99177f2acf05b5ee3da5ad"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1692482558.06",
+      "unit": "元",
+      "period": "2026Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:1334633a37447d444689ed27",
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:a76a4b7d35e21867db2fcff4"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q3",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2026Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "period": "2026Q4",
+      "status": "gap",
+      "reason": "期间、单位或合并边界不匹配"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "5448390303.47",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:f51975658af7f7caea8750c0"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "921299737.91",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0fb2ebfdba50ac9ab489cecf"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q1.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1404320007.07",
+      "unit": "元",
+      "period": "2025Q1",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:3c870f051301f24e65393ec9"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "5181220877.10",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:b0d60d7ae4c0b8e92ebfd127",
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:f51975658af7f7caea8750c0"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "997517085.61",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0fb2ebfdba50ac9ab489cecf",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q2.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1749378164.74",
+      "unit": "元",
+      "period": "2025Q2",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:3c870f051301f24e65393ec9",
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:846383778f8e85b531549070"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "4422363503.04",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:a888f3b18875fcccb2854b5d",
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:b0d60d7ae4c0b8e92ebfd127"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "288887294.84",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:a2943e243217b39b46645096",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:e6a400cde63b54b87eb377c9"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q3.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "1323357609.14",
+      "unit": "元",
+      "period": "2025Q3",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:846383778f8e85b531549070",
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:ae54a0e7a1eb2d6208a1f4dd"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.revenue",
+      "metric": "single_quarter",
+      "input_metric": "revenue",
+      "value": "5998494148.59",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:237dac28a6d7bc2bdd8c8287",
+       "provider:hithink:600863.SH:revenue:2026-10-12T14:33:51.591310+08:00:a888f3b18875fcccb2854b5d"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.net_profit_attributable",
+      "metric": "single_quarter",
+      "input_metric": "net_profit_attributable",
+      "value": "285734947.53",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:0d159368e579dfeab223c435",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T14:33:51.591310+08:00:a2943e243217b39b46645096"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     },
+     {
+      "field_id": "lens:single_quarters.2025Q4.operating_cash_flow",
+      "metric": "single_quarter",
+      "input_metric": "operating_cash_flow",
+      "value": "2254932271.25",
+      "unit": "元",
+      "period": "2025Q4",
+      "scope": "同来源provider累计值相减；Q1即累计值",
+      "status": "sourced",
+      "source_ref": [
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:ae54a0e7a1eb2d6208a1f4dd",
+       "provider:hithink:600863.SH:operating_cash_flow:2026-10-12T14:33:51.591310+08:00:d081e93dc74aa93e0f7a939c"
+      ],
+      "formula": "同来源provider累计值相减；Q1即累计值"
+     }
+    ],
+    "valuation_percentile": {
+     "pe": {
+      "field_id": "lens:valuation_percentile.pe",
+      "metric": "pe_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     },
+     "pb": {
+      "field_id": "lens:valuation_percentile.pb",
+      "metric": "pb_percentile",
+      "status": "gap",
+      "reason": "缺近五年历史每股收益/净资产与不复权价格序列；不拼凑"
+     }
+    },
+    "ytd_yoy": {
+     "revenue": {
+      "field_id": "lens:ytd_yoy.revenue",
+      "metric": "revenue",
+      "value": "-5.8",
+      "unit": "%",
+      "period": "2026Q1-Q2 累计",
+      "scope": "当年单季合计对上年同期",
+      "status": "sourced"
+     },
+     "net_profit_attributable": {
+      "field_id": "lens:ytd_yoy.net_profit_attributable",
+      "metric": "net_profit_attributable",
+      "value": "-12.4",
+      "unit": "%",
+      "period": "2026Q1-Q2 累计",
+      "scope": "当年单季合计对上年同期",
+      "status": "sourced"
+     }
+    },
+    "cash_after_capex": {
+     "field_id": "lens:cash_after_capex.cash_after_capex",
+     "metric": "cash_after_capex",
+     "value": "2960644448.01",
+     "unit": "元",
+     "period": "FY2025",
+     "scope": "经营现金流减资本开支付现，未扣分红",
+     "status": "sourced"
+    }
+   },
+   "industry_drivers": {
+    "definition": {
+     "kind": "industrial",
+     "formula": {
+      "operation": "volume_price_cost",
+      "inputs": [
+       "power_sales",
+       "power_price",
+       "unit_cost"
+      ]
+     },
+     "elasticity_input": "power_sales",
+     "metrics": [
+      {
+       "metric": "power_sales",
+       "unit": "千瓦时",
+       "locator": "上网电量/售电量；不与发电量互换"
+      },
+      {
+       "metric": "power_price",
+       "unit": "元/兆瓦时",
+       "locator": "平均售电单价，不含税"
+      },
+      {
+       "metric": "unit_cost",
+       "unit": "元/兆瓦时",
+       "locator": "单位发电成本；不把燃料价格当总成本"
+      }
+     ]
+    },
+    "fields": {
+     "power_sales": {
+      "field_id": "driver:power_sales",
+      "metric": "power_sales",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     },
+     "power_price": {
+      "field_id": "driver:power_price",
+      "metric": "power_price",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     },
+     "unit_cost": {
+      "field_id": "driver:unit_cost",
+      "metric": "unit_cost",
+      "period": "FY2025",
+      "status": "gap",
+      "reason": "未匹配行业驱动行与单位"
+     }
+    },
+    "calculation": {
+     "field_id": "driver:industry_formula",
+     "metric": "industry_formula",
+     "status": "gap",
+     "reason": "缺已登记同口径行业公式输入，不填行业平均值"
+    }
+   },
+   "provider_snapshots": [
+    {
+     "observed_at": "2026-10-12T14:33:51.591310+08:00"
+    },
+    {
+     "observed_at": "2026-10-12T14:33:51.591310+08:00"
+    },
+    {
+     "observed_at": "2026-10-12T14:33:51.591310+08:00"
+    }
+   ],
+   "basisVersion": "fd3a1c075b4ace48370aaf99e9eb209dadb7ec5fb49f6581b8f4d868c704fedd"
+  },
+  "research": {
+   "research": {
+    "companyType": "leveraged_cyclical_utility",
+    "thesis": "量价成本差决定盈利，现金转化与股息提供支撑，估值取决于预测增速能否兑现",
+    "sections": {
+     "business": {
+      "summary": "主业为电力生产与销售，收入由上网电量与电价决定，成本以燃料和折旧为主",
+      "details": "数据包的行业驱动为售电量、平均售电单价与单位发电成本三项，利润来自三者形成的量价成本差；公司属重资产发电，收入规模与毛利率直接决定利润体量。三项驱动数值暂时取不到，页面无法展示售电单价与单位发电成本，已取到的收入、毛利率与归母净利作为结果口径。观察毛利率与被归母净利的走向，可判断量价与成本的净结果是否恶化。",
+      "fieldIds": [
+       "revenue",
+       "gross_margin",
+       "net_profit_attributable"
+      ],
+      "calculationRefs": []
+     },
+     "profit_formula": {
+      "summary": "利润等于售电量乘平均售电单价，扣除单位发电成本、期间费用与财务费用及税负",
+      "details": "行业驱动公式为量价成本型：上网电量与平均售电单价相乘形成收入，单位发电成本决定成本总额，两者之差再扣期间费用、财务费用与所得税后得到归母净利。三项驱动字段暂时取不到，无法给出电价或单位发电成本变动一个单位时利润的变化；已取到的收入、毛利率、归母净利与净资产收益率作为利润率与回报的结果口径。最近两期单季收入同比下降的同期，归母净利降幅更大，说明成本与费用刚性放大了利润波动。",
+      "fieldIds": [
+       "revenue",
+       "gross_margin",
+       "net_profit_attributable",
+       "roe"
+      ],
+      "calculationRefs": []
+     },
+     "variables": {
+      "summary": "关键变量是上网电价与单位发电成本，收入下行时净利降幅更大",
+      "details": "已取到的量价共同结果显示：单季营业收入同比下降，同期归母净利同比降幅更大，第一季度与第二季度方向一致，说明利润对电量电价变动存在放大效应；每单位收入对应的归母净利以净利率口径记录。单位发电成本与平均售电单价字段暂时取不到，无法单独给出电价或成本变动一个单位对利润的影响。观察窗口以定期报告的累计口径为准，以减小单季季节性的干扰。",
+      "fieldIds": [
+       "revenue",
+       "gross_margin",
+       "net_profit_attributable",
+       "lens:single_quarters.2026Q2.revenue",
+       "lens:single_quarters.2026Q2.net_profit_attributable"
+      ],
+      "calculationRefs": [
+       "result:d2895cd5624a4b13b88bcb4d4cd1c961",
+       "result:d0c9b792194f4c908525eb6e4ec07b22",
+       "result:ef579495515646fe8976ddc83be6354c",
+       "result:7ead6dafac7e4916aa35b789ea1e9b68",
+       "result:76799ee61dfd42d0a32516f249dbbb7b"
+      ]
+     },
+     "cash": {
+      "summary": "经营现金流远高于同期归母净利，现金转化好，剩余现金与已付分红暂时取不到",
+      "details": "经营现金流对归母净利的倍数明显大于一，反映折旧等非付现成本占比较高，利润的现金回收质量较好；同期购建资产支付的现金规模可观，属重资产发电的持续投入，自由现金余量需结合分红与债务安排判断。剩余现金与年度现金分红流出暂时取不到，无法把派现现金流与经营现金流直接比较。每股分红与股息率已取到，属年度分配方案口径，不是当期付款率。",
+      "fieldIds": [
+       "operating_cash_flow",
+       "capex_cash",
+       "net_profit_attributable",
+       "lens:cash_conversion.cash_conversion",
+       "dividend_per_share",
+       "dividend_yield",
+       "shares"
+      ],
+      "calculationRefs": []
+     },
+     "valuation": {
+      "summary": "滚动市盈率略低于同业中位数，前瞻市盈率更低，估值取决于预测增速兑现",
+      "details": "三档情景：悲观情景用滚动每股收益乘同业市盈率区间下限，中性情景用当年机构预测每股收益乘当前前瞻市盈率，乐观情景用当年机构预测每股收益乘同业市盈率中位数，倍数均取自同业样本或当前报价口径。机构预测只有一家，样本少，增速外推的代表性有限。同业对比中公司市净率高于同业中位数而净资产收益率也明显更高，滚动市盈率略低于同业中位数；前瞻市盈率低于滚动市盈率，隐含盈利回升，与最近一期收入与归母净利同比下降的事实方向不一致。",
+      "fieldIds": [
+       "pe",
+       "forward_pe",
+       "pb",
+       "roe",
+       "eps_ttm",
+       "eps_forecast",
+       "lens:peer_comparison.pe",
+       "lens:peer_comparison.pb",
+       "lens:peer_comparison.roe",
+       "dividend_yield"
+      ],
+      "calculationRefs": [
+       "result:9707dedc98f84c1ba4e1b575aa36f72a"
+      ]
+     },
+     "tracking": {
+      "summary": "跟踪量价成本、现金转化、分红方案与预测增速的兑现情况",
+      "details": "支柱覆盖收入量价基础、成本与杠杆敏感、现金转化质量、分红回报以及估值与预测增速的匹配度，每条配有观察窗口与证伪条件，条件触发后需重新检查判断。数据包内没有带日期依据的定期报告预约披露日或已公告事项，暂时没有可写入的催化事件；下一个可观察结果是定期报告的累计收入与归母净利口径。",
+      "fieldIds": [
+       "revenue",
+       "gross_margin",
+       "net_profit_attributable",
+       "operating_cash_flow",
+       "lens:cash_conversion.cash_conversion",
+       "dividend_per_share",
+       "dividend_yield",
+       "pe",
+       "forward_pe",
+       "eps_forecast"
+      ],
+      "calculationRefs": []
+     }
+    },
+    "pillars": [
+     {
+      "id": "p1",
+      "text": "收入由上网电量与电价决定，毛利率体现量价与成本的净结果",
+      "fieldIds": [
+       "revenue",
+       "gross_margin"
+      ]
+     },
+     {
+      "id": "p2",
+      "text": "重资产高投入，利润对单位发电成本与财务费用敏感",
+      "fieldIds": [
+       "net_profit_attributable",
+       "capex_cash",
+       "roe"
+      ]
+     },
+     {
+      "id": "p3",
+      "text": "经营现金流显著高于归母净利，利润的现金转化质量较好",
+      "fieldIds": [
+       "operating_cash_flow",
+       "lens:cash_conversion.cash_conversion"
+      ]
+     },
+     {
+      "id": "p4",
+      "text": "年度分配方案提供股息回报，派现现金流出尚未核对",
+      "fieldIds": [
+       "dividend_per_share",
+       "dividend_yield"
+      ]
+     },
+     {
+      "id": "p5",
+      "text": "滚动与前瞻市盈率在同业中位数附近或更低，估值依赖预测增速兑现",
+      "fieldIds": [
+       "pe",
+       "forward_pe",
+       "eps_forecast",
+       "lens:peer_comparison.pe"
+      ]
+     }
+    ],
+    "falsifiers": [
+     {
+      "pillarId": "p1",
+      "text": "收入同比继续下降，量价基础走弱",
+      "fieldId": "revenue",
+      "threshold": {
+       "kind": "yoy_pct",
+       "value": "-5",
+       "unit": "%"
+      },
+      "window": "2026年三季报"
+     },
+     {
+      "pillarId": "p2",
+      "text": "毛利率跌破两成，单位成本抬升侵蚀盈利",
+      "fieldId": "gross_margin",
+      "threshold": {
+       "kind": "level",
+       "value": "20",
+       "unit": "%"
+      },
+      "window": "FY2026年报"
+     },
+     {
+      "pillarId": "p3",
+      "text": "现金转化倍数回落到一倍附近",
+      "fieldId": "lens:cash_conversion.cash_conversion",
+      "threshold": {
+       "kind": "level",
+       "value": "1",
+       "unit": "倍"
+      },
+      "window": "FY2026年报"
+     },
+     {
+      "pillarId": "p4",
+      "text": "每股分红下降，股息回报被削弱",
+      "fieldId": "dividend_per_share",
+      "threshold": {
+       "kind": "level",
+       "value": "0.15",
+       "unit": "元/股"
+      },
+      "window": "FY2026年度利润分配方案"
+     },
+     {
+      "pillarId": "p5",
+      "text": "机构预测每股收益被下修，前瞻增速不成立",
+      "fieldId": "eps_forecast",
+      "threshold": {
+       "kind": "level",
+       "value": "0.3",
+       "unit": "元/股"
+      },
+      "window": "FY2026年报"
+     }
+    ],
+    "catalysts": [],
+    "valuation": {
+     "grade": "合理",
+     "basis": [
+      "滚动市盈率略低于同业中位数，市净率高于同业中位数，净资产收益率明显优于同业样本",
+      "前瞻市盈率低于滚动市盈率，隐含盈利回升，而最近一期单季收入与归母净利同比下降",
+      "三档情景以同业市盈率下限与同业市盈率中位数为边界，中性情景接近当前价格",
+      "每股分红与股息率已取到，提供一定的股息缓冲，但现金分红流出尚未核对"
+     ],
+     "conditions": "符合条件的改变：若定期报告显示收入与归母净利同比转正、单位发电成本回落或电价企稳，且预测机构家数增加并维持增速，判断可能上移；若盈利继续同比下降、单位成本抬升或机构预测下修，判断可能下移。",
+     "scenarioRef": "result:9707dedc98f84c1ba4e1b575aa36f72a"
+    },
+    "basisVersion": "fd3a1c075b4ace48370aaf99e9eb209dadb7ec5fb49f6581b8f4d868c704fedd",
+    "changes": {},
+    "researchedAt": "2026-10-12T07:56:46.307675+00:00"
+   },
+   "stale": false,
+   "basisVersion": "fd3a1c075b4ace48370aaf99e9eb209dadb7ec5fb49f6581b8f4d868c704fedd"
+  },
+  "scenarioResult": {
+   "result_id": "result:9707dedc98f84c1ba4e1b575aa36f72a",
+   "created_at": "2026-10-12 07:55:47.359889+00:00",
+   "request_hash": "f731e7085387a943f63ac623755aeb8284f2f76da53915bbd617ab366c93d370",
+   "payload": {
+    "bindings": [
+     {
+      "field": {
+       "field_id": "eps_ttm",
+       "formula": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+       "input_field_ids": [
+        "ttm_profit:32e27f0e20af6d1bd266",
+        "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd"
+       ],
+       "inputs": [
+        {
+         "basis": "provider_latest",
+         "field_id": "ttm_profit:32e27f0e20af6d1bd266",
+         "formula": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+         "input_field_ids": [
+          "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+          "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+          "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123"
+         ],
+         "inputs": [
+          {
+           "basis": "provider_latest",
+           "cumulative": true,
+           "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+           "metric": "net_profit_attributable",
+           "observed_at": "2026-10-12T15:53:41.721131+08:00",
+           "page": null,
+           "period": "FY2025",
+           "period_end": "2025-12-31",
+           "provider": "hithink",
+           "provider_values": [
+            {
+             "basis": "provider_latest",
+             "cumulative": true,
+             "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+             "metric": "net_profit_attributable",
+             "observed_at": "2026-10-12T15:53:41.721131+08:00",
+             "period": "FY2025",
+             "period_end": "2025-12-31",
+             "provider": "hithink",
+             "raw_column": "parent_holder_net_profit",
+             "raw_value": "2493439065.89",
+             "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+             "report_date": "2026-04-23",
+             "scope": "consolidated",
+             "source": "provider",
+             "symbol": "600863.SH",
+             "table": "income-statements",
+             "unit": "元",
+             "value": "2493439065.89"
+            }
+           ],
+           "raw_column": "parent_holder_net_profit",
+           "raw_value": "2493439065.89",
+           "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+           "report_date": "2026-04-23",
+           "scope": "consolidated",
+           "source": "provider",
+           "status": "sourced",
+           "symbol": "600863.SH",
+           "table": "income-statements",
+           "unit": "元",
+           "value": "2493439065.89"
+          },
+          {
+           "basis": "provider_latest",
+           "cumulative": true,
+           "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+           "metric": "net_profit_attributable",
+           "observed_at": "2026-10-12T15:53:41.721131+08:00",
+           "page": null,
+           "period": "2026H1",
+           "period_end": "2026-06-30",
+           "provider": "hithink",
+           "provider_values": [
+            {
+             "basis": "provider_latest",
+             "cumulative": true,
+             "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+             "metric": "net_profit_attributable",
+             "observed_at": "2026-10-12T15:53:41.721131+08:00",
+             "period": "2026H1",
+             "period_end": "2026-06-30",
+             "provider": "hithink",
+             "raw_column": "parent_holder_net_profit",
+             "raw_value": "1490156880.79",
+             "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+             "report_date": "2026-08-28",
+             "scope": "consolidated",
+             "source": "provider",
+             "symbol": "600863.SH",
+             "table": "income-statements",
+             "unit": "元",
+             "value": "1490156880.79"
+            }
+           ],
+           "raw_column": "parent_holder_net_profit",
+           "raw_value": "1490156880.79",
+           "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+           "report_date": "2026-08-28",
+           "scope": "consolidated",
+           "source": "provider",
+           "status": "sourced",
+           "symbol": "600863.SH",
+           "table": "income-statements",
+           "unit": "元",
+           "value": "1490156880.79"
+          },
+          {
+           "basis": "provider_latest",
+           "cumulative": true,
+           "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+           "metric": "net_profit_attributable",
+           "observed_at": "2026-10-12T15:53:41.721131+08:00",
+           "page": null,
+           "period": "2025H1",
+           "period_end": "2025-06-30",
+           "provider": "hithink",
+           "provider_values": [
+            {
+             "basis": "provider_latest",
+             "cumulative": true,
+             "field_id": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+             "metric": "net_profit_attributable",
+             "observed_at": "2026-10-12T15:53:41.721131+08:00",
+             "period": "2025H1",
+             "period_end": "2025-06-30",
+             "provider": "hithink",
+             "raw_column": "parent_holder_net_profit",
+             "raw_value": "1918816823.52",
+             "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+             "report_date": "2026-08-28",
+             "scope": "consolidated",
+             "source": "provider",
+             "symbol": "600863.SH",
+             "table": "income-statements",
+             "unit": "元",
+             "value": "1918816823.52"
+            }
+           ],
+           "raw_column": "parent_holder_net_profit",
+           "raw_value": "1918816823.52",
+           "ref": "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+           "report_date": "2026-08-28",
+           "scope": "consolidated",
+           "source": "provider",
+           "status": "sourced",
+           "symbol": "600863.SH",
+           "table": "income-statements",
+           "unit": "元",
+           "value": "1918816823.52"
+          }
+         ],
+         "metric": "ttm_profit",
+         "page": null,
+         "period": "TTM:2026H1",
+         "ref": null,
+         "scope": "最新年度provider累计 + 当年最新累计 - 上年同期累计",
+         "status": "sourced",
+         "unit": "元",
+         "value": "2064779123.16"
+        },
+        {
+         "field_id": "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd",
+         "metric": "shares",
+         "observed_at": "2026-10-12T15:53:31+08:00",
+         "period": "2026-10-12",
+         "provider": "tencent",
+         "raw_column": 73,
+         "reason": null,
+         "ref": "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd",
+         "report_comparisons": [
+          {
+           "consistent": true,
+           "quote_as_of": "2026-10-12T15:53:31+08:00",
+           "report": {
+            "block_ids": [
+             "r-8c3c97ee57824d23:p46:b3",
+             "r-8c3c97ee57824d23:p45:b9",
+             "r-8c3c97ee57824d23:p46:b1",
+             "r-8c3c97ee57824d23:p46:b2"
+            ],
+            "column": "本次变动后数量",
+            "document_id": "c34e909bb904458eafa087642b9c2a97",
+            "evidence_grade": "report",
+            "field_id": "c34e909bb904458eafa087642b9c2a97:shares:2026H1:r-8c3c97ee57824d23:p46:b3",
+            "metric": "shares",
+            "page": 46,
+            "parse_revision_id": "r-8c3c97ee57824d23",
+            "parsed_content_sha256": "8f1c0779ec9e4664843fef1a466761a276ceedf096e34c8f1c13c6bfbd421251",
+            "period": "2026H1",
+            "ref": "source:c34e909bb904458eafa087642b9c2a97:8f1c0779ec9e:r-8c3c97ee57824d23:p46:b3",
+            "refs": [
+             "source:c34e909bb904458eafa087642b9c2a97:8f1c0779ec9e:r-8c3c97ee57824d23:p46:b3",
+             "source:c34e909bb904458eafa087642b9c2a97:8f1c0779ec9e:r-8c3c97ee57824d23:p45:b9",
+             "source:c34e909bb904458eafa087642b9c2a97:8f1c0779ec9e:r-8c3c97ee57824d23:p46:b1",
+             "source:c34e909bb904458eafa087642b9c2a97:8f1c0779ec9e:r-8c3c97ee57824d23:p46:b2"
+            ],
+            "report_period": "2026H1",
+            "row": "三、股份总数",
+            "scope": "期末普通股总数，含A/H股",
+            "share_change_table": true,
+            "status": "verified",
+            "unit": "股",
+            "value": "7835189560"
+           },
+           "report_period": "2026H1"
+          }
+         ],
+         "scope": "报价时点期末总股数，非报告期末变动生效日",
+         "source": "provider",
+         "status": "verified",
+         "symbol": "600863.SH",
+         "unit": "股",
+         "value": 7835189560
+        }
+       ],
+       "metric": "eps_ttm",
+       "page": null,
+       "period": "TTM:2026H1",
+       "ref": null,
+       "scope": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+       "source_ref": [
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+        "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd"
+       ],
+       "status": "sourced",
+       "unit": "元/股",
+       "value": "0.2635263776770705213161428605"
+      },
+      "name": "每股收益TTM",
+      "packet_sha256": "c5be37cce1aacae1b85b43ae4ce1180b81e2b37d8a17c93a702f6ce187bc3939",
+      "source": {
+       "as_of": "2026-10-12",
+       "field_id": "eps_ttm",
+       "kind": "packet_field",
+       "symbol": "600863.SH"
+      },
+      "source_ref": [
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+       "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+       "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd"
+      ],
+      "status": "packet_field_verified",
+      "value": "0.2635263776770705213161428605"
+     },
+     {
+      "field": {
+       "basis": "forecast",
+       "currency": "CNY",
+       "field_id": "eps_forecast",
+       "inputs": [
+        {
+         "info_code": "AP202607081826797793",
+         "institution": "国金证券",
+         "institution_id": "10000082",
+         "published_at": "2026-07-08 00:00:00.000",
+         "raw_value": "0.343",
+         "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+         "value": "0.343"
+        }
+       ],
+       "institution_count": 1,
+       "latest_published_at": "2026-07-08 00:00:00.000",
+       "metric": "eps_forecast",
+       "observed_at": "2026-10-12T15:53:49.027265+08:00",
+       "page": null,
+       "period": "FY2026E",
+       "reason": "样本少",
+       "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+       "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+       "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+       "status": "sourced",
+       "unit": "元/股",
+       "value": "0.343"
+      },
+      "name": "当年机构预测每股收益",
+      "packet_sha256": "c5be37cce1aacae1b85b43ae4ce1180b81e2b37d8a17c93a702f6ce187bc3939",
+      "source": {
+       "as_of": "2026-10-12",
+       "field_id": "eps_forecast",
+       "kind": "packet_field",
+       "symbol": "600863.SH"
+      },
+      "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+      "status": "packet_field_verified",
+      "value": "0.343"
+     },
+     {
+      "field": {
+       "basis": "forecast",
+       "currency": "CNY",
+       "field_id": "eps_forecast",
+       "inputs": [
+        {
+         "info_code": "AP202607081826797793",
+         "institution": "国金证券",
+         "institution_id": "10000082",
+         "published_at": "2026-07-08 00:00:00.000",
+         "raw_value": "0.343",
+         "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+         "value": "0.343"
+        }
+       ],
+       "institution_count": 1,
+       "latest_published_at": "2026-07-08 00:00:00.000",
+       "metric": "eps_forecast",
+       "observed_at": "2026-10-12T15:53:49.027265+08:00",
+       "page": null,
+       "period": "FY2026E",
+       "reason": "样本少",
+       "ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+       "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+       "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+       "status": "sourced",
+       "unit": "元/股",
+       "value": "0.343"
+      },
+      "name": "当年机构预测每股收益",
+      "packet_sha256": "c5be37cce1aacae1b85b43ae4ce1180b81e2b37d8a17c93a702f6ce187bc3939",
+      "source": {
+       "as_of": "2026-10-12",
+       "field_id": "eps_forecast",
+       "kind": "packet_field",
+       "symbol": "600863.SH"
+      },
+      "source_ref": "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+      "status": "packet_field_verified",
+      "value": "0.343"
+     }
+    ],
+    "calculation": {
+     "basis": "forecast",
+     "currency": "CNY",
+     "extra": {
+      "mode": "per_share",
+      "scenarios": [
+       {
+        "earnings": "0.2635263776770705213161428605",
+        "earnings_basis": "actual",
+        "earnings_period": "TTM:2026H1",
+        "multiple": "13.1",
+        "name": "悲观",
+        "price": "3.452196"
+       },
+       {
+        "earnings": "0.343",
+        "earnings_basis": "forecast",
+        "earnings_period": "FY2026E",
+        "multiple": "15.13",
+        "name": "中性",
+        "price": "5.189590"
+       },
+       {
+        "earnings": "0.343",
+        "earnings_basis": "forecast",
+        "earnings_period": "FY2026E",
+        "multiple": "21.01",
+        "name": "乐观",
+        "price": "7.206430"
+       }
+      ]
+     },
+     "formula_version": "valuation-math-v1",
+     "inputs": [
+      {
+       "basis": "actual",
+       "currency": "CNY",
+       "name": "每股收益TTM",
+       "period": "TTM:2026H1",
+       "proxy_basis": null,
+       "refs": [
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+        "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+        "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd"
+       ],
+       "scope": "provider TTM归母净利 / 当前腾讯总股本；非财报加权平均股本口径",
+       "source": {
+        "as_of": "2026-10-12",
+        "field_id": "eps_ttm",
+        "kind": "packet_field",
+        "symbol": "600863.SH"
+       },
+       "unit": "CNY/share",
+       "value": "0.2635263776770705213161428605"
+      },
+      {
+       "basis": "forecast",
+       "currency": "CNY",
+       "name": "当年机构预测每股收益",
+       "period": "FY2026E",
+       "proxy_basis": null,
+       "refs": [
+        "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770"
+       ],
+       "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+       "source": {
+        "as_of": "2026-10-12",
+        "field_id": "eps_forecast",
+        "kind": "packet_field",
+        "symbol": "600863.SH"
+       },
+       "unit": "CNY/share",
+       "value": "0.343"
+      },
+      {
+       "basis": "forecast",
+       "currency": "CNY",
+       "name": "当年机构预测每股收益",
+       "period": "FY2026E",
+       "proxy_basis": null,
+       "refs": [
+        "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770"
+       ],
+       "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+       "source": {
+        "as_of": "2026-10-12",
+        "field_id": "eps_forecast",
+        "kind": "packet_field",
+        "symbol": "600863.SH"
+       },
+       "unit": "CNY/share",
+       "value": "0.343"
+      }
+     ],
+     "name": "scenario_price",
+     "period": "FY2026E",
+     "proxy_basis": null,
+     "recompute": "EPS × multiple for each scenario; value is the 中性 scenario",
+     "refs": [
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a250da4e7fcba8d98b1cc07f",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:a62a5a0aec4ef6bcd9d22123",
+      "provider:hithink:600863.SH:net_profit_attributable:2026-10-12T15:53:41.721131+08:00:e83283bbaaf81196aa377b3b",
+      "provider:tencent:600863.SH:shares:2026-10-12T15:53:31+08:00:371f104fc3a6625008386dcd",
+      "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+      "provider:eastmoney:600863.SH:eps_forecast_reports:2026-10-12T15:53:49.027265+08:00:65f1704a66d484d4e4677770",
+      "lens:peer_comparison.pe",
+      "peers",
+      "forward_pe",
+      "lens:peer_comparison.pe"
+     ],
+     "scope": "最近半年每家机构最新研报EPS中位数；摊薄口径未声明",
+     "unit": "CNY/share",
+     "value": "5.189590"
+    },
+    "evidence_status": "bound",
+    "kind": "calculation",
+    "request": {
+     "operation": "scenario_price",
+     "scenarios": [
+      {
+       "eps": {
+        "name": "每股收益TTM",
+        "source": {
+         "as_of": "2026-10-12",
+         "field_id": "eps_ttm",
+         "kind": "packet_field",
+         "symbol": "600863.SH"
+        }
+       },
+       "multiple": {
+        "basis": "assumption",
+        "name": "同业市盈率区间下限",
+        "refs": [
+         "lens:peer_comparison.pe",
+         "peers"
+        ],
+        "value": "13.1"
+       },
+       "name": "悲观"
+      },
+      {
+       "eps": {
+        "name": "当年机构预测每股收益",
+        "source": {
+         "as_of": "2026-10-12",
+         "field_id": "eps_forecast",
+         "kind": "packet_field",
+         "symbol": "600863.SH"
+        }
+       },
+       "multiple": {
+        "basis": "assumption",
+        "name": "当前前瞻市盈率",
+        "refs": [
+         "forward_pe"
+        ],
+        "value": "15.13"
+       },
+       "name": "中性"
+      },
+      {
+       "eps": {
+        "name": "当年机构预测每股收益",
+        "source": {
+         "as_of": "2026-10-12",
+         "field_id": "eps_forecast",
+         "kind": "packet_field",
+         "symbol": "600863.SH"
+        }
+       },
+       "multiple": {
+        "basis": "assumption",
+        "name": "同业市盈率中位数",
+        "refs": [
+         "lens:peer_comparison.pe"
+        ],
+        "value": "21.01"
+       },
+       "name": "乐观"
+      }
+     ]
+    },
+    "title": "确定性计算凭据"
+   }
+  }
+ },
+ "shenhuo": {
+  "sensitivityResult": {
+   "result_id": "result:51515151515151515151515151515151",
+   "created_at": "2026-10-12T08:00:00Z",
+   "request_hash": "x",
+   "payload": {
+    "calculation": {
+     "operation": "sensitivity",
+     "extra": {
+      "model": "aluminum_smelter",
+      "base_profit": "9562000000",
+      "base_label": "2026 上半年 × 2",
+      "shares": "2249004399",
+      "variables": [
+       {
+        "var_id": "cmdty:SHFE.AL",
+        "name": "沪铝",
+        "unit": "元/吨",
+        "current": "23465",
+        "coef_per_unit": "996000",
+        "range": [
+         "20000",
+         "28000"
+        ],
+        "step": "50",
+        "source_label": "主力 · 10 月 12 日",
+        "anchor": "24421",
+        "anchor_label": "基数期均价"
+       },
+       {
+        "var_id": "cmdty:SHFE.AO",
+        "name": "氧化铝",
+        "unit": "元/吨",
+        "current": "3150",
+        "coef_per_unit": "-1920000",
+        "range": [
+         "2500",
+         "4500"
+        ],
+        "step": "10",
+        "source_label": "主力 · 10 月 12 日",
+        "anchor": "3480",
+        "anchor_label": "基数期均价"
+       },
+       {
+        "var_id": "000933.SZ:coal_price",
+        "name": "煤炭售价",
+        "unit": "元/吨",
+        "current": "655",
+        "coef_per_unit": "150000",
+        "range": [
+         "450",
+         "850"
+        ],
+        "step": "5",
+        "source_label": "半年报 · 实际均价",
+        "anchor": "690",
+        "anchor_label": "基数期均价"
+       }
+      ],
+      "rule_of_thumb": [
+       {
+        "var_id": "cmdty:SHFE.AL",
+        "delta": "1000",
+        "profit_delta": "996000000"
+       },
+       {
+        "var_id": "cmdty:SHFE.AO",
+        "delta": "100",
+        "profit_delta": "-192000000"
+       }
+      ],
+      "scenarios": [
+       {
+        "name": "悲观",
+        "values": {
+         "cmdty:SHFE.AL": "21000",
+         "cmdty:SHFE.AO": "3400",
+         "000933.SZ:coal_price": "600"
+        },
+        "profit": "6294784000",
+        "eps": "2.798920"
+       },
+       {
+        "name": "中性",
+        "values": {
+         "cmdty:SHFE.AL": "23500",
+         "cmdty:SHFE.AO": "3150",
+         "000933.SZ:coal_price": "655"
+        },
+        "profit": "9273034000",
+        "eps": "4.123173"
+       },
+       {
+        "name": "乐观",
+        "values": {
+         "cmdty:SHFE.AL": "25500",
+         "cmdty:SHFE.AO": "3000",
+         "000933.SZ:coal_price": "700"
+        },
+        "profit": "11559784000",
+        "eps": "5.139956"
+       }
+      ],
+      "implied": {
+       "var_id": "cmdty:SHFE.AL",
+       "value": "24100",
+       "multiple": "12"
+      },
+      "assumptions": "权益产量按半年报年化；氧化铝单耗 1.93 吨；所得税率 15%；煤炭系数为夹具构造。",
+      "profit_at_current": "9238174000"
+     }
+    }
+   }
+  },
+  "scenarioResult": {
+   "result_id": "result:52525252525252525252525252525252",
+   "created_at": "2026-10-12T08:00:00Z",
+   "request_hash": "y",
+   "payload": {
+    "calculation": {
+     "extra": {
+      "mode": "per_share",
+      "scenarios": [
+       {
+        "name": "悲观",
+        "earnings": "2.798920",
+        "earnings_basis": "derived",
+        "earnings_period": "FY2026E",
+        "multiple": "9",
+        "price": "25.190282",
+        "reason": "周期低点利润配低倍数"
+       },
+       {
+        "name": "中性",
+        "earnings": "4.123173",
+        "earnings_basis": "derived",
+        "earnings_period": "FY2026E",
+        "multiple": "12",
+        "price": "49.478075",
+        "reason": "行业中枢倍数"
+       },
+       {
+        "name": "乐观",
+        "earnings": "5.139956",
+        "earnings_basis": "derived",
+        "earnings_period": "FY2026E",
+        "multiple": "14",
+        "price": "71.959386",
+        "reason": "景气高位利润不给高倍数"
+       }
+      ]
+     }
+    }
+   }
+  },
+  "quote": {
+   "name": "神火股份",
+   "price": "52.67",
+   "currency": "CNY"
+  }
+ }
+}

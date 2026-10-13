@@ -205,6 +205,7 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
   fixture.services.data.packet = async () => real.packets['300750'];
   fixture.services.data.documents = async () => documents;
   await mount(fixture.services);
+  await React.act(async () => { container.querySelectorAll('.narrative-track-head').forEach(item => (item as HTMLElement).click()); });
   const text = container.textContent!;
   assert.match(text, /动力电池销量/);
   assert.match(text, /生息资产|动力电池销量/);
@@ -215,9 +216,9 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
   assert.match(pillar, /2026 年第二季度营业收入（单季）/);
   assert.match(pillar, /暂时取不到信贷成本|信贷成本/);
   assert.match(pillar, /暂时取不到相关指标/);
-  const falsifiers = [...container.querySelectorAll('[data-falsifier]')].map(item => item.textContent!);
-  assert.match(falsifiers[0]!, /同比 ±5\.00% · 2026-10-30 披露的三季报/);
-  assert.match(falsifiers[1]!, /20\.00 % · 下一份定期报告/);
+  assert.match(pillar, /警戒 同比 ±5\.00% · /);
+  assert.match(pillar, /2026-10-30 披露的三季报/);
+  assert.match(pillar, /不成立的条件：毛利率跌破阈值。 · 20\.00 % · 下一份定期报告/);
   const links = [...container.querySelectorAll('a[href^="/my-reports/read/"]')];
   const shown = links.map(link => link.textContent!.replace('↗', '').trim());
   assert.deepEqual(shown.slice(0, 3), ['2季度出货超预期，关注盈利修复节奏及供需变化', '1季度业绩超预期，盈利维持韧性', real.plainTitles[0]]);
@@ -230,7 +231,7 @@ test('页面银行真实形态：银行驱动字段中文，缺口写「暂时�
   const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' }, stale: false, basisVersion: 'bank' });
   fixture.services.data.packet = async () => real.packets['601288'];
   await mount(fixture.services, '601288', '农业银行');
-  const text = container.querySelector('[data-company-section="profit_formula"]')!.textContent!;
+  const text = container.querySelector('[data-company-section="variables"]')!.textContent!;
   assert.match(text, /净息差/);
   assert.match(text, /生息资产平均余额/);
   assert.match(text, /信贷成本/);

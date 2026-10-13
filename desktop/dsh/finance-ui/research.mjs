@@ -11,6 +11,8 @@ const DRAFT_ID_DISCARD = /^\/wiki\/page-drafts\/draft-[a-f0-9]{24}\/discard$/;
 const BLOCK = /^\/wiki\/documents\/[a-f0-9]+\/blocks\/[A-Za-z0-9_%:.-]+$/;
 const DOCUMENT = /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-index|reparse))?$/;
 const PROFILE = /^\/industries\/profiles\/[A-Za-z0-9.]+$/;
+/** T7.3：撤回对话写回的关键变量，恢复个股页研究上一版。写入由 Backend 校验，这里加授权头。 */
+const COMPANY_REVERT = /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/page-research\/revert$/;
 
 export function researchRoute(method, pathname) {
   if (method === 'GET' && [
@@ -40,6 +42,7 @@ export function researchRoute(method, pathname) {
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet)$/.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/coverage\/ensure$/.test(pathname)) return true;
+  if (method === 'POST' && COMPANY_REVERT.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/research-candidates\/[^/]+\/(dispose|adopt)$/.test(pathname)) return true;
   if (method === 'POST' && /^\/notes\/[^/]+\/delete$/.test(pathname)) return true;
   if (method === 'POST' && (TOPIC_ID.test(pathname) || TOPIC_POOL.test(pathname))) return true;
@@ -104,7 +107,7 @@ export function installResearchApi(ctx) {
     const route = url.pathname.slice('/finance-research'.length);
     res.setHeader('Cache-Control', 'no-store');
     if (!researchRoute(req.method, route)) { res.writeHead(404); res.end(); return; }
-    await proxyResearch(req, res, { route, search: url.search });
+    await proxyResearch(req, res, { route, search: url.search, injectHook: req.method === 'POST' && COMPANY_REVERT.test(route) });
   } });
 }
 

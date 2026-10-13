@@ -27,7 +27,7 @@ export const fixtureResearch: CompanyPageResearch = {
     tracking: { summary: '继续观察电价与煤价。' },
   },
   pillars: [{ id: 'spread', text: '价差能维持，是利润判断的支柱。', fieldIds: ['revenue'] }],
-  falsifiers: [{ pillarId: 'spread', text: '价差收窄会推翻这条支柱。', threshold: { value: '0', unit: '元' }, window: '下一份定期报告' }],
+  falsifiers: [{ pillarId: 'spread', text: '价差收窄会推翻这条支柱。', fieldId: 'revenue', threshold: { value: '3000000000', unit: '元' }, window: '下一份定期报告' }],
   catalysts: [{ date: '2026-10-30', event: '三季报预约披露' }],
   valuation: { grade: '偏高', basis: ['同业位置'], conditions: '来水转枯或利率上行，判断会改档。', scenarioRef: 'result:' + 'ab'.repeat(16) },
   changes: { thesis: '最新定期报告后更新' },

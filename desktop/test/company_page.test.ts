@@ -148,7 +148,7 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
 test('页面按方法论模板渲染数据包、情景表、变化悬停、资料与证据墙', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
   await mountPage(fixture);
-  assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(element => element.getAttribute('data-company-section')), ['thesis', 'business', 'profit_formula', 'variables', 'cash', 'valuation', 'tracking']);
+  assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(element => element.getAttribute('data-company-section')), ['thesis', 'business', 'variables', 'cash', 'valuation', 'tracking']);
   assert.match(container.textContent!, /71.00 亿元/);
   assert.match(container.textContent!, /18.00 亿元/);
   assert.match(container.textContent!, /4\.56 人民币/);
@@ -160,7 +160,9 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.match(container.textContent!, /机构预测每股收益/);
   assert.match(container.textContent!, /前瞻市盈率/);
   assert.match(container.querySelector('[data-pillar="spread"]')!.textContent!, /71\.00 亿元/);
-  assert.match(container.querySelector('[data-falsifier]')!.textContent!, /0 元 · 下一份定期报告/);
+  const card = container.querySelector('[data-pillar="spread"]')!.textContent!;
+  assert.match(card, /30\.00 亿元/);
+  assert.match(card, /下一份定期报告/);
   assert.match(container.textContent!, /22.23/);
   assert.match(container.querySelector('[data-scenario="table"] thead')!.textContent!, /情景\s*每股收益\s*倍数\s*目标价/);
   assert.match(container.textContent!, /数量 ×（单价 − 单位成本）/);
@@ -170,7 +172,7 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.ok(container.querySelector('a[href^="/insights/topics/"]'));
   assert.ok(container.querySelector('a[href^="/my-reports/read/"]'));
   const lead = container.querySelector('[data-company-section="thesis"]')!;
-  assert.equal([...lead.querySelectorAll('p')].find(element => element.textContent?.startsWith('研究于 '))?.textContent, '研究于 2026-10-10');
+  assert.match([...lead.querySelectorAll('p')].find(element => element.textContent?.includes('研究于 '))?.textContent ?? '', /研究于 2026-10-10 · 判断有变化 · 论点：最新定期报告后更新$/);
   assert.doesNotMatch(lead.textContent!, /依据版本|aaaaaaaa|T01:00/);
   assert.equal(fixture.starts.length, 0);
   assert.equal(container.querySelector('[data-scenario="table"]')?.textContent?.includes('中性'), true);
@@ -212,6 +214,7 @@ test('数据包按上海当天读取；当日已有快照不 ensure，缺当日�
     assert.ok(calls.every(call => call.method === 'POST' || call.asOf === '2026-10-10'));
     const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
     await mountPage(fixture);
+      await React.act(async () => { container.querySelectorAll('.narrative-track-head').forEach(item => (item as HTMLElement).click()); });
     assert.doesNotMatch(container.textContent!, /历史分位|不可交付/);
     assert.ok(container.querySelector('[data-evidence-ref="claim:fixture-revenue"]'));
   } finally { globalThis.fetch = originalFetch; resetPacketEnsureMemory(); t.mock.timers.reset(); }
@@ -257,7 +260,7 @@ test('五类公司共用布局；缺口写原因，不把缺失数补成零', as
     assert.match(container.textContent!, new RegExp(`已保存的 ${companyType} 利润公式`));
     const business = container.querySelector('[data-company-section="business"]')!.textContent!;
     assert.match(business, /71.00 亿元/);
-    assert.match(container.querySelector('[data-company-section="cash"]')!.textContent!, /暂时取不到现金分红/);
+    assert.match(container.querySelector('[data-company-section="cash"]')!.textContent!, /现金分红\s*暂缺/);
     assert.doesNotMatch(container.querySelector('[data-company-section="cash"]')!.textContent!, /现金分红[\s\S]*0\.00 亿元/);
   }
 });
@@ -305,9 +308,10 @@ test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口
   const cited = companyPageFixture({ research: {
     ...fixtureResearch,
     pillars: [{ id: 'cited', text: '驱动和镜头可以引用。', fieldIds: ['driver:power_price', 'lens:peer_comparison.pe', 'lens:single_quarters.2026Q1.revenue', 'lens:missing.revenue'] }],
-    falsifiers: [{ text: '滚动利润变弱。', fieldId: 'lens:ttm_profit.ttm_profit', window: '下一份定期报告' }],
+    falsifiers: [{ pillarId: 'cited', text: '滚动利润变弱。', fieldId: 'lens:ttm_profit.ttm_profit', window: '下一份定期报告' }],
   }, stale: false, basisVersion: 'cited' });
   await mountPage(cited);
+  await React.act(async () => { container.querySelectorAll('.narrative-track-head').forEach(item => (item as HTMLElement).click()); });
   const pillar = container.querySelector('[data-pillar="cited"]')!.textContent!;
   assert.match(pillar, /321\.00 元\/兆瓦时/);
   assert.match(pillar, /12\.50 倍/);
@@ -315,7 +319,7 @@ test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口
   assert.match(pillar, /暂时取不到相关指标/);
   assert.doesNotMatch(pillar, /这项数据/);
   assert.doesNotMatch(pillar, /lens:missing|driver:power_price/);
-  assert.match(container.querySelector('[data-falsifier]')!.textContent!, /36\.00 亿元/);
+  assert.match(pillar, /36\.00 亿元/);
   const gap = companyPageFixture({
     research: { companyType: 'bank', gapNote: '核心字段 net_profit_attributable 暂不可用', researchedAt: '2026-10-12T08:00:00+00:00' },
     stale: false, basisVersion: 'a'.repeat(64),

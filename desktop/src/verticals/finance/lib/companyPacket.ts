@@ -7,6 +7,7 @@ export interface PacketField {
   value?: string | number | null;
   unit?: string | null;
   period?: string | null;
+  scope?: string | null;
   status?: string;
   reason?: string | null;
   ref?: string | null;
@@ -14,6 +15,8 @@ export interface PacketField {
   provider_values?: PacketField[];
   report_comparisons?: { report?: PacketField; consistent?: boolean }[] | null;
   institution_count?: number;
+  /** 同业对比镜头：同业中位数（Backend 给出，页面不计算）。 */
+  median?: string | number | null;
   items?: PacketPeer[];
   formula?: string;
   source_ref?: string | string[] | null;
@@ -44,6 +47,8 @@ export interface ScenarioRow {
   price: string;
   earnings?: string;
   period?: string;
+  /** 倍数依据（行业与周期位置），可选。 */
+  reason?: string;
 }
 export type ScenarioMode = 'per_share' | 'total';
 export interface ScenarioTableData { mode: ScenarioMode; rows: ScenarioRow[] }
@@ -59,7 +64,8 @@ const LABELS: Record<string, string> = {
   net_profit_ex_nonrecurring: '扣非归母净利润', common_equity: '普通股归母权益', other_equity_tools: '其他权益工具',
   ttm_profit: '滚动归母净利润（TTM）', peers: '同业', cash_conversion: '现金转化率', industry_formula: '行业利润公式',
   average_earning_assets: '生息资产平均余额', net_interest_margin: '净息差', credit_cost: '信贷成本',
-  single_quarter: '单季度数据',
+  single_quarter: '单季度数据', latest_net_profit_attributable: '最近披露归母净利润',
+  cash_after_capex: '资本开支后现金（未扣分红）',
 };
 /** Driver keys of the form <kind>:<name>, e.g. sales:<product>. The name is the Chinese product or segment. */
 const DRIVER_KINDS: Record<string, string> = { sales: '销量', price: '单价', cost: '单位成本', output: '产量' };
@@ -104,14 +110,16 @@ export function fieldIdLabel(id: string | undefined, fallback = UNKNOWN_FIELD_LA
   const [, kind, rest] = lens as unknown as [string, string, string];
   if (kind === 'peer_comparison') return `同业${fieldLabel(rest, '指标')}中位数`;
   if (kind === 'valuation_percentile') return `${fieldLabel(rest, '估值')}历史分位`;
+  if (kind === 'ytd_yoy') return `年内累计${fieldLabel(rest, '指标')}同比`;
   if (kind === 'single_quarters') {
     const quarter = /^(\d{4})(Q[1-4])\.(.+)$/.exec(rest);
     return quarter ? `${quarter[1]} 年${QUARTERS[quarter[2]!]}${fieldLabel(quarter[3], '指标')}（单季）` : fallback;
   }
-  if (!['ttm_profit', 'cash_conversion', 'residual_cash'].includes(kind)) return fallback;
+  if (!['ttm_profit', 'cash_conversion', 'residual_cash', 'cash_after_capex'].includes(kind)) return fallback;
   return fieldLabel(rest.split('.').pop() ?? rest, fallback);
 }
-export interface PacketThreshold { kind?: 'level' | 'yoy_pct'; value: string | number; unit: string }
+/** direction：down 为跌破越线，up 为突破越线；旧研究没有该字段，页面显示「状态待定」。 */
+export interface PacketThreshold { kind?: 'level' | 'yoy_pct'; direction?: 'down' | 'up'; value: string | number; unit: string }
 /** yoy_pct is a year-over-year change in percent; level keeps the field's own unit (no kind means level). */
 export function thresholdText(threshold: PacketThreshold | null | undefined) {
   if (!threshold || threshold.value == null || String(threshold.value).trim() === '') return '';
@@ -173,6 +181,9 @@ export function findField(packet: DataPacket | undefined, id: string) {
   for (const field of Object.values(packet.fields ?? {})) {
     if (field.field_id === id) cited.push(field);
   }
+  // 主字段的 field_id 就是指标键；旧形态的包没有 field_id 时按键取。
+  const keyed = packet.fields?.[id];
+  if (keyed && !keyed.field_id) cited.push({ ...keyed, field_id: id });
   const drivers = packet.industry_drivers;
   for (const field of Object.values(drivers?.fields ?? {})) {
     if (field.field_id === id) cited.push(field);
@@ -210,11 +221,11 @@ export function scenarioTable(result: unknown): ScenarioTableData | null {
   if (!Array.isArray(scenarios)) return null;
   const rows = scenarios.flatMap(item => {
     if (!item || typeof item !== 'object') return [];
-    const row = item as { name?: unknown; multiple?: unknown; price?: unknown; earnings?: unknown; earnings_period?: unknown };
+    const row = item as { name?: unknown; multiple?: unknown; price?: unknown; earnings?: unknown; earnings_period?: unknown; reason?: unknown; multiple_reason?: unknown };
     const name = String(row.name ?? '').trim();
     const price = String(row.price ?? '').trim();
     if (!name || !price) return [];
-    return [{ name, multiple: String(row.multiple ?? ''), price, earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period) }];
+    return [{ name, multiple: String(row.multiple ?? ''), price, earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period), reason: [row.reason, row.multiple_reason].find((value): value is string => typeof value === 'string' && value.trim() !== '') }];
   });
   return rows.length === 3 ? { mode: scenarioMode(extra?.mode), rows } : null;
 }

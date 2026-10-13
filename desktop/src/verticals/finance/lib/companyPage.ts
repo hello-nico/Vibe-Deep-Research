@@ -26,6 +26,13 @@ export interface CompanyPageResearch {
   valuation?: { grade?: ValuationGrade; basis?: string[]; conditions?: string; scenarioRef?: string | null };
   changes?: Partial<Record<CompanyPageBlockId | 'thesis', string>>;
   related?: { topicId: string; title: string }[];
+  /** T7.3：关键变量的敏感性凭据与变量来源（公司自述或对话确认）。 */
+  sensitivity?: { resultRef?: string | null; drivers?: SensitivityDriver[] } | null;
+  /** 对话写回带来的来源（来源会话、时间），供页面悬停与撤回。 */
+  changedFrom?: { origin?: string; sessionId?: string; at?: string; confirmedAt?: string; reason?: string } | null;
+}
+export interface SensitivityDriver {
+  var_id: string; name?: string; quote?: string; origin?: 'report' | 'conversation'; sessionId?: string; confirmedAt?: string;
 }
 export interface CompanyPageTask {
   sessionId: string; status: ResearchTaskStatus | 'completed'; stage: string; startedAt?: string;
@@ -36,6 +43,8 @@ const blocksStart = (task: CompanyPageTask | undefined, now: number) => !!task &
   && (task.status === 'researching' || now - Date.parse(task.startedAt || '') < COMPANY_PAGE_RETRY_MS);
 export interface CompanyPageResearchRead {
   research: CompanyPageResearch | null; stale: boolean; basisVersion: string; task?: CompanyPageTask;
+  /** T7.3：当前研究记录的逻辑版本（撤回时带上，防并发覆盖）与是否有上一版可恢复。 */
+  researchVersion?: string; canRevert?: boolean; changedFrom?: CompanyPageResearch['changedFrom'];
 }
 export interface CompanyPageDocument { document_id: string; title: string; reporting_period?: string; document_type?: string }
 export interface CompanyPageData {
@@ -47,11 +56,16 @@ export interface CompanyPageServices {
   subscribePacket?(symbol: string, listener: () => void): () => void;
   readResearch(symbol: string): Promise<CompanyPageResearchRead>;
   readScenario?(ref: string, signal?: AbortSignal): Promise<ScenarioTableData | null>;
+  /** 读回一份计算凭据（敏感性、占位引用的 calc）。读不到返回 null，页面照常显示其余内容。 */
+  readResult?(ref: string, signal?: AbortSignal): Promise<unknown | null>;
+  /** 撤回对话写回：恢复上一版研究。 */
+  revertResearch?(symbol: string, expectedResearchVersion?: string): Promise<void>;
   subscribeResearch?(listener: () => void): () => void;
   startResearch(symbol: string, name: string, basisVersion: string): Promise<CompanyPageTask>;
 }
 export interface CompanyPageState {
   loaded: boolean; research: CompanyPageResearch | null; stale: boolean; task?: CompanyPageTask; error?: string;
+  researchVersion?: string; canRevert?: boolean; changedFrom?: CompanyPageResearch['changedFrom'];
 }
 export const EMPTY_COMPANY_PAGE: CompanyPageState = { loaded: false, research: null, stale: false };
 export const companyPageTaskActive = (task?: CompanyPageTask) => task?.status === 'researching' || task?.status === 'settling' || task?.status === 'unconfirmed';
@@ -114,7 +128,7 @@ export class CompanyPageStore {
         value = await this.services.readResearch(this.symbol);
       }
       const task = value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
-      this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task });
+      this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
       const key = value.basisVersion;
       if (this.opened && (!value.research || value.stale) && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
         this.attempted.add(key);
