@@ -70,6 +70,17 @@ export function vibeBlocks(markdown: string) {
   return blocks;
 }
 
+/** The reply already has its own heading (a `#` line in prose; a `#` inside a code fence is not one). */
+export function hasMarkdownHeading(markdown: string) {
+  let found = false;
+  const visit = (node: Nodes) => {
+    if (node.type === 'heading') found = true;
+    if (!found && 'children' in node) node.children.forEach(visit);
+  };
+  visit(fromMarkdown(markdown));
+  return found;
+}
+
 /** Standalone recommendation paragraphs only; fenced examples remain ordinary code. */
 export function unfencedSuggestionRanges(markdown: string) {
   const ranges: { start: number; end: number }[] = [];

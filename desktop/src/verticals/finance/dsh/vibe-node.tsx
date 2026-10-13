@@ -6,7 +6,7 @@ import { EvidenceLink } from '../components/EvidenceCard';
 import { ResearchResult } from '../components/ResearchResult';
 import { financialNumber } from '../lib/financialDisplay';
 import { Suggest, type SuggestActions } from './suggestion-node';
-import { hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, summarizeVibeMarkdown, vibeBlocks, type VibeCheck, type VibeNode, type VibeValue } from './vibe';
+import { hasMarkdownHeading, hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, summarizeVibeMarkdown, vibeBlocks, type VibeCheck, type VibeNode, type VibeValue } from './vibe';
 
 export const VIBE_RENDERER = Symbol.for('vibe.finance.components');
 export const VIBE_COPY = Symbol.for('vibe.finance.component-summary');
@@ -87,7 +87,11 @@ export function VibeBlock({ code, options }: { code: string; options: VibeRender
           case 'section': case 'grid': case 'row': case 'stat': {
             const content = children();
             if (!content.length) return null;
-            if (node.component === 'section') return <section className="my-4 space-y-3"><h3 className="font-semibold text-foreground">{node.attrs.question}</h3>{content}</section>;
+            if (node.component === 'section') {
+              // The reply's own conclusion heading already titles the answer; the section question would repeat the user's question as a second title.
+              const title = node.attrs.question && !context.texts.some(hasMarkdownHeading) ? node.attrs.question : '';
+              return <section className="my-4 space-y-3">{title && <h3 className="font-semibold text-foreground">{title}</h3>}{content}</section>;
+            }
             const className = node.component === 'grid'
               ? node.attrs.cols === '3' ? 'grid grid-cols-1 gap-3 lg:grid-cols-3' : 'grid grid-cols-1 gap-3 md:grid-cols-2'
               : node.component === 'row' ? 'flex flex-wrap gap-3 [&>div]:min-w-0 [&>div]:flex-1' : 'grid grid-cols-1 gap-3 sm:grid-cols-2';

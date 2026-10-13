@@ -6,7 +6,7 @@ import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'vite';
 import * as React from 'react';
 import { Window } from 'happy-dom';
-import { CompanyPageStore, companyPageStore, companyPageProgress } from '../src/verticals/finance/lib/companyPage.ts';
+import { CompanyPageStore, companyPageStore, companyPageProgress, type CompanyPageTask } from '../src/verticals/finance/lib/companyPage.ts';
 import { companyPageFixture, fixtureData, fixturePacket, fixturePageResearch, fixtureResearch, fixtureScenario } from './fixtures/company_page.ts';
 import type { ReportTaskStore } from '../src/verticals/finance/lib/reportTasks.ts';
 import { researchRoute } from '../dsh/finance-ui/research.mjs';
@@ -376,6 +376,43 @@ test('真实路由挂夹具：工具栏、页内、返回关注显示同一进�
     assert.doesNotMatch(container.textContent!, /图文报告|生成报告|开始研究/);
   } finally { local.localService.clientResearch = original; }
 });
+test('「…」菜单：重新研究走 startResearch，进行中禁用；整理失败只在打开过程面板时带标记', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  fixture.setTask({ sessionId: 'done-session', status: 'completed', stage: '', startedAt: new Date().toISOString(), settlementFailed: true });
+  globalThis.fetch = async url => String(url).includes('/wiki/pages?') ? Response.json({ items: [], total: 0 }) : Response.json({ items: [] });
+  const opened: Record<string, unknown>[] = [];
+  const menu = () => [...win.document.querySelectorAll('[role="menuitem"]')] as unknown as HTMLButtonElement[];
+  const openMenu = async () => React.act(async () => (container.querySelector('button[aria-label="更多"]') as HTMLButtonElement).click());
+  await React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: { openTaskProcess: (task: Record<string, unknown>) => opened.push(task) } },
+    React.createElement(ui.CompanyPageServicesContext.Provider, { value: fixture.services },
+      React.createElement(router.MemoryRouter, { initialEntries: ['/watch/600863'] }, React.createElement(router.Routes, null,
+        React.createElement(router.Route, { path: '/watch/:symbol', element: React.createElement(routeModule.CompanyWiki) })))))));
+  assert.equal(container.querySelector('[data-company-progress]'), null, '研究已保存、整理失败时页面不显示未完成');
+  await openMenu();
+  assert.deepEqual(menu().slice(0, 2).map(item => item.textContent), ['重新研究', '查看研究过程']);
+  await React.act(async () => menu()[1]!.click());
+  assert.deepEqual(opened, [{ sessionId: 'done-session', title: '个股页研究', kind: 'research', settlementFailed: true }]);
+  await openMenu();
+  await React.act(async () => menu()[0]!.click());
+  assert.equal(fixture.starts.length, 1);
+  assert.deepEqual(fixture.starts[0], { symbol: '600863', name: '600863', version: 'v1' });
+  await openMenu();
+  assert.equal(menu()[0]!.disabled, true, '研究进行中不能重复发起');
+  await React.act(async () => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape' })));
+});
+test('研究过程面板：知识整理未完成只在面板注明；不显示系统发出的指令气泡', async () => {
+  const panel = await server.ssrLoadModule('/src/verticals/finance/components/TaskProcessPanel.tsx');
+  const sessions = { subscribeSessionList: () => () => {}, taskRunning: () => false };
+  const show = async (task: Record<string, unknown>) => React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
+    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 'done-session', title: '个股页研究', kind: 'research', ...task }, onClose: () => {} }))));
+  await show({ settlementFailed: true });
+  assert.match(container.querySelector('nav')!.textContent!, /知识整理未完成/);
+  await show({});
+  assert.match(container.querySelector('nav')!.textContent!, /本次没有需要展示的整理过程/);
+  assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成/);
+  const css = readFileSync(new URL('../src/verticals/finance/components/task-process.css', import.meta.url), 'utf8');
+  assert.match(css, /\.task-process-native \[data-chat-flow-kind="user"\] \{ display: none; \}/);
+});
 test('默认读取接入 Backend GET；后台启动沿用 DSH 身份，不导航', async () => {
   const calls: unknown[][] = [];
   const originalFetch = globalThis.fetch;
@@ -418,7 +455,7 @@ test('任务只合并同公司最新 DSH 研究绑定：保存 completed、执�
       ['running', 'completed', false, 'settling'],
       ['partial', 'completed', false, 'partial'],
       ['awaiting_authorization', 'completed', false, 'awaiting_authorization'],
-      ['failed', 'completed', false, 'failed'],
+      ['failed', 'completed', false, 'completed'],
       ['completed', 'failed', false, 'failed'],
       ['completed', 'cancelled', false, 'cancelled'],
       ['completed', 'running', true, 'researching'],
@@ -433,6 +470,69 @@ test('任务只合并同公司最新 DSH 研究绑定：保存 completed、执�
       assert.equal(result.task.stage, companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: { ...result.task, stage: '' } }) ?? '');
     }
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test('知识整理失败不算研究失败：研究已保存时页面显示完成，只在任务上标注整理未完成', async () => {
+  const originalFetch = globalThis.fetch;
+  const binding = { kind: 'research', slug: 'companies/600863-sh', bound_at: '2026-10-10T00:00:00Z', run_status: 'completed', settlement_status: 'failed' };
+  const page: unknown = fixturePageResearch;
+  globalThis.fetch = async url => Response.json(String(url) === '/finance-report-tasks' ? { sessions: { current: binding } } : page);
+  try {
+    const services = serviceModule.createCompanyPageServices({ taskRunning: () => false });
+    for (const settlement of ['failed', 'cancelled', 'interrupted']) {
+      binding.settlement_status = settlement;
+      const { task } = await services.readResearch('600863');
+      assert.equal(task.status, 'completed', settlement);
+      assert.equal(task.settlementFailed, true, settlement);
+      assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task }), null, settlement);
+    }
+    // 保存时间早于这次研究的开始：研究没有保存新结论，整理失败仍按失败显示。
+    binding.settlement_status = 'failed';
+    binding.bound_at = new Date().toISOString();
+    const unsaved = (await services.readResearch('600863')).task;
+    assert.equal(unsaved.status, 'failed');
+    assert.equal(unsaved.settlementFailed, undefined);
+    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: unsaved }), '这次研究未完成');
+    // 研究进程本身失败或中止，即使有旧结论也不算完成。
+    binding.bound_at = '2026-10-10T00:00:00Z';
+    for (const runStatus of ['failed', 'cancelled']) {
+      binding.run_status = runStatus;
+      assert.equal((await services.readResearch('600863')).task.status, runStatus);
+    }
+    // 整理成功时不带整理失败标记。
+    binding.run_status = 'completed'; binding.settlement_status = 'completed';
+    assert.equal((await services.readResearch('600863')).task.settlementFailed, undefined);
+    // 整理仍在运行：保持「正在整理」。
+    binding.settlement_status = 'running'; (binding as Record<string, unknown>).settlement_updated_at = new Date().toISOString();
+    assert.equal((await services.readResearch('600863')).task.status, 'settling');
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('重新研究走 startResearch：进行中不重复；发起后旧任务回读不盖住新任务；每次点击都可再发起', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  const done: CompanyPageTask = { sessionId: 'old-session', status: 'completed', stage: '', startedAt: '2026-10-10T00:00:00Z' };
+  fixture.setTask(done);
+  const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
+  await store.restart();
+  assert.equal(fixture.starts.length, 0, '页面还没读到研究时不启动');
+  await store.refresh(true);
+  assert.equal(fixture.starts.length, 0);
+  await store.restart();
+  assert.deepEqual(fixture.starts, [{ symbol: '600863', name: '华能蒙电', version: 'v1' }]);
+  assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
+  assert.equal(store.getSnapshot().task?.status, 'researching');
+  // 新任务的绑定还没读到，读回仍是旧任务：保持新任务进行中。
+  fixture.setTask(done);
+  await store.refresh();
+  assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
+  await store.restart();
+  assert.equal(fixture.starts.length, 1, '进行中的研究不重复启动');
+  // 新绑定读到后以它为准；完成后可再次重新研究。
+  fixture.setTask({ ...fixture.task, status: 'completed' });
+  await store.refresh();
+  assert.equal(store.getSnapshot().task?.status, 'completed');
+  await store.restart();
+  assert.equal(fixture.starts.length, 2);
 });
 
 test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不再补读，最后退订释放事件与轮询', { timeout: 5000 }, async t => {

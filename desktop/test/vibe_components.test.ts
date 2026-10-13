@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import * as React from 'react';
 import { createServer } from 'vite';
 import { Window } from 'happy-dom';
-import { hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, readVibeCheck, summarizeVibeMarkdown, vibeBlocks, type VibeCheck } from '../src/verticals/finance/dsh/vibe.ts';
+import { hasMarkdownHeading, hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, readVibeCheck, summarizeVibeMarkdown, vibeBlocks, type VibeCheck } from '../src/verticals/finance/dsh/vibe.ts';
 
 const id = 'result:' + 'a'.repeat(32);
 const code = `<section question="利润来自发电">
@@ -229,6 +229,23 @@ test('C4 fixture renders layouts, bound values and flow; drops bad siblings; reu
   await click('煤价如何传导？');
   assert.deepEqual(data.calls, ['煤价如何传导？', 'submit']);
   assert.ok(container.textContent?.includes('已发出'));
+});
+
+test('回答已有结论标题时，section 的 question 不再作为第二个标题；没有标题时仍显示', async () => {
+  const section = '```vibe\n<section question="铝价 21000 情景下的利润与估值"><stat><item label="收入" ref="claim:income" unit="亿元"/></stat></section>\n```';
+  const sectionCheck: VibeCheck = { turn: 1, blocks: [{ index: 0, ok: true, elements: [
+    { path: '0', component: 'section', status: 'ok' }, { path: '0.0', component: 'stat', status: 'ok' },
+    { path: '0.0.0', component: 'item', status: 'ok', values: { 'claim:income': value(1.23, '亿元') } },
+  ] }] };
+  assert.equal(hasMarkdownHeading('## 铝价压到 21000 元/吨\n\n正文'), true);
+  assert.equal(hasMarkdownHeading('正文\n\n```\n# 注释不是标题\n```'), false);
+  assert.equal(hasMarkdownHeading('前文\n\n' + section), false);
+  await mount('## 铝价压到 21000 元/吨，归母净利约 35.47 亿元\n\n正文\n\n' + section, sectionCheck);
+  assert.ok(container.textContent?.includes('1.23'));
+  assert.equal(container.querySelector('h3'), null);
+  assert.ok(!container.textContent?.includes('铝价 21000 情景下的利润与估值'));
+  await mount('正文没有标题\n\n' + section, sectionCheck);
+  assert.equal(container.querySelector('h3')?.textContent, '铝价 21000 情景下的利润与估值');
 });
 
 test('open fences and absent events stay placeholders; late events replace them without exposing IDs', async () => {

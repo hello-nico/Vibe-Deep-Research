@@ -32,7 +32,7 @@ export function TaskProcessPanel({ task, onClose }: { task: TaskProcessRef; onCl
       {task.kind === 'research' && <nav className="flex gap-2 border-b border-border px-4 py-2" aria-label="任务阶段">
         <button type="button" className="workspace-action workspace-action-compact" aria-current={stage === 'research' ? 'step' : undefined} onClick={() => setStage('research')}>公司研究</button>
         <button type="button" className="workspace-action workspace-action-compact" aria-current={stage === 'settlement' ? 'step' : undefined} disabled={!task.settlementSessionId} onClick={() => setStage('settlement')}>知识整理</button>
-        {!task.settlementSessionId && <span className="self-center text-xs text-muted-foreground">{task.status === 'researching' ? '研究结束后开始整理。' : '本次没有需要展示的整理过程。'}</span>}
+        {!task.settlementSessionId && <span className="self-center text-xs text-muted-foreground">{task.status === 'researching' ? '研究结束后开始整理。' : task.settlementFailed ? '知识整理未完成。' : '本次没有需要展示的整理过程。'}</span>}
       </nav>}
       <div className="task-process-native min-h-0 flex-1">
         {slots?.renderSlot('finance.panel.conversation', { sessionId: selectedId, parentSessionId: task.parentSessionId })}

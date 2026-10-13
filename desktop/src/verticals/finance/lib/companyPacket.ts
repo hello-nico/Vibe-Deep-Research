@@ -54,7 +54,7 @@ export type ScenarioMode = 'per_share' | 'total';
 export interface ScenarioTableData { mode: ScenarioMode; rows: ScenarioRow[] }
 
 const LABELS: Record<string, string> = {
-  revenue: '营业收入', gross_margin: '毛利率', net_profit_attributable: '归母净利润',
+  revenue: '营业收入', operating_cost: '营业成本', gross_margin: '毛利率', net_profit_attributable: '归母净利润',
   operating_cash_flow: '经营现金流', capex_cash: '资本开支', dividend_paid: '现金分红',
   residual_cash: '剩余现金', shares: '总股本', dividend_per_share: '每股分红',
   price: '价格', pe: '市盈率', pb: '市净率', dividend_yield: '股息率',
@@ -69,6 +69,8 @@ const LABELS: Record<string, string> = {
 };
 /** Driver keys of the form <kind>:<name>, e.g. sales:<product>. The name is the Chinese product or segment. */
 const DRIVER_KINDS: Record<string, string> = { sales: '销量', price: '单价', cost: '单位成本', output: '产量' };
+/** Segment field ids are `segment:<product|region>:<name>.<metric>`; the label is the segment name plus a short metric noun. */
+const SEGMENT_METRICS: Record<string, string> = { revenue: '收入', cost: '成本' };
 const QUARTERS: Record<string, string> = { Q1: '第一季度', Q2: '第二季度', Q3: '第三季度', Q4: '第四季度' };
 /** Used when a metric has no Chinese label; an unknown key is never shown. */
 export const UNKNOWN_FIELD_LABEL = '相关指标';
@@ -94,6 +96,8 @@ export function fieldLabel(metric: string | undefined, fallback = UNKNOWN_FIELD_
   if (key.startsWith('driver:')) return fieldLabel(key.slice('driver:'.length), fallback);
   if (key.startsWith('lens:')) return fieldIdLabel(key, fallback);
   if (LABELS[key]) return LABELS[key];
+  const segment = /^(?:segment:)?(?:product|region):(.+)\.([a-z_]+)$/i.exec(key);
+  if (segment) return `${segment[1]}${SEGMENT_METRICS[segment[2]!.toLowerCase()] ?? LABELS[segment[2]!.toLowerCase()] ?? '指标'}`;
   const kinded = /^([A-Za-z_]+)[:：](.+)$/.exec(key);
   if (kinded) {
     const [, kind, name] = kinded as unknown as [string, string, string];

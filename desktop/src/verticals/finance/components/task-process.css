@@ -7,6 +7,8 @@
 .task-process-native [data-conversation-content] { min-height: 0; flex: 1; }
 .task-process-native [data-conversation-scroll] { min-height: 0; }
 .task-process-native [data-composer-seat] { display: none; }
+/* The task prompt is sent by the product, not typed by the user; the panel shows the process only. Public chat-flow anchor, not a hashed class. */
+.task-process-native [data-chat-flow-kind="user"] { display: none; }
 .finance-topic-native, .finance-assistant-transcript { display: flex; flex-direction: column; overflow: hidden; }
 .finance-topic-chat, .finance-assistant-native, .finance-panel-chat { display: flex; min-height: 0; flex: 1; flex-direction: column; overflow: hidden; }
 .finance-topic-chat [data-conversation-content], .finance-assistant-native [data-conversation-content], .finance-panel-chat [data-conversation-content] { min-height: 0; flex: 1; }

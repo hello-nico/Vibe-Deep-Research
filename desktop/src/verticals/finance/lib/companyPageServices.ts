@@ -5,6 +5,8 @@ import { api } from './api';
 import { packetNeedsEnsure, scenarioTable, shanghaiDay, type DataPacket } from './companyPacket';
 import { companyPageProgress, type CompanyPageResearchRead, type CompanyPageServices, type CompanyPageTask } from './companyPage';
 
+/** Settlement outcomes that mean "knowledge organising did not finish", as opposed to "the research did not finish". */
+const SETTLEMENT_FAILURES = new Set<string>(['failed', 'cancelled', 'interrupted']);
 const ensuredDay = new Map<string, string>();
 const ensuring = new Map<string, Promise<void>>();
 const packetListeners = new Map<string, Set<() => void>>();
@@ -107,8 +109,12 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
       let task: CompanyPageTask | undefined;
       if (latest) {
         const binding = store.sessions[latest.sessionId];
-        const status = !sessions.taskRunning(latest.sessionId) && !latest.runFailed && binding?.settlement_status === 'completed' ? 'completed' : latest.status;
-        task = { sessionId: latest.sessionId, status, stage: '', startedAt: latest.startedAt };
+        const finished = !sessions.taskRunning(latest.sessionId) && !latest.runFailed;
+        // The research run is judged by whether it saved the page research; a failed knowledge settlement is a separate matter.
+        const savedByRun = Date.parse(research?.researchedAt ?? '') >= Date.parse(latest.startedAt ?? '');
+        const settlementFailed = finished && savedByRun && SETTLEMENT_FAILURES.has(latest.status);
+        const status = finished && (binding?.settlement_status === 'completed' || settlementFailed) ? 'completed' : latest.status;
+        task = { sessionId: latest.sessionId, status, stage: '', startedAt: latest.startedAt, ...(settlementFailed ? { settlementFailed } : {}) };
         task.stage = companyPageProgress({ loaded: true, research, stale, task }) ?? '';
       }
       return { research, stale, basisVersion, task,

@@ -78,6 +78,14 @@ test('驱动键 sales:<产品> 显示为「<产品>销量」，银行字段与�
     assert.equal(fieldLabel(unknown) === '这项数据' || ENGLISH_KEY.test(fieldLabel(unknown)), false, unknown);
   }
   assert.equal(fieldLabel('mystery_metric'), '相关指标');
+  // 分部字段编号 segment:<product|region>:<名称>.<指标> 显示为「名称 + 收入/成本」，不露编号。
+  assert.equal(fieldIdLabel('segment:product:电解铝.revenue'), '电解铝收入');
+  assert.equal(fieldIdLabel('segment:product:铝箔坯料.cost'), '铝箔坯料成本');
+  assert.equal(fieldIdLabel('segment:region:西南地区.revenue'), '西南地区收入');
+  assert.equal(fieldLabel('product:电解铝.revenue'), '电解铝收入');
+  assert.equal(fieldLabel('operating_cost'), '营业成本');
+  assert.equal(fieldLabel('segment:product:煤炭.gross_margin'), '煤炭毛利率');
+  assert.equal(fieldLabel('segment:product:煤炭.unknown_metric'), '煤炭指标');
   assert.equal(fieldIdLabel('lens:other.revenue'), '相关指标');
   assert.equal(gapText({ metric: 'sales:动力电池', status: 'gap', reason: 'provider failed field_id' }), '暂时取不到动力电池销量');
   assert.equal(gapText({ metric: 'mystery_metric', status: 'gap' }), '暂时取不到相关指标');

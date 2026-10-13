@@ -48,6 +48,8 @@ export interface TaskProcessRef {
   parentSessionId?: string;
   settlementSessionId?: string;
   status?: string;
+  /** The research finished and saved, but the knowledge settlement after it did not. */
+  settlementFailed?: boolean;
   resultHref?: string;
   resultRef?: string;
 }

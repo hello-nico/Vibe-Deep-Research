@@ -1,6 +1,6 @@
 import type { Quote } from './api';
 import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
-import type { ResearchTaskStatus } from './reportTasks';
+import { RESEARCH_START_GRACE_MS, type ResearchTaskStatus } from './reportTasks.ts';
 
 export const COMPANY_PAGE_BLOCKS = [
   ['business', '商业模式'],
@@ -36,6 +36,8 @@ export interface SensitivityDriver {
 }
 export interface CompanyPageTask {
   sessionId: string; status: ResearchTaskStatus | 'completed'; stage: string; startedAt?: string;
+  /** The research was saved but the knowledge settlement after it did not finish; only the process panel says so. */
+  settlementFailed?: boolean;
 }
 /** A running task always holds back a new start; any other unsuccessful state only for a day, so older ones (incl. pre-T7 Wiki research) do not. */
 export const COMPANY_PAGE_RETRY_MS = 24 * 60 * 60 * 1000;
@@ -80,6 +82,9 @@ export class CompanyPageStore {
   private timer?: ReturnType<typeof setTimeout>;
   private unsubscribeResearch?: () => void;
   private completedSession?: string;
+  /** A task this store has just started; until its binding is readable, an older task must not replace it on screen. */
+  private launched?: { sessionId: string; at: number };
+  private basisVersion = '';
   private services: CompanyPageServices;
   private symbol: string;
   private name: string;
@@ -127,25 +132,41 @@ export class CompanyPageStore {
         // The first read may precede the DSH save receipt; read after observing completion.
         value = await this.services.readResearch(this.symbol);
       }
-      const task = value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
+      this.basisVersion = value.basisVersion;
+      const launched = this.launched;
+      if (launched && value.task?.sessionId === launched.sessionId) this.launched = undefined;
+      const awaiting = launched && value.task && value.task.sessionId !== launched.sessionId && Date.now() - launched.at < RESEARCH_START_GRACE_MS ? this.state.task : undefined;
+      const task = awaiting ?? value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
       this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
       const key = value.basisVersion;
       if (this.opened && (!value.research || value.stale) && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
         this.attempted.add(key);
-        this.publish({ ...this.state, task: { sessionId: '', status: 'researching', stage: '正在开始研究' } });
-        try {
-          const started = await this.services.startResearch(this.symbol, this.name, key);
-          this.publish({ ...this.state, task: started });
-        } catch (error) {
-          console.warn('[finance/company-page] start failed', error);
-          this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: '这次研究未完成' } });
-        }
+        await this.begin();
       }
     } catch (error) {
       console.warn('[finance/company-page] research unavailable', error);
       this.publish({ ...this.state, loaded: true, error: '研究暂不可用' });
     }
   }
+  private async begin() {
+    this.launched = { sessionId: '', at: Date.now() };
+    this.publish({ ...this.state, task: { sessionId: '', status: 'researching', stage: '正在开始研究' } });
+    try {
+      const started = await this.services.startResearch(this.symbol, this.name, this.basisVersion);
+      this.launched = { sessionId: started.sessionId, at: Date.now() };
+      this.publish({ ...this.state, task: started });
+      this.schedule();
+    } catch (error) {
+      console.warn('[finance/company-page] start failed', error);
+      this.launched = undefined;
+      this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: '这次研究未完成' } });
+    }
+  }
+  /** User-initiated 「重新研究」: same entry as the automatic start, but not once per basis version. No-op while a task is running or the page is unread. */
+  restart = async () => {
+    if (!this.state.loaded || this.state.error || !this.basisVersion || companyPageTaskActive(this.state.task)) return;
+    await this.begin();
+  };
 }
 const stores = new WeakMap<CompanyPageServices, Map<string, CompanyPageStore>>();
 export function companyPageStore(services: CompanyPageServices, symbol: string, name: string) {
