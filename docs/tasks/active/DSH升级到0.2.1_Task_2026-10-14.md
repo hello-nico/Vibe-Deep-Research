@@ -1,6 +1,6 @@
 # DSH 升级到 0.2.1
 
-状态：2026-10-14 Claude 写定，用户同意（todo §1.5 内测首发关键路径；依据 [桌面安装包可行性](桌面安装包可行性_Task_2026-10-14.md) 报告 `.local/desktop-spike/report.md`）。执行方不提交、不 push、不运行 `scripts/start`，不切换用户正在用的工作台；不读 `.env` 与密钥。升级在 worktree 中完成，验收后由 Claude 合入主目录。
+状态：2026-10-14 Claude 写定，用户同意（todo §1.5 内测首发关键路径；依据 [桌面安装包可行性](../archived/桌面安装包可行性_Task_2026-10-14.md) 报告 `.local/desktop-spike/report.md`）。执行方不提交、不 push、不运行 `scripts/start`，不切换用户正在用的工作台；不读 `.env` 与密钥。升级在 worktree 中完成，验收后由 Claude 合入主目录。
 
 ## 1. 目标
 

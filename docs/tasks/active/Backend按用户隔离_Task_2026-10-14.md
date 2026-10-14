@@ -1,6 +1,6 @@
 # Backend 按用户隔离
 
-状态：2026-10-14 Claude 写定，用户同意（todo §1.5 内测首发第 3 步；依据 [Backend 用户层清点](Backend用户层清点_Task_2026-10-14.md) 产出 `.local/backend-user-layer/summary.md` 与 Claude 对 8 项待裁决的裁定）。执行方不提交、不重建、不读 `.env` 与密钥。
+状态：2026-10-14 Claude 写定，用户同意（todo §1.5 内测首发第 3 步；依据 [Backend 用户层清点](../archived/Backend用户层清点_Task_2026-10-14.md) 产出 `.local/backend-user-layer/summary.md` 与 Claude 对 8 项待裁决的裁定）。执行方不提交、不重建、不读 `.env` 与密钥。
 实施仓库：Stock-Research（`backend/`）。客户端带令牌另立（todo §1.5 第 4 步），本 Task 客户端不改。
 
 ## 1. 目标
@@ -61,9 +61,9 @@ R6 所列；公共层内部结构调整；刷新检查状态移出记忆目录�
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-14 pi3 已在 worktree `/Users/apple/ts/src/Stock-Research/.worktrees/pi3`（detached `6e3a865`）完成七类用户层隔离、令牌中间件、迁移/回滚脚本与测试。未提交、未重建、未对真实库执行 0013。
-2. 改动文件：见本轮回复清单（均在上述 worktree 的 `backend/`）。
-3. 证据：门禁 pytest 1329 passed / 8 skipped / 7 deselected；新文件 `uvx ruff check` 通过；`git diff --check` 无输出。隔离测试覆盖两用户互不可见、迁移重跑不变、回滚恢复原状。
-4. 与规格的偏差及理由：显式 `STOCK_RESEARCH_RESEARCH_TOPICS` / `STOCK_RESEARCH_RESEARCH_LINKS` 优先于用户目录，避免测试与已钉死叶路径的部署被改写；未设叶路径时仍写入 `research/users/<user_id>/`。公司研究不再回写 Wiki 研究块；`page-drafts/research` 仅在用户文件不存在时回退读 Wiki 块，供迁移前与旧测试。pytest 用主仓 `.venv`，因 worktree `backend/` 无 `pyproject.toml`。
-5. 未覆盖的缺口：客户端带令牌另立。真实库迁移与双令牌运行留待用户重建后另派。
-6. 下一步谁做什么：Claude 审阅 worktree；用户重建后另派真实运行（迁移脚本、两测试令牌互不可见）。
+1. 状态与结论：2026-10-14 15:02 第二次迁移已留在真实数据上。脚本只复制 Wiki 研究块，不改页。抽查通过。回滚后状态曾与 `user-layer-backup-20261014-144704` 逐文件哈希一致。
+2. 改动文件：worktree `backend/scripts/user_layer_migrate.py`、`backend/tests/test_user_isolation.py`。未提交。
+3. 证据：新备份 `workspace/research/user-layer-backup-20261014-150230`，六项目录哈希与源一致，SQL 735393 字节。门禁 pytest 1331 passed / 8 skipped / 7 deselected。抽查：三只 page-research 200 且研究非空；topics 6、links 列表 8、memory 1、notes 12；notes 的 user_id 全为 local；library_items 8 且均 hidden。
+4. 与规格的偏差及理由：links 列表接口本来不计 hypothesis，所以接口计数是 8 不是文件里的 10。未因此回滚。Wiki 页未改，local 研究仍留在 Wiki 块里，其他用户读页会看到。
+5. 未覆盖的缺口：客户端令牌另立。Wiki 块清理未做，见本轮第 2 步。
+6. 下一步谁做什么：Claude 决定是否用正式发布去掉 Wiki 上的 company_page_research，并先改读路径，避免无个人研究的用户看到 local 的块。

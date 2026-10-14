@@ -6,7 +6,7 @@
 - DSH 原生运行时拥有模型配置、会话、工具注册、执行、轨迹和中止。
 - Stock-Research Backend 拥有资料原件、解析、证据、事实、关系、Wiki、Topic、沉淀记录和成果。发布与关联确认由正式接口校验。
 - Client SQLite（`<dataRoot>/client/choices.sqlite`）仅保存自选、加入研究的公司与持久界面偏好。移除选择不删除 Backend 知识。
-- `orchestrator/` 保留产品启动、本机取数、页面查询及 Client 存储；不拥有另一套研究执行器。
+- `orchestrator/` 保留产品启动、页面查询及 Client 存储；本机取数正迁往 Backend（安装包不带 Python）。不拥有另一套研究执行器。
 - 原六阶段状态机、旧资料库、旧聊天/研究 HTTP 入口、旧研究启动 MCP、用户台账与隐藏 legacy 页面已退役；产品只给 DSH 使用，不提供 MCP 接入。不得恢复固定六阶段作为普通问答前置条件。
 - 旧非 Backend 数据无需为此次退役迁移或兼容读取。不得因此删除现用 Client 选择、DSH 会话或 Backend 数据。
 - 当前系统提示词由实际 DSH/Backend 插件注入；本文件是仓库开发纪律，不应整份注入产品模型。
@@ -34,7 +34,7 @@
 
 - 官网仅维护 `website/`。不展示原作者个人品牌站点、社交、赞赏码或未经确认的联系信息；LICENSE 保留版权声明。
 - Agent Runtime 与 Model Provider 分开描述，当前运行时为 DSH。历史版本说明不能当成当前能力承诺。
-- 当前只交付 Web 工作台；旧 macOS 独立客户端退出范围，不作为验收剩余项，不恢复原生外壳或 Electron。
+- 内测交付基于 DSH Desktop 的本机安装包（2026-10-14 决定），开发期仍用 Web 工作台；旧 macOS 独立客户端不恢复，不自写原生外壳或 Electron。
 - 用户要求打开查看时使用可见浏览器或 Codex 页；短时无头验证后关闭，不遗留浏览器进程。
 - 每次公开 push/tag/Release 前扫描工作树、HEAD 和完整 Git 历史，并检查发布附件、截图及公开正文；命中需核实。不得顺手重写历史。
 - 认证、`.env`、私钥及本地数据须保持 ignored/untracked。GitHub Secret Scanning 与 Push Protection 状态需要实际检查。
