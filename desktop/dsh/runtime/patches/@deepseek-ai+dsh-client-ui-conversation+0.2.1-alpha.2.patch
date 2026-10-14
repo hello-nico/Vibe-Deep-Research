@@ -1,8 +1,7 @@
 diff --git a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
-index dce0ed4..3c868d9 100644
 --- a/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
 +++ b/node_modules/@deepseek-ai/dsh-client-ui-conversation/lib/client.js
-@@ -14383,10 +14383,10 @@ window.__ModuleLoader__.load({
+@@ -19342,10 +19342,10 @@
  			"hint.goal": "输入目标，智能体将持续执行",
  			"hint.goal.active": "当前目标进行中。可输入 edit 修改 / pause 暂停 / resume 继续 / clear 清除",
  			"placeholder.plan": PLAN_NEXT_ACTION_ZH,
@@ -15,7 +14,7 @@ index dce0ed4..3c868d9 100644
  			"placeholder.workspace": "选择一个工作区开始",
  			"placeholder.steerQueue": "Cmd/Ctrl+Enter 插话发送全部排队消息",
  			"input.commands": "添加文件或调用指令",
-@@ -14440,8 +14440,8 @@ window.__ModuleLoader__.load({
+@@ -19399,8 +19399,8 @@
  			"settings.enter.description": "智能体运行时 Enter 键和发送按钮的行为；Cmd/Ctrl+Enter 使用另一行为",
  			"settings.enter.queue": "排队发送",
  			"settings.enter.steer": "插话发送",
@@ -26,7 +25,7 @@ index dce0ed4..3c868d9 100644
  			"hero.chooseWorkspace": "选择工作区",
  			"session.hierarchy": "会话层级",
  			"todo.title": "任务",
-@@ -14731,10 +14731,10 @@ window.__ModuleLoader__.load({
+@@ -19716,10 +19716,10 @@
  			"hint.goal": "describe the objective for a long-running task",
  			"hint.goal.active": "goal active — edit / pause / resume / clear",
  			"placeholder.plan": PLAN_NEXT_ACTION_EN,
@@ -39,7 +38,7 @@ index dce0ed4..3c868d9 100644
  			"placeholder.workspace": "Choose a workspace to start",
  			"placeholder.steerQueue": "Cmd/Ctrl+Enter steers all queued messages",
  			"input.commands": "Add files or run commands",
-@@ -14788,8 +14788,8 @@ window.__ModuleLoader__.load({
+@@ -19773,8 +19773,8 @@
  			"settings.enter.description": "What Enter and the Send button do while the agent is running; Cmd/Ctrl+Enter uses the other behavior",
  			"settings.enter.queue": "Queue",
  			"settings.enter.steer": "Steer",

@@ -28,12 +28,13 @@ test('公司任务首请求前绑定研究身份，同公司去重，不把模�
     agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'model' }) },
     agents: { get: (id: string) => id === host.session.id ? host : null,
       create: async () => ({ agent: host, dispose: async () => {} }) },
-    subagents: { start: async (_provider: string, request: any) => {
+    subagents: { startActivation: async ({ provider: _provider, request, delivery }: any) => {
+      assert.equal(delivery, 'caller');
       const pending = loadReportTasks().pending;
       let finish!: (value: unknown) => void;
       const result = new Promise(resolve => { finish = resolve; });
       starts.push({ pending, request, finish });
-      return { id: `research-${starts.length}`, result, dispose: async () => {} };
+      return { childId: `research-${starts.length}`, result, dispose: async () => { finish({ stopReason: 'aborted' }); } };
     } },
   };
   const input = { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究公司', title: '公司研究 · 华能国际' };

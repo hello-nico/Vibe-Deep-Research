@@ -1,8 +1,7 @@
 diff --git a/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js b/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
-index c220a32..7c3c825 100644
 --- a/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
 +++ b/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
-@@ -144,7 +144,7 @@ var DeepSeekFilesError = class extends LlmError {
+@@ -581,7 +581,7 @@
  	* @param detail - provider error fields joined for classification.
  	*/
  	constructor(message, status, detail) {
@@ -11,7 +10,7 @@ index c220a32..7c3c825 100644
  		this.name = "DeepSeekFilesError";
  		this.detail = detail;
  	}
-@@ -1493,8 +1493,9 @@ function providerError(raw, status, headers) {
+@@ -1750,8 +1750,9 @@
  	const type = typeof error.type === "string" ? error.type : "";
  	const detail = `${type} ${typeof error.code === "string" ? error.code : ""} ${message}`;
  	let code;

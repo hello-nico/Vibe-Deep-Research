@@ -1,50 +1,45 @@
 # 产品 DSH runtime
 
-> 2026-09-23 已切换主目录至 `0.1.7-alpha.2`，保留 11 个新版补丁。主目录自动检查与端口检查记录见 [DSH 升级 Task §9.2a](../../../docs/tasks/archived/DSH升级到0.1.7_Task_2026-09-23.md)；本轮未做浏览器或真实流程测试。下表保留升级前 rc.1 的 14 个补丁处置历史。
+> 2026-10-14：本 worktree 升级到 `0.2.1-alpha.2`，同步主目录 b2e7be15，未切换主目录。后台整理、公司研究（含续跑）和报告生成已迁移 `startActivation`；459项测试通过。真实图表问答、问助手及海螺研究已重跑，敏感性计算200、研究保存version2、工具审计退出0。页面上下文与知识整理仍有缺口，复制凭据已删除，待独立审阅和用户验收。执行状态见 [升级 Task](../../../docs/tasks/active/DSH升级到0.2.1_Task_2026-10-14.md)。
 
-当前 `@deepseek-ai/dsh-*` 精确锁定 `0.1.7-alpha.2`，React / ReactDOM 为 `18.3.1`；`package-lock.json` 记录完整安装闭包，运行依赖与用户 `DSH_HOME`、研究工作区分开。
+全部 DSH 包精确锁定 `0.2.1-alpha.2`，统一来自 npm registry；没有混用本地构建包。`package-lock.json` 锁定完整闭包，React / ReactDOM 保持 `18.3.1`。通过 `npm ci` 安装，postinstall 必须成功应用九个补丁并执行 `check-inline-result.mjs`。
 
-通过仓库 `scripts/setup` 执行 `npm ci`，postinstall 自动应用下面补丁，失败即中断。产品插件通过官方 `plugin add link:` 安装到配置的 Web profile；不复制私人配置与凭据，不要求存在相邻 dsh-desktop。
+运行依赖、DSH_HOME 与研究工作区分别存放。产品插件通过官方 `plugin add link:` 注册到 Web profile，不复制私人配置或凭据。DSH 启动器统一宿主与 link 插件的模块解析；插件记录必须使用宿主同一实例的 `dsh-session`，直接跨仓导入的测试需要模拟这一解析边界。
 
 ## 产品运行配置
 
-官方 `web` profile 提供运行底盘。`../finance-ui/cordis.patch.yml` 拥有固定产品组合、人设基础及通用工具权限（关闭 bash、PowerShell、文件读取与文件搜索，并关闭 web-runtime `surfaceContext`，避免把本机 GUI 地址和 runtime 源码路径注入模型）；Stock-Research 研究插件拥有原生研究工具及其生命周期，不覆盖这些全局设置。
+官方 `web` profile 提供运行底盘。`../finance-ui/cordis.patch.yml` 拥有产品根框架、默认 `vibe` 预设、人设及通用工具权限；保留 DSH layout 服务。0.2.1 的预设配置节点是 `agent-preset-registry`，旧 `agent-presets` 节点不再改变默认值。启动器暂时还会生成旧节点叠加层，但本版本有效默认值由产品组合提供。
 
-`desktop/dsh-dev.ts` 启动时只为安装位置生成 `DSH_HOME/finance-runtime.patch.yml`，配置产品预设的绝对目录与默认 `vibe` 预设，不读取用户预设。启动使用 `dsh --profile web --patch <finance-runtime.patch.yml> --port <产品配置端口>`；旧阶段命名的 patch 不再加载。DSH profile 和会话仍留在产品专用 DSH_HOME。
+Stock 插件拥有研究工具与生命周期。模型配置与凭据由 DSH 设置入口管理。上游首次启动引导和模型设置属于实际运行时，未通过复制用户配置跳过。
+
+产品执行使用 `startActivation({ provider: 'spawn', label, request, signal, delivery: 'caller' })` 的 childId/result/dispose。DSH 上游允许 caller 投递使用临时会话，但产品插件要求 sessionPersistence，保证任务过程与续跑可读。发布后通过 dispose 取消；用户中止立即持久记为 cancelled，宿主关闭保留 running，下一次启动接续；同一步实际失败两次才 failed，重启本身不增加失败次数。容量拒绝返回明确原因并保留失败任务记录。
+
+## 11 个原补丁的处置
+
+| 原补丁 | 0.2.1 处置 | 保留行为与验证边界 |
+| --- | --- | --- |
+| dsh-client-modules | 删除，上游已等价 | 上游已有 createRequire 元数据解析回落；隔离 Web profile 成功加载两个 link 插件及产品 UI |
+| dsh-session | 由产品代码替代 | Stock 五类自定义记录使用 appendPluginRecord 和 plugin: 命名空间；原生 Session JSON/restore 与前端旧、新名称读取测试通过 |
+| dsh-api-session-controller | 重做 | 保留已校验子会话无 cwd 的冷读豁免；普通会话仍拒绝。上游已使用序列化 projection hints，旧 projections 剥离不再移植；真实持久公司子会话与过程读取通过，不保证所有历史版本迁移 |
+| dsh-client-ui-layout | 重做 | 仅移除上游 root/AppFrame 注册，保留 layout 服务、状态与命令；产品页面真实加载 |
+| dsh-client-ui-model-selection | 重做 | 始终显示筛选，按 Provider 名称、模型 id/name/description 匹配，保留上游键盘行为 |
+| dsh-client-ui-chat | 重做 | QUOTA/AUTH/FORBIDDEN 中文语义、研究中措辞、四类 finance 过程节点 |
+| dsh-client-ui-trajectory | 重做 | QUOTA、ACCOUNT_QUOTA 与 FORBIDDEN 的中英文说明 |
+| dsh-llm-pi-ai | 重做 | 额度识别优先于 401/403；401 认证、403 拒绝。实际 adapter 分类回归通过 |
+| dsh-llm-deepseek | 重做 | 额度优先，401/403 区分，文件 API 保留拒绝码。实际 adapter 分类回归通过 |
+| dsh-client-ui-conversation | 重做 | 研究场景 hero、输入占位与空 preview，保留中英文 |
+| dsh-web-frontend | 重做 | 对 npm 实际加载的 ui-primitives 打包产物补 stock-ref、result 单图段落、vibe 围栏/流式位置/复制摘要；实际产物检查通过 |
+
+除前两项外，每项对应一个 `+0.2.1-alpha.2.patch`。移除条件仍是上游提供等价行为并经过对应运行验证；不能因为补丁安装失败而删除功能。
+
+`check-inline-result.mjs` 从发布的 Web entry 提取真实解析器、流式分段和 React renderer，覆盖 result 回退、普通图片、stock-ref、vibe 未闭合围栏、冻结前缀后的绝对位置和复制摘要。CSS、图标、无关文件上下文及代码块边界为受控绑定；它不能证明浏览器布局、真实模型输出或 Backend 证据正确性。带哈希产物升级后必须重新定位，不能沿用旧截取边界。
 
 ## 升级与回退规则
 
-每次升级 DSH 前，先在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（Vibe 与 Stock 两仓），并备份 `.local/dsh`；在独立 worktree 升级，隔离验收后再切换。记录带时区的 ISO 切换时间（例如 `2026-10-09T15:00:00+08:00`），切换后开一个新会话并实际发起请求，运行 `node scripts/audit-session-tools.mjs --since <切换时间>`；退出 0 才算切换完成，再打新基线。
+升级前在已验收提交上打本地基线标签 `baseline/dsh-<版本>`（两仓；已存在不移动），备份 DSH 状态；独立 worktree 和独立 DSH_HOME 验收后再切换。此次用户禁止触碰现用 DSH_HOME，故未备份或迁移用户状态，也未切换主目录。
 
-审计沿 `DSH_HOME` / `VRA_DATA_ROOT` 默认路径，自定义配置路径用 `--home` 显式指定，不加载私人配置。只读取预设名与请求头工具名；命中禁用工具退出 1，无工具表或损坏记录退出 2，都不能验收通过。`--since` 用会话目录的文件系统创建时间（平铺日志用文件创建时间），不使用修改时间；复制或恢复目录可能改变创建时间，不能据此证明原逻辑会话年龄，必须另开新会话验证。
+记录带时区的 ISO 切换时间，开新会话实际发起请求后运行 `node scripts/audit-session-tools.mjs --home <隔离或目标 home> --since <时间>`。只读取预设名和请求工具名：禁用工具退出 1，无工具表、空目录或损坏记录退出 2；退出 0 才满足该项。源码断言、空白会话及模拟模型不能代替真实问答验收。
 
-回退时检出基线标签里本目录的 `package.json`、`package-lock.json`、`patches/`（及 Stock `dsh` 的 package / lockfile / dist），恢复 `.local/dsh` 备份，`npm ci` 后重启。共享约束见 [不变量 #16](../../../docs/contracts/invariants.md) 与 [Human Checklist](../../../human-checklist.md)「DSH 运行时与历史会话」。旧基线：`baseline/dsh-0.1.2-rc.1`。
+正式回退须恢复基线版本的 package、lockfile、patches、Stock 插件及相容的 DSH 状态备份，再安装验证。不能让旧运行时直接改写已被新版迁移的用户会话。当前 worktree 未切换，回退不需要改变主目录；基线标签保持原值。
 
-## 补丁归属
-
-这些补丁来自此前 M3 使用的 rc.1 运行环境，显式保留已有行为；不是当前产品修改上游源码的隐式前提。「类型」按实际 diff 区分：bug fix = 修上游缺陷；产品功能 = 上游没有的产品行为；产品配置 = 默认值 / 装配调整；文案 = 界面文字。混合补丁分条列在备注。移除条件在下次升级时逐项验证，不预设上游已修复任何 bug。
-
-| 包 | 类型 | 现有依赖与内容 | 移除条件 |
-| --- | --- | --- | --- |
-| cordis-plugin-loader 1.0.3 | bug fix | 安装回落的 Node 包解析：裸名 `import` 失败时经 `createRequire` 按安装位置重解析 | 上游提供等价回落；升级后实测 `link:` 插件的裸名 import 成功 |
-| dsh-client-modules | bug fix | 客户端包元数据解析回落：按 `expectedPackageName` 经 `createRequire` 重解析 | 上游等价回落落地，产品插件元数据可解析 |
-| dsh-api-session-controller | 产品功能（分条） | ① 报告只读子会话：`retainSubagent` 引用计数挂载（M9.5 归属）；② `sessions.retain` 客户端契约扩展（`source`/`signal`）；③ 历史读取 cwd 门禁：普通会话要求 cwd，已校验子 Agent 豁免；④ 新会话事件 JSON 安全（bug fix） | ① 归 M9.5 后续包评估替代；② 上游已用 `sessions.retain(address, { source, signal })`（见 `sidebar-chat/index.tsx`，0.1.6-alpha.2），升级后验证只读面板、关闭/释放与后台执行互不干扰后改用上游 session patch；③④ 上游提供等价门禁与事件序列化后逐项退出 |
-| dsh-session | bug fix | `Session.append` 接受并持久保留显式 `ignorable: true` envelope marker，使插件的纯信息事件可被旧 vocabulary 的冷读路径安全跳过；缺省仍为 required，surface 事件仍要求 `SurfaceIntent` | 上游 `Session.append` 等价支持、校验并保留该 marker，且未知 required 事件仍被 persistence reader 拒绝 |
-| dsh-client-ui-settings-models | 产品功能 | 已有 Provider 配置与模型管理改进（自定义 Provider / 模型增删 / 连通性测试等 UI 依赖） | 逐项对照上游设置页能力清单，等价覆盖后退出；退出前不能删除（模型接入入口依赖它） |
-| dsh-client-ui-model-selection | 产品功能 | 模型筛选与选择行为（会话模型切换、筛选控件） | 上游筛选/选择能力等价后退出 |
-| dsh-client-ui-agent-preset | bug fix | 会话列表订阅先握住全局 `list` store，不再在通知回调里回查 `scope.sessions`。产品把 `#dsh-conversation` 挂在非对话路由上时，conversation isolate 已 inactive，回查会刷屏 `cannot get required service "sessions" in inactive context` | 上游列表订阅不再经过 inactive isolate 的 `sessions` 查找，升级后在个股/行业图文报告页硬刷新核对控制台不再刷该错 |
-| dsh-client-ui-chat | bug fix + 文案 | ① 错误语义：区分额度（QUOTA）/ 认证（AUTH）/ 服务商拒绝（FORBIDDEN）；② 运行中文案「研究中…」替代「深度求索中...」 | ① 上游错误码语义等价；② 上游文案可配置 |
-| dsh-client-ui-trajectory | 文案 | 轨迹面板 QUOTA / FORBIDDEN 失败语义文案（中英） | 上游文案可配置或语义等价 |
-| dsh-client-ui-deliverables | 产品功能 | 本地路径引用解析（`localPathReference`：绝对路径 / 含分隔符 / 常规文件名才当路径，裸标识符保持惰性）；产物为空时仍提供 mention 解析 | 上游支持等价本地路径 mention 与空产物行为 |
-| dsh-llm-pi-ai | bug fix | 错误分类区分 401/403 与额度，避免把服务商拒绝误报为认证失效 | 上游分类等价 |
-| dsh-llm-deepseek | 产品配置 + bug fix | ① 默认目录改官方 `deepseek-flash`（V4.1-Flash，含视觉）与 `deepseek-v4-pro`；② 错误分类区分额度、认证与服务商拒绝 | ① 上游默认目录更新后重新对照；② 上游分类等价 |
-| dsh-client-ui-conversation | 文案 | 输入框占位、首页 hero 标题改为研究场景文案，hero preview 置空（中英） | 上游提供文案配置点（当前 locale namespace 固定注册、不可重复注册，Config 无文案字段） |
-| dsh-client-ui-layout | 产品功能 | 去掉上游 `root` 插槽注册与 `AppFrame`，由产品提供根框架与插槽，只保留 `layout` 服务 | 上游允许宿主自供根框架而不重复注册 `root`，或产品改用上游 AppFrame |
-| dsh-web-frontend | 产品功能 | ① Markdown 链接放行 `stock-ref:`；② `result:` 单图段落交产品函数渲染，流式隐藏未完成标记；③ `vibe` 围栏交产品函数渲染，传入源文位置与未闭合状态，复制走文字摘要；postinstall 的 `check-inline-result.mjs` 检查实际加载产物 | 上游支持可配置链接协议、插件内嵌协议及代码块渲染与复制转换后逐项移除；带哈希压缩产物每次升级必须重做补丁并跑回归 |
-
-上游 `packages/client/ui-subagent/src/client/sidebar-chat/index.tsx` 已使用 `sessions.retain(address, { source, signal })`，是 session-controller patch 的升级替代候选；本轮未核验 0.1.6-alpha.2 远端之外的版本，不改任何 patch 内容。
-
-桌面发行版的窗口、Finder、目录选择桥接及替代布局补丁不带入。产品布局、主题和导航由 `../finance-ui` 的浏览器插件拥有；rc.1 composer 的目录按钮仍是有界 CSS 例外。
-
-升级时必须一起核对精确依赖、lockfile、补丁和原生交互；不能删除失败补丁后仅凭安装成功宣称升级完成。
-回归检查失败说明补丁需要重做。
+共享约束见 [不变量 #16](../../../docs/contracts/invariants.md) 与 [Human Checklist](../../../human-checklist.md)「DSH 运行时与历史会话」。本 Task 不做 Desktop 打包。

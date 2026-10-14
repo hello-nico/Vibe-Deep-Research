@@ -2,6 +2,9 @@
 # Research bundles register domain tools; they do not redefine this policy.
 # surfaceContext is a developer-orientation injection (checkout path and GUI URL);
 # the product research assistant must not receive it.
+- id: agent-preset-registry
+  config:
+    default: vibe
 - id: system-prompt
   config:
     includeHarnessIdentity: false

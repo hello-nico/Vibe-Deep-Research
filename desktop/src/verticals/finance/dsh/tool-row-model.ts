@@ -4,7 +4,7 @@ import { userFacingRuntimeError } from '../lib/userFacingError.ts';
 
 export function financeToolRowModel(toolName: string, block: ToolCallBlock) {
   const settled = 'kind' in block;
-  const argsRaw = settled ? block.call?.argsRaw || '' : block.argsRaw;
+  const argsRaw = settled ? block.call?.argsRaw || '' : 'argsRaw' in block ? block.argsRaw : '';
   const stopped = settled && block.error?.code === 'interrupted';
   const state = !settled ? 'running' : stopped ? 'stopped' : block.isError ? 'error' : 'done';
   const rawResult = settled ? block.content.map(item => item.type === 'text' ? item.text : JSON.stringify(item, null, 2)).join('\n') : '';

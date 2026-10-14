@@ -1,0 +1,16 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js
+--- a/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-model-selection/lib/client.js
+@@ -1177,10 +1177,10 @@
+ 					...model.reasoning?.defaultEffort === void 0 ? {} : { reasoningEffort: model.reasoning.defaultEffort }
+ 				}
+ 			}))), [groups]);
+-			const showSearch = choices.length > 4;
++			const showSearch = true;
+ 			const filteredGroups = (0, react.useMemo)(() => groups.map((group) => ({
+ 				...group,
+-				models: (0, _deepseek_ai_dsh_client_ui_primitives.rankByName)(group.models, showSearch ? query.trim() : "")
++				models: group.name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) ? group.models : group.models.filter(model => [model.id, model.name, model.description ?? ""].some(value => value.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())))
+ 			})).filter((group) => group.models.length > 0), [
+ 				groups,
+ 				query,

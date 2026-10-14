@@ -1,0 +1,61 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
+--- a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js
+@@ -4354,6 +4354,7 @@
+ 		}
+ 		/** Chat Node kinds that remain independent of a Turn's process disclosure. */
+ 		const TURN_PROCESS_INDEPENDENT_KINDS = new Set([
++			"finance-result", "finance-maintenance", "finance-research-status", "finance-topic-candidate",
+ 			"system-prompt",
+ 			"user",
+ 			"steering",
+@@ -6027,6 +6028,7 @@
+ 			if (code === "ACCOUNT_SIGNED_OUT") return t("message.failure.accountSignedOut");
+ 			if (code === "ACCOUNT_SIGN_IN_REQUIRED") return t("message.failure.accountSignInRequired");
+ 			if (code === "QUOTA" || code === "ACCOUNT_QUOTA") return t("message.failure.quota");
++			if (code === "FORBIDDEN") return t("message.failure.forbidden");
+ 			return code === "AUTH" ? t("message.failure.auth") : message;
+ 		}
+ 		function ModelRetryItem({ node, active, t }) {
+@@ -6572,8 +6574,8 @@
+ 			"chat.loadError": "历史加载失败：{message}（{code}）",
+ 			"chat.loadOlder": "加载更早",
+ 			"chat.toBottom": "回到底部",
+-			"chat.deepDiving": "深度求索中",
+-			"chat.deepDivingFor": "深度求索中，用时 {duration} ···",
++			"chat.deepDiving": "研究中…",
++			"chat.deepDivingFor": "研究中，已用时{duration}",
+ 			"chat.turnNavigation.label": "轮次导航",
+ 			"chat.turnNavigation.jump": "跳转到第 {turn} 轮",
+ 			"chat.turnNavigation.jumpLoad": "加载并跳转到第 {turn} 轮",
+@@ -6654,7 +6656,8 @@
+ 			"message.accountStopped": "任务已停止",
+ 			"message.failure.accountSignedOut": "任务已因退出 DeepSeek 登录而停止。",
+ 			"message.failure.accountSignInRequired": "请先登录 DeepSeek，并确认请求地址支持账号认证。",
+-			"message.failure.quota": "当前请求的额度已用尽",
++			"message.failure.quota": "账户额度或余额不足，请充值或检查服务商的用量限制。",
++			"message.failure.forbidden": "模型服务商拒绝了本次请求，请检查账号权限、地区限制或模型开通情况。",
+ 			"message.turnError": "本轮运行失败",
+ 			"message.maxTokens": "已达到输出 token 上限",
+ 			"message.maxTokens.hint": "回答被截断，已有输出保留在对话中。发送“继续”可让模型接着输出。",
+@@ -6765,8 +6768,8 @@
+ 			"chat.loadError": "Failed to load history: {message} ({code})",
+ 			"chat.loadOlder": "Load earlier",
+ 			"chat.toBottom": "Back to bottom",
+-			"chat.deepDiving": "Deep diving",
+-			"chat.deepDivingFor": "Deep diving for {duration} ···",
++			"chat.deepDiving": "Researching…",
++			"chat.deepDivingFor": "Researching for {duration}",
+ 			"chat.turnNavigation.label": "Turn navigation",
+ 			"chat.turnNavigation.jump": "Jump to turn {turn}",
+ 			"chat.turnNavigation.jumpLoad": "Load and jump to turn {turn}",
+@@ -6847,7 +6850,8 @@
+ 			"message.accountStopped": "Task stopped",
+ 			"message.failure.accountSignedOut": "Stopped because you signed out of DeepSeek.",
+ 			"message.failure.accountSignInRequired": "Sign in to DeepSeek and ensure the request destination supports account authentication.",
+-			"message.failure.quota": "Request quota exhausted.",
++			"message.failure.quota": "Your account has insufficient quota or balance. Add credits or check your provider's usage limits.",
++			"message.failure.forbidden": "The model provider denied this request. Check your account permissions, region, or model access.",
+ 			"message.turnError": "This turn failed",
+ 			"message.maxTokens": "Output token limit reached",
+ 			"message.maxTokens.hint": "The reply was cut off; earlier output is preserved in the conversation. Send \"continue\" to let the model resume.",

@@ -41,21 +41,21 @@ const bindings = Object.fromEntries(vendorImport[1].split(',').map(item => {
 }));
 const context = vm.createContext({ ...bindings, URL, console });
 const code = [
-  region('function Zi(', '(function(){'),
-  region('function so(', 'var s0='),
-  region('const F_=2;', 'const oj='),
-  region('function sj(', 'function lj('),
-  region('function Z6(', 'function W0('),
-  region('function W0(', 'const t8='),
-  region('async function er(', 'const cu='),
-  '({ S, l, Bd, qd, jj, _j, _2, X6, Cj, Z6, er })',
+  region('function as(', '(function(){'),
+  region('function ko(', 'var ba='),
+  region('const fb=2;', 'const Ob='),
+  region('function E8(', 'function Nb('),
+  region('function vibeResultParagraph(', 'const F8='),
+  region('async function l1(', 'const N3='),
+  '({ S: j, l, Bd: Lf, qd: Nf, jj: Jb, _j: Xb, _2: Zc, X6: A8, Cj: Gb, ImageResolver: qb, Z6: I8, er: l1 })',
 ].join('\n');
 // Only style names and unrelated link icon rendering need bindings. No parser,
 // streaming, paragraph, image or protocol behavior is mocked.
-Object.assign(context, { wt: { imageAlt: 'imageAlt', image: 'image' }, ao: () => null, V6: function CodeViewBoundary() {} });
+Object.assign(context, { dt: { imageAlt: 'imageAlt', image: 'image' }, bo: () => null,
+  Wc: () => ({}), b8: function CodeViewBoundary() {} });
 const api = vm.runInContext(code, context, { filename });
-assert.ok(source.includes('return{react:Bd,"react/jsx-runtime":qd,'), 'React module identity changed');
-assert.ok(source.includes('MarkdownText:t8,') && source.includes('writeClipboard:er}'), 'Native Markdown/copy exports changed');
+assert.ok(source.includes('return{react:Lf,"react/jsx-runtime":Nf,'), 'React module identity changed');
+assert.ok(source.includes('MarkdownText:F8,') && source.includes('writeClipboard:l1}'), 'Native Markdown/copy exports changed');
 assert.equal(api.Bd.default, api.S);
 assert.equal(api.qd.jsx, api.l.jsx);
 const ref = 'result:' + 'a'.repeat(32);
@@ -102,7 +102,10 @@ assert.equal(api.Z6('javascript:alert(1)'), '');
 const paragraph = api._j('普通段落', labels);
 assert.equal(paragraph[0].type, 'p');
 assert.equal(text(paragraph), '普通段落');
-const image = elements(api._j('![普通图](https://example.org/image.png)', labels)).find(item => item.type === api.Cj);
+const imageBoundary = elements(api._j('![普通图](https://example.org/image.png)', labels)).find(item => item.type === api.ImageResolver);
+assert.ok(imageBoundary, 'Native image resolver missing');
+const image = api.ImageResolver(imageBoundary.props);
+assert.equal(image.type, api.Cj, 'Native image renderer changed');
 assert.equal(image.props.src, 'https://example.org/image.png');
 assert.equal(image.props.alt, '普通图');
 assert.equal(elements(api._j('[引用](stock-ref:abc)', labels)).find(item => item.props.href)?.props.href, 'stock-ref:abc');
@@ -129,6 +132,12 @@ const two = sample + '\n\n~~~vibe\n<row>';
 const twoElements = elements(new api.jj(labels).render(two));
 assert.equal(twoElements.filter(item => item.props['data-vibe'] === 'ready').length, 1);
 assert.equal(twoElements.filter(item => item.props['data-vibe'] === 'pending').length, 1);
+const longPrefix = '第一段。\n\n第二段。\n\n第三段。\n\n';
+const shifted = longPrefix + open;
+const shiftedBlock = elements(new api.jj(labels).render(shifted)).find(item => item.props['data-vibe'] === 'pending');
+assert.ok(shiftedBlock, 'Pending fence lost after the parser froze earlier paragraphs');
+assert.equal(shiftedBlock.props.options.offset, shifted.indexOf('```vibe'));
+assert.equal(shiftedBlock.props.options.source, shifted);
 assert.deepEqual(api._j('```js\nconst x=1\n```', labels), before, 'Ordinary code changed');
 delete context[componentKey];
 assert.ok(elements(api._j(sample, labels)).some(item => item.props.lang === 'vibe'));

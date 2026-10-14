@@ -50,9 +50,9 @@ R6 所列；DSH 0.2 的新能力接入（如 `schedule`，归 T8b）。
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-14 Claude 写定，待派 Codex。
-2. 改动文件：无。
-3. 证据：无。
-4. 与规格的偏差及理由：无。
-5. 未覆盖的缺口：Desktop 打包、本机数据服务、Backend 地址另立。
-6. 下一步谁做什么：Codex 在 worktree 升级并按 §5 自验；Claude 审报告；用户浏览器验收后合入。
+1. 状态与结论：2026-10-14 同一worktree已同步Vibe b2e7be15、Stock 6e3a865，完成0.2.1迁移及新增模块适配；门禁、三项真实运行、审计重跑完成。敏感性首次调用200，海螺研究保存version2。未提交/切换主目录，留隔离工作台供验收。
+2. 改动文件：runtime依赖/九补丁/renderer检查，finance-ui组合/activation/local-data数据根，前端接口与记录投影、测试；获授权dsh_paths版本门禁。Stock dsh依赖/五类插件记录/activation/持久化注入及测试。主目录新增连接、跟踪、研究关键点、计算字段全部保留。
+3. 证据：Vibe459/459、tsc/build通过；Stock316/316；本机服务97通过、1 Windows检查跳过、0失败；docs/invariants/protocol/diff check通过。审计since05:42:50Z退出0，5新会话/4请求头。海螺task:83d1084ba5392c6b completed；全部会话ID与researchVersion见主目录授权报告.local/dsh-upgrade/report.md及round2证据。
+4. 与规格的偏差及理由：用户明确扩展本轮为同步最新HEAD及新增模块适配，授权两次只读问答和唯一海螺写入。密钥与hook副本已按要求删除，扫描无剩余复制值；无复制凭据重启后回读通过。仅修改worktree；Task规格不改，旧回填与diff先备份再快进，自动合并无冲突。
+5. 未覆盖的缺口：问助手遗漏页面可见现金指标；成本份额保留假设待校准；后台草案引用无法回绑、范围保护拒绝全局写入，整理skipped。主研究保存成功不代表整理发布成功。真实报告生成、中止/续跑、Claude独立审阅与用户验收尚待；Desktop等原排除项仍不做。
+6. 下一步谁做什么：Claude审报告/diff，用户在http://127.0.0.1:5939/验收；隔离Backend只读，复制凭据已删，新模型请求需用户配置。验收后由Claude合入。本轮不启动第二个海螺任务、不扩大Backend修改范围，现用工作台与8700未动。

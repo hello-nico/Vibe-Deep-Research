@@ -86,7 +86,8 @@ export function installPanelConversation(ctx: Context, activePanel: () => Financ
         }
         if (!active) return;
         const address = ctx.sessions.subagentAddress(id(sessionId));
-        const catalog = parent ? ctx.sessions.list.getSnapshot().projectionsBySession[id(parent)]?.values.subagentCatalog || [] : [];
+        const catalog = (parent ? ctx.sessions.list.getSnapshot().projectionsBySession[id(parent)]?.values.subagentCatalog || [] : [])
+          .filter(entry => entry.mode !== 'external');
         if (!topic && !assistant && taskProcessMissing(sessionId, parent, address, catalog,
           Boolean(ctx.sessions.list.getSnapshot().byId[id(sessionId)]))) throw new Error('sessions.retain: unknown session ' + sessionId);
         const target = topic || assistant ? sessionId : taskPanelTarget(sessionId, parent, address, catalog);

@@ -61,7 +61,7 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
   kind: 'finance-maintenance', target: 'chat',
   match(event) {
     const value = event as unknown as { type: string; data?: { status?: string; questionIdentity?: string; proposal?: { research_blocks?: { content?: string }[] }; draft?: { published?: boolean; draft_token?: string } } };
-    if (value.type !== 'stock-research/maintenance' || value.data?.status !== 'awaiting_authorization'
+    if (!['stock-research/maintenance', 'plugin:stock-research/maintenance'].includes(value.type) || value.data?.status !== 'awaiting_authorization'
       || !value.data.questionIdentity || value.data.draft?.published !== false || !value.data.draft.draft_token
       || !value.data.proposal?.research_blocks?.[0]?.content) return null;
     return { id: value.data.questionIdentity, role: 'start' };
@@ -98,7 +98,7 @@ export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidate
   kind: 'finance-topic-candidate', target: 'chat',
   match(event) {
     const value = event as unknown as { type: string; data?: TopicCandidateData };
-    if (value.type !== 'stock-research/topic-candidate' || value.data?.consumer === 'deep_research'
+    if (!['stock-research/topic-candidate', 'plugin:stock-research/topic-candidate'].includes(value.type) || value.data?.consumer === 'deep_research'
       || !value.data?.id || !value.data.question) return null;
     return { id: value.data.id, role: 'start' };
   },
@@ -131,7 +131,7 @@ export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = 
   match(event) {
     const value = event as unknown as { type: string; data?: SuggestionData };
     const data = value.data;
-    if (value.type !== 'stock-research/suggestion' || data?.consumer !== 'deep_research'
+    if (!['stock-research/suggestion', 'plugin:stock-research/suggestion'].includes(value.type) || data?.consumer !== 'deep_research'
       || !data.id || !data.question || !['question', 'indicator', 'company'].includes(data.type)
       || !Array.isArray(data.items) || !data.items.length) return null;
     return { id: data.id, role: 'start' };
@@ -152,7 +152,7 @@ export const researchStatusDefinition: ConversationNodeDefinition<{ text: string
   kind: 'finance-research-status', target: 'chat',
   match(event) {
     const value = event as unknown as { type: string; seq: number; data?: { text?: string } };
-    return value.type === 'stock-research/status' && typeof value.data?.text === 'string'
+    return ['stock-research/status', 'plugin:stock-research/status'].includes(value.type) && typeof value.data?.text === 'string'
       ? { id: String(value.seq), role: 'start' } : null;
   },
   start(_context, match) { return match.event.data as unknown as { text: string }; },

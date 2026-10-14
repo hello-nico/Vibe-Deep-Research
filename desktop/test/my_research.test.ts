@@ -229,11 +229,12 @@ for (const window of ['create', 'spawn']) {
           return { agent: { session: { id: sessionId } }, dispose: async () => { hostDisposes++; } };
         },
       },
-      subagents: { async start(_provider, request) {
+      subagents: { async startActivation({ provider: _provider, request, signal, delivery }) {
+        assert.equal(delivery, 'caller');
         spawns++;
-        spawnSignal = request.signal;
+        spawnSignal = signal;
         entered(); await gate;
-        return { id: 'child-unload-test', result: Promise.reject(new Error('cancelled')), dispose: async () => { runDisposes++; } };
+        return { childId: 'child-unload-test', result: Promise.reject(new Error('cancelled')), dispose: async () => { runDisposes++; } };
       } },
     };
     const input = { slug: 'companies/600011-sh', input_hash: 'a'.repeat(64), prompt: '生成报告' };
@@ -277,7 +278,7 @@ test("create 返回裸 Agent 时首次启动失败，不会 spawn", async t => {
       get() { return null; },
       async create({ sessionId }) { return { session: { id: sessionId } }; },
     },
-    subagents: { async start() { starts.push(1); return { id: "child-x", result: Promise.resolve({}), dispose: async () => {} }; } },
+    subagents: { async startActivation() { starts.push(1); return { childId: "child-x", result: Promise.resolve({}), dispose: async () => {} }; } },
   };
   await assert.rejects(() => startReportRun(ctx, { slug: "companies/600011-sh", input_hash: "c".repeat(64), prompt: "生成报告" }), /任务宿主不可用/);
   assert.equal(starts.length, 0);
@@ -308,7 +309,8 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
       },
     },
     subagents: {
-      async start(provider, request) {
+      async startActivation({ provider, request, signal, delivery }) {
+        assert.equal(delivery, 'caller');
         starts.push({ provider, request, pending: loadReportTasks().pending });
         assert.equal(request.parent.session.id, hostAgent.session.id);
         const childId = "child-report-" + starts.length;
@@ -318,8 +320,7 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
         fs.writeFileSync(path.join(home, "research", "report-tasks.json"), JSON.stringify(store, null, 2) + "\n");
         let settle;
         const result = new Promise(resolve => { settle = resolve; });
-        request.signal.addEventListener("abort", () => settle({ stopReason: "aborted" }), { once: true });
-        return { id: childId, result, dispose: async () => { runDisposes.push(childId); } };
+        return { childId, result, dispose: async () => { runDisposes.push(childId); settle({ stopReason: "aborted" }); } };
       },
     },
   };
@@ -373,7 +374,7 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   assert.equal(liveLineage.sessions[first.session_id].parent_id, 'live-host');
   ctx.agentDefaultModel.currentSelection = () => ({ provider: 'test', model: 'test-model' });
 
-  ctx.subagents.start = async () => { throw Object.assign(new Error("spawn failed"), { status: 503 }); };
+  ctx.subagents.startActivation = async () => { throw Object.assign(new Error("spawn failed"), { status: 503 }); };
   await assert.rejects(() => startReportRun(ctx, { slug: "companies/600900-sh", input_hash: hash, prompt: "再试" }), /spawn failed/);
   assert.equal(loadReportTasks().pending, null);
   const stored = loadReportTasks();

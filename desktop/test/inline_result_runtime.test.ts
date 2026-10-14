@@ -167,12 +167,12 @@ test('installed cold window replay reaches the same per-turn visibility', () => 
   assert.equal(visibility(snapshot, 'other-turn-call'), 'visible');
 });
 
-test('late vibe checks publish to their own turn and identify only accepted charts, live and replay', () => {
+for (const recordType of ['stock-research/vibe-check', 'plugin:stock-research/vibe-check']) test(`late ${recordType} publishes to its own turn and identifies only accepted charts, live and replay`, () => {
   const answer = `结论\n\n\`\`\`vibe\n<chart ref="${embeddedId}" title="走势"/>\n\`\`\``;
   const entries = turnOne.map(entry => entry.event.type === 'assistant/message'
     ? at(9, 'assistant/message', { turn: 1, step: 2, stream: [], message: assistantMessage('answer-1', answer) }, { surfaceOp: 'append' }) : entry);
   const check = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'chart', status: 'ok' }] }] };
-  const late = at(21, 'stock-research/vibe-check', check, { ignorable: true });
+  const late = at(21, recordType, check, { ignorable: true });
   const live = harness([...entries, ...turnTwo]);
   assert.equal(visibility(live.read(), 'embedded-call'), 'visible');
   live.assembler.append(late);
@@ -185,6 +185,6 @@ test('late vibe checks publish to their own turn and identify only accepted char
   const replay = harness([...entries, ...turnTwo, late]).read();
   assert.deepEqual(replay.timeline.turns.get(1).data.get('finance-vibe'), check);
   assert.ok(vibeResultReferences(answer, replay.timeline.turns.get(1).data.get('finance-vibe')).has(embeddedId));
-  const dropped = at(21, 'stock-research/vibe-check', { ...check, blocks: [{ ...check.blocks[0], elements: [{ path: '0', component: 'chart', status: 'dropped', reason: 'unresolved_ref' }] }] });
+  const dropped = at(21, recordType, { ...check, blocks: [{ ...check.blocks[0], elements: [{ path: '0', component: 'chart', status: 'dropped', reason: 'unresolved_ref' }] }] });
   assert.equal(visibility(harness([...entries, dropped]).read(), 'embedded-call'), 'visible');
 });

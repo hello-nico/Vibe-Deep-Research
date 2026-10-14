@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createRequire } from 'node:module';
+import { createRequire, registerHooks } from 'node:module';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -15,6 +15,14 @@ const { LlmAdapter } = await runtime('dsh-llm');
 const stock = process.env.VRA_RESEARCH_REPO
   ? pathToFileURL(path.join(process.env.VRA_RESEARCH_REPO, 'dsh/dist') + path.sep)
   : new URL('../../../Stock-Research/dsh/dist/', import.meta.url);
+// Match the DSH launcher's installation-first resolution for linked plugins.
+// Native Session records have a private brand and must use the host's module instance.
+registerHooks({ resolve(specifier, context, nextResolve) {
+  if (context.parentURL?.startsWith(stock.href) && specifier.startsWith('@deepseek-ai/')) {
+    return nextResolve(pathToFileURL(requireRuntime.resolve(specifier)).href, context);
+  }
+  return nextResolve(specifier, context);
+} });
 const { runBackgroundReview, listBackgroundTasks } = await import(new URL('background-review.mjs', stock).href);
 const { installResearchTools } = await import(new URL('research-tools.mjs', stock).href);
 const snapshot = {
@@ -54,7 +62,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       const child = packed.includes('Settle knowledge after the main answer');
       if (child) {
         childStarted();
-        const names = (options.tools || []).map((tool: any) => tool.name);
+        const names = (options.toolHistory.tools || []).map((tool: any) => tool.name);
         assert.ok(!names.includes('generate_market_result'));
         assert.ok(!names.includes('topic_update'));
         assert.ok(names.includes('source_read_blocks'));
@@ -70,7 +78,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
           slug: 'companies/test', kind: 'operating_model',
           content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文',
         }] } : emptyResult;
-        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: result } };
+        yield { type: 'block-end', index: 0, block: { type: 'tool-call', id: 'review-result', name: 'structured_output', arguments: JSON.stringify(result) } };
         yield { type: 'finish', reason: 'tool-calls' };
       } else {
         if (mode === 'cancel-main') throw new Error('controlled main failure');
@@ -85,9 +93,11 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     }
   }
   try {
-    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
-      await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' } : {});
+    for (const name of ['dsh-fs-local', 'dsh-working-directory', 'dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
+      await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' }
+        : name === 'dsh-subagent' ? { maxActiveSubagents: 1 } : {});
     }
+    await ctx.plugin((await runtime('dsh-session-persistence-jsonl')).default, { root: path.join(home, 'sessions'), compression: 'none' });
     await ctx.plugin(await runtime('dsh-subagent-spawn-in-process'), {});
     ctx.llm.registerAdapter(['controlled'], new ControlledModel());
     await ctx.plugin(Object.assign((inner: any) => installResearchTools(inner, async () => ({ tools: [], close() {} })),
@@ -107,6 +117,10 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       assert.ok(child);
       assert.equal(ctx.tools.get('generate_market_result', child), undefined);
       assert.equal(ctx.tools.get('topic_update', child), undefined);
+      if (scenario === 'complete') {
+        await assert.rejects(runBackgroundReview(ctx.subagents, parent, snapshot, new AbortController().signal),
+          (error: any) => error.code === 'ACTIVATION_LIMIT_REACHED');
+      }
       const before = requests.length;
       parent.followup({ content: [{ type: 'text', text: `后续问题 ${scenario}` }], source: { kind: 'user' } });
       await parent.whenIdle();
@@ -121,6 +135,12 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       assert.equal(requests.length, before + 1, 'child result must not request another parent response');
       assert.equal(parent.inbox.hasPending, false);
       assert.deepEqual(ctx.agents.list().map((agent: any) => agent.id), [parent.id]);
+      const cold = await ctx.sessionPersistence.open(child.id, 'read');
+      try {
+        assert.equal(cold.header.parentSession, parent.id);
+        assert.ok((await cold.read()).events.some((event: any) => event.type === 'subagent/descriptor'));
+      } finally { await cold[Symbol.asyncDispose](); }
+      assert.ok(parent.session.snapshotEvents().some((event: any) => event.type === 'subagent/catalog' && event.data.childId === child.id));
     }
     const events = parent.session.snapshotEvents();
     assert.equal(events.filter((event: any) => event.type === 'turn/start').length, 4);
@@ -179,7 +199,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     const requestCount = requests.length;
     const reviewDone = new Promise<void>((resolve, reject) => {
       ctx.on('session/event', (session: any, event: any) => {
-        if (session.id === parent.id && event.type === 'stock-research/maintenance') {
+        if (session.id === parent.id && event.type === 'plugin:stock-research/maintenance') {
           try {
           assert.equal(event.data.status, 'awaiting_authorization');
           assert.equal(event.data.question, '读取原文并回答');
@@ -215,13 +235,14 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     const failed = await ctx.tools.execute({ agent: parent, name: 'search_external', arguments: { query: '来源请求失败' }, callId: 'failed-search', signal: new AbortController().signal });
     assert.equal(failed.isError, true);
     const beforeFailedClose = requests.length;
+    const failedReviewReady = new Promise<void>(resolve => { childStarted = resolve; });
     releaseMain();
     await parent.whenIdle();
-    await parent.runMaintenance(async () => {});
-    await new Promise(resolve => setImmediate(resolve));
+    await failedReviewReady;
     assert.equal(requests.length, beforeFailedClose + 1, 'a failed tool no longer prevents the maintenance model call');
     const lastReview = requests.at(-1);
     assert.doesNotMatch(JSON.stringify(lastReview), /来源请求失败/, 'the failed search result must not enter the settlement snapshot');
+    releaseChild();
     await handle.dispose();
   } finally { await ctx.fiber.dispose(); }
 });
@@ -260,9 +281,10 @@ test('slow parent finalize does not delay the next user model request', { timeou
     }
   }
   try {
-    for (const name of ['dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
+    for (const name of ['dsh-fs-local', 'dsh-working-directory', 'dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
       await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' } : {});
     }
+    await ctx.plugin((await runtime('dsh-session-persistence-jsonl')).default, { root: path.join(home, 'sessions'), compression: 'none' });
     await ctx.plugin(await runtime('dsh-subagent-spawn-in-process'), {});
     ctx.llm.registerAdapter(['controlled'], new ControlledModel());
     await ctx.plugin(Object.assign((inner: any) => installResearchTools(inner, async () => ({ tools: [], close() {} })),
@@ -311,11 +333,11 @@ test('slow parent finalize does not delay the next user model request', { timeou
   } finally { await ctx.fiber.dispose(); }
 });
 
-test('maintenance projection is silent except for validated drafts and keeps question identity', () => {
-  const status = { type: 'stock-research/status', data: { text: '未授权写入' } };
+for (const prefix of ['', 'plugin:']) test(`${prefix || 'legacy '}maintenance projection is silent except for validated drafts and keeps question identity`, () => {
+  const status = { type: `${prefix}stock-research/status`, data: { text: '未授权写入' } };
   assert.ok(researchStatusDefinition.match(status as never));
   assert.equal(researchStatusDefinition.start({} as never, { event: status } as never).text, status.data.text);
-  const event = (status: string) => ({ type: 'stock-research/maintenance', seq: 12, data: {
+  const event = (status: string) => ({ type: `${prefix}stock-research/maintenance`, seq: 12, data: {
     status, questionIdentity: 'question-a', proposal: { research_blocks: [{ content: '草案正文' }] },
     draft: { draft_token: 'test-token', published: false },
   } });

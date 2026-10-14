@@ -41,7 +41,7 @@ test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝�
   assert.match(dsh, /#dsh-conversation \{[\s\S]*--dsw-alias-button-info-fill: hsl\(var\(--primary\)\)/);
   assert.match(dsh, /aria-label="停止生成"/);
   assert.match(dsh, /#dsh-conversation \{[\s\S]*--dsw-static-deepseek-500: hsl\(var\(--primary\)\)/);
-  const chatPatch = readFileSync(new URL("../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.1.7-alpha.2.patch", import.meta.url), "utf8");
+  const chatPatch = readFileSync(new URL("../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.2.1-alpha.2.patch", import.meta.url), "utf8");
   assert.match(chatPatch, /\+.*"chat\.deepDiving": "研究中…"/);
   assert.match(chatPatch, /-.*"chat\.deepDiving": "深度求索中"/);
 });

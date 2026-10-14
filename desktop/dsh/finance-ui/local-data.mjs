@@ -19,7 +19,8 @@ function rewriteRequest(req, url) {
 }
 
 export function installLocalData(ctx, env = process.env) {
-  const data = serviceContext({ repoRoot: productRepoRoot(env), env });
+  const data = serviceContext({ repoRoot: productRepoRoot(env),
+    env: { ...env, VRA_DATA_ROOT: env.VRA_FINANCE_DATA_ROOT ?? env.VRA_DATA_ROOT } });
   const disposeRoute = ctx.webServer.register({
     kind: 'prefix',
     path: '/finance-api',

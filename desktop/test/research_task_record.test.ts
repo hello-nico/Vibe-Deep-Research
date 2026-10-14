@@ -7,14 +7,15 @@ import test from 'node:test';
 process.env.VIBE_RESEARCH_RESUME_DELAY_MS = '0';
 import {
   cancelResearchRun, composeResearchTask, currentResearchBootId, disposeReportRuntime, installHostState,
-  listResearchTasks, loadReportTasks, readResearchTask, researchBootPromise, startResearchRun,
+  listResearchTasks, loadReportTasks, readResearchTask, researchBootPromise, startReportRun, startResearchRun,
 } from '../dsh/finance-ui/host-state.mjs';
 
 function useHome(t) {
   const previous = process.env.DSH_HOME;
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-research-task-'));
   process.env.DSH_HOME = home;
-  t.after(() => {
+  t.after(async () => {
+    await disposeReportRuntime();
     if (previous === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = previous;
     fs.rmSync(home, { recursive: true, force: true });
@@ -32,11 +33,13 @@ function researchCtx(starts = []) {
       create: async () => ({ agent: host, dispose: async () => {} }),
     },
     subagents: {
-      start: async (_kind, request) => {
+      startActivation: async ({ provider, request, delivery }) => {
+        assert.equal(provider, 'spawn');
+        assert.equal(delivery, 'caller');
         const id = `research-${++n}`;
         let finish = () => {};
         const result = new Promise(resolve => { finish = resolve; });
-        const run = { id, result, dispose: async () => {}, request, finish };
+        const run = { childId: id, result, dispose: async () => { finish({ stopReason: 'aborted' }); }, request, finish };
         starts.push(run);
         return run;
       },
@@ -185,8 +188,8 @@ test('宿主启动把旧 boot 的 running 标成 interrupted 并续跑；没配�
   const resumed = readResearchTask(taskId);
   assert.equal(resumed.status, 'running');
   assert.equal(resumed.host_boot_id, currentResearchBootId());
-  assert.equal(resumed.sessions.at(-1), starts[0].id);
-  assert.equal(resumed.steps[0].attempts, 1);
+  assert.equal(resumed.sessions.at(-1), starts[0].childId);
+  assert.equal(resumed.steps[0].attempts, 0);
 
   const quiet = 'task:fedcba9876543210';
   fs.mkdirSync(path.join(home, 'research', 'tasks', quiet), { recursive: true });
@@ -245,8 +248,8 @@ test('续跑前 pending 带 task_id，插件首轮就能绑定；关键变量未
   t.after(() => disposeReportRuntime());
   const { ctx, starts } = researchCtx();
   const pendings = [];
-  const start = ctx.subagents.start;
-  ctx.subagents.start = async (kind, request) => { pendings.push(loadReportTasks().pending); return start(kind, request); };
+  const start = ctx.subagents.startActivation;
+  ctx.subagents.startActivation = async (spec) => { pendings.push(loadReportTasks().pending); return start(spec); };
   const started = await startResearchRun(ctx, { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究华能' });
   const taskId = loadReportTasks().sessions[started.session_id].task_id;
   assert.equal(pendings[0].task_id, taskId);
@@ -300,4 +303,71 @@ test('宿主关闭时中断的研究不记成中止，下次启动接着跑', as
   assert.equal(readResearchTask(taskId).status, 'running');
   assert.equal(readResearchTask(taskId).sessions.length, 2);
   assert.match(starts[1].request.prompt[0].text, /这是一次接续/);
+});
+
+test('连续宿主关闭不消耗同一步失败次数，每次启动仍可续跑', async t => {
+  useHome(t);
+  const { ctx, starts } = researchCtx();
+  ctx.webServer = { register: () => () => {} };
+  installHostState(ctx);
+  await researchBootPromise();
+  const started = await startResearchRun(ctx, { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究华能' });
+  const taskId = loadReportTasks().sessions[started.session_id].task_id;
+  for (let shutdown = 0; shutdown < 3; shutdown++) {
+    await disposeReportRuntime();
+    assert.equal(readResearchTask(taskId).status, 'running');
+    assert.equal(loadReportTasks().sessions[starts.at(-1).childId].run_status, 'running');
+    assert.equal(readResearchTask(taskId).steps[0].attempts, 0);
+    installHostState(ctx);
+    await researchBootPromise();
+    assert.equal(starts.length, shutdown + 2);
+    assert.equal(readResearchTask(taskId).status, 'running');
+  }
+});
+
+test('用户中止后立即关闭宿主仍保留 cancelled，下一启动不续跑', async t => {
+  useHome(t);
+  const { ctx, starts } = researchCtx();
+  ctx.webServer = { register: () => () => {} };
+  installHostState(ctx);
+  await researchBootPromise();
+  const started = await startResearchRun(ctx, { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究华能' });
+  const taskId = loadReportTasks().sessions[started.session_id].task_id;
+  cancelResearchRun(started.session_id);
+  assert.equal(readResearchTask(taskId).status, 'cancelled');
+  await disposeReportRuntime();
+  installHostState(ctx);
+  await researchBootPromise();
+  assert.equal(starts.length, 1);
+  assert.equal(readResearchTask(taskId).status, 'cancelled');
+  assert.equal(readResearchTask(taskId).steps[0].attempts, 0);
+});
+
+test('容量拒绝保留初次研究失败记录并清理 pending，报告入口返回具体原因', async t => {
+  useHome(t);
+  const { ctx } = researchCtx();
+  ctx.subagents.startActivation = async () => { throw Object.assign(new Error('capacity exhausted'), { code: 'ACTIVATION_LIMIT_REACHED' }); };
+  const input = { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究华能' };
+  await assert.rejects(startResearchRun(ctx, input), error => error.code === 'ACTIVATION_LIMIT_REACHED' && /上限/.test(error.message));
+  const [task] = listResearchTasks({ symbol: input.symbol });
+  assert.equal(task.status, 'failed');
+  assert.match(task.reason, /上限/);
+  assert.deepEqual(task.sessions, []);
+  assert.equal(loadReportTasks().pending, null);
+  await assert.rejects(startReportRun(ctx, { slug: input.slug, input_hash: 'a'.repeat(64), prompt: '生成报告' }), error =>
+    error.code === 'ACTIVATION_LIMIT_REACHED' && /上限/.test(error.message));
+  assert.equal(loadReportTasks().pending, null);
+});
+
+test('续跑遇到容量拒绝后写 failed 原因，不保留无原因的 interrupted', async t => {
+  useHome(t);
+  const { ctx, starts } = researchCtx();
+  const started = await startResearchRun(ctx, { slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '研究华能' });
+  const taskId = loadReportTasks().sessions[started.session_id].task_id;
+  ctx.subagents.startActivation = async () => { throw Object.assign(new Error('capacity exhausted'), { code: 'ACTIVATION_LIMIT_REACHED' }); };
+  starts[0].finish({ stopReason: 'error' });
+  await until(() => readResearchTask(taskId).status === 'failed', 'capacity rejection was not recorded');
+  assert.match(readResearchTask(taskId).reason, /上限/);
+  assert.equal(readResearchTask(taskId).steps[0].attempts, 1);
+  assert.equal(loadReportTasks().pending, null);
 });

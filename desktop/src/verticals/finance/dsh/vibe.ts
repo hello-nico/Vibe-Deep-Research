@@ -185,7 +185,7 @@ export const vibeDefinition: ConversationNodeDefinition<CheckState> = {
   kind: 'finance-vibe',
   match(event) {
     const e = event as unknown as { type: string; data?: { turn?: number } };
-    return e.type === 'stock-research/vibe-check' && Number.isSafeInteger(e.data?.turn) && Number(e.data?.turn) >= 0
+    return ['stock-research/vibe-check', 'plugin:stock-research/vibe-check'].includes(e.type) && Number.isSafeInteger(e.data?.turn) && Number(e.data?.turn) >= 0
       ? { id: String(e.data!.turn), role: 'start' } : null;
   },
   start(_context, match) {
