@@ -220,11 +220,55 @@ test('资料页分段「记录」可打开，列出你保存的记录', async ()
 test('设置页分段「记忆」可打开，原样显示画像与近期记忆', async () => {
   globalThis.fetch = (async () => Response.json({ detail: 'unused' }, { status: 404 })) as typeof fetch;
   await render(h(native.ModelSettings), '/settings');
-  assert.deepEqual([...container.querySelectorAll('.segmented [role="tab"]')].map(tab => tab.textContent), ['模型', '记忆']);
+  assert.deepEqual([...container.querySelectorAll('.segmented [role="tab"]')].map(tab => tab.textContent), ['模型', '连接', '记忆']);
   assert.match(container.textContent!, /打开模型设置/);
   await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '记忆') as HTMLElement).click());
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
   assert.match(container.textContent!, /助手回答时会参考这里的内容/);
   assert.match(container.textContent!, /用户画像/);
   assert.doesNotMatch(container.textContent!, /打开模型设置/);
+});
+
+test('设置页分段「连接」：令牌不回显，保存与三种测试结果各一句话，页面不出现技术细节', async () => {
+  const calls: { method: string; path: string; body: string }[] = [];
+  let outcome = 'ok';
+  let saved = { url: '', has_token: true };
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
+    const path = String(url);
+    calls.push({ method: init?.method ?? 'GET', path, body: String(init?.body ?? '') });
+    if (path.endsWith('/test')) return Response.json({ status: outcome });
+    if (init?.method === 'PUT') { const body = JSON.parse(String(init.body)); saved = { url: body.url, has_token: body.token === '' ? false : body.token ? true : saved.has_token }; return Response.json(saved); }
+    return Response.json(saved);
+  }) as typeof fetch;
+  await render(h(native.ModelSettings), '/settings');
+  await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '连接') as HTMLElement).click());
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+  assert.match(container.textContent!, /不填就用本机/);
+  const token = container.querySelector('input[aria-label="访问令牌"]') as HTMLInputElement;
+  assert.equal(token.type, 'password');
+  assert.equal(token.value, '');
+  assert.equal(token.placeholder, '已保存');
+  const buttons = () => [...container.querySelectorAll('button')] as HTMLButtonElement[];
+  const click = async (label: string) => { await React.act(async () => { buttons().find(button => button.textContent === label)!.click(); await new Promise(resolve => setTimeout(resolve, 20)); }); };
+  const type = async (input: HTMLInputElement, value: string) => React.act(async () => {
+    Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set!.call(input, value);
+    input.dispatchEvent(new win.Event('input', { bubbles: true }));
+  });
+  await type(container.querySelector('input[aria-label="服务器地址"]') as HTMLInputElement, 'https://backend.example.com/api/v1');
+  await type(token, 'secret-token');
+  await click('保存');
+  const put = calls.find(call => call.method === 'PUT')!;
+  assert.deepEqual(JSON.parse(put.body), { url: 'https://backend.example.com/api/v1', token: 'secret-token' });
+  assert.equal((container.querySelector('input[aria-label="访问令牌"]') as HTMLInputElement).value, '', '保存后不回显令牌');
+  assert.match(container.textContent!, /已保存/);
+  for (const [value, line] of [['ok', '已连接'], ['unreachable', '连不上这个地址'], ['unauthorized', '访问令牌不对']]) {
+    outcome = value;
+    await click('测试连接');
+    assert.equal(container.querySelector('.connection-message')!.textContent, line);
+  }
+  const before = calls.length;
+  await click('清除令牌');
+  assert.deepEqual(JSON.parse(calls.slice(before).find(call => call.method === 'PUT')!.body), { url: 'https://backend.example.com/api/v1', token: '' });
+  assert.equal((container.querySelector('input[aria-label="访问令牌"]') as HTMLInputElement).placeholder, '');
+  assert.doesNotMatch(container.textContent!, /Authorization|Bearer|401|finance-backend|请求头|接口/);
 });

@@ -30,6 +30,8 @@
 .company-page-gap { font-size: 13px; color: var(--text-3); }
 .company-page-progress { margin-top: 10px; font-size: 13px; color: hsl(var(--brand)); }
 .company-page-progress.is-toolbar { margin-top: 0; }
+.company-page-progress .is-clickable { cursor: pointer; }
+.company-page-progress .is-clickable:hover { text-decoration: underline; text-underline-offset: 3px; }
 .company-page-progress > span { display: inline-flex; align-items: center; gap: 8px; }
 .company-page-skeleton { display: grid; gap: 8px; max-width: 400px; padding: 8px 0; }
 .company-page-skeleton > span { height: 12px; border-radius: 6px; background: var(--fill-1); animation: company-page-pulse 1.5s ease-in-out infinite; }

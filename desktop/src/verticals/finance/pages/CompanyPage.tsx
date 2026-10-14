@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
-import { ResearchLoading } from '../components/ui/ResearchLoading';
 import { ScenarioTable } from '../components/ScenarioTable';
 import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
 import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, conversationHint, epsAt, initialSliderValues, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
@@ -22,19 +21,15 @@ export function useCompanyPageState(services: CompanyPageServices, symbol: strin
   useEffect(() => { void store.refresh(opened); }, [store, opened]);
   return state;
 }
-export function CompanyPageProgress({ state, location, onOpen }: { state: CompanyPageState; location: 'roster' | 'toolbar' | 'page'; onOpen: (sessionId: string) => void }) {
+export function CompanyPageProgress({ state, location, onOpen }: { state: CompanyPageState; location: 'roster' | 'toolbar'; onOpen: (sessionId: string) => void }) {
   const label = companyPageProgress(state);
   if (!label) return null;
   const running = companyPageTaskActive(state.task);
   const sessionId = state.task?.sessionId;
   const content = <>{running && <Loader2 size={14} className="animate-spin" aria-hidden="true" />}{label}</>;
-  if (location === 'page') return <div data-company-progress="page" className="company-page-progress is-page" role="status" aria-live="polite">
-    {running ? <ResearchLoading compact title={label} sections={['个股页研究']} active={{ index: 0, label }} /> : <p className="company-page-conclusion is-muted">{label}</p>}
-    {sessionId && <button type="button" className="company-page-link" onClick={() => onOpen(sessionId)}>查看研究过程</button>}
-  </div>;
   const className = location === 'toolbar' ? 'workspace-action' : 'company-roster-progress';
   return <div data-company-progress={location} className={`company-page-progress is-${location}`} role="status" aria-live="polite">
-    {sessionId ? <button type="button" className={className} onClick={() => onOpen(sessionId)} title="查看研究过程">{content}</button> : <span className={className}>{content}</span>}
+    {sessionId ? <button type="button" className={`${className} is-clickable`} onClick={() => onOpen(sessionId)} title="查看研究过程">{content}</button> : <span className={className}>{content}</span>}
   </div>;
 }
 function DataLoading({ label }: { label: string }) {
@@ -127,7 +122,7 @@ function bandTiers(scenarios: ScenarioTableData | null, model: SensitivityModel 
   });
 }
 
-export function CompanyPage({ symbol, name, services, onTask }: { symbol: string; name: string; services: CompanyPageServices; onTask: (sessionId: string) => void }) {
+export function CompanyPage({ symbol, name, services }: { symbol: string; name: string; services: CompanyPageServices }) {
   const research = useCompanyPageState(services, symbol, name, true);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
@@ -280,7 +275,6 @@ export function CompanyPage({ symbol, name, services, onTask }: { symbol: string
           {change?.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
           {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
         </p>}
-        <CompanyPageProgress state={research} location="page" onOpen={onTask} />
         {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
       </section>
     </section>

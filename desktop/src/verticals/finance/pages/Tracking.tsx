@@ -158,7 +158,7 @@ function Research() {
       {expanded && <div className="tracking-detail">
         <ol className="tracking-steps">{researchStepRows(record).map(step => <li key={step.key} data-step={step.key} data-status={step.status}>
           <StatusDot tone={STEP_TONE[step.status]} label={step.state} />
-          <span>{step.label}{step.note && <small>{step.note}</small>}</span>
+          <span className="tracking-step-name">{step.label}{step.note && <small>{step.note}</small>}</span>
           <em>{step.state}</em>
         </li>)}</ol>
         <Link className="btn btn-sm" to={watchPath(codeOf(record.symbol))}>去个股页</Link>

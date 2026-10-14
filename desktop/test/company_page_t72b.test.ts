@@ -192,7 +192,7 @@ test('ensure 失败不通知也不重试；页面保留首读数据', async t =>
 
 async function mount(services: any, symbol = '300750', name = '宁德时代') {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
-    React.createElement(ui.CompanyPage, { key: services, symbol, name, services, onTask: () => {} }))));
+    React.createElement(ui.CompanyPage, { key: services, symbol, name, services }))));
 }
 
 test('页面用真实形态：驱动、银行字段、引用字段与阈值都是中文，研报标题无评级、链接不变', async () => {

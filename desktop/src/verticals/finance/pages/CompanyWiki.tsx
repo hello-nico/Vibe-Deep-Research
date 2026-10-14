@@ -103,7 +103,7 @@ export function CompanyWiki() {
       <AssistantSlot />
     </div></div>
     {error && <p role="alert" className="mb-3 text-sm text-[var(--text-2)]">{error}</p>}
-    <CompanyPage key={symbol} symbol={symbol} name={title} services={services} onTask={openTask} />
+    <CompanyPage key={symbol} symbol={symbol} name={title} services={services} />
     {confirmElement}
     <Disclaimer />
   </div>;

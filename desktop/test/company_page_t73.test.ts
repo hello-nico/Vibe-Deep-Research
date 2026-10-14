@@ -50,7 +50,7 @@ function services(opts: { packet: any; research: any; quote?: any; results?: Rec
 }
 async function mount(fixture: ReturnType<typeof companyPageFixture>, symbol = '600863', name = '华能蒙电') {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
-    React.createElement(ui.CompanyPage, { key: fixture.services, symbol, name, services: fixture.services, onTask: () => {} }))));
+    React.createElement(ui.CompanyPage, { key: fixture.services, symbol, name, services: fixture.services }))));
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
 }
 const section = (id: string) => container.querySelector(`[data-company-section="${id}"]`) as HTMLElement | null;

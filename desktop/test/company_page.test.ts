@@ -187,7 +187,7 @@ before(async () => {
 after(async () => { await React.act(async () => root?.unmount()); await server?.close(); win?.happyDOM.abort(); Object.assign(globalThis, previous); });
 async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
-    React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services, onTask: () => {} }))));
+    React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services }))));
 }
 test('页面按方法论模板渲染数据包、情景表、变化悬停、资料与证据墙', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
@@ -267,7 +267,7 @@ test('研究缺失仍显示数据包；过期更新期间保留上一版且不�
   const missing = companyPageFixture();
   await mountPage(missing);
   assert.match(container.textContent!, /71.00 亿元/);
-  assert.match(container.textContent!, /核对利润变量/);
+  assert.doesNotMatch(container.textContent!, /核对利润变量/, "进度只在右上角，页面内不再重复");
   assert.equal(missing.starts.length, 1);
   assert.doesNotMatch(container.textContent!, /生成报告|开始研究/);
   const stale = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v2' });
@@ -406,7 +406,7 @@ test('真实路由挂夹具：工具栏、页内、返回关注显示同一进�
           React.createElement(router.Route, { path: '/watch', element: React.createElement(watchModule.Watch) }),
           React.createElement(router.Route, { path: '/watch/:symbol', element: React.createElement(routeModule.CompanyWiki) })))))));
     assert.equal(container.querySelectorAll('[data-company-progress="toolbar"]').length, 1);
-    assert.equal(container.querySelectorAll('[data-company-progress="page"]').length, 1);
+    assert.equal(container.querySelectorAll('[data-company-progress="page"]').length, 0);
     await React.act(async () => (container.querySelector('[data-company-progress="toolbar"] button') as HTMLButtonElement).click());
     assert.deepEqual(opened, ['fixture-session']);
     await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === '关注')!.click());
