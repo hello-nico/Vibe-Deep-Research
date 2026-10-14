@@ -316,7 +316,7 @@ export interface ShutdownMonitor {
  * 留下 detached 的 API 与界面进程组。
  */
 export function createShutdownMonitor(
-  api: ChildProcess,
+  api: ChildProcess | null,
   ui: ChildProcess,
   signalSource: NodeJS.Process = process,
 ): ShutdownMonitor {
@@ -342,14 +342,14 @@ export function createShutdownMonitor(
   const apiExit = (code: number | null, signal: NodeJS.Signals | null) => exited("本机 API", code, signal);
   const uiExit = (code: number | null, signal: NodeJS.Signals | null) => exited("浏览器界面", code, signal);
   for (const [signal, handler] of signalHandlers) signalSource.once(signal, handler);
-  api.once("exit", apiExit);
+  if (api) api.once("exit", apiExit);
   ui.once("exit", uiExit);
 
   return {
     wait,
     dispose: () => {
       for (const [signal, handler] of signalHandlers) signalSource.removeListener(signal, handler);
-      api.removeListener("exit", apiExit);
+      api?.removeListener("exit", apiExit);
       ui.removeListener("exit", uiExit);
     },
   };
@@ -379,36 +379,22 @@ export async function runStartup(
   };
   await reclaimPort(8765, repoRoot, reclaimOptions);
   await reclaimPort(5930, repoRoot, reclaimOptions);
-  await assertPortAvailable(8765);
   await assertPortAvailable(5930);
 
   const detached = true;
-  const api = spawn(process.execPath, ["orchestrator/src/api.ts", "--port", "8765", "--host", "127.0.0.1"], {
-    cwd: repoRoot, env, detached, stdio: "inherit",
-  });
-  // 绑定策略交给 Vite：默认回环；用户显式 VRA_LAN=1 时才开放 UI，API 仍绑回环。
+  // 绑定策略交给 Vite：默认回环；用户显式 VRA_LAN=1 时才开放 UI。数据服务由 DSH 插件挂载。
   const ui = spawn("npm", ["run", "dev", "--prefix", "desktop"], {
     cwd: repoRoot, env, detached, stdio: "inherit",
   });
-  let apiLaunchError: Error | null = null;
   let uiLaunchError: Error | null = null;
-  api.once("error", (error) => { apiLaunchError = error; });
   ui.once("error", (error) => { uiLaunchError = error; });
-  const shutdown = createShutdownMonitor(api, ui);
+  const shutdown = createShutdownMonitor(null, ui);
 
   try {
     const startupOutcome = await Promise.race([
       waitUntilReady({
-        failure: () => childFailure("本机 API", api, apiLaunchError) ?? childFailure("浏览器界面", ui, uiLaunchError),
-        probe: async () => {
-          const token = apiToken(repoRoot, env);
-          if (!token) return false;
-          const [apiOk, uiOk] = await Promise.all([
-            reachable("http://127.0.0.1:8765/health", { Authorization: `Bearer ${token}` }),
-            reachable("http://127.0.0.1:5930"),
-          ]);
-          return apiOk && uiOk;
-        },
+        failure: () => childFailure("浏览器界面", ui, uiLaunchError),
+        probe: async () => reachable("http://127.0.0.1:5930"),
       }).then(() => ({ kind: "ready" as const })),
       shutdown.wait,
     ]);
@@ -423,7 +409,6 @@ export async function runStartup(
   } finally {
     shutdown.dispose();
     stopChild(ui);
-    stopChild(api);
   }
 }
 

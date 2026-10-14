@@ -165,3 +165,7 @@ export function closeClientStores(): void {
   for (const db of dbs.values()) db.close();
   dbs.clear();
 }
+
+export function openClientStoreCount(): number {
+  return dbs.size;
+}

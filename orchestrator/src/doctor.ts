@@ -123,6 +123,8 @@ export async function runDoctor(opts: { repoRoot?: string; env?: NodeJS.ProcessE
   const python = opts.python ?? detectPython(repoRoot) ?? "python3";
   const probe = exec(python, ["-c", `import ${PY_IMPORTS}; print('ok')`], { env: minimalEnv(env), cwd: repoRoot });
   add("python", "取数 Python 依赖", probe.status === 0, probe.status === 0 ? python : redact(probe.stderr, 300));
+  const mounted = fs.existsSync(path.join(repoRoot, "desktop/dsh/finance-ui/local-data.mjs")) && fs.existsSync(path.join(repoRoot, "orchestrator/src/api.ts"));
+  add("mount", "数据服务挂载", mounted, "产品由 DSH 插件挂载；诊断入口 node orchestrator/src/api.ts");
   try { const endpoints = listEndpoints(serviceContext({ repoRoot, python })); add("registry", "页面取数注册表", endpoints.length > 0, `${endpoints.length} 个端点`); }
   catch (error) { add("registry", "页面取数注册表", false, String(error)); }
   const scan = scanSecrets(repoRoot, env);

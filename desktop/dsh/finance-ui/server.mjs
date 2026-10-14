@@ -3,8 +3,9 @@ import { installPageModel } from './model.mjs';
 import { installResearchApi, installWikiPublish } from './research.mjs';
 import { installCompanyRefresh } from './maintenance.mjs';
 import { installHostState } from './host-state.mjs';
+import { installLocalData } from './local-data.mjs';
 
-export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools"];
+export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools", "connection"];
 
 function trackDisposer(owned, disposer) {
   if (typeof disposer === "function") owned.push(disposer);
@@ -35,6 +36,7 @@ export function apply(ctx) {
     track(installWikiPublish(ctx));
     track(installCompanyRefresh(ctx));
     installHostState(ctx, track);
+    track(installLocalData(ctx));
     track(ctx.webServer.register({ kind: "exact", path: "/finance-pdfium.wasm", handler(_req, res) {
       res.setHeader("Content-Type", "application/wasm");
       res.setHeader("Cache-Control", "no-cache");

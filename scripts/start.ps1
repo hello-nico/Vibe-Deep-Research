@@ -71,38 +71,30 @@ function Reset-ProductPort([int]$Port) {
   throw "已结束占用 $Port 的进程，但端口仍未释放，请手动确认后重试。"
 }
 try {
-  # pre-start：先回收上一轮留下的 API / 界面进程，再启动；默认只结束本仓库自己的进程。
+  # pre-start：回收上一轮本仓库留下的独立数据服务与界面进程。产品数据服务由 DSH 插件挂载。
   Reset-ProductPort 8765
   Reset-ProductPort 5930
-  $api = Start-Process -FilePath node -ArgumentList @("orchestrator\src\api.ts", "--port", "8765", "--host", "127.0.0.1") -WorkingDirectory $root -PassThru -NoNewWindow
-  # UI 由 Vite 按 VRA_LAN 决定绑定；默认回环，API 的回环绑定不变。
   $ui = Start-Process -FilePath npm.cmd -ArgumentList @("run", "dev", "--prefix", "desktop") -WorkingDirectory $root -PassThru -NoNewWindow
   $ready = $false
   $readyDeadline = [DateTime]::UtcNow.AddSeconds(60)
   while ([DateTime]::UtcNow -lt $readyDeadline) {
-    $api.Refresh()
     $ui.Refresh()
-    if ($api.HasExited) { throw "API 启动失败（退出码 $($api.ExitCode)），请检查 8765 端口和产品配置。" }
     if ($ui.HasExited) { throw "界面启动失败（退出码 $($ui.ExitCode)）。" }
-    # 经界面代理验证后端鉴权；令牌仍只留在本地服务，不传到浏览器或命令参数。
-    & node (Join-Path $root "orchestrator\src\startup_health.ts")
-    if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+    try {
+      $probe = Invoke-WebRequest -Uri "http://127.0.0.1:5930" -UseBasicParsing -TimeoutSec 2
+      if ($probe.StatusCode -ge 200) { $ready = $true; break }
+    } catch {}
     Start-Sleep -Milliseconds 250
   }
-  if (-not $ready) { throw "启动等待超过 60 秒。请检查上方日志、8765/5930 端口以及产品配置；浏览器尚未打开。" }
-  $api.Refresh()
+  if (-not $ready) { throw "启动等待超过 60 秒。请检查上方日志、5930 端口以及产品配置；浏览器尚未打开。" }
   $ui.Refresh()
-  if ($api.HasExited) { throw "API 启动失败（退出码 $($api.ExitCode)），请检查 8765 端口和产品配置。" }
   if ($ui.HasExited) { throw "界面启动失败（退出码 $($ui.ExitCode)）。" }
   Start-Process "http://127.0.0.1:5930"
-  while (-not $api.HasExited -and -not $ui.HasExited) {
+  while (-not $ui.HasExited) {
     Start-Sleep -Milliseconds 250
-    $api.Refresh()
     $ui.Refresh()
   }
-  if ($api.HasExited) { throw "API 已停止（退出码 $($api.ExitCode)），界面同步关闭。" }
   if ($ui.HasExited) { throw "界面已提前停止（退出码 $($ui.ExitCode)）。" }
 } finally {
   Stop-ProcessTree $ui
-  Stop-ProcessTree $api
 }

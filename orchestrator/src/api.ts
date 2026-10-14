@@ -12,12 +12,12 @@ import { productVersion } from "./version.ts";
 import crypto from "node:crypto";
 
 import {
-addResearchSymbol,addWatch,listPrefs,listResearchRoster,listWatch,
+addResearchSymbol,addWatch,closeClientStores,listPrefs,listResearchRoster,listWatch,
 touchResearchSymbol,
 removeResearchSymbol,removeWatch,setPref,
 } from "./client_store.ts";
 import { NOFOLLOW_FLAG,restrictPrivateFile } from "./fsutil.ts";
-import { ServiceError,fetchEndpoint,listEndpoints,pageQuery,redact,safePath,serviceContext,type ServiceContext } from "./service.ts";
+import { abortActiveFetches,ServiceError,fetchEndpoint,listEndpoints,pageQuery,redact,safePath,serviceContext,type ServiceContext } from "./service.ts";
 
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
@@ -99,16 +99,11 @@ async function withRequestAbort<T>(
   }
 }
 
-export function createApiServer(ctx: ServiceContext, opts: { token: string }): http.Server {
-  if (!opts.token || opts.token.length < 16) throw new Error("API token 必须 ≥ 16 字符(默认随机生成并写入 .local/api.token)");
-  return http.createServer(async (req, res) => {
-    try {
+export async function handleLocalDataRequest(req: http.IncomingMessage, res: http.ServerResponse, ctx: ServiceContext): Promise<void> {
+  try {
       const url = new URL(req.url ?? "/", "http://localhost");
       const cs = crossSiteReject(req);
       if (cs) return send(res, cs.code, { error: cs.error });
-      // 鉴权:Bearer 对所有路由有效;Cookie(由 /login 用 token 换取)只对 COOKIE_GET_ROUTES 白名单里的只读 GET 有效(POST / 其它 GET 仍只认 Bearer,防 CSRF)
-      const bearerOk = (req.headers.authorization ?? "") === `Bearer ${opts.token}`;
-      if (!bearerOk) return send(res, 401, { error: "unauthorized" });
       const parts = url.pathname.split("/").filter(Boolean);
       const q = Object.fromEntries(url.searchParams.entries());
       if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, version: productVersion() });
@@ -175,7 +170,20 @@ export function createApiServer(ctx: ServiceContext, opts: { token: string }): h
       }
       console.error(`[api] internal error: ${redact(e instanceof Error ? e.stack ?? e.message : String(e), 600)}`);
       return send(res, 500, { error: "internal" });
-    }
+  }
+}
+
+export function disposeLocalDataRuntime(): void {
+  abortActiveFetches();
+  closeClientStores();
+}
+
+export function createApiServer(ctx: ServiceContext, opts: { token: string }): http.Server {
+  if (!opts.token || opts.token.length < 16) throw new Error("API token 必须 ≥ 16 字符(默认随机生成并写入 .local/api.token)");
+  return http.createServer(async (req, res) => {
+    const bearerOk = (req.headers.authorization ?? "") === `Bearer ${opts.token}`;
+    if (!bearerOk) return send(res, 401, { error: "unauthorized" });
+    await handleLocalDataRequest(req, res, ctx);
   });
 }
 

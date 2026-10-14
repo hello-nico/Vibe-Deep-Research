@@ -6,7 +6,7 @@ import type { Plugin, PreviewServer, ViteDevServer } from "vite";
 import { resolveDshPaths, prepareDshPaths, researchRuntimeEnv } from "../orchestrator/src/dsh_paths.ts";
 import { pickEnv, DSH_RUNTIME_ENV_KEYS, BASE_ENV_KEYS } from "../orchestrator/src/config.ts";
 
-const DSH_PROXY_PREFIXES = ["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-assistant-sessions", "/finance-assistant-page-context", "/finance-report-tasks", "/finance-report-runs", "/finance-research-runs", "/finance-research-tasks", "/finance-background-tasks", "/finance-wiki-publish", "/finance-maintenance-refresh", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"] as const;
+const DSH_PROXY_PREFIXES = ["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-assistant-sessions", "/finance-assistant-page-context", "/finance-report-tasks", "/finance-report-runs", "/finance-research-runs", "/finance-research-tasks", "/finance-api", "/finance-background-tasks", "/finance-wiki-publish", "/finance-maintenance-refresh", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"] as const;
 
 /** Loopback Vite/DSH proxy: Host must match this origin. Missing Origin is allowed for same-host tools; a present Origin or Fetch site must be same-origin. Reachability is not authorization. */
 export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origin: string) {
@@ -156,7 +156,6 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
     server.middlewares.use((req, res, next) => {
       if (!trusted(req)) { res.writeHead(403); res.end(); return; }
       const pathname = (req.url ?? "/").split("?")[0]!;
-      if (pathname.startsWith("/finance-api")) return next();
       if (isDshProxiedPath(pathname)) {
         if (!cookie) { sendJson(res, 503, dshUnavailableBody(failure), { "Retry-After": "1" }); return; }
         return next();

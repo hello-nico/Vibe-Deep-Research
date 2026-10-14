@@ -257,6 +257,23 @@ export async function fetchEndpoint(
  */
 interface FetchFlight { promise: Promise<FetchResult>; controller: AbortController; subscribers: number; remove: () => void }
 const inFlight = new Map<string, FetchFlight>();
+const activeFetchChildren = new Set<ReturnType<typeof spawn>>();
+
+export function trackFetchChild(child: ReturnType<typeof spawn>): void {
+  activeFetchChildren.add(child);
+  const drop = () => activeFetchChildren.delete(child);
+  child.once("close", drop);
+  child.once("error", drop);
+}
+
+/** 卸载时终止进行中的取数子进程，并取消还在飞的查询。 */
+export function abortActiveFetches(): void {
+  for (const flight of inFlight.values()) flight.controller.abort();
+  for (const child of activeFetchChildren) {
+    try { child.kill("SIGKILL"); } catch { /* already gone */ }
+  }
+  activeFetchChildren.clear();
+}
 
 /** 每个等待者独立取消;最后一个离开才停共享子进程,并立即允许新请求。 */
 function subscribeFlight(flight: FetchFlight, signal?: AbortSignal): Promise<FetchResult> {
@@ -303,6 +320,7 @@ function runFetchProcess(
       cwd: opts.cwd, env: opts.env,
       stdio: [opts.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
     });
+    trackFetchChild(child);
     if (opts.input !== undefined) {
       // EPIPE:子进程没读完就退了 —— 交给下面的退出码分支去报,不要在这里炸掉整个 Promise
       child.stdin?.on("error", () => undefined);
