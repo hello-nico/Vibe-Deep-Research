@@ -318,6 +318,7 @@ export function CompanyPage({ symbol, name, services }: { symbol: string; name: 
 function Thesis({ research, state, packet, calcs }: { research: CompanyPageResearch | null; state: CompanyPageState; packet?: DataPacket; calcs: Record<string, unknown> }) {
   if (research?.thesis) return <div title={research.changes?.thesis} data-change-hint={research.changes?.thesis || undefined}><AnswerSentence id="thesis" text={research.thesis} packet={packet} calcs={calcs} /></div>;
   if (!state.loaded) return <DataLoading label="已保存研究" />;
+  if (state.error === '服务器拒绝了访问令牌，请在设置里检查') return <p className="company-page-conclusion is-muted">{state.error}</p>;
   if (state.error) return <p className="company-page-conclusion is-muted">研究暂不可用，数据仍可查看</p>;
   if (!companyPageProgress(state)) return <p className="company-page-conclusion is-muted">尚无研究判断</p>;
   return null;

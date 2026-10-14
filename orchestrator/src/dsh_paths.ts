@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
 import { readConfiguredDataRoot, resolveDataRoot } from "./data_root.ts";
+import { productVersion } from "./version.ts";
 
 /** Product runtime config contains paths only; model settings and credentials remain DSH-owned. */
 export function resolveDshPaths(repoRoot: string, env: NodeJS.ProcessEnv = process.env) {
@@ -60,6 +61,7 @@ export function researchRuntimeEnv(paths: ReturnType<typeof resolveDshPaths>, en
     STOCK_RESEARCH_WORKSPACE: paths.workspace,
     STOCK_RESEARCH_GBRAIN_ROOT: config.STOCK_RESEARCH_PI_GBRAIN_ROOT || path.join(paths.workspace, "wiki"),
     STOCK_RESEARCH_GBRAIN_DATABASE_URL: database,
+    VIBE_CLIENT_VERSION: productVersion(),
   };
   const local = readResearchEnvFile(paths.researchRepo);
   const hook = env.STOCK_RESEARCH_HOOK_TOKEN ?? local.STOCK_RESEARCH_HOOK_TOKEN;

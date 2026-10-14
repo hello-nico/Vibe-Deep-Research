@@ -1,4 +1,5 @@
 /** Product read/upload facade. Research validation and persistence stay in Backend. */
+import { backendHeaders, resolveBackend, TOKEN_REJECTED } from './backend-connection.mjs';
 const TOPIC_ID = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}$/i;
 const TOPIC_WALL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/wall$/i;
 const TOPIC_BASIS = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/basis-changes$/i;
@@ -50,8 +51,8 @@ export function researchRoute(method, pathname) {
   return false;
 }
 
-function backendBase() {
-  return (process.env.STOCK_RESEARCH_BACKEND_URL || 'http://127.0.0.1:8700/api/v1').replace(/\/$/, '');
+function backendTarget() {
+  return resolveBackend();
 }
 
 async function proxyResearch(req, res, { route, search, injectHook = false }) {
@@ -67,16 +68,23 @@ async function proxyResearch(req, res, { route, search, injectHook = false }) {
       if (size > limit) { res.writeHead(413); res.end(); return; }
       chunks.push(chunk);
     }
-    const headers = { 'Content-Type': req.headers['content-type'] || 'application/json' };
+    const target = backendTarget();
+    const headers = backendHeaders(target, { 'Content-Type': req.headers['content-type'] || 'application/json' });
     if (injectHook) {
       const token = (process.env.STOCK_RESEARCH_HOOK_TOKEN || '').trim();
       if (!token) { res.writeHead(503, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ detail: '研究发布未配置' })); return; }
       headers['x-stock-research-hook-token'] = token;
     }
-    const response = await fetch(backendBase() + route + search, {
+    const response = await fetch(target.url + route + search, {
       method: req.method, signal: controller.signal, headers,
       ...(['POST', 'PUT', 'PATCH'].includes(req.method) ? { body: Buffer.concat(chunks) } : {}),
     });
+    if (response.status === 401) {
+      await response.body?.cancel?.();
+      res.writeHead(401, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ detail: TOKEN_REJECTED }));
+      return;
+    }
     const reader = response.body?.getReader();
     const prefix = [];
     let prefixSize = 0;

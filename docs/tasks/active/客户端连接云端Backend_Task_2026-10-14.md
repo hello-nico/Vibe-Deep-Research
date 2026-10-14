@@ -52,9 +52,12 @@ R5 所列；令牌发放流程。
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-14 Claude 写定，待派 pi1。
-2. 改动文件：无。
-3. 证据：无。
-4. 与规格的偏差及理由：无。
-5. 未覆盖的缺口：设置页界面、Backend 版本拦截另立。
-6. 下一步谁做什么：pi1 在 worktree 实施并回填；Claude 审阅合入。
+1. 状态与结论：已在 worktree 实施，未提交、未重建。Vibe `/Users/apple/ts/src/Vibe-Deep-Research/.worktrees/pi1`（detached `c9366766`），Stock `/Users/apple/ts/src/Stock-Research/.worktrees/pi1`（detached `80f5771`）。连接文件优先于环境变量，令牌只来自文件，请求带版本头。
+2. 改动文件：Vibe `desktop/dsh/finance-ui/backend-connection.mjs`（新）、`research.mjs`、`maintenance.mjs`、`host-state.mjs`、`server.mjs`、`orchestrator/src/dsh_paths.ts`、`desktop/src/verticals/finance/lib/researchSymbol.ts`、`companyPage.ts`、
+   `pages/CompanyPage.tsx`、`desktop/test/backend_connection.test.ts`（新）、`access_lifecycle.test.ts`、`company_page.test.ts`。Stock `dsh/src/backend.ts`、`dsh/src/research-backend.mjs`、`dsh/test/backend-connection.test.mjs`（新）、
+   `dsh/test/research-host.test.mjs`。
+3. 证据：Vibe `tsc --noEmit` 通过，`npm test` 447 passed、0 failed。Stock `pnpm test` 316 passed、0 failed。两仓 `git diff --check` 无输出。未运行 `scripts/start`。
+4. 与规格的偏差及理由：GET 的 `status` 规格未给枚举，返回地址来源 `file` / `environment` / `default`。身份探测用只读 `GET /notes`。空白令牌按清除处理。缺 `VIBE_CLIENT_VERSION` 时版本头写 `unknown`，不省略。损坏的连接文件不回落到环境变量。
+   - Claude 合入补修：地址留空表示用本机（删除已存连接）；连接接口加入开发代理前缀；提示里「Backend」改为「服务器」。与 claude2 的设置页联调契约对齐（测试接口返回 `{status}`）。合入后 Vibe 450 passed、Stock 316 passed。
+5. 未覆盖的缺口：设置页界面、Backend 版本拦截另立。未做真实连接三种结果。
+6. 下一步谁做什么：Claude 审阅后合入主目录；claude2 做设置页；用户重建后验测试连接。

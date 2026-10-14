@@ -2,6 +2,7 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
+import { backendHeaders, resolveBackend, TOKEN_REJECTED, maskSecrets } from './backend-connection.mjs';
 
 const TOPIC_ID = /^topic:[0-9a-f]{12}$/;
 const SESSION_ID = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -157,7 +158,8 @@ export async function overlayIngestStatus(tasks) {
   await Promise.all((tasks || []).flatMap(task => (task.ingest || []).map(async job => {
     if (!job?.job_id || ['ready', 'failed'].includes(job.status)) return;
     try {
-      const response = await fetch(`${backendBase()}/wiki/periodic-reports/jobs/${encodeURIComponent(job.job_id)}`, { headers: { Accept: 'application/json' }, signal: AbortSignal.timeout(3000) });
+      const target = resolveBackend();
+      const response = await fetch(`${target.url}/wiki/periodic-reports/jobs/${encodeURIComponent(job.job_id)}`, { headers: backendHeaders(target, { Accept: 'application/json' }), signal: AbortSignal.timeout(3000) });
       if (!response.ok) return;
       const latest = await response.json();
       if (latest.status) job.status = latest.status;
@@ -947,13 +949,15 @@ export function cancelResearchRun(session_id) {
   return cancelReportRun(session_id);
 }
 
-function backendBase() {
-  return (process.env.STOCK_RESEARCH_BACKEND_URL || 'http://127.0.0.1:8700/api/v1').replace(/\/$/, '');
-}
-
 async function proxyNotes(req, res, route) {
-  const response = await fetch(backendBase() + route, { headers: { Accept: 'application/json' } });
-  const body = await response.text();
+  const target = resolveBackend();
+  const response = await fetch(target.url + route, { headers: backendHeaders(target, { Accept: 'application/json' }) });
+  if (response.status === 401) {
+    await response.body?.cancel?.();
+    send(res, 401, { detail: TOKEN_REJECTED });
+    return;
+  }
+  const body = maskSecrets(await response.text(), target.token);
   if (!response.ok && (!body || body === '[]' || body === '{}')) {
     send(res, response.status || 502, { detail: '研究记录服务不可用' });
     return;

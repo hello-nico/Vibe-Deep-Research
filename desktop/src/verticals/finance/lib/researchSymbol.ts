@@ -16,7 +16,10 @@ export function asResearchErrorMessage(error: unknown): string {
   return message;
 }
 
+export const BACKEND_TOKEN_REJECTED = "服务器拒绝了访问令牌，请在设置里检查";
+
 export function researchErrorMessage(status: number, value: unknown): string {
+  if (status === 401) return BACKEND_TOKEN_REJECTED;
   const detail = value && typeof value === "object" && value !== null && "detail" in value
     ? (value as { detail: unknown }).detail
     : undefined;

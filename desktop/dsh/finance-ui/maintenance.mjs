@@ -1,15 +1,18 @@
+import { backendHeaders, resolveBackend, TOKEN_REJECTED } from './backend-connection.mjs';
+
 const COMPANY = /^companies\/\d{6}-(?:sh|sz|bj)$/;
 const INDUSTRY = /^industries\/nbs-.+$/;
 
 async function backend(route, payload, signal) {
   const token = process.env.STOCK_RESEARCH_HOOK_TOKEN?.trim();
   if (!token) throw Object.assign(new Error('资料刷新服务未启用'), { status: 503 });
-  const base = (process.env.STOCK_RESEARCH_BACKEND_URL || 'http://127.0.0.1:8700/api/v1').replace(/\/$/, '');
-  const response = await fetch(base + route, {
+  const target = resolveBackend();
+  const response = await fetch(target.url + route, {
     method: payload ? 'POST' : 'GET', signal,
-    headers: { 'content-type': 'application/json', 'x-stock-research-hook-token': token },
+    headers: backendHeaders(target, { 'content-type': 'application/json', 'x-stock-research-hook-token': token }),
     ...(payload ? { body: JSON.stringify(payload) } : {}),
   });
+  if (response.status === 401) throw Object.assign(new Error(TOKEN_REJECTED), { status: 401 });
   const result = await response.json();
   if (!response.ok) {
     const messages = {

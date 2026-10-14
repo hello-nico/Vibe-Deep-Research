@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import { installPageModel } from './model.mjs';
 import { installResearchApi, installWikiPublish } from './research.mjs';
+import { installBackendConnection } from './backend-connection.mjs';
 import { installCompanyRefresh } from './maintenance.mjs';
 import { installHostState } from './host-state.mjs';
 import { installLocalData } from './local-data.mjs';
@@ -33,6 +34,7 @@ export function apply(ctx) {
     } }));
     track(installPageModel(ctx));
     track(installResearchApi(ctx));
+    installBackendConnection(ctx, track);
     track(installWikiPublish(ctx));
     track(installCompanyRefresh(ctx));
     installHostState(ctx, track);

@@ -160,8 +160,10 @@ export class CompanyPageStore {
         await this.begin();
       }
     } catch (error) {
-      console.warn('[finance/company-page] research unavailable', error);
-      this.publish({ ...this.state, loaded: true, error: '研究暂不可用' });
+      const denied = error instanceof Error && 'status' in error && (error as { status?: number }).status === 401;
+      const unavailable = denied ? '服务器拒绝了访问令牌，请在设置里检查' : '研究暂不可用';
+      console.warn('[finance/company-page] research unavailable', denied ? unavailable : error);
+      this.publish({ ...this.state, loaded: true, error: unavailable });
     }
   }
   private async begin() {

@@ -287,6 +287,11 @@ test('数据包已到时资料可后到；研究接口失败不会显示虚假�
   assert.ok(container.querySelector('[aria-label="正在读取资料"]'));
   assert.match(container.textContent!, /研究暂不可用/);
   assert.equal(container.querySelector('[data-company-progress]'), null);
+  const denied = companyPageFixture();
+  denied.services.readResearch = async () => { throw Object.assign(new Error('服务器拒绝了访问令牌，请在设置里检查'), { status: 401 }); };
+  await mountPage(denied);
+  assert.match(container.textContent!, /服务器拒绝了访问令牌，请在设置里检查/);
+  assert.doesNotMatch(container.textContent!, /研究暂不可用/);
   await React.act(async () => finish(fixtureData.documents));
   assert.equal(container.querySelector('[aria-label="正在读取资料"]'), null);
 });
