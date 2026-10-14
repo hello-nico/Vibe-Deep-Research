@@ -165,3 +165,9 @@ test('动态页：「关键变量」是第一个分段且为默认；「资讯�
   assert.match(feed, /params\.get\("tab"\) === "market" \? "market" : params\.get\("tab"\) === "intel" \? "intel" : "variables"/);
   assert.match(feed, /<Intel sub=\{params\.get\("sub"\)\} onSub=\{selectSub\} \/>/);
 });
+
+test('宿主研究代理放行关键变量读取', async () => {
+  const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
+  assert.equal(researchRoute('GET', '/tracking/variables'), true);
+  assert.equal(researchRoute('POST', '/tracking/variables'), false);
+});

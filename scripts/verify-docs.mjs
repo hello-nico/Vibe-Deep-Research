@@ -34,7 +34,7 @@ if (inGit) {
   for (const path of changed) if (archivedInHead.has(path)) fail(`${path}: archived files are frozen`);
 }
 
-const skip = new Set(["node_modules", ".git", ".local", "output", ".venv", ".pnpm-store", "vendor", "dist", "build"]);
+const skip = new Set(["node_modules", ".git", ".local", ".worktrees", "output", ".venv", ".pnpm-store", "vendor", "dist", "build"]);
 const archivedDir = join(docs, "tasks", "archived");
 function* markdown(dir) {
   for (const name of readdirSync(dir)) {
