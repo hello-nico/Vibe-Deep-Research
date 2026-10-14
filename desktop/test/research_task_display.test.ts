@@ -37,12 +37,8 @@ test('错误边界兜底只影响这一张成果', () => {
   assert.equal(RESULT_EMBED_FALLBACK, '这份成果暂时无法显示');
 });
 
-test('公司列表使用现行名称回退，任务列表使用对象登记层', () => {
+test('公司列表使用现行名称回退', () => {
   const wiki = readFileSync(new URL('../src/verticals/finance/pages/Watch.tsx', import.meta.url), 'utf8');
   assert.match(wiki, /quote\?\.name \|\| page\?\.title \|\| symbol/);
   assert.doesNotMatch(wiki, /\/wiki\/pages\/read\?slug=/);
-  const mine = readFileSync(new URL('../src/verticals/finance/pages/MyResearch.tsx', import.meta.url), 'utf8');
-  assert.match(mine, /skipped: '未整理'/);
-  assert.match(mine, /openRegisteredObject/);
-  assert.match(mine, /researchSkipSummary/);
 });

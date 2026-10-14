@@ -9,7 +9,6 @@ import { installTriggerMenuFit } from './trigger-menu-fit';
 import { installPanelConversation } from './panel-conversation';
 import { selectSidePanel, type FinanceSidePanel } from './side-panel';
 import { hydrateObjectLabels, objectLabel, openRegisteredObject, resolveObjectLabels } from '../lib/objectRegistry';
-import { backgroundTaskForSession, loadBackgroundTasks } from '../lib/research';
 import { createCitationMention, webCitationUrl } from '../lib/citationMarks';
 import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX_BYTES, deliverLibraryCiteBatch, documentRef, libraryCiteFromItem, libraryFileKind, libraryUploadError, mapPool, pendingLibraryCites, queueLibraryCites, rememberMentionLabel, uploadLibraryFile, type LibraryCite, type PendingLibraryCites } from '../lib/library';
 import { SearchPreviews } from './search-previews';
@@ -20,7 +19,7 @@ import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
 import { loadAssistantSessions, subscribeAssistantSeat, assistantSeatSnapshot } from "../assistant/sessions.ts";
 import { applyAssistant } from "../assistant/apply.ts";
-import { cancelReportRun, cancelResearchRun, legacyCompanySymbol, loadReportTasks, researchTaskStatus, startReportRun, startResearchRun } from "../lib/reportTasks";
+import { cancelReportRun, cancelResearchRun, legacyCompanySymbol, loadReportTasks, startReportRun, startResearchRun } from "../lib/reportTasks";
 import { FINANCE_TOOL_NAMES, projectTaskTrajectory, stableTaskTrajectory } from "../lib/taskTrajectory";
 import { userFacingRuntimeError } from "../lib/userFacingError";
 import { createTaskTrajectoryStore, ensureTaskHistory, historyFaceOf } from "../lib/taskHistory";
@@ -439,15 +438,6 @@ export function apply(ctx: Context) {
     });
     const tasks = await loadReportTasks().catch(() => null);
     return [...new Set([...symbols, ...Object.values(tasks?.sessions || {}).filter(binding => binding.kind === 'research').map(binding => binding.symbol || '')])].filter(Boolean);
-  }, async legacyCompanyTasks() {
-    await session;
-    await client.sessions.refresh();
-    const list = client.sessions.list.getSnapshot();
-    return list.ids.flatMap(id => {
-      const item = list.byId[id];
-      const symbol = item?.cwd === workspace ? legacyCompanySymbol(item.title || '') : undefined;
-      return symbol ? [{ sessionId: id, title: item?.title || '', symbol, running: Boolean(item?.running), updatedAt: item?.updatedAt }] : [];
-    });
   }, async listRunningCompanySymbols() {
     await session;
     if (!workspaceId) return [];
@@ -506,33 +496,6 @@ export function apply(ctx: Context) {
     })();
     if (key) companyStarts.set(key, run);
     try { return await run; } finally { if (key) companyStarts.delete(key); }
-  }, async findCompanySession(symbol: string) {
-    await session;
-    if (!workspaceId) return null;
-    await client.sessions.refresh();
-    const list = client.sessions.list.getSnapshot();
-    const tasks = await loadReportTasks().catch(() => null);
-    const bound = Object.entries(tasks?.sessions || {}).filter(([, binding]) => binding.kind === 'research' && binding.symbol === symbol);
-    bound.sort((a, b) => String(b[1].bound_at || '').localeCompare(String(a[1].bound_at || '')));
-    if (bound.length) {
-      const [id, binding] = bound[0]!;
-      const running = Boolean(list.byId[id]?.running);
-      const settlement = await loadBackgroundTasks().then(items => backgroundTaskForSession(items, id)).catch(() => null);
-      const status = researchTaskStatus(binding, running, settlement);
-      return { sessionId: id, title: binding.title || `公司研究 · ${symbol}`, running: status === 'researching',
-        updatedAt: binding.finished_at || binding.bound_at,
-        status, runStatus: binding.run_status };
-    }
-    const archived = new Set(client.workspaces.list.getSnapshot().archivedSessionIds);
-    const ids = list.ids.filter(id => {
-      const item = list.byId[id];
-      return item?.cwd === workspace && !archived.has(id) && legacyCompanySymbol(item.title ?? '') === symbol;
-    });
-    ids.sort((a, b) => (new Date(list.byId[b]?.updatedAt ?? 0).getTime() || 0) - (new Date(list.byId[a]?.updatedAt ?? 0).getTime() || 0));
-    const id = ids[0];
-    if (!id) return null;
-    const item = list.byId[id];
-    return { sessionId: id, title: item?.title ?? '', running: Boolean(item?.running), updatedAt: item?.updatedAt };
   }, async findReportTask(slug: string) {
     await session;
     if (!workspaceId) return null;

@@ -90,7 +90,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {
-  for (let failAt = 1; failAt <= 17; failAt++) {
+  for (let failAt = 1; failAt <= 18; failAt++) {
     const webServer = fakeWebServer();
     const register = webServer.register.bind(webServer);
     let count = 0;
@@ -103,7 +103,7 @@ test("真实插件的每个注册失败点都回滚，并可重装卸载", () =>
     assert.equal(webServer.routes.size, 0, `registration ${failAt}`);
     webServer.register = register;
     apply(ctx);
-    assert.equal(webServer.routes.size, 17);
+    assert.equal(webServer.routes.size, 18);
     for (const dispose of ctx.effects.splice(0).reverse()) dispose();
     assert.equal(webServer.routes.size, 0);
   }

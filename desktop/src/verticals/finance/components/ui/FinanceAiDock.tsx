@@ -1,9 +1,8 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { useContext } from 'react';
-import { ChevronDown, Sparkles, Square, X } from "lucide-react";
+import { Sparkles, Square, X } from "lucide-react";
 
-import { cn } from "@/lib/utils";
 import type { AiDockProps } from "../../../../core/ai/AiDock";
 import { useAiWired, useCurrentAiPage, useAiQuestion, usePageAssistantObjects, type PageAssistantObject } from "../../../../core/ai/pageContext";
 import { useResearchSessions } from "../../dsh/research-session";
@@ -11,166 +10,15 @@ import { emptyTaskTrajectory } from "../../lib/taskTrajectory";
 import { FinanceSlots } from '../../dsh/NativeDsh';
 import { assistantBindingForPage } from "../../assistant/binding.ts";
 import {
-  assistantModeHint,
+  ASSISTANT_PLACEHOLDER,
   assistantSeatSnapshot,
   assistantSessionErrorMessage,
   setAssistantSeat,
   subscribeAssistantSeat,
-  type AssistantMode,
 } from "../../assistant/sessions.ts";
 
 const noopSubscribe = () => () => {};
-const emptyModelSnapshot = () => null;
 const emptyTrajectorySnapshot = () => emptyTaskTrajectory;
-
-function AssistantMenu({
-  label,
-  title,
-  value,
-  options,
-  disabled,
-  onSelect,
-  truncate = true,
-}: {
-  label: string;
-  title: string;
-  value: string;
-  options: { id: string; name: string }[];
-  disabled?: boolean;
-  onSelect: (id: string) => void;
-  truncate?: boolean;
-}) {
-  const [open, setOpen] = useState(false);
-  const [menuBox, setMenuBox] = useState<{ left: number; bottom: number; width: number } | null>(null);
-  const box = useRef<HTMLDivElement>(null);
-  const trigger = useRef<HTMLButtonElement>(null);
-  const menu = useRef<HTMLDivElement>(null);
-  useLayoutEffect(() => {
-    if (!open || !trigger.current) { setMenuBox(null); return; }
-    const place = () => {
-      const rect = trigger.current!.getBoundingClientRect();
-      setMenuBox({ left: rect.left, bottom: window.innerHeight - rect.top + 4, width: Math.max(rect.width, 120) });
-    };
-    place();
-    window.addEventListener("resize", place);
-    return () => window.removeEventListener("resize", place);
-  }, [open]);
-  useEffect(() => {
-    if (!open) return;
-    const onDoc = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (box.current?.contains(target) || menu.current?.contains(target)) return;
-      setOpen(false);
-    };
-    document.addEventListener("mousedown", onDoc);
-    return () => document.removeEventListener("mousedown", onDoc);
-  }, [open]);
-  const current = options.find(item => item.id === value)?.name || value || "选择";
-  return (
-    <div ref={box} className="finance-assistant-mode relative shrink-0">
-      <button
-        ref={trigger}
-        type="button"
-        disabled={disabled}
-        aria-label={label}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        title={title}
-        className="finance-assistant-mode-trigger"
-        onClick={() => setOpen(next => !next)}
-      >
-        <span className={truncate ? "truncate" : "whitespace-nowrap"}>{current}</span>
-        <ChevronDown className="h-3 w-3 shrink-0 text-muted-foreground" />
-      </button>
-      {open && menuBox && createPortal(
-        <div
-          ref={menu}
-          className="finance-assistant-menu"
-          role="listbox"
-          aria-label={label}
-          style={{ left: menuBox.left, bottom: menuBox.bottom, minWidth: menuBox.width }}
-        >
-          {options.map(item => (
-            <button
-              key={item.id}
-              type="button"
-              role="option"
-              aria-selected={item.id === value}
-              className={cn(item.id === value && "is-current")}
-              onClick={() => { onSelect(item.id); setOpen(false); }}
-            >
-              {item.name}
-            </button>
-          ))}
-        </div>,
-        document.body,
-      )}
-    </div>
-  );
-}
-
-export function AssistantModeSelect() {
-  const sessions = useResearchSessions();
-  const seat = useSyncExternalStore(subscribeAssistantSeat, assistantSeatSnapshot, assistantSeatSnapshot);
-  if (!seat.sessionId) return null;
-  const changeMode = async (next: AssistantMode) => {
-    if (next === seat.mode || seat.busy) return;
-    const snap = seat.sessionId ? sessions.sessionState(seat.sessionId) : null;
-    if (snap?.running) {
-      setAssistantSeat({ notice: "等这次回答结束后再切换。" });
-      return;
-    }
-    if (seat.sessionId) {
-      try {
-        await sessions.switchAssistantMode(seat.sessionId, next, seat.pageKey);
-      } catch (err) {
-        setAssistantSeat({ notice: assistantSessionErrorMessage(err, "模式没切换成功，请重试") });
-        return;
-      }
-    }
-    setAssistantSeat({ mode: next, notice: "" });
-  };
-  return (
-    <AssistantMenu
-      label="问助手模式"
-      title={seat.mode === "ask" ? "只看本页和你引用的内容，几秒内回答。" : "会按需查资料、读原文后再回答；发现值得保存的资料，会先问你。"}
-      value={seat.mode}
-      disabled={seat.busy}
-      options={[{ id: "ask", name: "Ask" }, { id: "agent", name: "Agent" }]}
-      truncate={false}
-      onSelect={id => { void changeMode(id as AssistantMode); }}
-    />
-  );
-}
-
-function AssistantModelSelect({ sessionId }: { sessionId: string }) {
-  const sessions = useResearchSessions();
-  const directory = useMemo(() => {
-    try { return sessions.assistantModel?.(sessionId) ?? null; }
-    catch { return null; }
-  }, [sessions, sessionId]);
-  const snap = useSyncExternalStore(directory?.subscribe ?? noopSubscribe, directory?.getSnapshot ?? emptyModelSnapshot, directory?.getSnapshot ?? emptyModelSnapshot);
-  useEffect(() => { void directory?.load(); }, [directory, sessionId]);
-  if (!directory || !snap) return null;
-  const current = snap.current ? `${snap.current.provider}/${snap.current.model}` : "";
-  const options = snap.groups.flatMap(group => group.models.map(model => ({
-    id: `${group.id}/${model.id}`,
-    name: model.name,
-  })));
-  return (
-    <AssistantMenu
-      label="问助手模型"
-      title="只对本页问助手生效"
-      value={current}
-      disabled={snap.status === "loading" || snap.status === "selecting"}
-      options={current || options.length ? options : [{ id: "", name: "选择模型" }]}
-      onSelect={id => {
-        const [provider, model] = id.split("/");
-        if (provider && model) void directory.select({ provider, model });
-      }}
-    />
-  );
-}
 
 function AssistantTranscript({ sessionId }: { sessionId: string }) {
   const slots = useContext(FinanceSlots);
@@ -272,15 +120,18 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
       const result = await sessions.ensureAssistant({
         pageKey: page.key,
         title: page.title,
-        mode: seat.mode || "ask",
+        mode: "agent",
         plugin: binding.plugin,
         target: binding.target,
         fresh,
       });
       if (attachGen.current !== gen) return;
       if (sessions.getSidePanel()?.kind !== 'assistant') return;
+      // 早先的即答会话也按深查继续；切换没成功就沿用现有错误提示。
+      if (result.mode === "ask") await sessions.switchAssistantMode(result.sessionId, "agent", expected);
+      if (attachGen.current !== gen) return;
       bindKey.current = expected;
-      setAssistantSeat({ seated: false, sessionId: result.sessionId, mode: result.mode || "ask", pageKey: expected, busy: false });
+      setAssistantSeat({ seated: false, sessionId: result.sessionId, mode: "agent", pageKey: expected, busy: false });
       setSessionId(result.sessionId);
       sessions.openAssistantPanel(result.sessionId, page.title);
     } catch (err) {
@@ -288,7 +139,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
       setAssistantSeat({ seated: false, busy: false });
       setError(assistantSessionErrorMessage(err));
     }
-  }, [page, binding, sessions, seat.mode]);
+  }, [page, binding, sessions]);
 
   useEffect(() => {
     if (!open || !page || !binding) return;
@@ -313,9 +164,13 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
     // must move the panel to that page instead of being ignored.
     if (question && question.sequence > openedQuestion.current && question.pageKey === currentPage?.key) {
       openedQuestion.current = question.sequence;
+      if (question.draft && binding) {
+        draftsByBind.current.set(binding.bindKey, question.draft);
+        setDraft(question.draft);
+      }
       openPanel();
     }
-  }, [question, currentPage?.key, openPanel]);
+  }, [question, currentPage?.key, openPanel, binding]);
 
   useEffect(() => {
     if (!open) return;
@@ -348,7 +203,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
       draftsByBind.current.set(binding.bindKey, "");
     }
     setDraft("");
-    setAssistantSeat({ mode: "ask", sessionId: "", seated: false, busy: true });
+    setAssistantSeat({ mode: "agent", sessionId: "", seated: false, busy: true });
   };
 
   const candidates = mentionQuery === null ? [] : registry.query(mentionQuery).filter(item => !chips.some(chip => chip.id === item.id));
@@ -418,12 +273,12 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
       await sessions.startAssistant({
         pageKey: page.key,
         title: page.title,
-        mode: seat.mode || "ask",
+        mode: "agent",
         plugin: binding.plugin,
         target: binding.target,
         prompt: text,
         // “就此追问”选中的原文放在问题的 context 里，必须随本轮页面上下文一起交给助手，否则它不知道问的是哪一段。
-        pageSnapshot: [page.snapshotForSend?.(seat.mode || 'ask', chips) ?? page.context, selectedExcerpt ? activeQuestion?.context : '']
+        pageSnapshot: [page.snapshotForSend?.('agent', chips) ?? page.context, selectedExcerpt ? activeQuestion?.context : '']
           .filter(Boolean).join('\n\n'),
         marketIndices: page.marketIndices,
         companyQuotes: page.companyQuotes,
@@ -489,6 +344,11 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
               </button>
             </div>
           </header>
+          {page.actions?.length ? (
+            <div className="finance-assistant-actions flex flex-wrap gap-2 border-b border-border px-4 py-2">
+              {page.actions.map(action => <button key={action.id} type="button" className="btn btn-sm" disabled={action.disabled} onClick={action.run}>{action.label}</button>)}
+            </div>
+          ) : null}
           {sessionId && binding ? <AssistantTranscript sessionId={sessionId} /> : (
             <div className="flex min-h-0 flex-1 flex-col p-4 text-sm text-muted-foreground">
               <p>{error || "正在准备，马上就好…"}</p>
@@ -543,7 +403,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
               ref={textareaRef}
               value={draft}
               disabled={!ready}
-              placeholder={assistantModeHint(seat.mode)}
+              placeholder={ASSISTANT_PLACEHOLDER}
               aria-label="问助手输入"
               rows={3}
               className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
@@ -573,10 +433,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
               <p className="mt-2 text-xs text-muted-foreground">当前回答结束后可发送</p>
             )}
             <div className="mt-2 flex items-center justify-between gap-2">
-              <div className="flex min-w-0 items-center gap-1">
-                <AssistantModeSelect />
-                {sessionId && <AssistantModelSelect sessionId={sessionId} />}
-              </div>
+              <div className="min-w-0" />
               <button
                 type="button"
                 className="workspace-action workspace-action-compact workspace-action-primary inline-flex items-center gap-1"

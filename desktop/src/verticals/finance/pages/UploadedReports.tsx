@@ -1,8 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState, type DragEvent } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { FileText, LayoutGrid, List, MoreHorizontal, Upload } from 'lucide-react';
 import { PageHeader } from '../components/ui/PageHeader';
+import { WorkspaceTabs } from '../components/ui/WorkspaceTabs';
+import { NotesView } from '../components/NotesPanel';
 import { Disclaimer } from '../components/ui/Disclaimer';
 import { WorkspaceSearch } from '../components/ui/WorkspaceSearch';
 import { StatusPill, TableWrap } from '../components/ui/Card';
@@ -32,7 +34,20 @@ const STATUS_FILTERS = [
 
 interface QueueItem { id: string; name: string; status: 'pending' | 'uploading' | 'saved' | 'failed'; detail: string }
 
+const SEGMENTS = [{ value: 'library', label: '资料' }, { value: 'notes', label: '记录' }] as const;
+type Segment = (typeof SEGMENTS)[number]['value'];
+
+/** 资料：分段「资料」是上传与引用的文件，「记录」是你在各页保存下来的问答和笔记。 */
 export function UploadedReports() {
+  const [params, setParams] = useSearchParams();
+  const tab: Segment = params.get('tab') === 'notes' ? 'notes' : 'library';
+  const segments = <WorkspaceTabs aria-label="资料分段" value={tab} onChange={value => setParams(value === 'notes' ? { tab: 'notes' } : {}, { replace: true })} options={SEGMENTS} />;
+  return tab === 'notes'
+    ? <div className="library-page"><PageHeader title="资料" actions={segments} /><NotesView /></div>
+    : <LibraryList segments={segments} />;
+}
+
+function LibraryList({ segments }: { segments: ReactNode }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const [query, setQuery] = useState('');
@@ -166,7 +181,7 @@ export function UploadedReports() {
   return <div className="library-page">
     <PageHeader title="资料"
       search={<WorkspaceSearch aria-label="搜索资料" placeholder="搜索资料" value={query} onChange={setQuery} />}
-      actions={<button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}><Upload size={14} />上传资料</button>} />
+      actions={<>{segments}<button type="button" className="btn btn-primary" onClick={() => setUploadOpen(true)}><Upload size={14} />上传资料</button></>} />
     <div className="mb-3 flex flex-wrap items-center gap-2">
       <WorkspaceSelect aria-label="按类型筛选" value={type} onChange={setType} options={TYPE_FILTERS} />
       <WorkspaceSelect aria-label="按处理状态筛选" value={status} onChange={setStatus} options={STATUS_FILTERS} />

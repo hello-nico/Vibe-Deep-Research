@@ -4,28 +4,16 @@
 .variable-desk-empty { font-size: 13px; color: var(--text-3); }
 .variable-desk-skeleton { height: 88px; border-radius: 16px; background: var(--fill-1); }
 .variable-desk-cards { display: flex; flex-direction: column; gap: 12px; }
-.variable-card { display: grid; grid-template-rows: auto 1fr auto; gap: 10px; min-height: 120px; padding: 16px 20px; }
-.variable-card-tags { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-.variable-card-sentence { margin: 0; font-size: 13px; line-height: 1.8; }
-.variable-card-sentence b { font-weight: 600; }
+.variable-card { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; }
+.variable-card-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
+.variable-card-touch { margin: 2px 0 0; font-size: 13px; color: var(--text-2); }
+.variable-card-effects { display: flex; flex-direction: column; gap: 6px; padding-top: 10px; border-top: 1px solid var(--line-1); font-size: 13px; line-height: 1.7; }
+.variable-card-effects p { margin: 0; }
+.variable-card-effects b { font-weight: 600; }
 .variable-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-3); }
 .variable-card-actions { display: inline-flex; align-items: center; gap: 8px; }
 .variable-desk .is-up { color: hsl(var(--up)); }
 .variable-desk .is-down { color: hsl(var(--down)); }
-.variable-table { min-width: 760px; }
-.variable-row { cursor: pointer; }
-.variable-row:focus-visible td { outline: 2px solid hsl(var(--brand)); outline-offset: -2px; }
-.variable-row.is-nodata { color: var(--text-3); }
-.variable-name { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
-.variable-source { display: block; font-size: 11px; color: var(--text-3); }
-.variable-muted { color: var(--text-4); }
-.variable-chips { display: flex; flex-wrap: wrap; gap: 6px; }
-.variable-chips .tag { gap: 6px; }
-.variable-chips .tag b { font-weight: 400; }
-.variable-reason { font-size: 12px; color: var(--text-3); }
 .variable-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .variable-detail-grid + .variable-detail-grid { margin-top: 16px; }
 .variable-stale { grid-column: 1 / -1; font-size: 12px; color: hsl(var(--warn)); }
-.variable-coverage { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; }
-.variable-cover-card { padding: 16px 20px; }
-.variable-cover-card p { margin-top: 4px; font-size: 12px; color: var(--text-3); }

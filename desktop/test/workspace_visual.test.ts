@@ -6,8 +6,8 @@ const read = (p: string) => readFileSync(new URL(`../src/${p}`, import.meta.url)
 test("外壳：六个两字入口、图标栏放在外框上，页首无面包屑与小标题", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
   const nav = layout.slice(layout.indexOf("const NAV ="), layout.indexOf("export function Layout")).replace(/^\s*\/\/.*$/gm, "");
-  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["对话", "动态", "洞悉", "关注", "资料", "设置"]);
-  assert.deepEqual([...nav.matchAll(/to: "([^"]+)"/g)].map(m => m[1]), ["/", "/feed", "/insights", "/watch", "/my-reports", "/settings"]);
+  assert.deepEqual([...nav.matchAll(/label: "([^"]+)"/g)].map(m => m[1]), ["对话", "动态", "跟踪", "关注", "资料", "设置"]);
+  assert.deepEqual([...nav.matchAll(/to: "([^"]+)"/g)].map(m => m[1]), ["/", "/feed", "/tracking", "/watch", "/my-reports", "/settings"]);
   assert.match(layout, /id="dsh-settings"/);
   assert.match(layout, /id="dsh-status"/);
   assert.match(layout, /workspace-shell/);
@@ -113,11 +113,9 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /page && renderPanel/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /open && page && renderPanel/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /问助手/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /Ask/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /ensureAssistant/);
   assert.doesNotMatch(read("verticals/finance/dsh/client.tsx"), /conversation\.input\.left[\s\S]*finance-assistant-mode/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /AssistantModeSelect/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /finance-assistant-mode-trigger/);
+  assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /AssistantModeSelect|AssistantModelSelect|finance-assistant-mode-trigger/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /<select/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /attachGen/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /\bsteal\(/);
@@ -147,9 +145,8 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   assert.match(read("verticals/finance/components/conversation-citations.css"), /display: none/);
   assert.match(read("verticals/finance/dsh/panel-conversation.tsx"), /SaveNoteButton/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /user \? "你"/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /assistantModeHint\(seat\.mode\)/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /ASSISTANT_PLACEHOLDER/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /createPortal/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /truncate=\{false\}/);
   assert.match(read("verticals/finance/components/layout/research-surfaces.css"), /finance-assistant-composer/);
   assert.doesNotMatch(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /引用当前页对象后提问/);
   assert.doesNotMatch(read("verticals/finance/lib/pageAssistantObjects.ts"), /已发布版本|当前页/);
@@ -219,28 +216,18 @@ test("资料共用对象卡；关注用表格加个股卡；页面不再引用�
   }
 });
 
-test("洞悉类型切换与动态页共用分段切换", () => {
+test("资料、设置与动态页共用分段切换；跟踪页首只有标题", () => {
   const tabs = read("verticals/finance/components/ui/WorkspaceTabs.tsx");
-  const mine = read("verticals/finance/pages/MyResearch.tsx");
   const intel = read("verticals/finance/pages/Intel.tsx");
   assert.match(tabs, /className="segmented"/);
   assert.match(read("verticals/finance/components/ui/ui.css"), /\.segmented > button\[aria-selected="true"\][^}]*background: var\(--fill-2\)/);
-  assert.match(mine, /WorkspaceTabs/);
-  assert.match(mine, /aria-label="研究类型"/);
-  assert.match(mine, /<PageHeader title="洞悉" \/>/);
-  assert.match(mine, /label: "议题"/);
-  assert.match(mine, /label: "记录"/);
-  assert.match(mine, /label: "任务"/);
-  assert.match(mine, /label: "记忆"/);
-  assert.match(mine, /aria-label="议题状态"/);
-  // 议题沿用任务列表的行样式（状态点 + 标签）；任务、议题、记录共用每页 10 条的分页条（2026-09-26）。
-  assert.match(mine, /className="rl-task rl-topic-row"/);
-  assert.match(mine, /const LIST_PAGE_SIZE = 10;/);
-  assert.equal((mine.match(/<ListPager /g) || []).length, 3);
-  assert.match(mine, /<StatusDot tone=\{taskTone\(status\)\}/);
-  assert.doesNotMatch(mine, /border-b border-border\/30 py-3 last:border-0/);
-  assert.doesNotMatch(mine, /DashboardPanel/);
-  assert.doesNotMatch(mine, /justify-between gap-3">\s*<WorkspaceTabs/);
+  const reports = read("verticals/finance/pages/UploadedReports.tsx");
+  assert.match(reports, /WorkspaceTabs/);
+  assert.match(reports, /label: '记录'/);
+  assert.match(read("verticals/finance/dsh/NativeDsh.tsx"), /label: "记忆"/);
+  const tracking = read("verticals/finance/pages/Tracking.tsx");
+  assert.match(tracking, /<PageHeader title="跟踪" \/>/);
+  assert.doesNotMatch(tracking, /WorkspaceTabs/);
   assert.match(intel, /WorkspaceTabs/);
   assert.match(intel, /aria-label="资讯栏目"/);
   assert.doesNotMatch(intel, /NAV_GROUPS/);

@@ -6,9 +6,23 @@ import { createServer as createHttpServer } from 'node:http';
 import { createServer } from 'vite';
 import * as React from 'react';
 import { Window } from 'happy-dom';
-import { CompanyPageStore, companyPageStore, companyPageProgress, type CompanyPageTask } from '../src/verticals/finance/lib/companyPage.ts';
+import { CompanyPageStore, companyPageStore, companyPageProgress, companyPageTaskOf, type CompanyPageTask } from '../src/verticals/finance/lib/companyPage.ts';
 import { companyPageFixture, fixtureData, fixturePacket, fixturePageResearch, fixtureResearch, fixtureScenario } from './fixtures/company_page.ts';
-import type { ReportTaskStore } from '../src/verticals/finance/lib/reportTasks.ts';
+
+const STEP_LABELS = ['取数', '读报告', '计算关键变量', '估值与论点', '保存到个股页', '整理结论'];
+/** A host research-task record in the shape of the task doc R2. */
+function taskRecord(over: Record<string, unknown> = {}) {
+  const status = (over.status as string) ?? 'running';
+  const current = (over.current_step as number) ?? 3;
+  return { task_id: 'task:0123456789abcdef', kind: 'company_research', symbol: '600863.SH', slug: 'companies/600863-sh', title: '公司研究 · 华能蒙电',
+    status, current_step: current,
+    steps: STEP_LABELS.map((label, index) => ({ key: `step${index + 1}`, label, attempts: 0, finished_at: null, outputs: {},
+      status: index + 1 < current ? 'done' : index + 1 === current ? (status === 'running' ? 'running' : status === 'failed' ? 'failed' : 'pending') : 'pending' })),
+    sessions: ['first', 'current'], host_boot_id: 'boot', trigger_note: null, reason: null,
+    created_at: new Date().toISOString(), updated_at: new Date().toISOString(), finished_at: null, ...over };
+}
+type TaskRecord = ReturnType<typeof taskRecord>;
+const isTasksUrl = (url: unknown) => String(url).startsWith('/finance-research-tasks');
 import { researchRoute } from '../dsh/finance-ui/research.mjs';
 
 test('名册读取不启动；首次打开并发读取、重复打开都只启动一次', async () => {
@@ -44,7 +58,7 @@ test('接口读取失败不能当作首次打开；已有运行、失败、中�
   failedRead.services.readResearch = async () => { throw new Error('fixture outage'); };
   await new CompanyPageStore(failedRead.services, '600863', '华能蒙电').refresh(true);
   assert.equal(failedRead.starts.length, 0);
-  for (const status of ['researching', 'failed', 'cancelled', 'partial', 'awaiting_authorization'] as const) {
+  for (const status of ['researching', 'interrupted', 'failed', 'cancelled'] as const) {
     const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
     fixture.setTask({ sessionId: status, status, stage: status, startedAt: new Date().toISOString() });
     await new CompanyPageStore(fixture.services, '600863', '华能蒙电').refresh(true);
@@ -53,7 +67,7 @@ test('接口读取失败不能当作首次打开；已有运行、失败、中�
 });
 test('一天前（含 T7 之前）未成功结束的研究不挡首次打开；仍在运行的老任务照样不重复创建', async () => {
   const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
-  for (const status of ['failed', 'cancelled', 'partial', 'awaiting_authorization', 'unconfirmed', 'settling'] as const) {
+  for (const status of ['failed', 'cancelled'] as const) {
     const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
     fixture.setTask({ sessionId: status, status, stage: status, startedAt: old });
     const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
@@ -64,6 +78,10 @@ test('一天前（含 T7 之前）未成功结束的研究不挡首次打开；�
   running.setTask({ sessionId: 'old-running', status: 'researching', stage: '正在研究', startedAt: old });
   await new CompanyPageStore(running.services, '600863', '华能蒙电').refresh(true);
   assert.equal(running.starts.length, 0);
+  const resuming = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+  resuming.setTask({ sessionId: 'old-interrupted', status: 'interrupted', stage: '正在接着上次的进度继续', startedAt: old });
+  await new CompanyPageStore(resuming.services, '600863', '华能蒙电').refresh(true);
+  assert.equal(resuming.starts.length, 0);
 });
 test('启动失败不循环自动重试；任务绑定回读暂未到达时保留进行中状态', async () => {
   const fixture = companyPageFixture();
@@ -111,12 +129,38 @@ test('订阅中的任务自动回读完成结果；无订阅停止轮询，不�
   assert.equal(companyPageProgress(store.getSnapshot()), null);
   stop(); t.mock.timers.reset();
 });
-test('后台待确认、部分完成、无新增与中止保留各自语义', () => {
-  for (const [status, label] of [['awaiting_authorization', '研究草案待确认'], ['partial', '部分内容已整理'], ['no_increment', '没有新增内容'], ['interrupted', '研究已中止']] as const) {
-    assert.ok(companyPageProgress({ loaded: true, research: null, stale: false, task: { sessionId: 'state', status, stage: '' } })?.includes(label));
+test('五种记录状态对应的页面文案：进行中显示第几步，接续、失败、中止各一句，完成不显示', () => {
+  const read = (over: Record<string, unknown>) => companyPageTaskOf(taskRecord(over) as never);
+  assert.equal(read({ status: 'running', current_step: 3 }).stage, '第 3 步，共 6 步 · 计算关键变量');
+  assert.equal(read({ status: 'running', current_step: 1 }).stage, '第 1 步，共 6 步 · 取数');
+  assert.equal(read({ status: 'interrupted' }).stage, '正在接着上次的进度继续');
+  assert.equal(read({ status: 'failed', reason: '最新定期报告还没入库' }).stage, '最新定期报告还没入库');
+  assert.equal(read({ status: 'failed' }).stage, '这次研究未完成，可以稍后重新研究');
+  assert.equal(read({ status: 'cancelled' }).stage, '研究已中止');
+  assert.equal(read({ status: 'completed' }).stage, '');
+  assert.deepEqual([read({ status: 'running' }).status, read({ status: 'interrupted' }).status, read({ status: 'failed' }).status, read({ status: 'cancelled' }).status, read({ status: 'completed' }).status],
+    ['researching', 'interrupted', 'failed', 'cancelled', 'completed']);
+  assert.equal(read({ sessions: ['a', 'b', 'c'] }).sessionId, 'c');
+  const show = (over: Record<string, unknown>) => companyPageProgress({ loaded: true, research: null, stale: false, task: read(over) });
+  assert.equal(show({ status: 'running', current_step: 2 }), '第 2 步，共 6 步 · 读报告');
+  assert.equal(show({ status: 'interrupted' }), '正在接着上次的进度继续');
+  assert.equal(show({ status: 'failed', reason: '最新定期报告还没入库' }), '最新定期报告还没入库');
+  assert.equal(show({ status: 'cancelled' }), '研究已中止');
+  assert.equal(show({ status: 'completed' }), null);
+  assert.throws(() => companyPageTaskOf({ ...taskRecord(), status: 'settling' } as never));
+  // 页面文案里没有任何技术细节。
+  for (const over of [{ status: 'running' }, { status: 'interrupted' }, { status: 'failed' }, { status: 'cancelled' }]) {
+    assert.doesNotMatch(show(over) ?? '', /session|task|ensure|calculate|ref|ID|[a-z]{4,}/i);
   }
-  assert.equal(companyPageProgress({ loaded: true, research: null, stale: false, task: { sessionId: 'state', status: 'skipped', stage: '' } }), '本次研究未整理');
-  assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: { sessionId: 'state', status: 'skipped', stage: '本次研究未整理' } }), null);
+});
+test('整理结论这一步被跳过：任务仍是完成，只在任务上标注整理未完成', () => {
+  const record = taskRecord({ status: 'completed', current_step: 6 });
+  record.steps[5]!.status = 'skipped';
+  const task = companyPageTaskOf(record as never);
+  assert.equal(task.status, 'completed');
+  assert.equal(task.settlementFailed, true);
+  record.steps[5]!.status = 'done';
+  assert.equal(companyPageTaskOf(record as never).settlementFailed, undefined);
 });
 
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>;
@@ -426,95 +470,86 @@ test('默认读取接入 Backend GET；后台启动沿用 DSH 身份，不导航
   globalThis.fetch = async (url, init) => {
     assert.equal(init?.method ?? 'GET', 'GET');
     requested.push(String(url));
-    return Response.json(String(url) === '/finance-report-tasks' ? { sessions: {} } : fixturePageResearch);
+    return Response.json(isTasksUrl(url) ? { items: [] } : fixturePageResearch);
   };
   try {
     const sessions = { taskRunning: () => false, start: async (...args: unknown[]) => { calls.push(args); return { sessionId: 'background', status: 'started' }; } };
     const services = serviceModule.createCompanyPageServices(sessions);
     assert.deepEqual(await services.readResearch('600863'), { ...fixturePageResearch, task: undefined });
-    assert.deepEqual(requested, ['/finance-research/wiki/companies/600863.SH/page-research', '/finance-report-tasks']);
+    assert.deepEqual(requested, ['/finance-research/wiki/companies/600863.SH/page-research', '/finance-research-tasks?symbol=600863.SH&limit=1']);
     assert.equal(calls.length, 0);
     await services.startResearch('600863', '华能蒙电', 'v1');
     assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0]![2], { navigate: false, task: { kind: 'research', slug: 'companies/600863-sh', symbol: '600863', title: '公司研究 · 华能蒙电' } });
+    assert.deepEqual(calls[0]![2], { navigate: false, task: { kind: 'research', slug: 'companies/600863-sh', symbol: '600863.SH', title: '公司研究 · 华能蒙电' } });
     const source = readFileSync(new URL('../src/verticals/finance/pages/CompanyWiki.tsx', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /WikiReader|WikiViewTabs|\/wiki\/reports|\/wiki\/pages\/ensure/);
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('任务只合并同公司最新 DSH 研究绑定：保存 completed、执行 completed 与其他终态不混淆', async () => {
+test('任务只读宿主记录：按带交易所后缀的代码取最新一条，页面不再自行推断状态', async () => {
   const originalFetch = globalThis.fetch;
-  const bindings: ReportTaskStore = { sessions: {
-    old: { kind: 'research', slug: 'companies/600863-sh', bound_at: '2026-10-09T01:00:00Z', settlement_status: 'completed' },
-    current: { kind: 'research', slug: 'companies/600863-sh', bound_at: '2026-10-10T01:00:00Z', run_status: 'completed' },
-    report: { kind: 'report', slug: 'companies/600863-sh', bound_at: '2026-10-11T01:00:00Z', run_status: 'running' },
-    other: { kind: 'research', slug: 'companies/000001-sz', bound_at: '2026-10-11T01:00:00Z', run_status: 'running' },
-  } };
-  let running = false;
-  globalThis.fetch = async url => Response.json(String(url) === '/finance-report-tasks' ? bindings : { ...fixturePageResearch, task: { sessionId: 'forged-backend-task', status: 'researching', stage: '伪造进度' } });
+  const requested: string[] = [];
+  let record: TaskRecord | null = taskRecord();
+  globalThis.fetch = async url => {
+    requested.push(String(url));
+    return Response.json(isTasksUrl(url) ? { items: record ? [record] : [] } : { ...fixturePageResearch, task: { sessionId: 'forged-backend-task', status: 'researching', stage: '伪造进度' } });
+  };
   try {
-    const services = serviceModule.createCompanyPageServices({ taskRunning: () => running });
-    const binding = bindings.sessions.current;
-    for (const [settlement, runStatus, isRunning, expected] of [
-      ['completed', 'completed', false, 'completed'],
-      [undefined, 'completed', false, 'unconfirmed'],
-      ['running', 'completed', false, 'settling'],
-      ['partial', 'completed', false, 'partial'],
-      ['awaiting_authorization', 'completed', false, 'awaiting_authorization'],
-      ['failed', 'completed', false, 'completed'],
-      ['completed', 'failed', false, 'failed'],
-      ['completed', 'cancelled', false, 'cancelled'],
-      ['completed', 'running', true, 'researching'],
+    // 会话是否在跑、绑定里的时间都不再参与判断。
+    const services = serviceModule.createCompanyPageServices({ taskRunning: () => { throw new Error('页面不应再按会话状态推断'); } });
+    for (const [over, status, stage, session] of [
+      [{ status: 'running', current_step: 2 }, 'researching', '第 2 步，共 6 步 · 读报告', 'current'],
+      [{ status: 'interrupted' }, 'interrupted', '正在接着上次的进度继续', 'current'],
+      [{ status: 'failed', reason: '最新定期报告还没入库' }, 'failed', '最新定期报告还没入库', 'current'],
+      [{ status: 'cancelled', sessions: ['only'] }, 'cancelled', '研究已中止', 'only'],
+      [{ status: 'completed' }, 'completed', '', 'current'],
     ] as const) {
-      binding.settlement_status = settlement;
-      binding.settlement_updated_at = new Date().toISOString();
-      binding.run_status = runStatus;
-      running = isRunning;
-      const result = await services.readResearch('600863');
-      assert.equal(result.task.sessionId, 'current');
-      assert.equal(result.task.status, expected);
-      assert.equal(result.task.stage, companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: { ...result.task, stage: '' } }) ?? '');
+      record = taskRecord(over);
+      const { task } = await services.readResearch('600863');
+      assert.equal(task.status, status);
+      assert.equal(task.stage, stage);
+      assert.equal(task.sessionId, session);
+    }
+    record = null;
+    assert.equal((await services.readResearch('600863')).task, undefined);
+    assert.ok(requested.filter(isTasksUrl).every(url => url === '/finance-research-tasks?symbol=600863.SH&limit=1'));
+    assert.ok(!requested.some(url => url === '/finance-report-tasks'));
+    const source = readFileSync(new URL('../src/verticals/finance/lib/companyPage.ts', import.meta.url), 'utf8');
+    assert.doesNotMatch(source, /RESEARCH_START_GRACE_MS/);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test('读取记录失败、状态不认识或回包不对：显示研究暂不可用，不当作没有研究', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    for (const reply of [() => Response.json({ detail: 'fixture outage' }, { status: 503 }), () => Response.json({ sessions: {} }), () => Response.json({ items: [{ ...taskRecord(), status: 'settling' }] })]) {
+      globalThis.fetch = async url => isTasksUrl(url) ? reply() : Response.json(fixturePageResearch);
+      const services = serviceModule.createCompanyPageServices({ taskRunning: () => false });
+      await assert.rejects(services.readResearch('600863'));
     }
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('知识整理失败不算研究失败：研究已保存时页面显示完成，只在任务上标注整理未完成', async () => {
+test('整理结论被跳过时页面照常显示完成；研究本身失败即使有旧结论也显示失败', async () => {
   const originalFetch = globalThis.fetch;
-  const binding = { kind: 'research', slug: 'companies/600863-sh', bound_at: '2026-10-10T00:00:00Z', run_status: 'completed', settlement_status: 'failed' };
-  const page: unknown = fixturePageResearch;
-  globalThis.fetch = async url => Response.json(String(url) === '/finance-report-tasks' ? { sessions: { current: binding } } : page);
+  let record = taskRecord({ status: 'completed', current_step: 6 });
+  record.steps[5]!.status = 'skipped';
+  globalThis.fetch = async url => Response.json(isTasksUrl(url) ? { items: [record] } : fixturePageResearch);
   try {
     const services = serviceModule.createCompanyPageServices({ taskRunning: () => false });
-    for (const settlement of ['failed', 'cancelled', 'interrupted']) {
-      binding.settlement_status = settlement;
-      const { task } = await services.readResearch('600863');
-      assert.equal(task.status, 'completed', settlement);
-      assert.equal(task.settlementFailed, true, settlement);
-      assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task }), null, settlement);
-    }
-    // 保存时间早于这次研究的开始：研究没有保存新结论，整理失败仍按失败显示。
-    binding.settlement_status = 'failed';
-    binding.bound_at = new Date().toISOString();
-    const unsaved = (await services.readResearch('600863')).task;
-    assert.equal(unsaved.status, 'failed');
-    assert.equal(unsaved.settlementFailed, undefined);
-    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: unsaved }), '这次研究未完成');
-    // 研究进程本身失败或中止，即使有旧结论也不算完成。
-    binding.bound_at = '2026-10-10T00:00:00Z';
-    for (const runStatus of ['failed', 'cancelled']) {
-      binding.run_status = runStatus;
-      assert.equal((await services.readResearch('600863')).task.status, runStatus);
-    }
-    // 整理成功时不带整理失败标记。
-    binding.run_status = 'completed'; binding.settlement_status = 'completed';
-    assert.equal((await services.readResearch('600863')).task.settlementFailed, undefined);
-    // 整理仍在运行：保持「正在整理」。
-    binding.settlement_status = 'running'; (binding as Record<string, unknown>).settlement_updated_at = new Date().toISOString();
-    assert.equal((await services.readResearch('600863')).task.status, 'settling');
+    const { task } = await services.readResearch('600863');
+    assert.equal(task.status, 'completed');
+    assert.equal(task.settlementFailed, true);
+    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task }), null);
+    record = taskRecord({ status: 'failed', current_step: 3 });
+    const failed = (await services.readResearch('600863')).task;
+    assert.equal(failed.status, 'failed');
+    assert.equal(failed.settlementFailed, undefined);
+    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: failed }), '这次研究未完成，可以稍后重新研究');
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('重新研究走 startResearch：进行中不重复；发起后旧任务回读不盖住新任务；每次点击都可再发起', async () => {
+test('重新研究走 startResearch：进行中不重复；发起后以记录为准；每次点击都可再发起', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
   const done: CompanyPageTask = { sessionId: 'old-session', status: 'completed', stage: '', startedAt: '2026-10-10T00:00:00Z' };
   fixture.setTask(done);
@@ -527,13 +562,9 @@ test('重新研究走 startResearch：进行中不重复；发起后旧任务回
   assert.deepEqual(fixture.starts, [{ symbol: '600863', name: '华能蒙电', version: 'v1' }]);
   assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
   assert.equal(store.getSnapshot().task?.status, 'researching');
-  // 新任务的绑定还没读到，读回仍是旧任务：保持新任务进行中。
-  fixture.setTask(done);
-  await store.refresh();
-  assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
   await store.restart();
   assert.equal(fixture.starts.length, 1, '进行中的研究不重复启动');
-  // 新绑定读到后以它为准；完成后可再次重新研究。
+  // 记录读到后以它为准；完成后可再次重新研究。
   fixture.setTask({ ...fixture.task, status: 'completed' });
   await store.refresh();
   assert.equal(store.getSnapshot().task?.status, 'completed');
@@ -546,17 +577,17 @@ test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不�
   const originalFetch = globalThis.fetch;
   const listeners = new Set<() => void>();
   const newer = { ...fixtureResearch, researchedAt: '2026-10-11T01:00:00Z', basisVersion: 'c'.repeat(64) };
-  const bindings: ReportTaskStore = { sessions: { current: { kind: 'research', slug: 'companies/600863-sh', run_status: 'running', bound_at: new Date().toISOString() } } };
+  let record = taskRecord();
   let pageReads = 0, starts = 0;
   const stops: (() => void)[] = [];
   globalThis.fetch = async url => {
-    if (String(url) === '/finance-report-tasks') return Response.json(bindings);
+    if (isTasksUrl(url)) return Response.json({ items: [record] });
     pageReads++;
     return Response.json({ research: pageReads <= 2 ? fixtureResearch : newer, stale: pageReads <= 2, basisVersion: newer.basisVersion });
   };
   try {
     const services = serviceModule.createCompanyPageServices({
-      taskRunning: () => bindings.sessions.current.run_status === 'running',
+      taskRunning: () => false,
       subscribeSessionList: (listener: () => void) => { listeners.add(listener); return () => listeners.delete(listener); },
       start: async () => { starts++; throw new Error('已有运行任务不能重复创建'); },
     });
@@ -569,8 +600,7 @@ test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不�
     await store.refresh(true);
     assert.deepEqual(store.getSnapshot().research, fixtureResearch);
     assert.equal(store.getSnapshot().task?.status, 'researching');
-    bindings.sessions.current.run_status = 'completed';
-    bindings.sessions.current.settlement_status = 'completed';
+    record = taskRecord({ status: 'completed', current_step: 6 });
     listeners.forEach(listener => listener());
     await completed;
     assert.equal(pageReads, 3);
@@ -595,8 +625,8 @@ test('Backend 404/503、无效回包或任务投影失败显示研究暂不可�
   try {
     for (const failure of ['404', '503', 'malformed', 'tasks'] as const) {
       globalThis.fetch = async url => {
-        if (failure === 'tasks' && String(url) === '/finance-report-tasks') return Response.json({ detail: 'fixture task outage' }, { status: 503 });
-        if (String(url) === '/finance-report-tasks') return Response.json({ sessions: {} });
+        if (failure === 'tasks' && isTasksUrl(url)) return Response.json({ detail: 'fixture task outage' }, { status: 503 });
+        if (isTasksUrl(url)) return Response.json({ items: [] });
         if (failure === 'malformed') return Response.json({ items: [] });
         if (failure === 'tasks') return Response.json({ research: null, stale: false, basisVersion: 'a'.repeat(64) });
         return Response.json({ detail: 'fixture backend outage' }, { status: Number(failure) });
@@ -618,24 +648,23 @@ test('Backend 404/503、无效回包或任务投影失败显示研究暂不可�
 
 test('完成后的补读失败保留旧判断并显示研究暂不可用，不重新启动', async () => {
   const originalFetch = globalThis.fetch;
-  const bindings: ReportTaskStore = { sessions: { current: { kind: 'research', slug: 'companies/600863-sh', run_status: 'running', bound_at: new Date().toISOString() } } };
+  let record = taskRecord();
   let pageReads = 0, starts = 0;
   globalThis.fetch = async url => {
-    if (String(url) === '/finance-report-tasks') return Response.json(bindings);
+    if (isTasksUrl(url)) return Response.json({ items: [record] });
     pageReads++;
     return pageReads === 3 ? Response.json({ detail: 'fixture readback outage' }, { status: 503 }) : Response.json(fixturePageResearch);
   };
   try {
     const services = serviceModule.createCompanyPageServices({
-      taskRunning: () => bindings.sessions.current.run_status === 'running',
+      taskRunning: () => false,
       start: async () => { starts++; throw new Error('补读故障不能重新研究'); },
     });
     const fixture = companyPageFixture();
     fixture.services.readResearch = services.readResearch;
     fixture.services.startResearch = services.startResearch;
     await mountPage(fixture);
-    bindings.sessions.current.run_status = 'completed';
-    bindings.sessions.current.settlement_status = 'completed';
+    record = taskRecord({ status: 'completed', current_step: 6 });
     const model = await server.ssrLoadModule('/src/verticals/finance/lib/companyPage.ts');
     await React.act(async () => model.companyPageStore(fixture.services, '600863', '华能蒙电（夹具）').refresh());
     assert.equal(pageReads, 3);
@@ -648,7 +677,7 @@ test('接通后首次打开只在研究缺失或过期时，每个 basisVersion 
   const originalFetch = globalThis.fetch;
   let response = { research: null as typeof fixtureResearch | null, stale: false, basisVersion: 'a'.repeat(64) };
   let starts = 0;
-  globalThis.fetch = async url => Response.json(String(url) === '/finance-report-tasks' ? { sessions: {} } : response);
+  globalThis.fetch = async url => Response.json(isTasksUrl(url) ? { items: [] } : response);
   try {
     const services = serviceModule.createCompanyPageServices({ taskRunning: () => false, start: async () => { starts++; return { sessionId: `fixture-${starts}`, status: 'started' }; } });
     const store = new CompanyPageStore(services, '600863', '华能蒙电');

@@ -47,7 +47,7 @@ test('同类对象并发补名复用一次 Wiki 列表请求', async () => {
 test('研究材料页面已下线，旧路径由通配路由重定向', () => {
   const source = readFileSync(new URL('../src/verticals/finance/router.tsx', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /path: "\/(?:my-research|insights)\/material"/);
-  assert.match(source, /path: "\/insights\/\*", element: <Navigate to="\/insights" replace \/>/);
+  assert.match(source, /path: "\/insights\/\*", element: <Navigate to="\/tracking" replace \/>/);
   assert.match(source, /path: "\/my-research\/\*", element: <LegacyRedirect \/>/);
 });
 

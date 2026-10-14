@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { Link, Outlet, useLocation, useNavigation } from "react-router-dom";
-import { Activity, FileText, Lightbulb, MessagesSquare, Settings, Star } from "lucide-react";
+import { Activity, Crosshair, FileText, MessagesSquare, Settings, Star } from "lucide-react";
 import { BrandMark } from "@/components/ui/BrandMark";
 import { ConversationWorkspace } from "./ConversationWorkspace";
 import { FinanceAssistantSurface } from './FinanceAssistantSurface';
@@ -12,13 +12,12 @@ import { useDarkMode } from "@/hooks/useDarkMode";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { TaskNotices } from "../ui/TaskNotices";
 import { WikiDrawer } from '../WikiDrawer';
-import { loadPendingItems, pendingCount } from '../../lib/pendingResearch';
 
-/** 六个两字入口：按用户与 Agent 的关系收敛（对话 / 动态 / 洞悉 / 关注 / 资料 / 设置）。 */
+/** 六个两字入口：按用户与 Agent 的关系收敛（对话 / 动态 / 跟踪 / 关注 / 资料 / 设置）。 */
 const NAV = [
   { to: "/", icon: MessagesSquare, label: "对话", match: (p: string) => p === "/" },
   { to: "/feed", icon: Activity, label: "动态", match: (p: string) => p === "/feed" || p.startsWith("/feed/") },
-  { to: "/insights", icon: Lightbulb, label: "洞悉", match: (p: string) => p === "/insights" || p.startsWith("/insights/") },
+  { to: "/tracking", icon: Crosshair, label: "跟踪", match: (p: string) => p === "/tracking" || p.startsWith("/tracking/") },
   { to: "/watch", icon: Star, label: "关注", match: (p: string) => p === "/watch" || p.startsWith("/watch/") },
   { to: "/my-reports", icon: FileText, label: "资料", match: (p: string) => p === "/my-reports" || p.startsWith("/my-reports/") },
   { to: "/settings", icon: Settings, label: "设置", match: (p: string) => p === "/settings" },
@@ -26,16 +25,6 @@ const NAV = [
 
 export function Layout() {
   const { pathname } = useLocation();
-  const [pendingNavCount, setPendingNavCount] = useState<number>();
-  useEffect(() => {
-    let active = true;
-    const read = () => { if (document.visibilityState === 'visible') void loadPendingItems().then(items => { if (active) setPendingNavCount(pendingCount(items)); }).catch(() => { if (active) setPendingNavCount(undefined); }); };
-    read();
-    const timer = window.setInterval(read, 30_000);
-    document.addEventListener('visibilitychange', read);
-    window.addEventListener('finance-pending-changed', read);
-    return () => { active = false; window.clearInterval(timer); document.removeEventListener('visibilitychange', read); window.removeEventListener('finance-pending-changed', read); };
-  }, [pathname]);
   const navigation = useNavigation();
   useDarkMode();
   const mainRef = useRef<HTMLElement | null>(null);
@@ -57,7 +46,6 @@ export function Layout() {
               const active = match(pathname);
               return <Link key={to} to={to} aria-label={label} aria-current={active ? "page" : undefined} className="workspace-nav-link relative">
                 <Icon aria-hidden="true" /><span>{label}</span>
-                {to === '/insights' && pendingNavCount ? <span className="workspace-nav-badge" aria-label={`${pendingNavCount} 项待处理`}>{pendingNavCount}</span> : null}
               </Link>;
             })}
           </nav>

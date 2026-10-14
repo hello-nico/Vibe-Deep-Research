@@ -117,14 +117,42 @@ export function cardPieces(card: VariableCard): SentencePiece[] {
     { text: `${card.name}${when}${directionOf(card.change)} ` }, { text: sizeOf(card), strong: true },
     { text: `（${priceText(card.from)} → ${priceText(card.to)}${pct}）` },
   ];
-  card.companies.forEach((company, index) => {
-    const t = tone(company.impact);
-    pieces.push({ text: `${index ? '；' : '，'}${shortName(company.name)}年化归母净利约 ` }, { text: impactText(company.impact), strong: true, tone: t });
-    if (company.pct_of_base != null) pieces.push({ text: `（占基数 ${percentValue(company.pct_of_base)}）` });
-    if (company.neutral_price_delta != null) pieces.push({ text: '，中性价约 ' }, { text: yuanPerShareText(company.neutral_price_delta), strong: true, tone: tone(company.neutral_price_delta) });
-  });
+  card.companies.forEach((company, index) => pieces.push({ text: index ? '；' : '，' }, ...companyPieces(company)));
   pieces.push({ text: '。' });
   return pieces;
+}
+/** 某家公司的影响：全年利润、占基数、中性价；动态卡展开后一家一行。 */
+export function companyPieces(company: VariableCardCompany): SentencePiece[] {
+  const pieces: SentencePiece[] = [{ text: `${shortName(company.name)}年化归母净利约 ` }, { text: impactText(company.impact), strong: true, tone: tone(company.impact) }];
+  if (company.pct_of_base != null) pieces.push({ text: `（占基数 ${percentValue(company.pct_of_base)}）` });
+  if (company.neutral_price_delta != null) pieces.push({ text: '，中性价约 ' }, { text: yuanPerShareText(company.neutral_price_delta), strong: true, tone: tone(company.neutral_price_delta) });
+  return pieces;
+}
+
+/** 动态卡标题：事情本身，不带金额。例「沪铝主力一天跌 445 元/吨（−1.9%）」。 */
+export function cardTitle(card: VariableCard): string {
+  const when = card.rule === 'five_day' ? '五天累计' : '一天';
+  const pct = toNumber(card.change_pct);
+  return `${card.name}${when}${directionOf(card.change)} ${sizeOf(card)}${pct == null ? '' : `（${signOf(pct)}${plainNumber(Math.abs(pct) * 100, 1)}%）`}`;
+}
+/** 第二行：碰到哪些关注公司、对利润的方向；各家不一致时只说方向不同。 */
+export function cardTouch(card: VariableCard): string {
+  const directions = new Set(card.companies.map(company => tone(company.impact)).filter(Boolean));
+  const effect = directions.size > 1 ? ' · 对利润影响方向不同' : directions.has('up') ? ' · 对利润偏正面' : directions.has('down') ? ' · 对利润偏负面' : '';
+  return `关注中：${card.companies.map(company => shortName(company.name)).join('、')}${effect}`;
+}
+
+/** 跟踪页「正在盯的」一行的最新情况：最近 20 个交易日有卡片就写那一次，没有写平静。 */
+export function variableLine(variable: TrackedVariable, cards: readonly VariableCard[]): string {
+  if (variable.status === 'no_data') return '没有公开行情，跟着财报更新';
+  if (variable.status === 'gap') return '暂时取不到行情';
+  const card = cards.filter(item => item.var_id === variable.var_id).sort((a, b) => b.date.localeCompare(a.date))[0];
+  return card ? `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}，已提醒` : '本周没有大的波动';
+}
+/** 有卡片的变量排前，其余保持原顺序（no_data 本来就在最后）。 */
+export function orderWatching(variables: readonly TrackedVariable[], cards: readonly VariableCard[]): TrackedVariable[] {
+  const alerted = new Set(cards.map(card => card.var_id));
+  return [...variables.filter(item => alerted.has(item.var_id)), ...variables.filter(item => !alerted.has(item.var_id))];
 }
 export const cardSentence = (card: VariableCard) => cardPieces(card).map(piece => piece.text).join('');
 

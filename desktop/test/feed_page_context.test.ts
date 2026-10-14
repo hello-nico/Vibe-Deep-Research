@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { feedPageContext, investmentNewsPageContext } from '../src/verticals/finance/lib/feedPageContext.ts';
-import { assistantIntro, assistantModeHint } from '../src/verticals/finance/assistant/sessions.ts';
+import { ASSISTANT_PLACEHOLDER, assistantIntro } from '../src/verticals/finance/assistant/sessions.ts';
 import { assistantBindingForPage } from '../src/verticals/finance/assistant/binding.ts';
 import { companyQuoteObject, dailyReviewQuoteObjects, wikiAssistantObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
 
@@ -126,10 +126,8 @@ test('问助手开场介绍按页面区分，对象提示不出现已发布版�
   assert.equal(wiki?.hint, undefined);
   assert.doesNotMatch(JSON.stringify(wiki), /已发布版本|当前页/);
 });
-test('问助手输入框按 Ask/Agent 各给一句权限说明', () => {
-  assert.match(assistantModeHint('ask'), /Ask 即答.*本页内容/);
-  assert.match(assistantModeHint('agent'), /Agent 深查.*查资料/);
-  assert.notEqual(assistantModeHint('ask'), assistantModeHint('agent'));
+test('问助手输入框不分模式，只给一句提示', () => {
+  assert.equal(ASSISTANT_PLACEHOLDER, '问问这一页的内容，或让它帮你查');
 });
 test('大盘可见个股登记为公司行情身份，不把连板数字当版本，也不造涨停榜集合', () => {
   assert.equal(companyQuoteObject({ symbol: '002403', name: '爱仕达' })?.id, 'company:002403.SZ');

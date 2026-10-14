@@ -71,12 +71,19 @@ export function CompanyWiki() {
     catch { setError('关注状态暂时未能更新'); }
   };
   const pageKey = `company-wiki:${slug}`;
-  useAiPage({ key: pageKey, title: `个股研究 · ${title}`,
-    context: buildDirectorySnapshot({ heading: `${title} 个股页：商业模式、利润变量、弹性、现金、估值与观察。`, items: [{ title, id: slug }], loading: false }),
-    suggestions: ['这家公司的利润最取决于什么？'] });
   useAiPageObjects(pageKey, [companyQuoteObject({ symbol, name: title })].filter(item => item !== null));
   const page = useCompanyPageState(services, symbol, title);
   const researching = companyPageTaskActive(page.task);
+  const store = companyPageStore(services, symbol, title);
+  const revert = async () => { try { await services.revertResearch?.(symbol, page.researchVersion); await store.refresh(); } catch (error) { console.warn('[finance/company-page] revert failed', error); } };
+  // 问助手面板顶部的两个按钮，与页面上的「重新研究」「撤回」是同一个入口。
+  useAiPage({ key: pageKey, title,
+    context: buildDirectorySnapshot({ heading: `${title} 个股页：商业模式、利润变量、弹性、现金、估值与观察。`, items: [{ title, id: slug }], loading: false }),
+    suggestions: ['这家公司的利润最取决于什么？'],
+    actions: [
+      { id: 'research', label: '重新研究', disabled: researching || !page.loaded || Boolean(page.error), run: () => void store.restart() },
+      { id: 'revert', label: '撤回上次更新', disabled: !page.canRevert || !services.revertResearch, run: () => void revert() },
+    ] });
   const openTask = (sessionId: string) => sessions.openTaskProcess({ sessionId, title: '个股页研究', kind: 'research',
     ...(page.task?.sessionId === sessionId && page.task.settlementFailed ? { settlementFailed: true } : {}) });
   const actions = [

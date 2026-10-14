@@ -1,12 +1,9 @@
 import { aShareQualified, companySlug, researchRead } from './research';
-import { latestResearch, loadReportTasks } from './reportTasks';
 import type { ResearchSessions } from '../dsh/research-session';
 import { api } from './api';
 import { packetNeedsEnsure, scenarioTable, shanghaiDay, type DataPacket } from './companyPacket';
-import { companyPageProgress, type CompanyPageResearchRead, type CompanyPageServices, type CompanyPageTask } from './companyPage';
+import { companyPageTaskOf, type CompanyPageResearchRead, type CompanyPageServices, type ResearchTaskRecord } from './companyPage';
 
-/** Settlement outcomes that mean "knowledge organising did not finish", as opposed to "the research did not finish". */
-const SETTLEMENT_FAILURES = new Set<string>(['failed', 'cancelled', 'interrupted']);
 const ensuredDay = new Map<string, string>();
 const ensuring = new Map<string, Promise<void>>();
 const packetListeners = new Map<string, Set<() => void>>();
@@ -54,6 +51,14 @@ async function openPacket(symbol: string, signal?: AbortSignal) {
   const packet = await readPacket(symbol, asOf, signal);
   void ensureOnce(symbol, asOf, packet);
   return packet;
+}
+
+/** The host keeps the research-task record; the page only reads the newest one for the company. */
+async function latestTask(code: string) {
+  const response = await fetch(`/finance-research-tasks?symbol=${encodeURIComponent(code)}&limit=1`);
+  const payload = await response.json().catch(() => null) as { items?: ResearchTaskRecord[] } | null;
+  if (!response.ok || !Array.isArray(payload?.items)) throw new Error('研究记录读取失败');
+  return payload.items[0] ? companyPageTaskOf(payload.items[0]) : undefined;
 }
 
 export function createCompanyPageServices(sessions: ResearchSessions): CompanyPageServices {
@@ -104,19 +109,7 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
       if (typeof basisVersion !== 'string' || !basisVersion || typeof stale !== 'boolean' || !(research === null || research && typeof research === 'object')) {
         throw new Error('个股页研究读取失败');
       }
-      const store = await loadReportTasks();
-      const latest = latestResearch(store, companySlug(symbol)!, id => sessions.taskRunning(id));
-      let task: CompanyPageTask | undefined;
-      if (latest) {
-        const binding = store.sessions[latest.sessionId];
-        const finished = !sessions.taskRunning(latest.sessionId) && !latest.runFailed;
-        // The research run is judged by whether it saved the page research; a failed knowledge settlement is a separate matter.
-        const savedByRun = Date.parse(research?.researchedAt ?? '') >= Date.parse(latest.startedAt ?? '');
-        const settlementFailed = finished && savedByRun && SETTLEMENT_FAILURES.has(latest.status);
-        const status = finished && (binding?.settlement_status === 'completed' || settlementFailed) ? 'completed' : latest.status;
-        task = { sessionId: latest.sessionId, status, stage: '', startedAt: latest.startedAt, ...(settlementFailed ? { settlementFailed } : {}) };
-        task.stage = companyPageProgress({ loaded: true, research, stale, task }) ?? '';
-      }
+      const task = await latestTask(qualified(symbol));
       return { research, stale, basisVersion, task,
         ...(researchVersion !== undefined ? { researchVersion } : {}), ...(canRevert !== undefined ? { canRevert } : {}), ...(changedFrom !== undefined ? { changedFrom } : {}) };
     },
@@ -128,7 +121,7 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
       // The research task starts after today's ensure; if the page already started it, this waits for the same job.
       try { await ensureOnce(code, shanghaiDay()); } catch (error) { console.warn('[finance/company-page] ensure before research failed', error); }
       const result = await sessions.start(`按个股页研究流程研究 ${name}（${symbol}），保存最新个股页研究。`, { symbol, name }, {
-        navigate: false, task: { kind: 'research', slug, symbol, title: `公司研究 · ${name}` },
+        navigate: false, task: { kind: 'research', slug, symbol: code, title: `公司研究 · ${name}` },
       });
       return { sessionId: result.sessionId, status: 'researching', stage: '正在研究' };
     },

@@ -1,6 +1,5 @@
 import type { Quote } from './api';
 import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
-import { RESEARCH_START_GRACE_MS, type ResearchTaskStatus } from './reportTasks.ts';
 
 export const COMPANY_PAGE_BLOCKS = [
   ['business', '商业模式'],
@@ -34,15 +33,37 @@ export interface CompanyPageResearch {
 export interface SensitivityDriver {
   var_id: string; name?: string; quote?: string; origin?: 'report' | 'conversation'; sessionId?: string; confirmedAt?: string;
 }
+/** 'researching' is the host record's running; 'interrupted' is continuing by itself from the last finished step. */
+export type CompanyResearchStatus = 'researching' | 'interrupted' | 'failed' | 'cancelled' | 'completed';
 export interface CompanyPageTask {
-  sessionId: string; status: ResearchTaskStatus | 'completed'; stage: string; startedAt?: string;
+  sessionId: string; status: CompanyResearchStatus; stage: string; startedAt?: string;
   /** The research was saved but the knowledge settlement after it did not finish; only the process panel says so. */
   settlementFailed?: boolean;
+}
+/** The research-task record served by the host (task doc R2); only what the page reads. */
+export interface ResearchTaskRecord {
+  task_id: string; status: 'running' | 'completed' | 'failed' | 'cancelled' | 'interrupted'; current_step: number;
+  steps: { key: string; label: string; status: string }[]; sessions: string[]; reason: string | null; created_at: string;
+}
+const STATUS_OF: Record<ResearchTaskRecord['status'], CompanyResearchStatus> = {
+  running: 'researching', interrupted: 'interrupted', failed: 'failed', cancelled: 'cancelled', completed: 'completed',
+};
+/** The page's view of a task record: the stage line is the only text the page shows for it. */
+export function companyPageTaskOf(record: ResearchTaskRecord): CompanyPageTask {
+  const status = STATUS_OF[record.status];
+  if (!status || !Array.isArray(record.steps) || !Array.isArray(record.sessions)) throw new Error('研究记录读取失败');
+  const label = record.steps[record.current_step - 1]?.label;
+  const stage = status === 'researching' ? (label ? `第 ${record.current_step} 步，共 ${record.steps.length} 步 · ${label}` : '正在研究')
+    : status === 'interrupted' ? '正在接着上次的进度继续'
+    : status === 'failed' ? record.reason || '这次研究未完成，可以稍后重新研究'
+    : status === 'cancelled' ? '研究已中止' : '';
+  const settlementFailed = status === 'completed' && record.steps[record.steps.length - 1]?.status === 'skipped';
+  return { sessionId: record.sessions[record.sessions.length - 1] ?? '', status, stage, startedAt: record.created_at, ...(settlementFailed ? { settlementFailed } : {}) };
 }
 /** A running task always holds back a new start; any other unsuccessful state only for a day, so older ones (incl. pre-T7 Wiki research) do not. */
 export const COMPANY_PAGE_RETRY_MS = 24 * 60 * 60 * 1000;
 const blocksStart = (task: CompanyPageTask | undefined, now: number) => !!task && task.status !== 'completed'
-  && (task.status === 'researching' || now - Date.parse(task.startedAt || '') < COMPANY_PAGE_RETRY_MS);
+  && (companyPageTaskActive(task) || now - Date.parse(task.startedAt || '') < COMPANY_PAGE_RETRY_MS);
 export interface CompanyPageResearchRead {
   research: CompanyPageResearch | null; stale: boolean; basisVersion: string; task?: CompanyPageTask;
   /** T7.3：当前研究记录的逻辑版本（撤回时带上，防并发覆盖）与是否有上一版可恢复。 */
@@ -70,7 +91,7 @@ export interface CompanyPageState {
   researchVersion?: string; canRevert?: boolean; changedFrom?: CompanyPageResearch['changedFrom'];
 }
 export const EMPTY_COMPANY_PAGE: CompanyPageState = { loaded: false, research: null, stale: false };
-export const companyPageTaskActive = (task?: CompanyPageTask) => task?.status === 'researching' || task?.status === 'settling' || task?.status === 'unconfirmed';
+export function companyPageTaskActive(task?: CompanyPageTask) { return task?.status === 'researching' || task?.status === 'interrupted'; }
 
 /** One owner per service/symbol. Navigation does not cancel DSH or create another task. */
 export class CompanyPageStore {
@@ -82,8 +103,6 @@ export class CompanyPageStore {
   private timer?: ReturnType<typeof setTimeout>;
   private unsubscribeResearch?: () => void;
   private completedSession?: string;
-  /** A task this store has just started; until its binding is readable, an older task must not replace it on screen. */
-  private launched?: { sessionId: string; at: number };
   private basisVersion = '';
   private services: CompanyPageServices;
   private symbol: string;
@@ -133,10 +152,7 @@ export class CompanyPageStore {
         value = await this.services.readResearch(this.symbol);
       }
       this.basisVersion = value.basisVersion;
-      const launched = this.launched;
-      if (launched && value.task?.sessionId === launched.sessionId) this.launched = undefined;
-      const awaiting = launched && value.task && value.task.sessionId !== launched.sessionId && Date.now() - launched.at < RESEARCH_START_GRACE_MS ? this.state.task : undefined;
-      const task = awaiting ?? value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
+      const task = value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
       this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
       const key = value.basisVersion;
       if (this.opened && (!value.research || value.stale) && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
@@ -149,16 +165,13 @@ export class CompanyPageStore {
     }
   }
   private async begin() {
-    this.launched = { sessionId: '', at: Date.now() };
     this.publish({ ...this.state, task: { sessionId: '', status: 'researching', stage: '正在开始研究' } });
     try {
       const started = await this.services.startResearch(this.symbol, this.name, this.basisVersion);
-      this.launched = { sessionId: started.sessionId, at: Date.now() };
       this.publish({ ...this.state, task: started });
       this.schedule();
     } catch (error) {
       console.warn('[finance/company-page] start failed', error);
-      this.launched = undefined;
       this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: '这次研究未完成' } });
     }
   }
@@ -177,14 +190,11 @@ export function companyPageStore(services: CompanyPageServices, symbol: string, 
   return store;
 }
 export function companyPageProgress(state: CompanyPageState): string | null {
-  // A finished task older than the retry window (incl. pre-T7 Wiki research) is history, not the page's state.
-  if (state.task && state.task.status !== 'researching' && state.task.startedAt && Date.now() - Date.parse(state.task.startedAt) >= COMPANY_PAGE_RETRY_MS) return null;
-  if (companyPageTaskActive(state.task)) return state.task!.stage || (state.task!.status === 'researching' ? '正在研究' : '研究已结束，结果仍在整理');
-  if (state.task?.status === 'failed' || state.task?.status === 'invalid') return '这次研究未完成';
-  if (state.task?.status === 'cancelled' || state.task?.status === 'interrupted') return '研究已中止';
-  if (state.task?.status === 'partial') return '部分内容已整理，尚未形成完整判断';
-  if (state.task?.status === 'awaiting_authorization') return '研究草案待确认';
-  if (state.task?.status === 'no_increment') return '研究已结束，没有新增内容';
-  if (state.task?.status === 'skipped') return state.research ? null : '本次研究未整理';
-  return null;
+  const task = state.task;
+  if (!task || task.status === 'completed') return null;
+  // An unsuccessful task older than the retry window (incl. pre-T7 Wiki research) is history, not the page's state.
+  if (!companyPageTaskActive(task) && task.startedAt && Date.now() - Date.parse(task.startedAt) >= COMPANY_PAGE_RETRY_MS) return null;
+  if (task.stage) return task.stage;
+  return task.status === 'researching' ? '正在研究' : task.status === 'interrupted' ? '正在接着上次的进度继续'
+    : task.status === 'cancelled' ? '研究已中止' : '这次研究未完成';
 }

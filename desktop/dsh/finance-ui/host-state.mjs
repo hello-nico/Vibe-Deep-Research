@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -237,6 +237,19 @@ export function backgroundSessionIds(store = loadReportTasks()) {
 const reportRuns = new Map();
 let spawnChain = Promise.resolve();
 let hostHandle = null;
+let bootId = randomUUID();
+let researchBootScan = Promise.resolve();
+
+const RESEARCH_STEPS = [
+  { key: 'fetch', label: '取数' },
+  { key: 'read_report', label: '读报告' },
+  { key: 'key_variables', label: '计算关键变量' },
+  { key: 'valuation', label: '估值与论点' },
+  { key: 'save', label: '保存到个股页' },
+  { key: 'settle', label: '整理结论' },
+];
+const RESEARCH_FAIL_REASON = '这次没完成，可以稍后重新研究';
+const RESEARCH_MODEL_REASON = '请先在设置中配置模型';
 const runtimeLifetimes = new WeakMap();
 const activeLifetimes = new Set();
 
@@ -300,25 +313,20 @@ async function ensureTaskHost(ctx, signal) {
   return agent;
 }
 
-function watchReportRun(run, abort) {
+function watchReportRun(run, abort, ctx) {
+  const entry = { abort, run, cancelled: false };
   const finish = Promise.resolve(run.result).then(result => {
-    const store = loadReportTasks();
-    if (store.sessions[run.id]) {
-      store.sessions[run.id] = { ...store.sessions[run.id], run_status: result?.stopReason === 'completed' ? 'completed'
-        : result?.stopReason === 'aborted' ? 'cancelled' : 'failed', finished_at: new Date().toISOString() };
-      writeReportStore(store);
-    }
+    // An abort the user did not ask for (host shutdown or restart) is not a cancellation.
+    finishResearchBinding(run.id, entry.cancelled ? 'cancelled' : result?.stopReason === 'aborted' ? 'aborted'
+      : result?.stopReason === 'completed' ? 'completed' : 'failed', ctx);
   }, () => {
-    const store = loadReportTasks();
-    if (store.sessions[run.id]) {
-      store.sessions[run.id] = { ...store.sessions[run.id], run_status: 'failed', finished_at: new Date().toISOString() };
-      writeReportStore(store);
-    }
+    finishResearchBinding(run.id, entry.cancelled ? 'cancelled' : 'failed', ctx);
   }).catch(() => {}).finally(async () => {
     try { await releaseHandle(run); }
     finally { reportRuns.delete(run.id); }
   });
-  reportRuns.set(run.id, { abort, run, finish });
+  entry.finish = finish;
+  reportRuns.set(run.id, entry);
   return finish;
 }
 
@@ -600,8 +608,287 @@ export function cancelReportRun(session_id) {
   if (!SESSION_ID.test(session_id || '')) throw Object.assign(new Error('invalid session'), { status: 422 });
   const entry = reportRuns.get(session_id);
   if (!entry) throw Object.assign(new Error('没有可中止的运行中任务'), { status: 404 });
+  entry.cancelled = true;
   entry.abort.abort();
   return { session_id, status: 'cancelling' };
+}
+
+function researchTasksRoot() {
+  return path.join(researchDir(), 'tasks');
+}
+
+function researchTaskDir(taskId) {
+  return path.join(researchTasksRoot(), taskId);
+}
+
+function researchTaskFile(taskId) {
+  return path.join(researchTaskDir(taskId), 'task.json');
+}
+
+function writeResearchTask(task) {
+  fs.mkdirSync(researchTaskDir(task.task_id), { recursive: true, mode: 0o700 });
+  writeJson(researchTaskFile(task.task_id), task);
+}
+
+function readResearchTaskFile(taskId) {
+  if (!/^task:[0-9a-f]{16}$/.test(taskId || '')) return null;
+  const task = readJson(researchTaskFile(taskId), null);
+  return task?.task_id === taskId ? task : null;
+}
+
+function listResearchTaskFiles(root = researchTasksRoot()) {
+  let names = [];
+  try { names = fs.readdirSync(root); }
+  catch (error) { if (error.code === 'ENOENT') return []; throw error; }
+  return names.map(name => readJson(path.join(root, name, 'task.json'), null)).filter(task => task?.task_id);
+}
+
+function readResearchStep(taskId, index, key) {
+  const marker = readJson(path.join(researchTaskDir(taskId), 'steps', `${index}-${key}.json`), null);
+  if (!marker || marker.step !== key || (marker.status !== 'done' && marker.status !== 'skipped')) return null;
+  return marker;
+}
+
+export function composeResearchTask(task) {
+  const attempts = new Map((task.steps || []).map(step => [step.key, step.attempts || 0]));
+  const steps = RESEARCH_STEPS.map((definition, index) => {
+    const marker = readResearchStep(task.task_id, index + 1, definition.key);
+    return {
+      key: definition.key,
+      label: definition.label,
+      status: marker ? marker.status : 'pending',
+      attempts: attempts.get(definition.key) || 0,
+      finished_at: marker?.finished_at || null,
+      outputs: marker?.outputs && typeof marker.outputs === 'object' ? marker.outputs : {},
+    };
+  });
+  const open = steps.findIndex(step => step.status !== 'done' && step.status !== 'skipped');
+  if (task.status === 'running' && open >= 0) steps[open].status = 'running';
+  if (task.status === 'failed' && open >= 0) steps[open].status = 'failed';
+  return {
+    task_id: task.task_id,
+    kind: 'company_research',
+    symbol: task.symbol,
+    slug: task.slug,
+    title: task.title,
+    status: task.status,
+    current_step: open < 0 ? RESEARCH_STEPS.length : open + 1,
+    steps,
+    sessions: Array.isArray(task.sessions) ? task.sessions : [],
+    host_boot_id: task.host_boot_id,
+    trigger_note: task.trigger_note ?? null,
+    reason: task.reason ?? null,
+    created_at: task.created_at,
+    updated_at: task.updated_at,
+    finished_at: task.finished_at ?? null,
+  };
+}
+
+export function listResearchTasks({ symbol, status, limit } = {}) {
+  const items = listResearchTaskFiles().map(composeResearchTask)
+    .filter(item => (!symbol || item.symbol === symbol) && (!status || item.status === status))
+    .sort((a, b) => String(b.updated_at).localeCompare(String(a.updated_at)));
+  const cap = Number(limit);
+  return Number.isInteger(cap) && cap >= 0 ? items.slice(0, cap) : items;
+}
+
+export function readResearchTask(taskId) {
+  const task = readResearchTaskFile(taskId);
+  return task ? composeResearchTask(task) : null;
+}
+
+function doneStepText(step) {
+  const outputs = step.outputs || {};
+  if (step.key === 'fetch') return `取数（数据包 ${outputs.packet_as_of || ''}）`;
+  if (step.key === 'read_report') {
+    return `读报告（${outputs.title ? `《${outputs.title}》` : ''}document_id=${outputs.document_id || ''}，parseRevisionId=${outputs.parse_revision_id || ''}，parsedContentSha256=${outputs.parsed_content_sha256 || ''}）`;
+  }
+  if (step.key === 'key_variables') {
+    return `计算关键变量（sensitivityRef=${outputs.sensitivity_ref || ''}，scenarioRef=${outputs.scenario_ref || ''}）`;
+  }
+  return step.label;
+}
+
+export function researchHandoff(task) {
+  const view = composeResearchTask(task);
+  const done = view.steps.filter(step => step.status === 'done');
+  const next = view.steps.find(step => step.status !== 'done' && step.status !== 'skipped');
+  const doneKeys = new Set(done.map(step => step.key));
+  const bans = [];
+  if (doneKeys.has('fetch')) bans.push('ensure_company_data');
+  if (doneKeys.has('key_variables')) bans.push('calculate_metrics');
+  const avoid = bans.length ? `不要再调用 ${bans.join(' 和 ')}；` : '';
+  const variablesSettled = ['done', 'skipped'].includes(view.steps.find(step => step.key === 'key_variables')?.status);
+  const rest = variablesSettled ? '需要字段时用 read_company_data_packet 读同一天的数据包，直接用上面的凭据写六节并保存。'
+    : (doneKeys.has('fetch') ? '需要字段时用 read_company_data_packet 读同一天的数据包；' : '') + '其余动作仍按原顺序。';
+  let text = `这是一次接续。已完成：${done.map(doneStepText).join('；') || '无'}。\n从「${next?.label || '估值与论点'}」继续：${avoid}${rest}`;
+  if (view.trigger_note) text += `\n用户补充：${view.trigger_note}`;
+  return text;
+}
+
+function modelSelection(ctx) {
+  try {
+    const selection = ctx?.agentDefaultModel?.currentSelection?.();
+    if (selection?.provider && selection?.model) return selection;
+  } catch { /* no configured model */ }
+  return null;
+}
+
+function createResearchTask({ slug, symbol, title, prompt, model_selection }) {
+  const now = new Date().toISOString();
+  const task = {
+    task_id: `task:${randomBytes(8).toString('hex')}`,
+    kind: 'company_research',
+    symbol,
+    slug,
+    title,
+    status: 'running',
+    steps: RESEARCH_STEPS.map(step => ({ key: step.key, attempts: 0 })),
+    sessions: [],
+    host_boot_id: bootId,
+    trigger_note: null,
+    reason: null,
+    prompt,
+    model_selection,
+    created_at: now,
+    updated_at: now,
+    finished_at: null,
+  };
+  writeResearchTask(task);
+  return task;
+}
+
+function stampResearchTask(task, patch) {
+  const next = { ...task, ...patch, steps: patch.steps || task.steps, updated_at: new Date().toISOString() };
+  writeResearchTask(next);
+  return next;
+}
+
+async function spawnResearchSession(ctx, task, prompt, signal) {
+  const host = await ensureTaskHost(ctx, signal);
+  // The plugin binds the new session from `pending` on its first turn, so the role and task_id must be there before spawn.
+  const pending = loadReportTasks();
+  pending.pending = { kind: 'research', parent_id: host.session.id, slug: task.slug, symbol: task.symbol,
+    model_selection: task.model_selection, title: task.title, task_id: task.task_id, requested_at: new Date().toISOString() };
+  writeReportStore(pending);
+  const abort = new AbortController();
+  const onUnload = () => abort.abort();
+  signal.addEventListener('abort', onUnload, { once: true });
+  try {
+    const run = await ctx.subagents.start('spawn', {
+      parent: host, signal: abort.signal,
+      agentOptions: task.model_selection,
+      prompt: [{ type: 'text', text: prompt }], label: task.title, maxDepth: 1,
+      toolFilter: { allow: [] },
+      persona: 'Use the company_research role and its five-step company research SOP for the bound company. Ground conclusions in evidence. Write all user-visible text, including progress notes, in natural Simplified Chinese. Do not ask the user, publish drafts, create another agent, or write to the parent conversation.',
+    });
+    if (signal.aborted) {
+      void Promise.resolve(run.result).catch(() => {});
+      await releaseHandle(run);
+      assertActive(signal);
+    }
+    const store = loadReportTasks();
+    store.sessions[run.id] = {
+      kind: 'research', slug: task.slug, symbol: task.symbol, title: task.title,
+      model_selection: task.model_selection, task_id: task.task_id,
+      bound_at: new Date().toISOString(), run_status: 'running',
+    };
+    store.pending = null;
+    writeReportStore(store);
+    stampResearchTask(readResearchTaskFile(task.task_id) || task, {
+      status: 'running', host_boot_id: bootId, reason: null, finished_at: null,
+      sessions: [...new Set([...(task.sessions || []), run.id])],
+    });
+    watchReportRun(run, abort, ctx);
+    return run;
+  } finally {
+    signal.removeEventListener('abort', onUnload);
+  }
+}
+
+async function resumeResearchTask(ctx, taskId) {
+  const task = readResearchTaskFile(taskId);
+  if (!task || task.status !== 'interrupted') return;
+  const signal = lifetimeFor(ctx).signal;
+  if (signal.aborted) return;
+  if (!modelSelection(ctx)) {
+    stampResearchTask(task, { status: 'interrupted', reason: RESEARCH_MODEL_REASON });
+    return;
+  }
+  if (!ctx?.subagents?.start) return;
+  const view = composeResearchTask(task);
+  const open = view.steps.findIndex(step => step.status !== 'done' && step.status !== 'skipped');
+  if (open < 0 || view.steps[4]?.status === 'done') {
+    stampResearchTask(task, { status: 'completed', finished_at: new Date().toISOString(), reason: null });
+    return;
+  }
+  const steps = task.steps.map(step => ({ ...step }));
+  steps[open].attempts = (steps[open].attempts || 0) + 1;
+  if (steps[open].attempts >= 2) {
+    stampResearchTask(task, { status: 'failed', steps, reason: RESEARCH_FAIL_REASON, finished_at: new Date().toISOString() });
+    return;
+  }
+  const prepared = stampResearchTask(task, { status: 'interrupted', steps, reason: null });
+  const prompt = `${task.prompt || ''}\n\n${researchHandoff(prepared)}`;
+  try {
+    await spawnResearchSession(ctx, prepared, prompt, signal);
+  } catch {
+    const current = readResearchTaskFile(taskId);
+    if (current?.status === 'interrupted') stampResearchTask(current, { status: 'interrupted' });
+  }
+}
+
+function queueResearchResume(ctx, taskId) {
+  const job = () => resumeResearchTask(ctx, taskId);
+  const next = spawnChain.then(job, job);
+  spawnChain = next.then(() => undefined, () => undefined);
+  return next;
+}
+
+function finishResearchBinding(sessionId, runStatus, ctx) {
+  const store = loadReportTasks();
+  const binding = store.sessions[sessionId];
+  if (!binding) return;
+  store.sessions[sessionId] = { ...binding, run_status: runStatus === 'aborted' ? 'cancelled' : runStatus, finished_at: new Date().toISOString() };
+  writeReportStore(store);
+  if (binding.kind !== 'research' || !binding.task_id || !ctx) return;
+  // While the host is shutting down the task stays running; the next boot sees the old boot id and resumes it.
+  if (lifetimeFor(ctx).signal.aborted) return;
+  const task = readResearchTaskFile(binding.task_id);
+  if (!task || ['cancelled', 'completed', 'failed'].includes(task.status)) return;
+  if (task.sessions?.at(-1) && task.sessions.at(-1) !== sessionId) return;
+  if (runStatus === 'cancelled') {
+    stampResearchTask(task, { status: 'cancelled', finished_at: new Date().toISOString(), reason: null });
+    return;
+  }
+  if (composeResearchTask(task).steps[4]?.status === 'done') {
+    stampResearchTask(task, { status: 'completed', finished_at: new Date().toISOString(), reason: null });
+    return;
+  }
+  stampResearchTask(task, { status: 'interrupted' });
+  queueResearchResume(ctx, task.task_id);
+}
+
+export async function recoverInterruptedResearch(ctx, root = researchTasksRoot()) {
+  const tasks = listResearchTaskFiles(root);
+  const stale = tasks.filter(task => task.status === 'running' && task.host_boot_id !== bootId);
+  for (const task of stale) stampResearchTask(task, { status: 'interrupted' });
+  // A resume whose spawn failed stays interrupted; the next start tries it again.
+  const waiting = [...stale, ...tasks.filter(task => task.status === 'interrupted')];
+  for (const task of waiting) await queueResearchResume(ctx, task.task_id);
+}
+
+function researchResumeDelay() {
+  const value = Number(process.env.VIBE_RESEARCH_RESUME_DELAY_MS);
+  return Number.isFinite(value) && value >= 0 ? value : 20_000;
+}
+
+export function currentResearchBootId() {
+  return bootId;
+}
+
+export function researchBootPromise() {
+  return researchBootScan;
 }
 
 export async function startResearchRun(ctx, { slug, symbol, prompt, title }) {
@@ -636,33 +923,10 @@ async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, sign
     throw Object.assign(new Error('另一任务正在启动'), { status: 409 });
   const model_selection = { provider: selection.provider, model: selection.model,
     ...(selection.reasoningEffort ? { reasoningEffort: selection.reasoningEffort } : {}) };
-  next.pending = { kind: 'research', parent_id: hostId, slug, symbol, model_selection,
-    title: title || `公司研究 · ${symbol}`, requested_at: new Date().toISOString() };
-  writeReportStore(next);
-  const abort = new AbortController();
-  const onUnload = () => abort.abort();
-  signal.addEventListener('abort', onUnload, { once: true });
+  const researchTitle = title || `公司研究 · ${symbol}`;
+  const task = createResearchTask({ slug, symbol, title: researchTitle, prompt, model_selection });
   try {
-    const run = await ctx.subagents.start('spawn', {
-      parent: host, signal: abort.signal,
-      agentOptions: model_selection,
-      prompt: [{ type: 'text', text: prompt }], label: next.pending.title, maxDepth: 1,
-      toolFilter: { allow: [] },
-      persona: 'Use the company_research role and its five-step company research SOP for the bound company. Ground conclusions in evidence. Write all user-visible text, including progress notes, in natural Simplified Chinese. Do not ask the user, publish drafts, create another agent, or write to the parent conversation.',
-    });
-    if (signal.aborted) {
-      void Promise.resolve(run.result).catch(() => {});
-      await releaseHandle(run);
-      assertActive(signal);
-    }
-    const after = loadReportTasks();
-    if (after.pending?.parent_id === hostId && after.pending?.kind === 'research') {
-      after.sessions[run.id] = { kind: 'research', slug, symbol, title: next.pending.title, model_selection,
-        bound_at: new Date().toISOString(), run_status: 'running' };
-      after.pending = null;
-      writeReportStore(after);
-    }
-    watchReportRun(run, abort);
+    const run = await spawnResearchSession(ctx, task, prompt, signal);
     return { session_id: run.id, status: 'started', host_session_id: hostId };
   } catch (error) {
     const failed = loadReportTasks();
@@ -670,8 +934,11 @@ async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, sign
       failed.pending = null;
       writeReportStore(failed);
     }
+    if (!readResearchTaskFile(task.task_id)?.sessions?.length) {
+      fs.rmSync(researchTaskDir(task.task_id), { recursive: true, force: true });
+    }
     throw error;
-  } finally { signal.removeEventListener('abort', onUnload); }
+  }
 }
 
 export function cancelResearchRun(session_id) {
@@ -696,8 +963,20 @@ async function proxyNotes(req, res, route) {
 }
 
 export function installHostState(ctx, track = disposer => disposer) {
+  bootId = randomUUID();
   runtimeLifetimes.delete(ctx);
   lifetimeFor(ctx);
+  const tasksRoot = researchTasksRoot();
+  const { signal } = lifetimeFor(ctx);
+  // Plugins load in no guaranteed order and cordis here has no all-loaded event; resuming before the
+  // research plugin binds the role starts a session without tools, so the boot scan waits a little.
+  const recover = () => signal.aborted ? undefined : recoverInterruptedResearch(ctx, tasksRoot);
+  const settle = new Promise(resolve => {
+    const timer = setTimeout(resolve, researchResumeDelay());
+    signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
+  });
+  // Resumes go through the same spawn queue, so a start the user makes meanwhile is not held up by the wait.
+  researchBootScan = settle.then(recover, recover);
   return [
     track(() => {
       for (const { dispose } of pageContextTools.values()) dispose();
@@ -749,6 +1028,26 @@ export function installHostState(ctx, track = disposer => disposer) {
         send(res, 200, await startReportRun(ctx, body));
       } catch (error) {
         send(res, error.status || 500, { detail: error.message || 'report run failed' });
+      }
+    } })),
+    track(ctx.webServer.register({ kind: 'exact', path: '/finance-research-tasks', async handler(req, res) {
+      try {
+        if (req.method !== 'GET') { res.writeHead(405); res.end(); return; }
+        const query = new URL(req.url || '/', 'http://localhost').searchParams;
+        const taskId = query.get('task_id');
+        if (taskId) {
+          const item = readResearchTask(taskId);
+          if (!item) { send(res, 404, { detail: '没有这条研究记录' }); return; }
+          send(res, 200, item);
+          return;
+        }
+        const rawLimit = query.get('limit');
+        send(res, 200, { items: listResearchTasks({
+          symbol: query.get('symbol') || '', status: query.get('status') || '',
+          limit: rawLimit == null || rawLimit === '' ? undefined : rawLimit,
+        }) });
+      } catch (error) {
+        send(res, error.status || 500, { detail: error.message || 'research task read failed' });
       }
     } })),
     track(ctx.webServer.register({ kind: 'exact', path: '/finance-research-runs', async handler(req, res) {

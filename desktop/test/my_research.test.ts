@@ -433,32 +433,14 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /移出关注/);
   assert.doesNotMatch(company, /取消选择不会删除 Wiki/);
   assert.doesNotMatch(company, /从自选开始/);
-  const mine = readFileSync(new URL("../src/verticals/finance/pages/MyResearch.tsx", import.meta.url), "utf8");
-  assert.match(mine, /status === "archived"/);
-  assert.match(mine, /已归档/);
-  assert.match(mine, /研究中/);
-  assert.match(mine, /WorkspaceTabs/);
-  assert.match(mine, /WorkspaceFilter/);
-  assert.match(mine, /WorkspaceSearch/);
-  assert.doesNotMatch(mine, /创建议题/);
-  assert.doesNotMatch(mine, /const chip =/);
-  assert.doesNotMatch(mine, /workspace-input/);
   const layout = readFileSync(new URL("../src/verticals/finance/components/layout/Layout.tsx", import.meta.url), "utf8");
   assert.match(layout, /label: "关注"/);
   assert.match(layout, /label: "资料"/);
   assert.doesNotMatch(layout, /GPU租金/);
-  assert.match(mine, /value: "topics".*value: "notes".*value: "tasks".*value: "memory"/s);
-  assert.match(mine, /保存纠正/);
+  assert.match(readFileSync(new URL("../src/verticals/finance/components/MemoryPanel.tsx", import.meta.url), "utf8"), /保存纠正/);
   const node = readFileSync(new URL("../src/verticals/finance/dsh/result-node.tsx", import.meta.url), "utf8");
   assert.match(node, /loadCandidate/);
   assert.match(node, /CandidateChoiceNeeded/);
-  assert.match(mine, /label: "任务"/);
-  assert.doesNotMatch(mine, /后台任务/);
-  assert.match(mine, /finance-background-tasks/);
-  assert.match(mine, /setInterval/);
-  assert.match(mine, /不会自动建立议题/);
-  assert.match(mine, /openTaskProcess/);
-  assert.match(mine, /查看过程/);
   assert.match(client, /startReportRun/);
   assert.doesNotMatch(client, /!archived.has\(id\) && id !== store.host_session_id/);
   assert.match(client, /isBackgroundChat/);
@@ -555,9 +537,10 @@ test("开发代理把宿主绑定和发布入口转到 DSH", () => {
   assert.doesNotMatch(source, /finance-stage-model/);
 });
 
-test("路由区分洞悉、议题工作区与退役行业入口", () => {
+test("路由区分跟踪、议题工作区与退役行业入口", () => {
   const source = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
-  assert.match(source, /path: "\/insights"/);
+  assert.match(source, /path: "\/tracking"/);
+  assert.match(source, /path: "\/insights", element: <Navigate to="\/tracking" replace \/>/);
   assert.match(source, /path: "\/insights\/topics\/:topicHex"/);
   assert.match(source, /path: "\/sectors\/\*", element: <LegacyRedirect \/>/);
   assert.doesNotMatch(source, /notes\/legacy|sectors\/legacy/);

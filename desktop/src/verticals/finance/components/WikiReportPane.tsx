@@ -1,10 +1,10 @@
 import { useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RotateCw } from 'lucide-react';
-import { researchRead, type WikiPage } from '../lib/research';
+import { aShareQualified, researchRead, symbolFromCompanySlug, type WikiPage } from '../lib/research';
 import { ResearchSessionContext, type ReportTaskRef } from '../dsh/research-session';
 import { useSlugTaskActivity } from '../dsh/task-activity';
-import { activeTaskKind, loadReportTasks } from '../lib/reportTasks';
+import { companyResearchRunning } from '../lib/researchTasks';
 import { ResearchLoading } from './ui/ResearchLoading';
 import { reportProgress, REPORT_STEPS } from '../lib/reportProgress';
 import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
@@ -312,8 +312,8 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
     setError(''); setStarting(true); setPendingRun(true);
     setSelected(null); setDetail(null);
     void (async () => {
-      const bindings = await loadReportTasks();
-      if (!topicReport && activeTaskKind(bindings, slug, id => sessions.taskRunning(id)) === 'research')
+      const code = symbolFromCompanySlug(slug);
+      if (!topicReport && code && await companyResearchRunning(aShareQualified(code) ?? code))
         throw new Error('公司研究进行中，完成后可生成图文报告。');
       return sessions.start(reportPrompt(page), undefined, {
         navigate: false,

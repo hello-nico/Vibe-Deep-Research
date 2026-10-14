@@ -1,18 +1,23 @@
 import { useEffect, useState } from 'react';
-import { activeTaskKind, latestResearch, loadReportTasks, type LatestResearch } from '../lib/reportTasks';
+import { activeTaskKind, loadReportTasks } from '../lib/reportTasks';
+import { companyResearchRunning } from '../lib/researchTasks';
+import { aShareQualified, symbolFromCompanySlug } from '../lib/research';
 import type { ResearchSessions } from './research-session';
 
+/** 某个研究页此刻在做什么：公司研究读任务记录，图文报告读报告任务绑定。 */
 export function useSlugTaskActivity(slug: string, sessions: ResearchSessions | null, subscribe = true) {
-  const [activity, setActivity] = useState<{ slug: string; kind: 'research' | 'report' | null; ready: boolean; research?: LatestResearch | null }>({ slug: '', kind: null, ready: false });
+  const [activity, setActivity] = useState<{ slug: string; kind: 'research' | 'report' | null; ready: boolean }>({ slug: '', kind: null, ready: false });
   useEffect(() => {
     if (!slug || !sessions) return;
     let active = true;
     let sequence = 0;
     const load = () => {
       const mine = ++sequence;
-      void loadReportTasks().then(store => {
-        const running = (id: string) => sessions.taskRunning(id);
-        if (active && mine === sequence) setActivity({ slug, kind: activeTaskKind(store, slug, running), ready: true, research: latestResearch(store, slug, running) });
+      const code = symbolFromCompanySlug(slug);
+      const symbol = code ? aShareQualified(code) : null;
+      void Promise.all([loadReportTasks(), symbol ? companyResearchRunning(symbol) : Promise.resolve(false)]).then(([store, researching]) => {
+        const kind = researching ? 'research' : activeTaskKind(store, slug, id => sessions.taskRunning(id));
+        if (active && mine === sequence) setActivity({ slug, kind, ready: true });
       }).catch(() => {
         if (active && mine === sequence) setActivity({ slug, kind: null, ready: false });
       });

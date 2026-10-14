@@ -19,9 +19,10 @@ export const router = createBrowserRouter([
     children: [
       { path: "/", element: <Home /> },
       { path: "/feed", lazy: async () => ({ Component: (await import("@/pages/Feed")).Feed }) },
-      { path: "/insights", lazy: async () => ({ Component: (await import("@/pages/MyResearch")).MyResearch }) },
+      { path: "/tracking", lazy: async () => ({ Component: (await import("@/pages/Tracking")).Tracking }) },
+      { path: "/insights", element: <Navigate to="/tracking" replace /> },
       { path: "/insights/topics/:topicHex", lazy: async () => ({ Component: (await import("@/pages/TopicWorkspace")).TopicWorkspace }) },
-      { path: "/insights/*", element: <Navigate to="/insights" replace /> },
+      { path: "/insights/*", element: <Navigate to="/tracking" replace /> },
       { path: "/watch", lazy: async () => ({ Component: (await import("@/pages/Watch")).Watch }) },
       { path: "/watch/:symbol", lazy: async () => ({ Component: (await import("@/pages/CompanyWiki")).CompanyWiki }) },
       { path: "/my-reports", lazy: async () => ({ Component: (await import("@/pages/UploadedReports")).UploadedReports }) },

@@ -50,10 +50,7 @@ test('状态读取超过 50 个对象时分批，缓存与单项预览共用', a
   } finally { globalThis.fetch = original; }
 });
 
-test('台账状态与失效原因决定任务文案，待处理计数排除已失效', () => {
-  assert.equal(tasks.researchDraftStatus('pending'), 'awaiting_authorization');
-  assert.equal(tasks.researchDraftStatus('published'), 'published');
-  assert.equal(tasks.researchDraftStatus('invalid'), 'invalid');
+test('失效原因决定任务文案，待处理计数排除已失效', () => {
   assert.equal(pending.draftInvalidReason('expired'), '超过 24 小时未确认');
   assert.equal(pending.draftInvalidReason('base_changed'), '研究页已更新');
   assert.equal(pending.draftInvalidReason('discarded'), '已放弃');

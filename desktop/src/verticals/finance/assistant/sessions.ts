@@ -12,7 +12,7 @@ export interface AssistantSeatView {
   notice?: string;
 }
 
-let assistantSeat: AssistantSeatView = { seated: false, sessionId: '', mode: 'ask', busy: false, notice: '' };
+let assistantSeat: AssistantSeatView = { seated: false, sessionId: '', mode: 'agent', busy: false, notice: '' };
 const assistantSeatListeners = new Set<() => void>();
 
 export function subscribeAssistantSeat(listener: () => void) {
@@ -94,11 +94,8 @@ export async function stageAssistantPageContext(input: { session_id: string; pag
   }
 }
 
-export function assistantModeHint(mode: AssistantMode): string {
-  return mode === 'agent'
-    ? 'Agent 深查：页面信息不够时会自己查资料、读原文，稍慢一些'
-    : 'Ask 即答：根据本页内容和你 @ 的条目直接回答';
-}
+/** 问助手输入框的提示；一律以深查方式回答，不分模式。 */
+export const ASSISTANT_PLACEHOLDER = '问问这一页的内容，或让它帮你查';
 
 export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
   if (plugin === 'market') {

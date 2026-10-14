@@ -59,7 +59,8 @@ test('问助手自有输入绑定会话；卸载忽略迟到绑定，不搬深�
     assert.equal(calls, 1);
     assert.equal(home.firstChild, conversation);
     assert.ok(container.querySelector('textarea[aria-label="问助手输入"]'));
-    assert.ok(container.querySelector('button[aria-label="问助手模式"]'));
+    assert.equal(container.querySelector('button[aria-label="问助手模式"]'), null, '没有模式菜单');
+    assert.equal(container.querySelector('button[aria-label="问助手模型"]'), null, '没有模型菜单');
     await act(async () => container.querySelector('[aria-label="关闭"]')!.click());
     assert.equal(home.firstChild, conversation);
     await open();

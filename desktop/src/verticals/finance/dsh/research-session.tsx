@@ -1,20 +1,10 @@
 import { createContext, useContext } from 'react';
 import type { CompanySnapshotQuote } from '../../../core/ai/pageContext';
-import type { ResearchTaskStatus } from '../lib/reportTasks';
 import type { FinanceSidePanel } from './side-panel';
 
 export interface TopicSessionMatch {
   topicId: string;
   sessionId: string;
-}
-
-export interface CompanySessionRef {
-  sessionId: string;
-  title: string;
-  running: boolean;
-  updatedAt?: string;
-  status?: ResearchTaskStatus;
-  runStatus?: 'running' | 'completed' | 'failed' | 'cancelled';
 }
 
 export interface StartSessionOptions {
@@ -92,12 +82,9 @@ export interface SessionState {
 
 export interface ResearchSessions {
   companySymbols(): Promise<string[]>;
-  legacyCompanyTasks(): Promise<{ sessionId: string; title: string; symbol: string; running: boolean; updatedAt?: string }[]>;
-  /** Running 公司研究 sessions from the same DSH list findCompanySession uses. */
+  /** Running 公司研究 sessions from the same DSH list. */
   listRunningCompanySymbols(): Promise<string[]>;
   start(question: string, company?: { symbol: string; name: string }, options?: StartSessionOptions): Promise<StartSessionResult>;
-  /** Find this company's research session by the shared title convention. */
-  findCompanySession(symbol: string): Promise<CompanySessionRef | null>;
   /** Find the report task bound to this slug (any input version), newest session first. */
   findReportTask(slug: string): Promise<ReportTaskRef | null>;
   /** Live snapshot of an open session; null when the session scope is unavailable. */

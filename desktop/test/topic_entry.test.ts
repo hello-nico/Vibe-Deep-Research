@@ -134,14 +134,3 @@ test("首次发起先查归档；候选和读取失败都不会 POST", async (t)
   assert.equal(calls.length, 1);
   assert.equal(calls[0]?.init?.method, undefined);
 });
-
-test("页面卸载、输入变化和延迟导航都有旧响应保护", () => {
-  const source = readFileSync(new URL("../src/verticals/finance/pages/MyResearch.tsx", import.meta.url), "utf8");
-  assert.match(source, /topicRouteController\.current\?\.abort\(\)/);
-  assert.match(source, /topicRouteAttempt\.current \+= 1/);
-  assert.match(source, /!topicRouteMounted\.current \|\| attempt !== topicRouteAttempt\.current/);
-  assert.match(source, /topicRouteMounted\.current && attempt === topicRouteAttempt\.current/);
-  assert.match(source, /startResearchTopic\(request, controller\.signal\)/);
-  assert.match(source, /topicRouteBusy \|\| topicRouteController\.current/);
-  assert.match(source, /if \(value !== "topics"\) cancelTopicRoute\(\)/);
-});

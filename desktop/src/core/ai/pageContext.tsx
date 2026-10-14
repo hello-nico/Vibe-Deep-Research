@@ -39,7 +39,11 @@ export interface AiPage {
   companyQuotes?: CompanySnapshotQuote[];
   /** 空对话时给几个可点的问题 */
   suggestions?: string[];
+  /** 面板标题区下方的页面动作（如个股页的「重新研究」）；disabled 时按钮不可点。 */
+  actions?: AiPageAction[];
 }
+
+export interface AiPageAction { id: string; label: string; disabled?: boolean; run: () => void }
 
 export interface CompanySnapshotQuote {
   id: string;
@@ -78,10 +82,10 @@ export type PageAssistantObject = AssistantObjectRef;
 interface Store {
   page: AiPage | null;
   set: Dispatch<SetStateAction<AiPage | null>>;
-  question: { context: string; pageKey: string; pageContext: string; sequence: number; reference?: { title: string; text: string }; object?: AssistantObjectRef } | null;
+  question: { context: string; draft?: string; pageKey: string; pageContext: string; sequence: number; reference?: { title: string; text: string }; object?: AssistantObjectRef } | null;
   objects: AssistantObjectRef[];
   registered: PageAssistantObject[];
-  ask: (context: string, reference?: { title: string; text: string } | AssistantObjectRef) => void;
+  ask: (context: string, reference?: { title: string; text: string } | AssistantObjectRef, draft?: string) => void;
   cite: (object: AssistantObjectRef) => void;
   uncitate: (id: string) => void;
   clearQuestion: () => void;
@@ -120,7 +124,7 @@ export function AiPageProvider({ children }: { children: ReactNode }) {
       if (page) setQuestion({ context: object.detail || object.label, object, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
     },
     uncitate: (id) => setObjects(prev => prev.filter(item => item.id !== id)),
-    ask: (context, reference) => {
+    ask: (context, reference, draft) => {
       if (!page) return;
       const object = reference && 'id' in reference && 'kind' in reference
         ? reference as AssistantObjectRef
@@ -128,7 +132,7 @@ export function AiPageProvider({ children }: { children: ReactNode }) {
           ? { kind: 'excerpt', id: `excerpt:${page.key}:${reference.title}`, label: reference.title, locator: reference.title, detail: reference.text, ready: true }
           : undefined;
       if (object) setObjects(prev => prev.some(item => item.id === object.id) ? prev : [...prev, object]);
-      setQuestion({ context, reference: reference && 'title' in reference ? reference : undefined, object, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
+      setQuestion({ context, draft, reference: reference && 'title' in reference ? reference : undefined, object, pageKey: page.key, pageContext: page.context, sequence: ++sequence.current });
     },
     registerPageObjects: (pageKey, generation, next) => {
       registration.current = { pageKey, generation };
@@ -205,6 +209,10 @@ export function useAiPage(page: AiPage | null): void {
   const quoteSig = companyQuotes ? JSON.stringify(companyQuotes) : "";
   // 只为比较用：把建议压成一个字符串，免得数组每次都是新对象
   const sig = page?.suggestions?.join("\u0000") ?? "";
+  // 动作的 run 每次渲染都是新函数：面板拿到的是转发器，总是调用最新的那个。
+  const actionsRef = useRef(page?.actions);
+  actionsRef.current = page?.actions;
+  const actionSig = page?.actions?.map(item => `${item.id}\u0001${item.label}\u0001${item.disabled ? 1 : 0}`).join("\u0000") ?? "";
 
   useEffect(() => {
     if (!set) return;
@@ -214,6 +222,7 @@ export function useAiPage(page: AiPage | null): void {
         marketIndices: marketIndices?.length ? marketIndices : undefined,
         companyQuotes: companyQuotes?.length ? companyQuotes : undefined,
         suggestions: sig ? sig.split("\u0000") : [],
+        actions: actionSig ? (actionsRef.current ?? []).map(item => ({ ...item, run: () => actionsRef.current?.find(action => action.id === item.id)?.run() })) : undefined,
       }
       : null;
     mine.current = next;
@@ -221,7 +230,7 @@ export function useAiPage(page: AiPage | null): void {
     return () => {
       set((prev) => (prev === mine.current ? null : prev));
     };
-  }, [set, has, key, title, context, snapshotVersion, marketSig, quoteSig, sig]);
+  }, [set, has, key, title, context, snapshotVersion, marketSig, quoteSig, sig, actionSig]);
 }
 
 /** 当前页已加载对象进入问助手 `@` 范围；卸载或换批次时注销，不抓正文。 */

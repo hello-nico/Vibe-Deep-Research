@@ -1,0 +1,29 @@
+/* 只用令牌与公共组件；这里只补布局。 */
+.tracking { display: flex; flex-direction: column; gap: 36px; }
+.tracking-card { overflow: hidden; }
+.tracking-item + .tracking-item { border-top: 1px solid var(--line-1); }
+.tracking-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 20px; text-align: left; background: none; border: 0; cursor: pointer; }
+.tracking-row:hover { background: var(--fill-1); }
+.tracking-row:focus-visible { outline: 2px solid hsl(var(--brand)); outline-offset: -2px; }
+.tracking-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+.tracking-text b { font-size: 14px; font-weight: 600; }
+.tracking-text > span { font-size: 13px; color: var(--text-2); }
+.tracking-row time { flex: none; font-size: 12px; color: var(--text-3); }
+.tracking-bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
+.tracking-bar u { display: block; height: 100%; background: hsl(var(--brand)); }
+.tracking-detail { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 4px 20px 16px 39px; font-size: 13px; color: var(--text-2); }
+.tracking-detail > p { margin: 0; font-size: 12px; color: var(--text-3); }
+.tracking-steps { display: flex; flex-direction: column; gap: 8px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.tracking-steps li { display: flex; align-items: center; gap: 10px; }
+.tracking-steps li > span { flex: 1; }
+.tracking-steps small { margin-left: 8px; color: var(--text-3); }
+.tracking-steps em { font-style: normal; font-size: 12px; color: var(--text-3); }
+.tracking-more { display: block; width: 100%; padding: 12px 20px; font-size: 13px; color: var(--text-3); text-align: left; background: none; border: 0; border-top: 1px solid var(--line-1); cursor: pointer; }
+.tracking-more:hover { color: var(--text-2); }
+.tracking-foot { margin: 8px 4px 0; font-size: 12px; color: var(--text-3); }
+.tracking-foot a { margin-left: 8px; color: var(--text-2); text-decoration: underline; }
+.tracking-note { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-2); }
+.tracking-skeleton { height: 64px; background: var(--fill-1); }
+.tracking .variable-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; width: 100%; }
+.tracking .is-up { color: hsl(var(--up)); }
+.tracking .is-down { color: hsl(var(--down)); }

@@ -17,7 +17,8 @@ import { Window } from 'happy-dom';
 const trackingFixture = JSON.parse(readFileSync(new URL('./fixtures/tracking_variables.json', import.meta.url), 'utf8'));
 
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>, container: HTMLElement;
-let desk: Record<string, any>, lib: Record<string, any>, sessionModule: Record<string, any>, router: Record<string, any>;
+let desk: Record<string, any>, lib: Record<string, any>, sessionModule: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>;
+let asked: any = null;
 const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
 before(async () => {
   win = new Window();
@@ -30,6 +31,7 @@ before(async () => {
   lib = await server.ssrLoadModule('/src/verticals/finance/lib/trackingVariables.ts');
   sessionModule = await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx');
   router = await server.ssrLoadModule('react-router-dom');
+  pageContext = await server.ssrLoadModule('/src/core/ai/pageContext.tsx');
   container = win.document.createElement('div') as unknown as HTMLElement;
   win.document.body.append(container);
   root = (await import('react-dom/client')).createRoot(container);
@@ -39,9 +41,10 @@ after(async () => { await React.act(async () => root?.unmount()); await server?.
 const started: string[] = [];
 async function show(load: () => Promise<unknown>) {
   const sessions = { start: async (question: string) => { started.push(question); return { sessionId: 's', status: 'started' }; } };
+  const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
-      React.createElement(desk.VariableDesk, { load })))));
+      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load }))))));
   await React.act(async () => {});
 }
 
@@ -71,77 +74,62 @@ test('关注名单补上交易所后缀，去重，认不出的不请求，最�
   assert.equal(lib.qualifiedWatch(Array.from({ length: 60 }, (_, i) => String(600000 + i))).length, 50);
 });
 
-test('没有日行情的变量排最后并灰显，写原因与引用公司；有行情的按后端顺序', async () => {
+test('卡片标题写事情本身，第二行写碰到哪些关注公司和方向；金额不在第一层', () => {
+  const [card] = trackingFixture.cards;
+  assert.equal(lib.cardTitle(card), '沪铝一天跌 445 元/吨（−1.9%）');
+  assert.equal(lib.cardTouch(card), '关注中：神火 · 对利润偏负面');
+  const five = { ...card, rule: 'five_day', change: '300', change_pct: '0.0130', companies: [{ ...card.companies[0], impact: '248000000' }] };
+  assert.equal(lib.cardTitle(five), '沪铝五天累计涨 300 元/吨（+1.3%）');
+  assert.equal(lib.cardTouch(five), '关注中：神火 · 对利润偏正面');
+  const mixed = { ...card, companies: [card.companies[0], { symbol: '000807.SZ', name: '云铝股份', impact: '500000000', pct_of_base: null, neutral_price_delta: null }] };
+  assert.equal(lib.cardTouch(mixed), '关注中：神火、云铝 · 对利润影响方向不同');
+  assert.equal(lib.cardTitle({ ...card, change_pct: null }), '沪铝一天跌 445 元/吨');
+  assert.doesNotMatch(lib.cardTitle(card) + lib.cardTouch(card), /亿元|中性价/);
+});
+
+test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有写平静，没有行情与取不到各一句', () => {
   const [al, ao, coal] = trackingFixture.variables;
-  assert.deepEqual(lib.orderVariables([coal, al, ao]).map((v: any) => v.var_id), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO', '000933.SZ:coal_price']);
+  assert.equal(lib.variableLine(al, trackingFixture.cards), '10 月 8 日 跌 445 元/吨，已提醒');
+  assert.equal(lib.variableLine(ao, []), '本周没有大的波动');
+  assert.equal(lib.variableLine(coal, trackingFixture.cards), '没有公开行情，跟着财报更新');
+  assert.equal(lib.variableLine({ ...ao, status: 'gap' }, []), '暂时取不到行情');
+  assert.deepEqual(lib.orderWatching([coal, ao, al], trackingFixture.cards).map((v: any) => v.var_id), ['cmdty:SHFE.AL', '000933.SZ:coal_price', 'cmdty:SHFE.AO']);
+});
+
+test('卡片：最近一张用品牌橙描边；展开才看金额；看个股页进入该公司；讨论打开问助手面板而不是新开对话', async () => {
   await show(async () => trackingFixture);
-  const rows = [...container.querySelectorAll('[data-variable-row]')] as HTMLElement[];
-  assert.deepEqual(rows.map(row => row.dataset.variableRow), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO', '000933.SZ:coal_price']);
-  assert.equal(container.querySelector('[data-variable-row="cmdty:SHFE.AL"] .variable-source')?.textContent, '上期所 主力连续，未复权，收盘价 · 2026-10-12', '来源里的交易所代码显示为中文');
-  const last = rows.at(-1)!;
-  assert.match(last.className, /is-nodata/);
-  assert.match(last.textContent!, /无公开日行情，靠财报与对话更新/);
-  assert.equal(last.querySelector('.tag')!.textContent, '神火股份', '公司胶囊不带影响');
-  assert.equal(last.querySelectorAll('td')[2]!.textContent, '—');
-  await React.act(async () => (last as HTMLElement).click());
-  assert.match(container.querySelector('.variable-detail')!.textContent!, /无公开日行情，靠财报与对话更新/, '点开写原因');
-  await React.act(async () => (last as HTMLElement).click());
-});
-
-test('表格：最新、较前一日、较基数期均价与影响的公司；涨红跌绿只看对利润的方向', () => {
-  const al = container.querySelector('[data-variable-row="cmdty:SHFE.AL"]') as HTMLElement;
-  const cells = [...al.querySelectorAll('td')].map(td => td.textContent);
-  assert.match(cells[2]!, /23,465 元\/吨/);
-  assert.equal(cells[3], '−5');
-  assert.equal(cells[4], '−859.83', '23465 − 24324.83');
-  assert.match(cells[5]!, /神火股份−7\.11 亿元/);
-  assert.match(al.querySelector('td:nth-child(4) span')!.className, /is-down/, '铝价跌 → 利润减少 → 绿');
-  const ao = container.querySelector('[data-variable-row="cmdty:SHFE.AO"]') as HTMLElement;
-  assert.match(ao.querySelector('td:nth-child(5) span')!.className, /is-up/, '氧化铝低于基数期 → 利润增加 → 红');
-  assert.ok(al.querySelector('svg.sparkline'));
-});
-
-test('点行展开每家公司的每步影响、较基数期影响、占基数比例与中性价影响', async () => {
-  const row = container.querySelector('[data-variable-row="cmdty:SHFE.AL"]') as HTMLElement;
-  await React.act(async () => row.click());
-  const detail = container.querySelector('.variable-detail')!;
-  assert.match(detail.textContent!, /神火股份 · 每涨 1,000 元\/吨\+8\.27 亿元/);
-  assert.match(detail.textContent!, /较基数期均价 24,324\.83−7\.11 亿元/);
-  assert.match(detail.textContent!, /占基数利润−10\.33%/);
-  assert.match(detail.textContent!, /中性价影响−3\.16 元/);
-  const ao = container.querySelector('[data-variable-row="cmdty:SHFE.AO"]') as HTMLElement;
-  await React.act(async () => ao.click());
-  assert.match(container.querySelector('.variable-detail')!.textContent!, /神火股份 · 每涨 100 元\/吨−2\.02 亿元/, '氧化铝每涨 100 元/吨，利润 −2.02 亿元');
-  await React.act(async () => ao.click());
-  const enter = () => React.act(async () => row.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Enter', bubbles: true }) as unknown as Event));
-  await enter();
-  assert.ok(container.querySelector('.variable-detail'), '键盘 Enter 也能展开');
-  await enter();
-  assert.equal(container.querySelector('.variable-detail'), null);
-});
-
-test('卡片：最近一张用品牌橙描边；看个股页进入该公司；讨论新开对话并带上问句', async () => {
   const card = container.querySelector('[data-variable-card]')!;
   assert.match(card.closest('.card')!.className, /card-alert/);
-  assert.deepEqual([...card.querySelectorAll('.tag')].map(tag => tag.textContent), ['神火股份', '沪铝 · 日行情']);
+  assert.equal(card.querySelector('.variable-card-title')!.textContent, '沪铝一天跌 445 元/吨（−1.9%）');
+  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '关注中：神火 · 对利润偏负面');
   assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^10 月 8 日/);
-  assert.match(card.querySelector('.variable-card-sentence')!.getAttribute('title')!, /^系数来自 10 月 13 日的个股页研究，每涨 1,000 元\/吨，利润 \+8\.27 亿元$/, '出处收进悬停');
-  assert.doesNotMatch(container.textContent!, /出卡线|系数 × 变动/, '第一层不露内部机制');
+  assert.equal(card.querySelector('.variable-card-effects'), null, '金额点展开才看');
+  assert.doesNotMatch(card.textContent!, /亿元|中性价/);
+  assert.doesNotMatch(container.textContent!, /系数|出卡线|系数 × 变动/, '第一层不露内部机制');
+  const toggle = [...card.querySelectorAll('button')].find(b => b.textContent === '展开')!;
+  await React.act(async () => toggle.click());
+  assert.equal(card.querySelector('.variable-card-effects')!.textContent, '神火年化归母净利约 −3.68 亿元（占基数 5.3%），中性价约 −1.64 元');
+  assert.ok(card.querySelector('.variable-card-effects b.is-down'), '沿用涨红跌绿配色');
+  await React.act(async () => [...card.querySelectorAll('button')].find(b => b.textContent === '收起')!.click());
+  assert.equal(card.querySelector('.variable-card-effects'), null);
   assert.equal(container.querySelectorAll('.card-alert').length, 1, '同屏最多一张');
   assert.equal(card.querySelector('a')!.getAttribute('href'), '/watch/000933');
   const discuss = [...card.querySelectorAll('button')].find(b => b.textContent === '讨论')!;
   await React.act(async () => discuss.click());
-  assert.deepEqual(started, ['沪铝 10 月 8 日跌了 445 元/吨，对神火影响多大？']);
+  assert.deepEqual(started, [], '不新开深度对话');
+  assert.equal(asked.pageKey, 'feed:variables');
+  assert.equal(asked.draft, '沪铝 10 月 8 日跌了 445 元/吨，对神火影响多大？', '输入框预填问句');
+  assert.equal(asked.reference.title, '沪铝一天跌 445 元/吨（−1.9%）', '卡片标题随本轮带入');
+  assert.match(asked.reference.text, /^关注中：神火 · 对利润偏负面\n沪铝一天跌 445 元\/吨/);
 });
 
-test('没有卡片时显示一句空态；覆盖区写明自动盯的数量、没有日行情的变量与未研究的公司数', async () => {
+test('动态页只留卡片：没有变量表和覆盖区；没有卡片时显示一句空态', async () => {
+  await show(async () => trackingFixture);
+  assert.equal(container.querySelector('table'), null);
+  assert.equal(container.querySelector('[data-cover]'), null);
   await show(async () => ({ ...trackingFixture, cards: [] }));
   assert.match(container.textContent!, /最近 20 个交易日没有足以影响利润的价格变动/);
   assert.equal(container.querySelector('[data-variable-card]'), null);
-  const cover = (name: string) => container.querySelector(`[data-cover="${name}"]`)!.textContent;
-  assert.equal(cover('watched'), '在自动盯的变量2沪铝、氧化铝');
-  assert.equal(cover('uncovered'), '没有日行情的变量1煤炭售价（神火股份）');
-  assert.match(cover('unresearched')!, /还没研究的关注公司1/);
 });
 
 test('加载中显示骨架；没有关注显示引导；读取失败一句话加重试', async () => {
