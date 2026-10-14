@@ -61,9 +61,10 @@ R6 所列；公共层内部结构调整；刷新检查状态移出记忆目录�
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-14 15:02 第二次迁移已留在真实数据上。脚本只复制 Wiki 研究块，不改页。抽查通过。回滚后状态曾与 `user-layer-backup-20261014-144704` 逐文件哈希一致。
-2. 改动文件：worktree `backend/scripts/user_layer_migrate.py`、`backend/tests/test_user_isolation.py`。未提交。
-3. 证据：新备份 `workspace/research/user-layer-backup-20261014-150230`，六项目录哈希与源一致，SQL 735393 字节。门禁 pytest 1331 passed / 8 skipped / 7 deselected。抽查：三只 page-research 200 且研究非空；topics 6、links 列表 8、memory 1、notes 12；notes 的 user_id 全为 local；library_items 8 且均 hidden。
-4. 与规格的偏差及理由：links 列表接口本来不计 hypothesis，所以接口计数是 8 不是文件里的 10。未因此回滚。Wiki 页未改，local 研究仍留在 Wiki 块里，其他用户读页会看到。
-5. 未覆盖的缺口：客户端令牌另立。Wiki 块清理未做，见本轮第 2 步。
-6. 下一步谁做什么：Claude 决定是否用正式发布去掉 Wiki 上的 company_page_research，并先改读路径，避免无个人研究的用户看到 local 的块。
+1. 状态与结论：2026-10-14 第二次迁移（只复制 Wiki 研究块，不改页）已留在真实数据上，备份 `workspace/research/user-layer-backup-20261014-150230`。Claude 审阅后把 pi3 的迁移脚本与测试合入 Stock 主目录，并补上读路径漏洞，已提交 Stock `620f198`；§5.2 两令牌真实运行通过，本 Task 收尾归档。
+2. 改动文件：Stock 主目录，相对已提交的 `6272fe5`：`backend/scripts/user_layer_migrate.py`、`backend/tests/test_user_isolation.py`（pi3）；`backend/app/api/v1/wiki.py`、`backend/tests/wiki/test_core_research.py`（Claude）。
+3. 证据：2026-10-14 15:41 调 127.0.0.1:8700。local 对 000933.SZ、600900.SH 的 page-research 为 200 且 research 非空。qa-alice、qa-bob 的 research 与 researchVersion 为 null；pages/read 无 company_page_research，markdown 无「个股页研究」。错误令牌 401。users.json 已删这两条，目录未生成。旧令牌明文未跨 shell 保留，清理后未用同一串复测 401。
+4. 与规格的偏差及理由：Claude 补修读路径：`_with_user_research` 总是先去掉 Wiki 文件里的 `company_page_research` 块，只拼当前用户的记录；`/page-drafts/research` 的 `spec` 同样经过它，`researchVersion` 只取用户存储。
+   `test_core_research` 两条断言原本锁定「从 Wiki 块取版本」的旧行为，改为断言不显示、不取版本，并改用临时工作区（原先会读到真实 `local` 研究）。
+5. 未覆盖的缺口：Wiki 文件里的旧研究块仍在（已无人读得到），留待以后正式发布时清理，避免触发完整性校验；旧流程 `/pages/diff` 仍可比较含旧块的版本，内测不开放。两个测试令牌的真实运行未做。
+6. 下一步谁做什么：Claude 审阅这次双令牌读页结果。Wiki 旧块仍待正式发布时清理。测试用户已删除。

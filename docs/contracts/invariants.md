@@ -36,7 +36,8 @@
 | 15 | **研究真值是业务对象，模型不直接碰存储**：模型只看到围绕核心对象设计的工具，工具描述与实现分离；产品预设不挂 bash 与文件写工具 | workbench 教训；当前 DSH 预设 | **已落地**：Vibe `scripts/verify-invariants.mjs` 查产品声明；Stock `dsh/test/tool-boundary.test.mjs` 查角色工具表；Vibe `scripts/audit-session-tools.mjs` 做本地运行日志审计，不进 CI/钩子。声明与角色检查不证明有效工具表 |
 | 16 | **只用 DSH 扩展点，不改 DSH 内部**；确需上游行为走补丁流程并登记移除条件；**升级 DSH 前先打基线标签**；切换后开新会话，运行 `node scripts/audit-session-tools.mjs --since <切换时间>`，退出 0 才算切换完成 | runtime README「升级与回退规则」；Checklist「DSH 运行时与历史会话」 | **已落地**：`scripts/verify-invariants.mjs` 检查依赖锁定与补丁登记；`scripts/audit-session-tools.mjs` 本地审计切换后工具表，不进 CI/钩子 |
 | 17 | **每个注册都要可释放**（`track()` 收回 disposer） | M9.2 曾修复 11 处 | **已落地**：`scripts/verify-invariants.mjs` 用语法树检查跨行注册与 disposer 归属；客户端注册是 Cordis effect，自动撤销，不检查 |
-| 18 | **不得恢复已退役的系统**：六阶段状态机、旧资料库、旧聊天与研究 HTTP 入口、legacy 页面、旧 localStorage 模型配置、Electron 原生外壳 | 旧系统退役 Task；AGENTS | **已落地**：`scripts/verify-invariants.mjs` 扫描现用源码的退役标识符和 Electron 导入；清单来源为旧系统退役 Task 与对应提交的删除路径/符号。有限清单不能证明换名后的旧能力不会恢复 |
+| 18 | **不得恢复已退役的系统**：六阶段状态机、旧资料库、旧聊天与研究 HTTP 入口、legacy 页面、旧 localStorage 模型配置、Electron 原生外壳（指 Vibe 自建的外壳；内测安装包用 deepseek-harness 的 DSH Desktop 壳，不进 Vibe 源码，2026-10-14） | 旧系统退役 Task；AGENTS | **已落地**：`scripts/verify-invariants.mjs` 扫描现用源码的退役标识符和 Electron 导入；清单来源为旧系统退役 Task 与对应提交的删除路径/符号。有限清单不能证明换名后的旧能力不会恢复 |
+| 19 | **用户层数据只从该用户的存储读**：不从公共层（共享 Wiki 文件、公共表）兜底；公共层里遗留的用户数据在读取时剥掉，不靠「没人去读」 | 2026-10-14 按用户隔离：Wiki 里遗留的 `local` 研究经两个读取口兜底给了其他用户 | **已落地**：Stock `backend/tests/test_user_isolation.py::test_wiki_research_block_left_by_local_is_hidden_from_others` |
 
 ## 不纳入不变量的（保留在原处）
 

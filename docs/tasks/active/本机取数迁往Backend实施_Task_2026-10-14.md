@@ -62,9 +62,9 @@ R5 所列。
 
 ## 9. 当前交接
 
-1. 状态与结论：A 已在 `/Users/apple/ts/src/Stock-Research/.worktrees/pi1`（detached `a1b4818`）完成，未提交、未重建。三个接口按 R1 契约可调。§6 未触发。
+1. 状态与结论：A 由 pi1 在 `/Users/apple/ts/src/Stock-Research/.worktrees/pi1` 完成；2026-10-14 Claude 审阅后合入 Stock 主目录，已提交 Stock `1cae4fc`，重建后 §4.2 接口验证通过。三个接口按 R1 契约可调，§6 未触发。
 2. 改动文件：`backend/app/providers/quotes.py`、`services/public_symbols.py`、`services/market_quotes.py`、`services/feed_items.py`、`api/v1/quotes.py`、`api/v1/feed.py`、`api/v1/__init__.py`、`tests/test_public_feed.py`。
-3. 证据：worktree `backend` 用主目录 `.venv` 跑 pytest，剔除约定 7 项后 1339 passed、8 skipped、7 deselected。`uvx ruff check` 新改文件通过。`git diff --check` 无输出。未打真实源。
-4. 与规格的偏差及理由：金额按元返回（成交额由万元换算，市值由亿元换算，成交量由手换算为股）。公告补源并发且 8 秒截止，不边列边入库。新闻 `source` 用雷达条目的发布方。
-5. 未覆盖的缺口：真实三只股票与缓存命中留到 A 合入重建后。云端网络未测。
-6. 下一步谁做什么：Claude 审阅合入 A；B 已由 claude2 按契约并行；A、B 合入后派 C。
+3. 证据：2026-10-14 15:41 调 127.0.0.1:8700。三只报价 200，price、change_pct、volume、amount、market_cap、as_of 均非 null，as_of 为 2026-10-14。缓存过期后连续两次 1675ms 与 4ms，载荷相同；日志只有两条访问记录、无缓存命中行，按耗时差判定第二次命中。公告 10 条、3529ms；新闻 10 条、3642ms。均未超过 10 秒。
+4. 与规格的偏差及理由：Claude 补修 `feed_items._collect`：原用 `with ThreadPoolExecutor`，退出时会等慢源跑完，8 秒截止不生效；改为 `shutdown(wait=False, cancel_futures=True)`，单只来源抛任何异常都只跳过该只。金额按元返回（成交额由万元换算，市值由亿元换算，成交量由手换算为股）。公告只为库里没有公告的代码补源，不边列边入库。新闻 `source` 用雷达条目的发布方。3 秒缓存在同一时刻并发未命中时可能各打一次源，轮询错开时影响很小，暂不加锁。
+5. 未覆盖的缺口：真实三只股票与缓存命中留到重建后；云端网络未测。
+6. 下一步谁做什么：A 段真实取数已验证，§6 未触发。B 等 claude2 的 0.2.1 前端完善合入后开始；A、B 合入后派 C。

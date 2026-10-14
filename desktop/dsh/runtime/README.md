@@ -1,6 +1,6 @@
 # 产品 DSH runtime
 
-> 2026-10-14：本 worktree 升级到 `0.2.1-alpha.2`，同步主目录 b2e7be15，未切换主目录。后台整理、公司研究（含续跑）和报告生成已迁移 `startActivation`；459项测试通过。真实图表问答、问助手及海螺研究已重跑，敏感性计算200、研究保存version2、工具审计退出0。页面上下文与知识整理仍有缺口，复制凭据已删除，待独立审阅和用户验收。执行状态见 [升级 Task](../../../docs/tasks/active/DSH升级到0.2.1_Task_2026-10-14.md)。
+> 2026-10-14：本 worktree 升级到 `0.2.1-alpha.2`，同步主目录 b2e7be15，未切换主目录。后台整理、公司研究（含续跑）和报告生成已迁移 `startActivation`；459项测试通过。真实图表问答、问助手及海螺研究已重跑，敏感性计算200、研究保存version2、工具审计退出0。页面上下文与知识整理仍有缺口，复制凭据已删除，待独立审阅和用户验收。执行状态见 [升级 Task](../../../docs/tasks/archived/DSH升级到0.2.1_Task_2026-10-14.md)。
 
 全部 DSH 包精确锁定 `0.2.1-alpha.2`，统一来自 npm registry；没有混用本地构建包。`package-lock.json` 锁定完整闭包，React / ReactDOM 保持 `18.3.1`。通过 `npm ci` 安装，postinstall 必须成功应用九个补丁并执行 `check-inline-result.mjs`。
 
