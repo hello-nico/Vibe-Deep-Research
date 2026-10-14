@@ -89,7 +89,7 @@ test("左上角使用本地产品标记，不增加外部请求或原作者品�
 });
 test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用定位", () => {
   const layout = read("verticals/finance/components/layout/Layout.tsx");
-  assert.match(layout, /<FinanceAiDock triggerHost=\{assistantHost\} showTrigger=\{pathname !== "\/" && !pathname.startsWith\("\/insights\/topics\/"\)\}/);
+  assert.match(layout, /<FinanceAiDock triggerHost=\{assistantHost\} showTrigger=\{pathname !== "\/" && pathname !== "\/settings" && !pathname.startsWith\("\/insights\/topics\/"\)\}/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /className="btn ai-chat-trigger"/);
   assert.doesNotMatch(layout, /mr-24/);
   assert.doesNotMatch(layout, /lg:inline">投研助手/);

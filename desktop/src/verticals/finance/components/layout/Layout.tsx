@@ -57,7 +57,7 @@ export function Layout() {
         <div className="workspace-stage">
           <main ref={mainRef} id="workspace-main" tabIndex={-1} className="workspace-surface relative">
             <div className="workspace-assistant-fallback absolute right-5 top-4 z-10 empty:hidden">
-              <FinanceAiDock triggerHost={assistantHost} showTrigger={pathname !== "/" && !pathname.startsWith("/insights/topics/")} renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />
+              <FinanceAiDock triggerHost={assistantHost} showTrigger={pathname !== "/" && pathname !== "/settings" && !pathname.startsWith("/insights/topics/")} renderPanel={(content, close) => <FinanceAssistantSurface close={close}>{content}</FinanceAssistantSurface>} />
             </div>
             <ConversationWorkspace active={pathname === "/"}>
               <div key={pathname} className="workspace-page-enter">

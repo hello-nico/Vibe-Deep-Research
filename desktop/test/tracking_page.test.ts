@@ -127,8 +127,18 @@ test('正在盯的：有卡片的排前并写那一次；没有的写平静；�
   const foot = text('.tracking-foot');
   assert.match(foot, /紫金矿业.*没有研究/, '取得到名字就显示简称');
   assert.doesNotMatch(foot, /601899/);
-  assert.equal(container.querySelector('.tracking-foot a')!.getAttribute('href'), '/watch');
+  assert.equal(container.querySelector('.tracking-foot a')!.textContent, '去研究');
+  assert.equal(container.querySelector('.tracking-foot a')!.getAttribute('href'), '/watch/601899', '只有一家：直达该公司个股页');
   assert.doesNotMatch(container.textContent!, /系数|凭据|数据版本|编号/);
+});
+
+test('没研究的公司有多家：「去研究」跳到关注列表', async () => {
+  const variables = { ...trackingFixture, coverage: { ...trackingFixture.coverage, unresearched: ['601899.SH', '600519.SH'] } };
+  mockFetch({ records: [], variables });
+  await render(h(page.Tracking));
+  const link = container.querySelector('.tracking-foot a')!;
+  assert.equal(link.textContent, '去研究');
+  assert.equal(link.getAttribute('href'), '/watch');
 });
 
 test('正在盯的：多于 6 条时其余收进「显示另外 N 项」', async () => {
@@ -222,6 +232,11 @@ test('设置页分段「记忆」可打开，原样显示画像与近期记忆',
   await render(h(native.ModelSettings), '/settings');
   assert.deepEqual([...container.querySelectorAll('.segmented [role="tab"]')].map(tab => tab.textContent), ['模型', '连接', '记忆']);
   assert.match(container.textContent!, /打开模型设置/);
+  assert.ok(container.querySelector('.page-head-actions .segmented'), '分段在页首右组，与标题同一行');
+  assert.equal(container.querySelector('.page-head-title h1')!.textContent, '设置');
+  assert.equal(container.querySelector('[data-assistant-slot]'), null, '设置页没有助手落点');
+  const layoutSource = readFileSync(new URL('../src/verticals/finance/components/layout/Layout.tsx', import.meta.url), 'utf8');
+  assert.match(layoutSource, /pathname !== "\/settings"/, '设置页不显示「问助手」');
   await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '记忆') as HTMLElement).click());
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
   assert.match(container.textContent!, /助手回答时会参考这里的内容/);

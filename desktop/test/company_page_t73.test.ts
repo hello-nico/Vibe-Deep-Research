@@ -176,13 +176,13 @@ test('跟踪状态：按 threshold.direction 判越线；缺省或缺当前值�
     assert.equal(windowPassed(window, now), expected, window);
 });
 
-test('判断变化行：无变化写研究于某日，资料未变化；对话来源可撤回', () => {
+test('判断变化行：无变化写某日更新：判断没变；对话来源可撤回', () => {
   const { changeLine, conversationHint } = narrative;
-  assert.equal(changeLine(huaneng.research.research).text, '研究于 2026-10-12，资料未变化');
+  assert.equal(changeLine(huaneng.research.research).text, '10-12 更新：判断没变');
   assert.equal(changeLine(huaneng.research.research).revertable, false);
   const talked = changeLine({ researchedAt: '2026-10-12T08:00:00+00:00', changes: { valuation: '铝价下调到二万一后重算中性价' },
     sensitivity: { drivers: [{ var_id: 'cmdty:SHFE.AL', origin: 'conversation', sessionId: 'session-abc', confirmedAt: '2026-10-12T07:55:00+00:00' }] } });
-  assert.equal(talked.text, '研究于 2026-10-12 · 判断有变化 · 估值：铝价下调到二万一后重算中性价');
+  assert.equal(talked.text, '10-12 更新：铝价下调到二万一后重算中性价');
   assert.equal(talked.revertable, true);
   assert.equal(conversationHint(talked.conversation), '来自对话确认 · 2026-10-12 · 会话 session-abc');
   // 研究读口顶层的 changedFrom / canRevert 优先：没有对话变量时也能撤回，悬停带原因。
@@ -192,6 +192,12 @@ test('判断变化行：无变化写研究于某日，资料未变化；对话�
   assert.equal(changeLine({ researchedAt: '2026-10-12T08:00:00+00:00', sensitivity: { drivers: [{ var_id: 'x', origin: 'conversation' }] } }, { canRevert: false }).revertable, false);
   assert.equal(changeLine({ gapNote: '缺口', researchedAt: '2026-10-12' } as any), null);
   assert.equal(changeLine(null), null);
+  // 多处变化：第一层一句人话，各节明细进悬停；内部说法换成用户能懂的话。
+  const many = changeLine({ researchedAt: '2026-10-14T08:00:00+00:00', changes: { valuation: '估值从偏低改为合理', variables: '改用沪铝、氧化铝、焦煤的行情目录变量，三档情景重算' } });
+  assert.equal(many.text, '10-14 更新：2 处判断有变化');
+  assert.equal(many.detail, '估值：估值从偏低改为合理\n关键变量：改用沪铝、氧化铝、焦煤的价格数据，悲观、中性、乐观三种情况重算');
+  assert.doesNotMatch(many.text + many.detail, /口径|行情目录变量|三档情景/);
+  assert.equal(changeLine({ researchedAt: '2026-10-14T08:00:00+00:00', changes: { valuation: '估值从偏低改为合理' } }).text, '10-14 更新：估值从偏低改为合理');
 });
 
 test('单季柱图兜底数据与去向条按数据包取值', () => {
@@ -236,8 +242,8 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   const lead = section('thesis')!.textContent!;
   assert.match(lead, /量价成本差决定盈利/);
   assert.match(lead, /合理/);
-  assert.match(lead, /研究于 2026-10-12，资料未变化/);
-  assert.equal(lead.indexOf('合理') < lead.indexOf('研究于'), true, '五档结论与判断变化行同一行，结论在前');
+  assert.match(lead, /10-12 更新：判断没变/);
+  assert.equal(lead.indexOf('合理') < lead.indexOf('更新：'), true, '五档结论与判断变化行同一行，结论在前');
   assert.match(container.querySelector('.company-page-code')!.textContent!, /600863.* · 高杠杆周期公用事业/);
   assert.match(container.querySelector('.company-page-quote-time')!.textContent!, /行情/);
   // 回答句里的占位：加粗等宽、悬停给期间与出处；缺口灰色「暂缺」。
@@ -475,7 +481,7 @@ test('对话写回：变化处悬停显示来源对话与时间；撤回调用 r
   fixture.services.readResearch = async symbol => { reads += 1; return original(symbol); };
   await mount(fixture, '000933', '神火股份');
   const line = container.querySelector('[data-change-line]')!;
-  assert.match(line.textContent!, /研究于 2026-10-12 · 判断有变化 · 估值：铝价下调后重算中性价/);
+  assert.match(line.textContent!, /10-12 更新：铝价下调后重算中性价/);
   assert.equal(line.querySelector('[data-change-hint]')!.getAttribute('title'), '来自对话确认 · 2026-10-12 · 会话 session-7f3a · 用户讨论：铝价跌到 21000 时的影响');
   const origin = section('variables')!.querySelector('[data-variable="cmdty:SHFE.AO"] .narrative-origin')!;
   assert.equal(origin.getAttribute('title'), '来自对话确认 · 2026-10-12 · 会话 session-7f3a');

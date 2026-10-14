@@ -61,9 +61,9 @@ R6 所列；公共层内部结构调整；刷新检查状态移出记忆目录�
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-14 Claude 写定，待派 pi3。
-2. 改动文件：无。
-3. 证据：无。
-4. 与规格的偏差及理由：无。
-5. 未覆盖的缺口：客户端带令牌另立。
-6. 下一步谁做什么：pi3 实施并回填；Claude 审阅；用户重建后另派真实运行。
+1. 状态与结论：2026-10-14 pi3 已在 worktree `/Users/apple/ts/src/Stock-Research/.worktrees/pi3`（detached `6e3a865`）完成七类用户层隔离、令牌中间件、迁移/回滚脚本与测试。未提交、未重建、未对真实库执行 0013。
+2. 改动文件：见本轮回复清单（均在上述 worktree 的 `backend/`）。
+3. 证据：门禁 pytest 1329 passed / 8 skipped / 7 deselected；新文件 `uvx ruff check` 通过；`git diff --check` 无输出。隔离测试覆盖两用户互不可见、迁移重跑不变、回滚恢复原状。
+4. 与规格的偏差及理由：显式 `STOCK_RESEARCH_RESEARCH_TOPICS` / `STOCK_RESEARCH_RESEARCH_LINKS` 优先于用户目录，避免测试与已钉死叶路径的部署被改写；未设叶路径时仍写入 `research/users/<user_id>/`。公司研究不再回写 Wiki 研究块；`page-drafts/research` 仅在用户文件不存在时回退读 Wiki 块，供迁移前与旧测试。pytest 用主仓 `.venv`，因 worktree `backend/` 无 `pyproject.toml`。
+5. 未覆盖的缺口：客户端带令牌另立。真实库迁移与双令牌运行留待用户重建后另派。
+6. 下一步谁做什么：Claude 审阅 worktree；用户重建后另派真实运行（迁移脚本、两测试令牌互不可见）。

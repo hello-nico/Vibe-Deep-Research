@@ -84,7 +84,7 @@ function Watching() {
       <div className="card tracking-card">{shown.map(variable => <WatchRow key={variable.var_id} variable={variable} data={data}
         expanded={open === variable.var_id} onToggle={() => setOpen(value => value === variable.var_id ? null : variable.var_id)} />)}
       {rows.length > shown.length && <button type="button" className="tracking-more" onClick={() => setAll(true)}>显示另外 {rows.length - shown.length} 项</button>}</div>
-      {data.coverage.unresearched.length > 0 && <p className="tracking-foot">还有 {data.coverage.unresearched.map(symbol => (names.has(symbol) ? shortName(names.get(symbol)!) : quoteNames[codeOf(symbol)]) ?? codeOf(symbol)).join("、")} 没有研究，变量要研究后才会出现。<Link to="/watch">去关注</Link></p>}
+      {data.coverage.unresearched.length > 0 && <p className="tracking-foot">还有 {data.coverage.unresearched.map(symbol => (names.has(symbol) ? shortName(names.get(symbol)!) : quoteNames[codeOf(symbol)]) ?? codeOf(symbol)).join("、")} 没有研究，变量要研究后才会出现。<Link to={data.coverage.unresearched.length === 1 ? watchPath(codeOf(data.coverage.unresearched[0]!)) : "/watch"}>去研究</Link></p>}
     </>;
   }
   return <section data-tracking="watching"><SectionLabel aside={aside}>正在盯的</SectionLabel>{body}</section>;

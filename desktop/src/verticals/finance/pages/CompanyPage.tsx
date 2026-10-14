@@ -5,11 +5,13 @@ import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
 import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
-import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, conversationHint, epsAt, initialSliderValues, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, FlowBar, GradePills, QuarterBars, SensitivityPanel, TrackingCards, ValuationBand, type BandTier, type DriverNote, type TrackItem } from '../components/CompanyNarrative';
 import { companyPageProgress, companyPageStore, companyPageTaskActive, type CompanyPageData, type CompanyPageResearch, type CompanyPageServices, type CompanyPageState } from '../lib/companyPage';
 import { financialNumber } from '../lib/financialDisplay';
 import { currencyLabel } from '../lib/marketSymbol';
+import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
+import type { SnapshotSection } from '../assistant/snapshot';
 import { Metric, MetricTag, Panel, Tag } from '../components/ui/Card';
 import './company-page.css';
 
@@ -56,11 +58,7 @@ function BoundField({ packet, id }: { packet?: DataPacket; id: string }) {
   if (!field) return <p className="company-page-gap" data-gap="missing">暂时取不到{fieldIdLabel(id)}</p>;
   return <FieldMetric label={fieldIdLabel(field.field_id ?? id)} field={field} note={forecastNote(field)} />;
 }
-/** 第一层关键数：最多三个，期间与口径收进悬停。 */
-const KEY_LIMIT = 3;
-function keyIdsOf(packet: DataPacket | undefined, ids: readonly string[]) {
-  return ids.filter(id => numericValue(findField(packet, id)) != null).slice(0, KEY_LIMIT);
-}
+/** 第一层关键数：最多三个（选法 `keyIdsOf` 与问助手快照共用），期间与口径收进悬停。 */
 function KeyNumbers({ packet, ids, peers = false }: { packet?: DataPacket; ids: readonly string[]; peers?: boolean }) {
   const shown = keyIdsOf(packet, ids).map(id => ({ id, field: findField(packet, id)! }));
   if (!shown.length) return null;
@@ -122,7 +120,23 @@ function bandTiers(scenarios: ScenarioTableData | null, model: SensitivityModel 
   });
 }
 
-export function CompanyPage({ symbol, name, services }: { symbol: string; name: string; services: CompanyPageServices }) {
+/** 用户此刻正在看的那一节：视口中线落在哪一节就是哪一节，都不含时取可见面积最大的；没有节返回 undefined。 */
+export function viewedCompanySection(root: ParentNode = document, viewportHeight = window.innerHeight): string | undefined {
+  const middle = viewportHeight / 2;
+  let best: { id: string; visible: number } | undefined;
+  for (const element of root.querySelectorAll<HTMLElement>('[data-company-section]')) {
+    const id = element.getAttribute('data-company-section');
+    if (!id) continue;
+    const { top, bottom } = element.getBoundingClientRect();
+    if (top <= middle && middle <= bottom) return id;
+    const visible = Math.min(bottom, viewportHeight) - Math.max(top, 0);
+    if (visible > 0 && (!best || visible > best.visible)) best = { id, visible };
+  }
+  return best?.id;
+}
+
+/** `onSnapshot`：页面每次有可见变化就交出一份分节快照，由外层登记给问助手（页面内容只在这里知道）。 */
+export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: string; name: string; services: CompanyPageServices; onSnapshot?: (sections: SnapshotSection[]) => void }) {
   const research = useCompanyPageState(services, symbol, name, true);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
@@ -262,6 +276,21 @@ export function CompanyPage({ symbol, name, services }: { symbol: string; name: 
     valuation: loading || Boolean(valuation?.summary) || tiers.length > 0 || hasKeys(DEFAULT_KEYS.valuation),
     tracking: tracking.length > 0 || Boolean(saved?.sections?.tracking?.summary),
   };
+  const snapshotSections = onSnapshot ? buildCompanySnapshotSections({
+    name, symbol, typeName: saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : undefined,
+    quote: quote ? { price: quote.price, currencyLabel: currencyLabel(quote.currency), change_pct: quote.change_pct, fetched_at: quote.fetched_at } : null,
+    quoteLoading: data.quote.loading,
+    thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, changeText: change?.text,
+    packet, packetLoading: data.packet.loading, packetError: Boolean(data.packet.error), calcs,
+    show: showSection, titles: QUESTIONS,
+    answers: { business: block('business')?.summary, variables: variableAnswer, cash: block('cash')?.summary, valuation: valuation?.summary, tracking: saved?.sections?.tracking?.summary },
+    keys: { business: businessKeys, cash: cashKeys, valuation: DEFAULT_KEYS.valuation },
+    formulaSentence, formula, quarterBars: bars, model, values, price, tiers, adjusted,
+    impliedText: implied && impliedVar ? `按中性倍数 ${plainNumber(implied.multiple ?? multiple ?? 0, 1)} 倍，现价相当于市场在赌${impliedVar.name}约 ${sliderUnitText(impliedVar, implied.value)}` : undefined,
+    tracking, related: saved?.related ?? [],
+  }) : [];
+  const snapshotKey = JSON.stringify(snapshotSections);
+  useEffect(() => { onSnapshot?.(snapshotSections); }, [snapshotKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return <article className="company-page" aria-label={`${name} 个股页`}>
     <section className="card company-page-hero">
       <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p></div>
@@ -271,7 +300,7 @@ export function CompanyPage({ symbol, name, services }: { symbol: string; name: 
         {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} />}
         {!gapOnly && (saved?.valuation?.grade || change) && <p className="company-page-change" data-change-line="">
           {saved?.valuation?.grade && <Tag brand><span data-valuation-grade={saved.valuation.grade}>{saved.valuation.grade}</span></Tag>}
-          {change && <span data-change-hint={change.conversation ? '' : undefined} title={conversationHint(change.conversation) || undefined}>{change.text}</span>}
+          {change && <span data-change-hint={change.conversation ? '' : undefined} title={[conversationHint(change.conversation), change.detail].filter(Boolean).join('\n') || undefined}>{change.text}</span>}
           {change?.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
           {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
         </p>}

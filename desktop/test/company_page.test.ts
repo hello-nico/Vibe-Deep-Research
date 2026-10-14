@@ -216,7 +216,7 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.ok(container.querySelector('a[href^="/insights/topics/"]'));
   assert.ok(container.querySelector('a[href^="/my-reports/read/"]'));
   const lead = container.querySelector('[data-company-section="thesis"]')!;
-  assert.match([...lead.querySelectorAll('p')].find(element => element.textContent?.includes('研究于 '))?.textContent ?? '', /研究于 2026-10-10 · 判断有变化 · 论点：最新定期报告后更新$/);
+  assert.match([...lead.querySelectorAll('p')].find(element => element.textContent?.includes('更新：'))?.textContent ?? '', /10-10 更新：最新定期报告后更新$/);
   assert.doesNotMatch(lead.textContent!, /依据版本|aaaaaaaa|T01:00/);
   assert.equal(fixture.starts.length, 0);
   assert.equal(container.querySelector('[data-scenario="table"]')?.textContent?.includes('中性'), true);
@@ -449,13 +449,13 @@ test('「…」菜单：重新研究走 startResearch，进行中禁用；整理
   assert.equal(menu()[0]!.disabled, true, '研究进行中不能重复发起');
   await React.act(async () => win.document.body.dispatchEvent(new win.KeyboardEvent('keydown', { key: 'Escape' })));
 });
-test('研究过程面板：知识整理未完成只在面板注明；不显示系统发出的指令气泡', async () => {
+test('研究过程面板：知识整理未完成不显示给用户；不显示系统发出的指令气泡', async () => {
   const panel = await server.ssrLoadModule('/src/verticals/finance/components/TaskProcessPanel.tsx');
   const sessions = { subscribeSessionList: () => () => {}, taskRunning: () => false };
   const show = async (task: Record<string, unknown>) => React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
     React.createElement(panel.TaskProcessPanel, { task: { sessionId: 'done-session', title: '个股页研究', kind: 'research', ...task }, onClose: () => {} }))));
   await show({ settlementFailed: true });
-  assert.match(container.querySelector('nav')!.textContent!, /知识整理未完成/);
+  assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成|本次没有需要展示/);
   await show({});
   assert.match(container.querySelector('nav')!.textContent!, /本次没有需要展示的整理过程/);
   assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成/);

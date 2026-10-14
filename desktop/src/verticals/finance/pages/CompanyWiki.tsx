@@ -1,4 +1,4 @@
-import { useContext, useEffect, useMemo, useState } from 'react';
+import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, RefreshCw, Star, X } from 'lucide-react';
 import { Disclaimer } from '../components/ui/Disclaimer';
@@ -13,11 +13,11 @@ import { addToRoster, loadRoster, removeFromRoster, touchRoster } from '../lib/r
 import { api } from '../lib/api';
 import { watchPath } from '../lib/routes';
 import { useResearchSessions } from '../dsh/research-session';
-import { buildDirectorySnapshot } from '../assistant/snapshot';
+import { buildDirectorySnapshot, clipSectionedSnapshot, type SnapshotSection } from '../assistant/snapshot';
 import { companyQuoteObject } from '../lib/pageAssistantObjects';
 import { useAiPage, useAiPageObjects } from '../../../core/ai/pageContext';
 import { createCompanyPageServices } from '../lib/companyPageServices';
-import { CompanyPage, CompanyPageProgress, CompanyPageServicesContext, useCompanyPageState } from './CompanyPage';
+import { CompanyPage, CompanyPageProgress, CompanyPageServicesContext, useCompanyPageState, viewedCompanySection } from './CompanyPage';
 import { companyPageStore, companyPageTaskActive } from '../lib/companyPage';
 import './company-page.css';
 
@@ -76,9 +76,21 @@ export function CompanyWiki() {
   const researching = companyPageTaskActive(page.task);
   const store = companyPageStore(services, symbol, title);
   const revert = async () => { try { await services.revertResearch?.(symbol, page.researchVersion); await store.refresh(); } catch (error) { console.warn('[finance/company-page] revert failed', error); } };
+  // 页面内容（回答句、关键数）只有 CompanyPage 知道：它交出分节快照，这里登记给问助手。
+  // 以前这里只登记了标题和 slug，助手读到的页面就只有一行标题，现金一节的数字一个都没有。
+  const [snapshot, setSnapshot] = useState<{ symbol: string; sections: SnapshotSection[] }>({ symbol: '', sections: [] });
+  const sectionsRef = useRef<SnapshotSection[]>([]);
+  sectionsRef.current = snapshot.symbol === symbol ? snapshot.sections : [];
+  const sectionsReady = sectionsRef.current.length > 0;
   // 问助手面板顶部的两个按钮，与页面上的「重新研究」「撤回」是同一个入口。
   useAiPage({ key: pageKey, title,
-    context: buildDirectorySnapshot({ heading: `${title} 个股页：商业模式、利润变量、弹性、现金、估值与观察。`, items: [{ title, id: slug }], loading: false }),
+    context: sectionsReady
+      ? clipSectionedSnapshot(sectionsRef.current, { keep: ['thesis'] }).body
+      : buildDirectorySnapshot({ heading: `${title} 个股页：数据正在加载。`, items: [{ title, id: slug }], loading: false }),
+    // 发送时再按用户正在看的那一节取舍；总长超过上限才会用到。
+    snapshotForSend: () => sectionsRef.current.length
+      ? clipSectionedSnapshot(sectionsRef.current, { focus: viewedCompanySection(), keep: ['thesis'] }).body
+      : `${title} 个股页：数据正在加载，页面上还没有可读的内容。`,
     suggestions: ['这家公司的利润最取决于什么？'],
     actions: [
       { id: 'research', label: '重新研究', disabled: researching || !page.loaded || Boolean(page.error), run: () => void store.restart() },
@@ -103,7 +115,7 @@ export function CompanyWiki() {
       <AssistantSlot />
     </div></div>
     {error && <p role="alert" className="mb-3 text-sm text-[var(--text-2)]">{error}</p>}
-    <CompanyPage key={symbol} symbol={symbol} name={title} services={services} />
+    <CompanyPage key={symbol} symbol={symbol} name={title} services={services} onSnapshot={sections => setSnapshot({ symbol, sections })} />
     {confirmElement}
     <Disclaimer />
   </div>;

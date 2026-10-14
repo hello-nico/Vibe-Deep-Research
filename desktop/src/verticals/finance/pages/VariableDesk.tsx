@@ -4,7 +4,7 @@ import { Card, Metric } from "../components/ui/Card";
 import { useAiPage, useAiQuestion } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import {
-  cardQuestion, cardSentence, cardTitle, cardTouch, companyPieces, dayLabel, impactText, loadTrackingVariables, percentText, priceText,
+  cardQuestion, cardSentence, cardTitle, cardTitlePieces, cardTouch, cardTouchPieces, companyPieces, dayLabel, impactText, loadTrackingVariables, percentText, priceText,
   shortName, tone, withUnit, yuanPerShareText,
   type TrackedVariable, type TrackingVariables, type VariableCard, type VariableCompany,
 } from "../lib/trackingVariables";
@@ -12,6 +12,7 @@ import "./variable-desk.css";
 
 type Loader = (signal?: AbortSignal) => Promise<TrackingVariables | null>;
 export const toneClass = (value: string | null | undefined) => { const t = tone(value); return t ? `is-${t}` : undefined; };
+const toneSpans = (pieces: { text: string; tone?: 'up' | 'down' }[]) => pieces.map((piece, i) => piece.tone ? <span key={i} className={`is-${piece.tone}`}>{piece.text}</span> : <Fragment key={i}>{piece.text}</Fragment>);
 const codeOf = (symbol: string) => symbol.split(".")[0]!;
 
 /** 动态页「关键变量」：价格动了，对你关注的公司意味着什么。每张卡一件事，金额点「展开」才看。变量总表在「跟踪」页。 */
@@ -50,14 +51,15 @@ function Cards({ cards, onDiscuss }: { cards: VariableCard[]; onDiscuss: (card: 
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const toggle = (key: string) => setOpen(previous => { const next = new Set(previous); if (!next.delete(key)) next.add(key); return next; });
   if (cards.length === 0) return <p className="variable-desk-empty">最近 20 个交易日没有足以影响利润的价格变动</p>;
-  return <div className="variable-desk-cards">{cards.map((card, index) => {
+  const alertKey = cards.find(card => card.judgment_changed)?.var_id; // 判断改变才提醒，同屏最多一张
+  return <div className="variable-desk-cards">{cards.map(card => {
     const key = `${card.date}:${card.var_id}`;
     const expanded = open.has(key);
-    return <Card key={key} alert={index === 0}>
+    return <Card key={key} alert={card.var_id === alertKey && card.judgment_changed === true}>
       <article className="variable-card" data-variable-card={card.var_id}>
         <div>
-          <h4 className="variable-card-title">{cardTitle(card)}</h4>
-          <p className="variable-card-touch">{cardTouch(card)}</p>
+          <h4 className="variable-card-title">{toneSpans(cardTitlePieces(card))}</h4>
+          <p className="variable-card-touch">{toneSpans(cardTouchPieces(card))}</p>
         </div>
         {expanded && <div className="variable-card-effects">{card.companies.map(company => <p key={company.symbol}>{companyPieces(company).map((piece, i) => piece.strong
           ? <b key={i} className={piece.tone ? `is-${piece.tone}` : undefined}>{piece.text}</b> : <Fragment key={i}>{piece.text}</Fragment>)}</p>)}</div>}

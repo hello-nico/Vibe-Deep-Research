@@ -7,7 +7,9 @@ import { activeRefTuple, refTupleFromRecord, reduceRefResolution, type RefResolu
 import { useAiPage, useAiQuestion } from '../../../core/ai/pageContext';
 import { documentObject } from '../lib/assistantObjects';
 import { asResearchErrorMessage } from '../lib/researchSymbol';
-import { hideLibraryDocument, libraryKindLabel, parsedBodyPath, type LibraryDocument } from '../lib/library';
+import { hideLibraryDocument, parsedBodyPath, type LibraryDocument } from '../lib/library';
+import { PageHeader } from '../components/ui/PageHeader';
+import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
 import './library-page.css';
 
 interface Document extends LibraryDocument { title?: string; document_type?: string; has_raw: boolean }
@@ -54,7 +56,6 @@ function DocumentReader({ id }: { id: string }) {
   const [confirmHide, setConfirmHide] = useState(false);
   const { ask } = useAiQuestion();
   const title = document?.title && !/^legacy:/i.test(document.title) ? document.title : '资料原文';
-  const kind = document?.document_type === 'research_report' ? '研报阅读' : ['annual_report', 'quarterly_report'].includes(document?.document_type || '') ? '财报阅读' : '资料阅读';
   const format = document?.extra?.content_type === 'pdf' || document?.extra?.mime_type === 'application/pdf' ? 'pdf'
     : document?.extra?.content_type === 'markdown' || document?.extra?.mime_type === 'text/markdown' ? 'markdown'
     : document?.extra?.content_type === 'text' || document?.extra?.mime_type === 'text/plain' ? 'text'
@@ -136,13 +137,12 @@ function DocumentReader({ id }: { id: string }) {
     }, { replace: true });
   }
   return <div className="space-y-3">
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div className="min-w-0"><Link replace to={from} className="mb-2 inline-block text-sm text-[var(--text-2)] hover:text-foreground">← {from === '/' ? '返回深度对话' : from.startsWith('/insights/topics/') ? '返回研究议题' : from.startsWith('/insights') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : '返回我的资料'}</Link><p className="text-xs text-muted-foreground">{kind} · {libraryKindLabel(format)}</p><h1 className="mt-1 text-lg font-semibold">{title}</h1></div>
-      <div className="flex flex-wrap items-center gap-2">
-        {document?.has_raw && <a className="workspace-action" href={raw} target="_blank" rel="noreferrer">打开 / 下载原件</a>}
-        {document && !document.extra?.library_hidden && <button type="button" className="workspace-action" disabled={hiding} onClick={() => setConfirmHide(true)}>{hiding ? '正在移除…' : '从我的资料移除'}</button>}
-      </div>
-    </header>
+    <PageHeader title={title}
+      lead={<Link replace to={from} className="shrink-0 text-sm text-[var(--text-2)] hover:text-foreground">← {from === '/' ? '返回深度对话' : from.startsWith('/insights/topics/') ? '返回研究议题' : from.startsWith('/insights') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : '返回我的资料'}</Link>}
+      actions={<>
+        {document?.has_raw && <a className="btn" href={raw} target="_blank" rel="noreferrer">打开 / 下载原件</a>}
+        {document && !document.extra?.library_hidden && <WorkspaceMoreMenu actions={[{ id: 'hide', label: hiding ? '正在移除…' : '从我的资料移除', disabled: hiding, onSelect: () => setConfirmHide(true) }]} />}
+      </>} />
     {(error || refError) && <p role="alert" className="text-sm text-destructive">{error || refError}</p>}
     <section className="overflow-hidden rounded-xl border bg-card">
       <div className="h-[max(420px,calc(100dvh-290px))]">

@@ -26,6 +26,8 @@ export interface VariableCardCompany { symbol: string; name: string; impact: str
 export interface VariableCard {
   date: string; var_id: string; name: string; unit?: string | null; from: string; to: string; change: string; change_pct?: string | null;
   rule: 'daily' | 'five_day'; companies: VariableCardCompany[];
+  /** 判断改变、需要提醒；缺省视为否。纯价格变动卡不带。 */
+  judgment_changed?: boolean;
 }
 export interface TrackingVariables {
   as_of: string; variables: TrackedVariable[]; cards: VariableCard[];
@@ -129,17 +131,37 @@ export function companyPieces(company: VariableCardCompany): SentencePiece[] {
   return pieces;
 }
 
-/** 动态卡标题：事情本身，不带金额。例「沪铝主力一天跌 445 元/吨（−1.9%）」。 */
-export function cardTitle(card: VariableCard): string {
+/** 对利润的方向：各家一致才有（up 有利、down 不利）；方向不同或没有影响时为空，不着色。 */
+export function profitTone(card: VariableCard): 'up' | 'down' | undefined {
+  const directions = new Set(card.companies.map(company => tone(company.impact)).filter(Boolean));
+  return directions.size === 1 ? [...directions][0] : undefined;
+}
+/** 动态卡标题拆段：变动幅度与百分比按对利润的方向着色。 */
+export function cardTitlePieces(card: VariableCard): SentencePiece[] {
   const when = card.rule === 'five_day' ? '五天累计' : '一天';
   const pct = toNumber(card.change_pct);
-  return `${card.name}${when}${directionOf(card.change)} ${sizeOf(card)}${pct == null ? '' : `（${signOf(pct)}${plainNumber(Math.abs(pct) * 100, 1)}%）`}`;
+  const color = profitTone(card);
+  return [{ text: `${card.name}${when}${directionOf(card.change)} ` },
+    { text: `${sizeOf(card)}${pct == null ? '' : `（${signOf(pct)}${plainNumber(Math.abs(pct) * 100, 1)}%）`}`, tone: color }];
+}
+/** 动态卡标题：事情本身，不带金额。例「沪铝主力一天跌 445 元/吨（−1.9%）」。 */
+export function cardTitle(card: VariableCard): string {
+  return cardTitlePieces(card).map(piece => piece.text).join('');
 }
 /** 第二行：碰到哪些关注公司、对利润的方向；各家不一致时只说方向不同。 */
 export function cardTouch(card: VariableCard): string {
+  return `关注中：${card.companies.map(company => shortName(company.name)).join('、')}${touchEffect(card)}`;
+}
+const touchEffect = (card: VariableCard) => {
   const directions = new Set(card.companies.map(company => tone(company.impact)).filter(Boolean));
-  const effect = directions.size > 1 ? ' · 对利润影响方向不同' : directions.has('up') ? ' · 对利润偏正面' : directions.has('down') ? ' · 对利润偏负面' : '';
-  return `关注中：${card.companies.map(company => shortName(company.name)).join('、')}${effect}`;
+  return directions.size > 1 ? ' · 对利润影响方向不同' : directions.has('up') ? ' · 对利润偏正面' : directions.has('down') ? ' · 对利润偏负面' : '';
+};
+/** 第二行拆段：「对利润偏正面/偏负面」按方向着色，其余灰字。 */
+export function cardTouchPieces(card: VariableCard): SentencePiece[] {
+  const effect = touchEffect(card);
+  const base = cardTouch(card).slice(0, cardTouch(card).length - effect.length);
+  const color = profitTone(card);
+  return effect ? [{ text: `${base} · ` }, { text: effect.slice(3), tone: color }] : [{ text: base }];
 }
 
 /** 跟踪页「正在盯的」一行的最新情况：最近 20 个交易日有卡片就写那一次，没有写平静。 */

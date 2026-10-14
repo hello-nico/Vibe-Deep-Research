@@ -271,6 +271,11 @@ export function yoyField(packet: DataPacket | undefined, fieldId: string | undef
 export function numericValue(field: PacketField | undefined) {
   return field && (field.status === 'verified' || field.status === 'sourced') ? num(field.value) : null;
 }
+/** 第一层关键数：最多三个，期间与口径收进悬停；页面与问助手快照共用这一个选法。 */
+export const KEY_LIMIT = 3;
+export function keyIdsOf(packet: DataPacket | undefined, ids: readonly string[]) {
+  return ids.filter(id => numericValue(findField(packet, id)) != null).slice(0, KEY_LIMIT);
+}
 /** 警戒线文字；有 direction 时写明「跌破 / 突破」。 */
 export function thresholdLine(threshold?: PacketThreshold | null) {
   const text = thresholdText(threshold);
@@ -286,13 +291,16 @@ export function pendingReason(args: { current: number | null; threshold?: Packet
 // ---------------------------------------------------------------- 页首判断变化行
 
 export interface ConversationSource { at?: string; sessionId?: string; reason?: string }
-export interface ChangeLine { text: string; conversation?: ConversationSource; revertable: boolean }
+export interface ChangeLine { text: string; /** 多处变化时的明细，放悬停提示。 */ detail?: string; conversation?: ConversationSource; revertable: boolean }
 const SECTION_NAME: Record<string, string> = { thesis: '论点', business: '生意', profit_formula: '关键变量', variables: '关键变量', cash: '现金', valuation: '估值', tracking: '跟踪' };
 const dateOf = (value?: string) => (value ?? '').slice(0, 10);
+const shortDate = (value?: string) => dateOf(value).slice(5);
+/** 研究说明里的内部说法换成用户能懂的话。 */
+export const plainChangeText = (text: string) => text.trim()
+  .replace(/行情目录变量/g, '价格数据').replace(/三档情景/g, '悲观、中性、乐观三种情况').replace(/口径/g, '算法');
 /** extras 来自研究读口的顶层：changedFrom（最近一次对话写回的来源）与 canRevert（有上一版可恢复）。 */
 export function changeLine(research: CompanyPageResearch | null, extras: { changedFrom?: CompanyPageResearch['changedFrom']; canRevert?: boolean } = {}): ChangeLine | null {
   if (!research || research.gapNote || !research.researchedAt) return null;
-  const date = dateOf(research.researchedAt);
   const drivers = research.sensitivity?.drivers ?? [];
   const talked = drivers.find(item => item.origin === 'conversation');
   const changed = extras.changedFrom ?? research.changedFrom;
@@ -301,17 +309,20 @@ export function changeLine(research: CompanyPageResearch | null, extras: { chang
     : talked ? { at: talked.confirmedAt, sessionId: talked.sessionId } : undefined;
   const revertable = extras.canRevert ?? Boolean(conversation);
   const changes = Object.entries(research.changes ?? {}).filter(([, text]) => typeof text === 'string' && text.trim());
+  const prefix = `${shortDate(research.researchedAt)} 更新：`;
   if (changes.length) {
     const seen = new Set<string>();
     const parts = changes.flatMap(([key, text]) => {
-      const item = `${SECTION_NAME[key] ?? '研究'}：${String(text).trim()}`;
+      const plain = plainChangeText(String(text));
+      const item = `${SECTION_NAME[key] ?? '研究'}：${plain}`;
       if (seen.has(item)) return [];
       seen.add(item);
-      return [item];
+      return [{ plain, item }];
     });
-    return { text: `研究于 ${date} · 判断有变化 · ${parts.join('；')}`, conversation, revertable };
+    if (parts.length === 1) return { text: `${prefix}${parts[0]!.plain}`, conversation, revertable };
+    return { text: `${prefix}${parts.length} 处判断有变化`, detail: parts.map(part => part.item).join('\n'), conversation, revertable };
   }
-  return { text: conversation ? `研究于 ${date} · 来自对话的更新` : `研究于 ${date}，资料未变化`, conversation, revertable };
+  return { text: conversation ? `${prefix}来自你的对话确认` : `${prefix}判断没变`, conversation, revertable };
 }
 export function conversationHint(conversation: ConversationSource | undefined) {
   if (!conversation) return '';

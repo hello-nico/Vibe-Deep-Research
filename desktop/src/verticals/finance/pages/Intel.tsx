@@ -186,7 +186,7 @@ function InvestmentNewsPanel() {
         <div className="flex flex-wrap items-center gap-2">
           {hasData && (
             <button onClick={genAll} disabled={bulk.running || refreshing}
-              className="btn btn-primary">
+              className="btn">
               {bulk.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
               {bulk.running ? `提炼中 ${bulk.done}/${bulk.total}` : "一键提炼全部要点"}
             </button>
@@ -221,7 +221,7 @@ function InvestmentNewsPanel() {
                     ? "bg-[var(--fill-2)] font-semibold text-foreground"
                     : "text-[var(--text-2)] hover:bg-[var(--fill-1)] hover:text-foreground",
                 )}>
-                <span className="h-2 w-2 rounded-full" style={{ background: ind.accent }} />
+                <span className="h-2 w-2 rounded-full" data-intel-dot={active === ind.key ? "active" : "idle"} style={{ background: active === ind.key ? "hsl(var(--brand))" : "var(--text-3)" }} />
                 {ind.name}<span className="text-muted-foreground/50">{ind.items.length}</span>
               </button>
             ))}
@@ -234,7 +234,7 @@ function InvestmentNewsPanel() {
                   {tr?.status === "running" ? (
                     <span className="inline-flex items-center gap-1.5 text-brand"><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI 正在翻译标题 {tr.done}/{tr.total}</span>
                   ) : tr?.status === "done" ? (
-                    <span className="text-success">AI 标题翻译 {tr.done}/{tr.total}</span>
+                    <span className="text-[11px] text-[var(--text-3)]">标题已翻译 {tr.done}/{tr.total}</span>
                   ) : tr?.status === "partial" ? (
                     <span className="text-warning">标题已翻译 {tr.done}/{tr.total}，其余保留原文{tr.error ? `（${tr.error}）` : ""}</span>
                   ) : (

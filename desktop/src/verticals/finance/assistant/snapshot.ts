@@ -28,6 +28,58 @@ export function clipPageSnapshot(text: string, cited: string[] = []): { body: st
   };
 }
 
+/** 按节组装的页面快照：每节一段，节内不留空行（超限后二次截断也不会把一节从中间劈开）。 */
+export interface SnapshotSection { id: string; title: string; text: string }
+
+function sectionedMarker(omitted: string[], clipped: string[], focus: string | undefined, limit: number): string {
+  const names = (list: string[]) => list.map(item => `「${item}」`).join('');
+  return `…（页面快照超出 ${limit.toLocaleString('en-US')} 字上限：${omitted.length ? `已省略${names(omitted)}` : '没有整节省略'}${clipped.length ? `；${names(clipped)}被截断` : ''}${focus ? `；优先保留用户正在看的「${focus}」` : ''}。）`;
+}
+
+/**
+ * 总长超过上限时的取舍：用户正在看的一节最先保留，其次是页首（`keep` 里列出的节，如价格与论点），其余按页面顺序。
+ * 整节放不下就整节省略并在末尾写明；只有正在看的那一节可以被截断（在行边界处）。输出仍按页面顺序，总长含说明不超过上限。
+ */
+export function clipSectionedSnapshot(
+  sections: readonly SnapshotSection[],
+  options: { focus?: string; keep?: readonly string[]; limit?: number } = {},
+): { body: string; truncated: boolean; omitted: string[]; clipped: string[] } {
+  const limit = options.limit ?? PAGE_SNAPSHOT_LIMIT;
+  const live = sections.filter(item => item.text.trim());
+  const full = live.map(item => item.text).join('\n\n');
+  if (full.length <= limit) return { body: full, truncated: false, omitted: [], clipped: [] };
+  const focus = live.find(item => item.id === options.focus);
+  const order = [
+    ...(focus ? [focus] : []),
+    ...live.filter(item => options.keep?.includes(item.id) && item !== focus),
+    ...live.filter(item => item !== focus && !options.keep?.includes(item.id)),
+  ];
+  const titles = live.map(item => item.title);
+  const budget = limit - sectionedMarker(titles, titles.slice(0, 1), titles[0], limit).length - 2;
+  const kept = new Map<SnapshotSection, string>();
+  let used = 0;
+  for (const item of order) {
+    const need = (kept.size ? 2 : 0) + item.text.length;
+    // 页首等必留的节先把位置留出来；正在看的这一节放不下时只截它自己。
+    const reserved = item === focus ? (options.keep ?? []).reduce((sum, id) => {
+      const other = live.find(entry => entry.id === id);
+      return other && other !== item && !kept.has(other) ? sum + other.text.length + 2 : sum;
+    }, 0) : 0;
+    if (used + need + reserved <= budget) { kept.set(item, item.text); used += need; continue; }
+    if (item !== focus) continue;
+    const room = budget - used - reserved - (kept.size ? 2 : 0);
+    if (room < 80) continue;
+    const cut = item.text.slice(0, room - 1);
+    const line = cut.lastIndexOf('\n');
+    kept.set(item, `${line > 80 ? cut.slice(0, line) : cut}…`);
+    used += (kept.size > 1 ? 2 : 0) + kept.get(item)!.length;
+  }
+  const omitted = live.filter(item => !kept.has(item)).map(item => item.title);
+  const clipped = [...kept].filter(([item, text]) => text !== item.text).map(([item]) => item.title);
+  const text = live.filter(item => kept.has(item)).map(item => kept.get(item)!).join('\n\n');
+  return { body: `${text}\n\n${sectionedMarker(omitted, clipped, focus?.title, limit)}`, truncated: true, omitted, clipped };
+}
+
 export function formatSnapshotSection(title: string, lines: string[]): string {
   const body = lines.filter(Boolean).join('\n');
   return body ? `【${title}】\n${body}` : '';

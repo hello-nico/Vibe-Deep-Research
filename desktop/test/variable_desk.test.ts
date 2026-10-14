@@ -96,10 +96,14 @@ test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有�
   assert.deepEqual(lib.orderWatching([coal, ao, al], trackingFixture.cards).map((v: any) => v.var_id), ['cmdty:SHFE.AL', '000933.SZ:coal_price', 'cmdty:SHFE.AO']);
 });
 
-test('卡片：最近一张用品牌橙描边；展开才看金额；看个股页进入该公司；讨论打开问助手面板而不是新开对话', async () => {
+test('卡片：价格变动卡不描边，判断改变的提醒卡才描边且同屏一张；展开才看金额；看个股页进入该公司；讨论打开问助手面板而不是新开对话', async () => {
   await show(async () => trackingFixture);
   const card = container.querySelector('[data-variable-card]')!;
-  assert.match(card.closest('.card')!.className, /card-alert/);
+  assert.doesNotMatch(card.closest('.card')!.className, /card-alert/, '纯价格变动卡不描边');
+  assert.equal(container.querySelectorAll('.card-alert').length, 0);
+  assert.ok(card.querySelector('.variable-card-title .is-down'), '不利：跌色');
+  assert.equal(card.querySelector('.variable-card-title .is-down')!.textContent, '445 元/吨（−1.9%）');
+  assert.equal(card.querySelector('.variable-card-touch .is-down')!.textContent, '对利润偏负面');
   assert.equal(card.querySelector('.variable-card-title')!.textContent, '沪铝一天跌 445 元/吨（−1.9%）');
   assert.equal(card.querySelector('.variable-card-touch')!.textContent, '关注中：神火 · 对利润偏负面');
   assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^10 月 8 日/);
@@ -112,7 +116,6 @@ test('卡片：最近一张用品牌橙描边；展开才看金额；看个股�
   assert.ok(card.querySelector('.variable-card-effects b.is-down'), '沿用涨红跌绿配色');
   await React.act(async () => [...card.querySelectorAll('button')].find(b => b.textContent === '收起')!.click());
   assert.equal(card.querySelector('.variable-card-effects'), null);
-  assert.equal(container.querySelectorAll('.card-alert').length, 1, '同屏最多一张');
   assert.equal(card.querySelector('a')!.getAttribute('href'), '/watch/000933');
   const discuss = [...card.querySelectorAll('button')].find(b => b.textContent === '讨论')!;
   await React.act(async () => discuss.click());
@@ -170,4 +173,21 @@ test('宿主研究代理放行关键变量读取', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
   assert.equal(researchRoute('GET', '/tracking/variables'), true);
   assert.equal(researchRoute('POST', '/tracking/variables'), false);
+});
+
+test('提醒卡才有品牌橙描边，同屏最多一张', async () => {
+  const [card] = trackingFixture.cards;
+  const data = { ...trackingFixture, cards: [{ ...card, judgment_changed: true }, { ...card, var_id: 'cmdty:X', judgment_changed: true }] };
+  await show(async () => data);
+  assert.equal(container.querySelectorAll('.card-alert').length, 1);
+  assert.match(container.querySelector('[data-variable-card="' + card.var_id + '"]')!.closest('.card')!.className, /card-alert/);
+});
+
+test('标题与第二行按对利润方向着色：不利跌色、有利涨色、方向不同不着色', () => {
+  const [card] = trackingFixture.cards;
+  const mk = (...impacts: string[]) => ({ ...card, companies: impacts.map((impact, i) => ({ ...card.companies[0], symbol: `00000${i}.SZ`, impact })) });
+  const tones = (c: any) => [lib.cardTitlePieces(c), lib.cardTouchPieces(c)].map(p => p.find((x: any) => x.tone)?.tone);
+  assert.deepEqual(tones(mk('-368500000')), ['down', 'down']);
+  assert.deepEqual(tones(mk('248000000')), ['up', 'up']);
+  assert.deepEqual(tones(mk('-368500000', '500000000')), [undefined, undefined]);
 });
