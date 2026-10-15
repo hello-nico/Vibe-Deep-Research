@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { PageHeader } from "../components/ui/PageHeader";
 import { GroupCard, GroupRow } from "../components/ui/Card";
 import { WorkspaceTabs } from "../components/ui/WorkspaceTabs";
+import { openModelSettings } from "./settings-entry";
 import { ResearchSessionContext } from "./research-session";
 
 export interface SlotProps {
@@ -11,9 +12,7 @@ export interface SlotProps {
 }
 export const FinanceSlots = React.createContext<SlotProps | null>(null);
 
-export function openModelSettings() {
-  document.querySelector<HTMLButtonElement>('#dsh-settings [data-slot="sidebar.settings"] button')?.click();
-}
+export { openModelSettings };
 // 记忆页带路由链接，进设置的「记忆」时才加载。
 const MemoryPanel = React.lazy(async () => ({ default: (await import("../components/MemoryPanel")).MemoryPanel }));
 const ConnectionPanel = React.lazy(async () => ({ default: (await import("../components/ConnectionPanel")).ConnectionPanel }));

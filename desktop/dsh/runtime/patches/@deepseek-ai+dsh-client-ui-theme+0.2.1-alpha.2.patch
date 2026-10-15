@@ -1,0 +1,16 @@
+diff --git a/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
+--- a/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
++++ b/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
+@@ -1067,9 +1067,9 @@
+ 		*/
+ 		function sectionFontSizes(section) {
+ 			return Object.freeze({
+-				text: section.fontSize,
+-				code: section.codeFontSize,
+-				terminal: section.terminalFontSize
++				text: isFontSize("text", section.fontSize) ? section.fontSize : DEFAULT_FONT_SIZES.text,
++				code: isFontSize("code", section.codeFontSize) ? section.codeFontSize : DEFAULT_FONT_SIZES.code,
++				terminal: isFontSize("terminal", section.terminalFontSize) ? section.terminalFontSize : DEFAULT_FONT_SIZES.terminal
+ 			});
+ 		}
+ 		/**

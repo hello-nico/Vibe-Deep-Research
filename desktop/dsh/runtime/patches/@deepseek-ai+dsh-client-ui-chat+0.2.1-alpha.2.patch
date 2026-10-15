@@ -59,3 +59,12 @@ diff --git a/node_modules/@deepseek-ai/dsh-client-ui-chat/lib/client.js b/node_m
  			"message.turnError": "This turn failed",
  			"message.maxTokens": "Output token limit reached",
  			"message.maxTokens.hint": "The reply was cut off; earlier output is preserved in the conversation. Send \"continue\" to let the model resume.",
+@@ -8883,7 +8887,7 @@
+ 		* @returns whether the node contributes a visible Chat row.
+ 		*/
+ 		function isVisibleChatNode(node) {
+-			return node.visibility === "visible" && node.kind !== "system-prompt" && (node.kind !== "context" || node.data.content.some((block) => block.type === "tool-addition" || block.type === "tool-removal")) && !(node.kind === "command" && node.data.name === "permission");
++			return node.visibility === "visible" && node.kind !== "system-prompt" && node.kind !== "context" && !(node.kind === "command" && node.data.name === "permission");
+ 		}
+ 		//#endregion
+ 		//#region lib/types/client/conversation-nodes/turn-navigation.js

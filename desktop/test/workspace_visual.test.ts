@@ -103,6 +103,11 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   // 问助手、查看依据、任务过程共用同一右侧面板定位、让位规则与拖拽宽度，不各写一套。
   assert.match(read("verticals/finance/components/EvidenceCard.tsx"), /finance-evidence-panel finance-side-panel/);
   assert.match(read("verticals/finance/components/TaskProcessPanel.tsx"), /finance-task-process finance-side-panel/);
+  const nativeCss = read("verticals/finance/dsh/native-dsh.css");
+  assert.match(nativeCss, /body\.vibe-dsh-host > div:has\(> \[role="dialog"\] > nav\) \[role="dialog"\] nav button\[aria-current="true"\] \{ background: var\(--fill-2\)/, "设置弹窗选中项用 10% 墨色底，不是浅橙");
+  assert.match(nativeCss, /button\[aria-pressed\], button\[aria-haspopup="menu"\]\) \{ border-color: transparent/, "设置弹窗控件靠底色不靠边框");
+  const blueScope = nativeCss.slice(nativeCss.indexOf("#dsh-conversation, .finance-assistant-panel, .finance-side-panel {"));
+  assert.match(blueScope, /^#dsh-conversation, \.finance-assistant-panel, \.finance-side-panel \{[^}]*--dsw-static-deepseek-500: hsl\(var\(--primary\)\)/, "助手与过程面板里的思考/研究中状态用品牌色，不是 DSH 蓝");
   for (const file of ["components/EvidenceCard.tsx", "components/TaskProcessPanel.tsx", "components/layout/FinanceAssistantSurface.tsx"]) {
     assert.match(read(`verticals/finance/${file}`), /<SidePanelResizeHandle \/>/);
     assert.doesNotMatch(read(`verticals/finance/${file}`), /top-\[76px\]|29\.5rem/);
@@ -232,4 +237,12 @@ test("资料、设置与动态页共用分段切换；跟踪页首只有标题",
   assert.match(intel, /aria-label="资讯栏目"/);
   assert.doesNotMatch(intel, /NAV_GROUPS/);
   assert.doesNotMatch(intel, /investment-news<\/span>|集成/);
+});
+
+test("状态点与状态胶囊的 info 不用蓝色，墨灰表示提示（链接蓝不受影响）", () => {
+  const dot = readFileSync(new URL("../src/verticals/finance/components/ui/status-dot.css", import.meta.url), "utf8");
+  const pill = readFileSync(new URL("../src/verticals/finance/components/ui/ui.css", import.meta.url), "utf8");
+  assert.match(dot, /\.status-dot\.tone-info \{ background: var\(--text-2\); \}/);
+  assert.match(pill, /\.status-pill\.tone-info \{ background: var\(--fill-1\); color: var\(--text-2\); \}/);
+  assert.doesNotMatch(dot + pill, /tone-info[^}]*var\(--info\)/);
 });

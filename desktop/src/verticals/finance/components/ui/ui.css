@@ -28,7 +28,7 @@
 .status-pill.tone-run { background: var(--brand-soft); color: hsl(var(--brand)); }
 .status-pill.tone-ok { background: color-mix(in srgb, hsl(var(--down)) 12%, transparent); color: hsl(var(--down)); }
 .status-pill.tone-wait { background: color-mix(in srgb, hsl(var(--warn)) 14%, transparent); color: hsl(var(--warn)); }
-.status-pill.tone-info { background: color-mix(in srgb, hsl(var(--info)) 12%, transparent); color: hsl(var(--info)); }
+.status-pill.tone-info { background: var(--fill-1); color: var(--text-2); }
 .status-pill.tone-bad { background: color-mix(in srgb, hsl(var(--up)) 12%, transparent); color: hsl(var(--up)); }
 .tag { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; background: var(--fill-1); color: var(--text-2); font-size: 12px; line-height: 1; white-space: nowrap; }
 .tag.tone-brand { background: var(--brand-soft); color: hsl(var(--brand)); }

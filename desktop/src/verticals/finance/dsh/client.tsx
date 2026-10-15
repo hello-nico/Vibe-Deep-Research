@@ -14,6 +14,7 @@ import { LIBRARY_BATCH_MAX, LIBRARY_CONCURRENCY, LIBRARY_CITE_EVENT, LIBRARY_MAX
 import { SearchPreviews } from './search-previews';
 import { installResultNode } from './result-node';
 import { FinanceToolRow } from './tool-row';
+import { setSettingsOpener } from './settings-entry';
 import type {} from '@deepseek-ai/dsh-client-ui-input-trigger/client';
 import { hydrateNotes } from "../lib/notes";
 import { bindTopicSession, loadTopicSessions } from "../lib/topicSessions";
@@ -39,7 +40,7 @@ import "./tool-row.css";
 interface Client {
   on(event: "theme/change", callback: () => void): () => void;
   theme: {
-    getTheme(): { active: { colorScheme: string; tokens: Record<string, string> }; fontSize: number };
+    getTheme(): { active: { colorScheme: string; tokens: Record<string, string> }; fontSizes: { text: number } };
     setTheme(theme: string): void;
   };
   locale: { getLocale(): { active: string }; setLocale(id: string): void };
@@ -120,6 +121,22 @@ interface HistorySession {
   };
   subscribe?(callback: () => void): () => void;
 }
+/** DSH settings rows the product does not offer: code work view, config file, busy-send behaviour, work-step display, link opening, usage mode, version. */
+export const HIDDEN_DSH_SETTINGS = [
+  ['settings.general.item', 'developer-tools'], ['settings.general.item', 'composer-enter'], ['settings.general.item', 'transcript-view'],
+  ['settings.general.item', 'link-opening'], ['settings.general.item', 'performance-usage'], ['settings.general.item', 'current-version'],
+  ['settings.action', 'open-document'],
+] as const;
+const HiddenSettingsRow = () => null;
+/** Product settings launcher: keeps DSH's `openSettings` prop and renders nothing (no account menu in the product). */
+function SettingsLauncher({ openSettings }: { openSettings?: () => void }) {
+  React.useEffect(() => {
+    if (!openSettings) return;
+    setSettingsOpener(openSettings);
+    return () => setSettingsOpener(null);
+  }, [openSettings]);
+  return null;
+}
 export const inject = ["slots", "connection", "theme", "locale", "sessions", "workspaces", "uiWorkspace", "inputTriggers", "uiConversation", "conversation", "modelDirectories", "configForms"];
 
 function openResearchTarget(value: string) { openRegisteredObject(value); }
@@ -150,6 +167,12 @@ export function apply(ctx: Context) {
   for (const name of FINANCE_TOOL_NAMES) {
     client.slots.inject('tool.call.toolview', () => client.slots.register({ name: 'tool.call.toolview', key: name }, FinanceToolRow));
   }
+  // Settings keep model, language, appearance, font size and the product's connection page. DSH registers the other rows at
+  // priority 0; the lowest priority renders, so an empty occupant at -1 shadows each one without CSS hiding.
+  client.slots.inject('settings.launcher', () => client.slots.register({ name: 'settings.launcher', priority: -1 }, SettingsLauncher));
+  for (const [slot, id] of HIDDEN_DSH_SETTINGS) {
+    client.slots.inject(slot, () => client.slots.register({ name: slot, id, priority: -1 }, HiddenSettingsRow));
+  }
   let disposed = false;
   document.body.classList.add("vibe-dsh-host");
   document.title = "Vibe-Finance";
@@ -170,7 +193,7 @@ export function apply(ctx: Context) {
     // Product tokens follow the DSH theme from the first frame, including the loading screen.
     document.documentElement.classList.toggle("light", !dark);
     document.documentElement.classList.toggle("dark", dark);
-    document.body.style.setProperty("--dsh-content-font-size", `${snapshot.fontSize}px`);
+    // Font sizes belong to the DSH layout presenter (snapshot.fontSizes.text); the product only mirrors colour tokens.
     for (const [key, value] of Object.entries(snapshot.active.tokens)) document.body.style.setProperty(key, value);
     window.dispatchEvent(new CustomEvent("dsh-theme-change", { detail: dark }));
   };

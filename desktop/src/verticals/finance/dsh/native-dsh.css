@@ -191,16 +191,21 @@ html body.vibe-dsh-host {
 #dsh-settings [role="dialog"] > nav > div:first-child { font-size: 20px; font-weight: 600; margin-bottom: 8px; }
 #dsh-settings [role="dialog"] > nav button { gap: 10px; }
 #dsh-settings [role="dialog"] input { border-radius: 10px; }
-#dsh-conversation {
-  background: hsl(var(--card));
-  /* Theme writes DeepSeek blues on body; conversation must re-declare so
-     rc.1 composer stop/send (info-fill) and turn-status shimmer inherit product primary. */
+#dsh-conversation { background: hsl(var(--card)); }
+/* Theme writes DeepSeek blues on body; every surface that renders a DSH conversation
+   (home, assistant and task side panels) re-declares them so composer stop/send (info-fill)
+   and the thinking/working shimmer inherit product primary. Links keep --dsw-alias-link. */
+#dsh-conversation, .finance-assistant-panel, .finance-side-panel {
   --dsw-alias-button-info-fill: hsl(var(--primary));
   --dsw-alias-button-info-hover: hsl(var(--primary) / .85);
   --dsw-alias-state-business-primary: hsl(var(--primary));
   --dsw-static-deepseek-200: hsl(var(--primary) / .45);
   --dsw-static-deepseek-400: hsl(var(--primary));
   --dsw-static-deepseek-500: hsl(var(--primary));
+  /* "研究中，已用时 N 秒" / "思考" use label aliases that body already resolved to blue (deepseek-450 + bluish-400),
+     so the static overrides above cannot reach them; set the aliases themselves. */
+  --dsw-alias-label-deep-diving: hsl(var(--primary));
+  --dsw-alias-label-deep-diving-shimmer: color-mix(in srgb, hsl(var(--primary)) 45%, #fff);
 }
 /* DSH draws turn boundaries with a pseudo-element, not a cell border. */
 #dsh-conversation tbody > tr[data-turn-start="true"]:not(:first-child) > td::before {
@@ -210,6 +215,17 @@ html body.vibe-dsh-host {
 #dsh-conversation [role="tab"][aria-selected="true"]::after { background: hsl(var(--primary)); }
 #dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"], [aria-label="停止生成"], [aria-label="Stop generating"]) { background: hsl(var(--primary)); color: white; }
 #dsh-conversation button:is([aria-label="发送消息"], [aria-label="Send message"], [aria-label="停止生成"], [aria-label="Stop generating"]):hover:not(:disabled) { background: hsl(var(--primary) / .85); }
+
+/* 0.2.1 settings dialog is portalled to body (outside #dsh-settings). docs/design.md: selected = 10% ink fill, not a tint of
+   brand orange; controls read by fill, not by border. Scoped by structure so product modals are untouched. */
+body.vibe-dsh-host > div:has(> [role="dialog"] > nav) {
+  --dsw-specific-sidebar-nav-item-active: var(--fill-2);
+  --dsw-alias-button-ghost-active-fill: var(--fill-2);
+  --dsw-alias-button-ghost-active-border: transparent;
+}
+body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] nav button[aria-current="true"] { background: var(--fill-2); color: hsl(var(--foreground)); }
+body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] :is(button[aria-pressed], button[aria-haspopup="menu"]) { border-color: transparent; background: var(--fill-1); box-shadow: none; }
+body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] button[aria-pressed="true"] { background: var(--fill-2); color: hsl(var(--foreground)); }
 
 /* Native settings uses a fixed overlay inside its trigger. A filtered sidebar
    becomes its containing block and clips the entire dialog to sidebar width. */

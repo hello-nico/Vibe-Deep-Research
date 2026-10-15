@@ -37,6 +37,31 @@
 # Shell and file tools are disabled, so sandbox/approval presets have nothing to govern; keep the default and hide the picker.
 - id: ui-permission
   disabled: true
+# Product settings keep model, language, appearance, font size and the product's own connection page.
+# Plugin / preset / shortcut / log-upload surfaces and the host "open in app" route are not product features.
+- id: ui-agent-preset
+  disabled: true
+- id: ui-settings-plugins
+  disabled: true
+- id: ui-settings-plugin-inventory
+  disabled: true
+- id: ui-settings-shell
+  disabled: true
+- id: ui-settings-agent-loop
+  disabled: true
+- id: ui-settings-subagent
+  disabled: true
+- id: ui-settings-web-search
+  disabled: true
+- id: ui-shortcuts
+  disabled: true
+- id: ui-settings-session-log
+  disabled: true
+# 0.2.1 adds GET /open-in-app/apps; the product has no host application picker and the dev proxy does not forward it.
+- id: open-in-app
+  disabled: true
+- id: ui-open-in-app
+  disabled: true
 - insert:
     - id: preset-vibe
       name: '@deepseek-ai/dsh-agent-preset'

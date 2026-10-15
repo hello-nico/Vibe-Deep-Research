@@ -23,12 +23,13 @@ Stock 插件拥有研究工具与生命周期。模型配置与凭据由 DSH 设
 | dsh-api-session-controller | 重做 | 保留已校验子会话无 cwd 的冷读豁免；普通会话仍拒绝。上游已使用序列化 projection hints，旧 projections 剥离不再移植；真实持久公司子会话与过程读取通过，不保证所有历史版本迁移 |
 | dsh-client-ui-layout | 重做 | 仅移除上游 root/AppFrame 注册，保留 layout 服务、状态与命令；产品页面真实加载 |
 | dsh-client-ui-model-selection | 重做 | 始终显示筛选，按 Provider 名称、模型 id/name/description 匹配，保留上游键盘行为 |
-| dsh-client-ui-chat | 重做 | QUOTA/AUTH/FORBIDDEN 中文语义、研究中措辞、四类 finance 过程节点 |
+| dsh-client-ui-chat | 重做 | QUOTA/AUTH/FORBIDDEN 中文语义、研究中措辞、四类 finance 过程节点、隐藏「已添加工具」类注册行 |
 | dsh-client-ui-trajectory | 重做 | QUOTA、ACCOUNT_QUOTA 与 FORBIDDEN 的中英文说明 |
 | dsh-llm-pi-ai | 重做 | 额度识别优先于 401/403；401 认证、403 拒绝。实际 adapter 分类回归通过 |
 | dsh-llm-deepseek | 重做 | 额度优先，401/403 区分，文件 API 保留拒绝码。实际 adapter 分类回归通过 |
 | dsh-client-ui-conversation | 重做 | 研究场景 hero、输入占位与空 preview，保留中英文 |
 | dsh-web-frontend | 重做 | 对 npm 实际加载的 ui-primitives 打包产物补 stock-ref、result 单图段落、vibe 围栏/流式位置/复制摘要；实际产物检查通过 |
+| dsh-client-ui-theme | 新增（2026-10-14） | 设置快照字号字段缺失时回落到主题默认字号（正文 14px）的防御补丁；0.2.1 下实际把正文撑到 16px 的原因是产品 `client.tsx` 读了已不存在的 `snapshot.fontSize`（已改正）。移除条件：上游 `sectionFontSizes` 对缺失字段给默认值 |
 
 除前两项外，每项对应一个 `+0.2.1-alpha.2.patch`。移除条件仍是上游提供等价行为并经过对应运行验证；不能因为补丁安装失败而删除功能。
 
