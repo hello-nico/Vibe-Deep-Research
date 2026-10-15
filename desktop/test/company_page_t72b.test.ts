@@ -80,6 +80,9 @@ test('驱动键 sales:<产品> 显示为「<产品>销量」，银行字段与�
   assert.equal(fieldLabel('mystery_metric'), '相关指标');
   // 分部字段编号 segment:<product|region>:<名称>.<指标> 显示为「名称 + 收入/成本」，不露编号。
   assert.equal(fieldIdLabel('segment:product:电解铝.revenue'), '电解铝收入');
+  assert.equal(fieldIdLabel('segment:annual:product:电解铝.cost'), '电解铝成本');
+  assert.equal(fieldIdLabel('segment:annual:product:煤炭.revenue'), '煤炭收入');
+  assert.doesNotMatch(fieldIdLabel('segment:annual:product:电解铝.cost'), /annual:|segment:/);
   assert.equal(fieldIdLabel('segment:product:铝箔坯料.cost'), '铝箔坯料成本');
   assert.equal(fieldIdLabel('segment:region:西南地区.revenue'), '西南地区收入');
   assert.equal(fieldLabel('product:电解铝.revenue'), '电解铝收入');

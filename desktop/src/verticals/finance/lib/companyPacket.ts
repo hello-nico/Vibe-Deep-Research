@@ -69,7 +69,7 @@ const LABELS: Record<string, string> = {
 };
 /** Driver keys of the form <kind>:<name>, e.g. sales:<product>. The name is the Chinese product or segment. */
 const DRIVER_KINDS: Record<string, string> = { sales: '销量', price: '单价', cost: '单位成本', output: '产量' };
-/** Segment field ids are `segment:<product|region>:<name>.<metric>`; the label is the segment name plus a short metric noun. */
+/** Segment field ids are `segment:[period:]<product|region>:<name>.<metric>`; the label is the segment name plus a short metric noun. */
 const SEGMENT_METRICS: Record<string, string> = { revenue: '收入', cost: '成本' };
 const QUARTERS: Record<string, string> = { Q1: '第一季度', Q2: '第二季度', Q3: '第三季度', Q4: '第四季度' };
 /** Used when a metric has no Chinese label; an unknown key is never shown. */
@@ -96,7 +96,7 @@ export function fieldLabel(metric: string | undefined, fallback = UNKNOWN_FIELD_
   if (key.startsWith('driver:')) return fieldLabel(key.slice('driver:'.length), fallback);
   if (key.startsWith('lens:')) return fieldIdLabel(key, fallback);
   if (LABELS[key]) return LABELS[key];
-  const segment = /^(?:segment:)?(?:product|region):(.+)\.([a-z_]+)$/i.exec(key);
+  const segment = /^(?:segment:)?(?:[A-Za-z0-9]+:)?(?:product|region):(.+)\.([a-z_]+)$/i.exec(key);
   if (segment) return `${segment[1]}${SEGMENT_METRICS[segment[2]!.toLowerCase()] ?? LABELS[segment[2]!.toLowerCase()] ?? '指标'}`;
   const kinded = /^([A-Za-z_]+)[:：](.+)$/.exec(key);
   if (kinded) {
