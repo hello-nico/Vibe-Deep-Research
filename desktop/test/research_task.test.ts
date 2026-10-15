@@ -3,6 +3,10 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+const originalFetch = globalThis.fetch;
+globalThis.fetch = async (url, init) => String(url).endsWith('/health')
+  ? new Response(JSON.stringify({ api: { version: 1, min_client: 1 } }), { status: 200 })
+  : originalFetch(url, init);
 import { cancelResearchRun, disposeReportRuntime, loadReportTasks, startReportRun, startResearchRun } from '../dsh/finance-ui/host-state.mjs';
 import { legacyCompanySymbol } from '../src/verticals/finance/lib/reportTasks.ts';
 

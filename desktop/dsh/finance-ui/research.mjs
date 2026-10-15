@@ -1,5 +1,5 @@
 /** Product read/upload facade. Research validation and persistence stay in Backend. */
-import { backendHeaders, resolveBackend, TOKEN_REJECTED } from './backend-connection.mjs';
+import { backendHeaders, readCompatibility, resolveBackend, TOKEN_REJECTED } from './backend-connection.mjs';
 const TOPIC_ID = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}$/i;
 const TOPIC_WALL = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/wall$/i;
 const TOPIC_BASIS = /^\/wiki\/research-topics\/(?:topic:|topic%3A)[0-9a-f]{12}\/basis-changes$/i;
@@ -116,6 +116,12 @@ export function installResearchApi(ctx) {
     const route = url.pathname.slice('/finance-research'.length);
     res.setHeader('Cache-Control', 'no-store');
     if (!researchRoute(req.method, route)) { res.writeHead(404); res.end(); return; }
+    const compatible = await readCompatibility();
+    if (compatible.result === 'server_outdated' || compatible.result === 'client_outdated') {
+      res.writeHead(426, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ detail: compatible.text }));
+      return;
+    }
     await proxyResearch(req, res, { route, search: url.search, injectHook: req.method === 'POST' && COMPANY_REVERT.test(route) });
   } });
 }

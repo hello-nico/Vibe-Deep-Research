@@ -4,8 +4,14 @@ import path from 'node:path';
 
 export const DEFAULT_BACKEND_URL = 'http://127.0.0.1:8700/api/v1';
 export const TOKEN_REJECTED = '服务器拒绝了访问令牌，请在设置里检查';
+export const CLIENT_API = 1;
+export const MIN_SERVER_API = 1;
+export const SERVER_OUTDATED = '服务器版本过旧，请联系管理员更新';
+export const CLIENT_OUTDATED = '客户端需要更新，请安装新版本';
 const VERSION_HEADER = 'X-Vibe-Client-Version';
 const IDENTITY_PATH = '/notes';
+const COMPATIBILITY_MS = 10 * 60 * 1000;
+const compatibilityCache = new Map();
 
 export function maskSecrets(text, token = '') {
   let value = String(text ?? '');
@@ -74,6 +80,7 @@ export function writeConnection(body, env = process.env, fsImpl = fs) {
   // An empty address means "use this machine": drop the stored connection, token included.
   if (!String(body?.url ?? '').trim()) {
     if (fsImpl.existsSync(file)) fsImpl.rmSync(file, { force: true });
+    clearCompatibilityCache();
     return resolveBackend(env, fsImpl);
   }
   const url = normalizeBackendUrl(body?.url);
@@ -90,7 +97,49 @@ export function writeConnection(body, env = process.env, fsImpl = fs) {
   fsImpl.writeFileSync(tmp, `${JSON.stringify(payload)}\n`, { mode: 0o600 });
   fsImpl.renameSync(tmp, file);
   fsImpl.chmodSync(file, 0o600);
+  clearCompatibilityCache();
   return resolveBackend(env, fsImpl);
+}
+
+export function clearCompatibilityCache() {
+  compatibilityCache.clear();
+}
+
+export function compatibility(health) {
+  const api = health && typeof health === 'object' ? health.api : undefined;
+  if (!api || typeof api !== 'object') return 'server_outdated';
+  const version = Number(api.version);
+  const minClient = Number(api.min_client);
+  if (!Number.isInteger(version) || version < MIN_SERVER_API) return 'server_outdated';
+  if (!Number.isInteger(minClient) || CLIENT_API < minClient) return 'client_outdated';
+  return 'ok';
+}
+
+export function compatibilityText(result) {
+  if (result === 'server_outdated') return SERVER_OUTDATED;
+  if (result === 'client_outdated') return CLIENT_OUTDATED;
+  return '';
+}
+
+export async function readCompatibility(env = process.env, fetchImpl = fetch, fsImpl = fs) {
+  const connection = resolveBackend(env, fsImpl);
+  const cached = compatibilityCache.get(connection.url);
+  if (cached && cached.expires > Date.now()) return cached;
+  let health = null;
+  try {
+    const response = await fetchImpl(`${connection.url}/health`, {
+      method: 'GET', headers: backendHeaders(connection, { Accept: 'application/json' }), signal: AbortSignal.timeout(5000),
+    });
+    if (response.ok) health = await response.json();
+    else await response.body?.cancel?.();
+  } catch {
+    health = null;
+  }
+  if (!health) return { result: 'unreachable', text: '', url: connection.url, expires: 0 };
+  const result = compatibility(health);
+  const record = { result, text: compatibilityText(result), url: connection.url, expires: Date.now() + COMPATIBILITY_MS };
+  compatibilityCache.set(connection.url, record);
+  return record;
 }
 
 async function probe(url, headers, fetchImpl) {
@@ -106,14 +155,24 @@ async function probe(url, headers, fetchImpl) {
 export async function testConnection(env = process.env, fetchImpl = fetch, fsImpl = fs) {
   const connection = resolveBackend(env, fsImpl);
   const headers = backendHeaders(connection, { Accept: 'application/json' });
-  const health = await probe(`${connection.url}/health`, headers, fetchImpl);
-  if (!health) return 'unreachable';
-  if (health.status === 401) return 'unauthorized';
-  if (!health.ok) return 'unreachable';
+  let healthResponse;
+  try {
+    healthResponse = await fetchImpl(`${connection.url}/health`, { method: 'GET', headers, signal: AbortSignal.timeout(5000) });
+  } catch {
+    return 'unreachable';
+  }
+  if (healthResponse.status === 401) { await healthResponse.body?.cancel?.(); return 'unauthorized'; }
+  if (!healthResponse.ok) { await healthResponse.body?.cancel?.(); return 'unreachable'; }
+  let body = null;
+  try { body = await healthResponse.json(); } catch { body = null; }
   const identity = await probe(`${connection.url}${IDENTITY_PATH}`, headers, fetchImpl);
   if (!identity) return 'unreachable';
   if (identity.status === 401) return 'unauthorized';
-  return 'ok';
+  const result = compatibility(body);
+  compatibilityCache.set(connection.url, {
+    result, text: compatibilityText(result), url: connection.url, expires: Date.now() + COMPATIBILITY_MS,
+  });
+  return result;
 }
 
 function sendJson(res, status, payload) {

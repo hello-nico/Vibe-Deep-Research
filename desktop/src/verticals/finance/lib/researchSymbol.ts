@@ -17,9 +17,18 @@ export function asResearchErrorMessage(error: unknown): string {
 }
 
 export const BACKEND_TOKEN_REJECTED = "服务器拒绝了访问令牌，请在设置里检查";
+/** Host answers 426 with one of these when the client and Backend API versions do not match. */
+export const SERVER_OUTDATED = "服务器版本过旧，请联系管理员更新";
+export const CLIENT_OUTDATED = "客户端需要更新，请安装新版本";
 
 export function researchErrorMessage(status: number, value: unknown): string {
   if (status === 401) return BACKEND_TOKEN_REJECTED;
+  if (status === 426) {
+    const outdated = value && typeof value === "object" && value !== null && "detail" in value
+      ? (value as { detail: unknown }).detail
+      : undefined;
+    if (typeof outdated === "string" && outdated.trim()) return outdated.trim();
+  }
   const detail = value && typeof value === "object" && value !== null && "detail" in value
     ? (value as { detail: unknown }).detail
     : undefined;

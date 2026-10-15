@@ -1,11 +1,15 @@
 import { useCallback, useEffect, useState } from "react";
 import { GroupCard, GroupRow } from "./ui/Card";
+import { CLIENT_OUTDATED, SERVER_OUTDATED } from "../lib/researchSymbol";
 import "./connection-panel.css";
 
 /** 宿主连接配置接口（GET/PUT /finance-backend-connection、POST …/test）；令牌只写不读。 */
 const ENDPOINT = "/finance-backend-connection";
-type Outcome = "ok" | "unreachable" | "unauthorized";
-const OUTCOME_TEXT: Record<Outcome, string> = { ok: "已连接", unreachable: "连不上这个地址", unauthorized: "访问令牌不对" };
+type Outcome = "ok" | "unreachable" | "unauthorized" | "server_outdated" | "client_outdated";
+const OUTCOME_TEXT: Record<Outcome, string> = {
+  ok: "已连接", unreachable: "连不上这个地址", unauthorized: "访问令牌不对",
+  server_outdated: SERVER_OUTDATED, client_outdated: CLIENT_OUTDATED,
+};
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${ENDPOINT}${path}`, init && { ...init, headers: { "Content-Type": "application/json" } });
@@ -14,7 +18,7 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
 }
 const outcomeOf = (body: { status?: string; result?: string }): Outcome | null => {
   const value = body.status ?? body.result;
-  return value === "ok" || value === "unreachable" || value === "unauthorized" ? value : null;
+  return value === "ok" || value === "unreachable" || value === "unauthorized" || value === "server_outdated" || value === "client_outdated" ? value : null;
 };
 
 export function ConnectionPanel() {

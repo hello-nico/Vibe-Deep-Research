@@ -4,6 +4,7 @@ import { createServer } from 'vite';
 import { createServer as createHttpServer } from 'node:http';
 import { fileURLToPath } from 'node:url';
 import { researchRoute, installResearchApi } from '../dsh/finance-ui/research.mjs';
+import { clearCompatibilityCache, writeConnection } from '../dsh/finance-ui/backend-connection.mjs';
 
 test('company API refresh has one bounded POST facade', () => {
   assert.equal(researchRoute('POST', '/wiki/pages/refresh-api'), true);
@@ -142,6 +143,44 @@ test('产品只开放 pinned block 的读取路径', () => {
   assert.equal(researchRoute('POST', '/documents/' + 'a'.repeat(32) + '/hide-from-library'), true);
   assert.equal(researchRoute('DELETE', '/documents/' + 'a'.repeat(32)), false);
   assert.equal(researchRoute('PATCH', '/documents/uploads'), false);
+});
+
+test('不兼容时研究代理返回 426 且不转发', async () => {
+  clearCompatibilityCache();
+  const home = await import('node:os').then(os => import('node:path').then(path => import('node:fs').then(fs => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-compat-'));
+    return { dir, fs };
+  })));
+  const previous = process.env.DSH_HOME;
+  process.env.DSH_HOME = home.dir;
+  writeConnection({ url: 'https://cloud.example/api/v1' });
+  let handler;
+  installResearchApi({ webServer: { register(value) { handler = value.handler; return () => {}; } } });
+  const originalFetch = globalThis.fetch;
+  const calls: string[] = [];
+  globalThis.fetch = async (url: string | URL | Request) => {
+    calls.push(String(url));
+    return new Response(JSON.stringify({ ok: true }), { status: 200, headers: { 'Content-Type': 'application/json' } });
+  };
+  const response = {
+    writableEnded: false, headersSent: false, status: 0, body: '', headers: {} as Record<string, string>,
+    setHeader() {}, writeHead(status: number) { this.status = status; this.headersSent = true; },
+    end(body?: string) { this.body = body || ''; this.writableEnded = true; },
+    on() {}, off() {},
+  };
+  try {
+    await handler({ url: '/finance-research/notes', method: 'GET', headers: {}, async *[Symbol.asyncIterator]() {} }, response);
+    assert.equal(response.status, 426);
+    assert.match(response.body, /服务器版本过旧/);
+    assert.equal(calls.some(url => url.endsWith('/notes')), false);
+    assert.equal(calls.some(url => url.endsWith('/health')), true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previous === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previous;
+    home.fs.rmSync(home.dir, { recursive: true, force: true });
+    clearCompatibilityCache();
+  }
 });
 
 test('原件代理仅将实际 PDF 字节设为内嵌类型，保持正文完整', async () => {

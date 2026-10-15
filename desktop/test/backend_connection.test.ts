@@ -67,7 +67,7 @@ test('测试连接区分可达、拒绝和不可达，并带上令牌与版本�
   const calls = [];
   const ok = await testConnection(env, async (url, init) => {
     calls.push({ url, headers: init.headers });
-    return new Response('{}', { status: url.endsWith('/health') ? 200 : 200 });
+    return new Response(JSON.stringify({ api: { version: 1, min_client: 1 } }), { status: 200 });
   });
   assert.equal(ok, 'ok');
   assert.deepEqual(calls.map(call => call.url), ['https://cloud.example/api/v1/health', 'https://cloud.example/api/v1/notes']);
@@ -92,4 +92,56 @@ test('地址留空表示用本机：删除已存连接，回到默认地址', as
   assert.equal(cleared.url, DEFAULT_BACKEND_URL);
   assert.equal(cleared.token, '');
   fs.rmSync(home, { recursive: true, force: true });
+});
+
+test('compatibility 区分缺版本、服务器过旧、客户端过旧和兼容', async () => {
+  const { compatibility, CLIENT_API, MIN_SERVER_API, testConnection, writeConnection, readCompatibility, clearCompatibilityCache } = await import('../dsh/finance-ui/backend-connection.mjs');
+  assert.equal(compatibility({}), 'server_outdated');
+  assert.equal(compatibility({ api: { version: MIN_SERVER_API - 1, min_client: 1 } }), 'server_outdated');
+  assert.equal(compatibility({ api: { version: 1, min_client: CLIENT_API + 1 } }), 'client_outdated');
+  assert.equal(compatibility({ api: { version: 1, min_client: 1 } }), 'ok');
+
+  const { env } = home();
+  writeConnection({ url: 'https://cloud.example/api/v1', token: 'secret-token' }, env);
+  assert.equal(await testConnection(env, async () => new Response(JSON.stringify({ api: { version: 0, min_client: 1 } }), { status: 200 })), 'server_outdated');
+  assert.equal(await testConnection(env, async () => new Response(JSON.stringify({ api: { version: 1, min_client: 9 } }), { status: 200 })), 'client_outdated');
+
+  let healthCalls = 0;
+  clearCompatibilityCache();
+  const first = await readCompatibility(env, async () => {
+    healthCalls += 1;
+    return new Response(JSON.stringify({ api: { version: 1, min_client: 1 } }), { status: 200 });
+  });
+  const second = await readCompatibility(env, async () => {
+    healthCalls += 1;
+    return new Response(JSON.stringify({ api: { version: 0, min_client: 1 } }), { status: 200 });
+  });
+  assert.equal(first.result, 'ok');
+  assert.equal(second.result, 'ok');
+  assert.equal(healthCalls, 1);
+  writeConnection({ url: 'https://other.example/api/v1' }, env);
+  const afterSave = await readCompatibility(env, async () => {
+    healthCalls += 1;
+    return new Response(JSON.stringify({ api: { version: 0, min_client: 1 } }), { status: 200 });
+  });
+  assert.equal(afterSave.result, 'server_outdated');
+  assert.equal(healthCalls, 2);
+  const previousHome = process.env.DSH_HOME;
+  process.env.DSH_HOME = env.DSH_HOME;
+  clearCompatibilityCache();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => new Response(JSON.stringify({ ok: true }), { status: 200 });
+  try {
+    const { startResearchRun } = await import('../dsh/finance-ui/host-state.mjs');
+    await assert.rejects(
+      startResearchRun({}, { slug: 'companies/600900-sh', symbol: '600900.SH', prompt: '研究', title: '长江电力' }),
+      (error: { status?: number; message?: string }) => error.status === 426 && /服务器版本过旧/.test(error.message || ''),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (previousHome === undefined) delete process.env.DSH_HOME;
+    else process.env.DSH_HOME = previousHome;
+    clearCompatibilityCache();
+  }
+  assert.equal(researchErrorMessage(426, { detail: '客户端需要更新，请安装新版本' }), '客户端需要更新，请安装新版本');
 });

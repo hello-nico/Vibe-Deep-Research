@@ -1,5 +1,6 @@
 import type { Quote } from './api';
 import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
+import { CLIENT_OUTDATED, SERVER_OUTDATED } from './researchSymbol.ts';
 
 export const COMPANY_PAGE_BLOCKS = [
   ['business', '商业模式'],
@@ -160,9 +161,11 @@ export class CompanyPageStore {
         await this.begin();
       }
     } catch (error) {
-      const denied = error instanceof Error && 'status' in error && (error as { status?: number }).status === 401;
-      const unavailable = denied ? '服务器拒绝了访问令牌，请在设置里检查' : '研究暂不可用';
-      console.warn('[finance/company-page] research unavailable', denied ? unavailable : error);
+      const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status : undefined;
+      const unavailable = status === 401 ? '服务器拒绝了访问令牌，请在设置里检查'
+        : status === 426 && error instanceof Error ? error.message
+        : '研究暂不可用';
+      console.warn('[finance/company-page] research unavailable', status === 401 || status === 426 ? unavailable : error);
       this.publish({ ...this.state, loaded: true, error: unavailable });
     }
   }
@@ -174,7 +177,9 @@ export class CompanyPageStore {
       this.schedule();
     } catch (error) {
       console.warn('[finance/company-page] start failed', error);
-      this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: '这次研究未完成' } });
+      const message = error instanceof Error ? error.message : '';
+      const outdated = message === SERVER_OUTDATED || message === CLIENT_OUTDATED;
+      this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: outdated ? message : '这次研究未完成' } });
     }
   }
   /** User-initiated 「重新研究」: same entry as the automatic start, but not once per basis version. No-op while a task is running or the page is unread. */
