@@ -9,3 +9,10 @@
 - 首启：隔离 home 缺失偏好时写入 compact，已有 standard/next-input 保持；两个自建实例退出码 0；原生首页截图已看，中文首页与导航正常。
 - 缺口：问助手打开后焦点留在入口按钮（手动点击输入框正常），记为产品侧待判断，不阻断试用；未做模型研究、Windows、签名、公证。
 - 下一步：用户重启主目录工作台（先 scripts/setup）并试用 Mac 包后决定后续方向；签名需用户 Apple 证书。
+
+### 2026-10-19 晚 · claude3 · R6/R7 与 r8 文案
+
+- 用户实测发现旧包共用官方 ~/.dsh/profiles/desktop 与 userData；R6 改为按品牌 appId 派生 `~/.dsh-products/com.vibefinance.desktop`，已有 profile 自动补齐产品组合。
+- 最早“渐变空白”无法唯一归因；同进程后来显示欢迎窗口，最可能是欢迎窗口未前置。R7 已让欢迎窗口始终在最前。
+- R7 + r8：主按钮“连接 DeepSeek 开始使用”，次要链接“用 DeepSeek 账号登录”，密钥页“粘贴你的 DeepSeek 密钥”。Claude 已看两页原生截图。
+- 交付：Vibe-Finance-0.2.1-rc.2-mac-arm64-unsigned-r8.zip，SHA-256 c07aeaa7…8306，Claude 复算一致。官方目录合成哈希不变；首启与二次启动进入产品首页。

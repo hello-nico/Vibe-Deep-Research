@@ -24,6 +24,9 @@ R2 品牌：沿用 alpha.2 的单一品牌配置入口与字段（名称 Vibe Fi
 R3 装入：两个产品包与生产依赖随包内置；产品 bundle patch 生效；运行时补丁按 rc.2 的 10 个补丁经 Desktop 补丁通道打上，打包流程运行 `check-inline-result.mjs` 等价检查。
 R4 两份改动合成一个补丁文件 `.local/desktop-rc2/desktop.patch`，附应用说明；这份补丁是后续签名、公证与 Windows 的唯一基础。
 R5 不做：签名、公证、上传、Windows 构建、更新源上线。
+R6 产品应用的 profile、DSH_HOME、Electron userData 与凭证引用独立于官方 DSH Desktop，不共用、不改写（2026-10-19 用户实测发现共用）。
+R7 欢迎窗口（human-checklist 2026-10-19）：只留一个主按钮“连接 DeepSeek 开始使用”，点进 API Key 页，页内一句说明去哪里获取密钥；
+  账号登录降为按钮下方的次要文字链接；“稍后配置”保留。经品牌配置入口或 locale/布局补丁实现，不改上游登录逻辑；欢迎窗口始终在最前。
 
 ## 4. 范围
 
@@ -52,9 +55,9 @@ R5 所列。
 
 ## 9. 当前交接
 
-1. 状态与结论：codex1 已完成最终快照、两个产品包、未签名arm64目录包及ZIP；最终包真实首启写入compact，预置standard/next-input保持。四张原生截图已保存；自动聚焦留有缺口，停止等审。
-2. 改动文件：DSH worktree的apps/desktop共41文件；本轮增加逐文件快照清单与tar哈希，移除旧registry复制。产物、快照、截图、回执及report.md均在.local/desktop-rc2/；改动见changed-files.txt。
-3. 证据：全链装配、十补丁/Web检查、封装后Host/Office冒烟、build:check通过；两实例均退出0。ZIP SHA-256：296737c87190f8315c2b52a511d107187ad61070c1f72b07201d33ec3ecbc717；产品包见artifacts/SHA256SUMS。
-4. 与规格的偏差及理由：保留用户指定两份未提交修复，来源worktree经哈希核对未变。现用rc.2入口不依赖datasources/registry.json，故修正alpha遗留复制；unsigned沿上游ad-hoc路径，不用证书、不改签名校验策略。
-5. 未覆盖的缺口：问助手打开后AX焦点仍在入口按钮；手动点击输入框后聚焦、无品牌橙，自动聚焦不记通过。未做模型研究、Windows、Developer ID签名、公证或上传。关于面板和连接页已截图。
-6. 下一步谁做什么：Claude3审阅report.md、产物和自动聚焦缺口，产品侧另判断是否修复。codex1的fresh/existing实例已退出；5930/5939仍监听，现用home未碰。不提交、不push；当前已停下。
+1. 状态与结论：codex1完成r8欢迎文案小改：链接为“用 DeepSeek 账号登录”，密钥页标题为“粘贴你的 DeepSeek 密钥”，占位为“sk- 开头的一串字符”，返回按钮为“返回”；获取密钥说明保留。最终包两页已原生核对并截图，自建实例正常退出0。
+2. 改动文件：本轮仅locale.ts、4份品牌welcome预期与双语README，共7个文件，详见.local/desktop-rc2/r8/changed-files.txt；累计合成补丁仍47文件。截图为r8-welcome-entry.png、r8-welcome-api-key.png；布局、登录、隔离及产品来源均未改。
+3. 证据：欢迎49项、桌面构建、未签名目录打包、diff/补丁检查通过；ZIP全成员CRC及ASAR一致性通过。当前包artifacts/Vibe-Finance-0.2.1-rc.2-mac-arm64-unsigned-r8.zip，SHA-256：c07aeaa7c83788d8af5662194c98d1b6ab14c1129354a81ef881bf0489c08306。
+4. 与规格的偏差及理由：无。本轮仅改品牌分支文案并同步英文，不改上游默认文案、密钥获取说明、账号逻辑或R6/R7行为。增量范围核对见r8/incremental-change-audit.json；合成补丁及report.md已更新。
+5. 未覆盖的缺口：本轮未输入真实密钥、登录或研究，未重做已审R6/R7的完整回归；仅核对两页文案与原生显示。此前问助手自动聚焦缺口仍保留。未做Windows、Developer ID签名、公证或上传。
+6. 下一步谁做什么：Claude3审阅r8 ZIP及两张原生截图后交用户试用；自建截图实例已正常退出，未操作用户实例及5930/5939。verify-protocol通过，无提交、push，codex1已停下。
