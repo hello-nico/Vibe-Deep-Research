@@ -1,0 +1,2863 @@
+diff --git a/apps/desktop/README.i18n.yaml b/apps/desktop/README.i18n.yaml
+index 6060f79da9..0b6c03eb6c 100644
+--- a/apps/desktop/README.i18n.yaml
++++ b/apps/desktop/README.i18n.yaml
+@@ -15,8 +15,8 @@
+   en: 05fd227f99ee535a
+   zh: 60d7d62bc0026973
+ /deepseek-harness-desktop/application-overview:
+-  en: e9b22f232837e131
+-  zh: fc5f3834b969d2d2
++  en: 9f1d753e1165d0cb
++  zh: 11d84fc01c99f0a8
+ /deepseek-harness-desktop/terminal-command:
+   en: 5f2d25a1d8472647
+   zh: 2acb5c5d7d1917e2
+diff --git a/apps/desktop/README.md b/apps/desktop/README.md
+index e0bb92c5b7..99327a8728 100644
+--- a/apps/desktop/README.md
++++ b/apps/desktop/README.md
+@@ -30,6 +30,16 @@ Desktop runs the Harness workspace in a native application. This reference cover
+ 
+ ## Application overview
+ 
++The optional `DSH_DESKTOP_BRANDING` JSON overlay selects product identity, icons and an HTTPS update base. Without it, upstream identity and update behavior remain unchanged. Branded feeds retain rc.2's test release ID, nightly/latest channels and binary prefixes; unsigned packages have no update configuration. This product build embeds `vibe-finance-ui` and `stock-research-dsh`, their production dependencies and first-launch profile declarations. Set `DSH_DESKTOP_VIBE_SOURCE`, `DSH_DESKTOP_STOCK_SOURCE` and `DSH_DESKTOP_PRODUCT_SOURCE_MODE=worktree` to snapshot the approved product worktrees into disposable build directories. Ten rc.2 patches use the Desktop runtime patch installer; the published Web artifact is preserved and `check-inline-result.mjs` runs before sealing the runtime. `DSH_DESKTOP_ISOLATED=1` with absolute `DSH_HOME` and `DSH_DESKTOP_USER_DATA_DIR` isolates smoke-test storage, skips login-shell reads and avoids system protocol registration.
++
++The bundled finance plugin owns the initial work-details preference on Desktop as on Web: after Loader configuration is ready, it persists `ui-chat.transcriptView=compact` through Settings only when the user field is absent. Existing choices remain unchanged; the Desktop shell does not write a second preference layer.
++
++A non-upstream branding `appId` owns `~/.dsh-products/<appId>` as its Harness home, with Electron userData, session data and logs under `desktop-user-data/`. Ordinary launches set these paths before acquiring the single-instance lock; inherited or login-shell `DSH_HOME` cannot redirect the product into the official application. Official storage is not migrated or modified. Each launch adds missing built-in product bundles through the shared profile writer, preserving other manifest fields, bundles and user patches.
++
++The branded welcome window stays above other windows until the workspace opens. Vibe Finance presents one primary action, “Connect DeepSeek to get started”, followed by “Sign in with your DeepSeek account” as a secondary text link. The key page says “Paste your DeepSeek key”, uses “A key starting with sk-” as its placeholder, explains where to create a key at platform.deepseek.com, and retains “Set up later” and “Back”. Account operations and credential persistence remain upstream-owned; skipping opens the workspace for this launch only.
++
++Before product compilation, the build seals each source snapshot as a tar archive and a per-file SHA-256 manifest under `products/`, alongside its HEAD, working-tree diff and untracked-file hashes. Source worktrees remain read-only. The local-data bundle carries the current product configuration and version metadata; Backend supplies market, announcement and news queries.
++
+ Desktop analytics follows the [product collection policy](../../packages/client/product-analytics/README.md), including its live application setting. Web usage is excluded. Update installation waits for its local analytics intake before locking API admission and stopping the Host. Intake has a one-second deadline; failure does not prevent installation, and collector delivery is not awaited.
+ 
+ The desktop application is an Electron shell around the complete dsh Web application. An Electron RunAsNode child starts the shared profile runner, and Electron immediately loads the packaged Web entry at `dsh-app://app/`. Its shared loading page waits for Host boot injections, then starts the client without navigating to another document. Electron forwards application HTTP requests to the authenticated Web Host, dropping connection-level response headers (`transfer-encoding`, `connection`, `keep-alive`) that describe the Node fetch rather than the resource, and marking plugin bundle responses `no-store` because their per-launch revisions would only accumulate in Chromium's disk cache; WebSocket streams connect to that Host with credentials attached only for the owned application window. Node IPC carries boot injections, readiness, and shutdown. Desktop listens on an OS-assigned port by default, so it cannot collide with Web’s `3080` or a reserved port; a `webserver.config.port` patch can override it.
+diff --git a/apps/desktop/README.zh.md b/apps/desktop/README.zh.md
+index 430ac4ad3d..9a9e398e7b 100644
+--- a/apps/desktop/README.zh.md
++++ b/apps/desktop/README.zh.md
+@@ -30,6 +30,16 @@ Desktop 在原生应用中运行 Harness 工作区。本参考文档说明应用
+ 
+ ## 应用概览
+ 
++可选的 `DSH_DESKTOP_BRANDING` JSON 配置指定产品身份、图标和 HTTPS 更新基址；缺省时保留上游身份与更新行为。品牌更新源保留 rc.2 的测试发布 ID、nightly/latest 频道及二进制路径，未签名包不带更新配置。本产品构建内置 `vibe-finance-ui`、`stock-research-dsh`、生产依赖与首次启动的 profile 声明。设置 `DSH_DESKTOP_VIBE_SOURCE`、`DSH_DESKTOP_STOCK_SOURCE` 和 `DSH_DESKTOP_PRODUCT_SOURCE_MODE=worktree`，将已验收的产品工作树快照到一次性构建目录。十个 rc.2 补丁经 Desktop 运行时补丁安装器应用，保留已发布的 Web 产物，并在封存运行时前执行 `check-inline-result.mjs`。设置 `DSH_DESKTOP_ISOLATED=1`、绝对路径的 `DSH_HOME` 与 `DSH_DESKTOP_USER_DATA_DIR`，可隔离冒烟存储、跳过登录 shell 读取及系统协议注册。
++
++Desktop 与 Web 的首次工作细节偏好均归内置 finance 插件：Loader 配置就绪后，仅在用户字段缺失时通过 Settings 持久化 `ui-chat.transcriptView=compact`。已有选择保持不变，Desktop 壳不另写一层偏好。
++
++非上游品牌的 `appId` 使用独立 Harness home `~/.dsh-products/<appId>`，Electron userData、会话缓存与日志归属其中的 `desktop-user-data/`。普通启动在获取单实例锁前设置这些路径；继承环境或登录 shell 的 `DSH_HOME` 不能将产品重定向到官方应用。官方存储不迁移、不修改。每次启动通过共享 profile 写入器补齐缺少的产品 bundles，保留其他清单字段、bundles 与用户 patch。
++
++品牌欢迎窗口在进入工作区前始终置顶。Vibe Finance 只显示一个主按钮“连接 DeepSeek 开始使用”，下方为次要文字链接“用 DeepSeek 账号登录”。密钥页标题为“粘贴你的 DeepSeek 密钥”，输入框提示“sk- 开头的一串字符”；保留去 platform.deepseek.com 创建密钥的说明、“稍后配置”和“返回”。账号操作和密钥持久化仍由上游负责；跳过配置仅对本次启动生效。
++
++产品编译前，构建将每个源码快照封存为 tar 归档及逐文件 SHA-256 清单，与 HEAD、工作树 diff、未跟踪文件哈希一同保存在 `products/`，来源工作树只读。本地数据 bundle 携带当前产品配置和版本元数据；行情、公告与新闻查询由 Backend 提供。
++
+ 桌面埋点遵循[产品采集策略](../../packages/client/product-analytics/README.zh.md)及其动态应用配置，不包含 Web 使用情况。安装更新会等待该操作的本地埋点接收请求结束，再锁定 API 准入并停止 Host。接收请求的时限为一秒，失败不会阻止安装，也不等待收集端完成发送。
+ 
+ 桌面应用是完整 dsh Web 应用外的一层 Electron 壳。Electron RunAsNode 子进程启动共享 profile runner，Electron 立即从 `dsh-app://app/` 加载打包内的 Web 入口。共享加载页等待 Host 启动注入，然后在同一文档中启动客户端。Electron 将应用 HTTP 请求转发给已认证的 Web Host，转发时丢弃描述 Node fetch 连接而非资源本身的响应头（`transfer-encoding`、`connection`、`keep-alive`），并把插件 bundle 响应标记为 `no-store`，因为其每次启动都变化的 revision 只会在 Chromium 磁盘缓存中累积；WebSocket 流连接到该 Host，仅为归属的应用窗口附加凭据。Node IPC 承载启动注入、就绪与关闭。Desktop 默认监听系统分配的端口，因此不会与 Web 的 `3080` 或系统保留端口冲突；可通过 `webserver.config.port` patch 覆盖。
+diff --git a/apps/desktop/branding.vibe-finance.json b/apps/desktop/branding.vibe-finance.json
+new file mode 100644
+index 0000000000..956ca117ec
+--- /dev/null
++++ b/apps/desktop/branding.vibe-finance.json
+@@ -0,0 +1,12 @@
++{
++  "productName": "Vibe Finance",
++  "appId": "com.vibefinance.desktop",
++  "protocol": "vibefinance",
++  "iconMac": "resources/brand/icon-mac.png",
++  "iconWindows": "resources/brand/icon-windows.png",
++  "trayWindows": "resources/brand/tray-windows.ico",
++  "updateOrigin": "https://updates.example.invalid/vibe",
++  "updateChannel": "nightly",
++  "brandEn": "Vibe Finance",
++  "brandZh": "Vibe Finance"
++}
+diff --git a/apps/desktop/electron-builder.config.d.mts b/apps/desktop/electron-builder.config.d.mts
+index 0682e6e9ad..465f46e20a 100644
+--- a/apps/desktop/electron-builder.config.d.mts
++++ b/apps/desktop/electron-builder.config.d.mts
+@@ -3,8 +3,9 @@ import type { AfterPackContext, BeforePackContext } from 'app-builder-lib'
+ /** Electron-builder fields asserted by the Desktop release tests. */
+ export interface DesktopElectronBuilderConfig {
+   readonly appId: string
++  readonly productName: string
+   readonly artifactName: string
+-  readonly protocols: readonly [{ readonly name: 'DeepSeek Harness'; readonly schemes: readonly ['dsh'] }]
++  readonly protocols: readonly { readonly name: string; readonly schemes: readonly string[] }[]
+   readonly directories: {
+     readonly output: string
+   }
+@@ -35,6 +36,7 @@ export interface DesktopElectronBuilderConfig {
+     readonly writeUpdateInfo: boolean
+   }
+   readonly win: {
++    readonly icon: string
+     readonly forceCodeSigning: boolean
+     readonly signtoolOptions: {
+       readonly publisherName: string | undefined
+diff --git a/apps/desktop/renderer/welcome.css b/apps/desktop/renderer/welcome.css
+index 3b4da2defb..59a7610a0e 100644
+--- a/apps/desktop/renderer/welcome.css
++++ b/apps/desktop/renderer/welcome.css
+@@ -341,3 +341,52 @@ body {
+ .actions .welcome-loading { color: inherit; }
+ 
+ .auth-waiting .copy-link:disabled { cursor: default; }
++
++body[data-vibe-finance] {
++  color-scheme: light;
++  --dsw-alias-label-primary: #161a22;
++  --dsw-alias-label-secondary: #62656b;
++  --dsw-alias-label-tertiary: #81858c;
++  --dsw-alias-border-l2: #0000001a;
++  --dsw-alias-border-l4: #00000029;
++  --dsw-alias-brand-primary: hsl(17 78% 51%);
++  --dsw-alias-button-primary-hover: hsl(17 78% 45%);
++  --dsw-alias-label-primary-inverted: #fff;
++  --dsw-font-family-brand: var(--dsw-font-family);
++}
++body[data-vibe-finance] #root {
++  background: linear-gradient(180deg, #fcfcfc 70%, #fff8f3);
++  color: #161a22;
++}
++body[data-vibe-finance] .vibe-brand {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  gap: 10px;
++  font-size: 24px;
++  font-weight: 600;
++}
++.vibe-brand svg { width: 40px; height: 40px; color: hsl(17 78% 51%); }
++body[data-vibe-finance] .tagline { color: #62656b; font-weight: 400; }
++body[data-vibe-finance] .tagline h1 { color: #161a22; font-size: 26px; font-weight: 600; }
++body[data-vibe-finance] .tagline p { margin-top: 6px; font-size: 18px; }
++body[data-vibe-finance] .secondary { background: #fff; color: #161a22; }
++body[data-vibe-finance] .secondary:hover:not(:disabled) { background: #f6f6f6; }
++body[data-vibe-finance] #entry-actions { width: 280px; }
++body[data-vibe-finance] .actions .text-link {
++  display: flex;
++  align-items: center;
++  justify-content: center;
++  height: 28px;
++  padding: 0;
++  border: 0;
++  background: transparent;
++  color: var(--dsw-alias-label-secondary);
++  font-size: 14px;
++  font-family: inherit;
++  line-height: 24px;
++  app-region: no-drag;
++  cursor: pointer;
++  text-decoration: underline;
++}
++body[data-vibe-finance] .key-heading p { max-width: 380px; line-height: 24px; }
+diff --git a/apps/desktop/resources/brand/icon-mac.png b/apps/desktop/resources/brand/icon-mac.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..c127838992c6f2fe0d59a09fbf3dd7859ed4e72a
+GIT binary patch
+literal 27365
+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
+KQ1H9Y|NakCR^<u+
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/desktop/resources/brand/icon-windows.png b/apps/desktop/resources/brand/icon-windows.png
+new file mode 100644
+index 0000000000000000000000000000000000000000..2f421354919b60c1af1918db0a96ee268ba14262
+GIT binary patch
+literal 5336
+zcmZu#c|26@`+jDIAx4xX*~XGJg(!nCiC0uYB0EV!S$gflA+jYcXt52U?6PKyib!Rt
+zELo>|Wf@y!8)oKr&h&nM-|rva&-^j>oacJ3>wfP0I_J#u#G9HJa&ZW8006j*PUxEh
+zfPzC5V8_B=cGsR=g1@jAP8#Y12J#^_KfMnCUy_mjF^iy#`LVEDB9mckON*+Ff#D;z
+z>)TP@Q)L?lY%&iYuo&i48sD`~ts@sz8+V0@#}5~%neH&nA29wB*TPZFWmF_^m?#ll
+z{mdXWkysSvIxfV6jlB?U-=WmnU8?cMxo2$CAz*3-AL!D(Hb2&MwC97W>O^vM#bSUP
+zesSUY`c`@vuQD+rf)RE1?p@9po+&heyER09Qb<CdpUB#}8;lhmyeF3-0i?i9lnBO$
+zz10DP=BI={P_$m|rqi}M&f4JtG0(4FdZbo~U++qqxfix#M{91%fL_W?Uf^)oe4#?o
+z)3DhgLX^0F#$cZi(AL%#R(wz8fJQ)x$#P{pP92cl0pmNNJKf0s*%}zCa6UfO+uQpQ
+zEU@@IUwALo6*&gPiuyftzt(sT=5=#^5&)n7rVU2(jDYQiviA~Q&)4%)B5V~>#pp|K
+zxX(<#0HP>ykDB4rdT}i%)6W%Qxw*bz^ar8)Y>|428lY0C-M@}58iH`c$$)rv9=*9M
+zH8z22LP^?1wbtg<qQ!M}f$1sBj;M?$m(%tAiVo|=d0Q&*dj|z=@Pk7OSQm9DD=RBC
+z%~cyk?s_pIncEuR=jS)-x3Tmsk{}$<51N~s)ALhwS$lciwDkGjK~ur%Fngw%I!`dm
+zvwn{jZn7@ew)t|E$4t>)FHX3zp<%7DY|A8tOP>Rb)GqSq9pxZNb#2C<c(fbReP&r)
+zMrmO1PJYN4s-=m7b*bhDyLkHwS)l#J{T`qF#~!@SP_Y2;*wcr@oAI4T;W~6Zee>o`
+zIji<@GN`z^6#^JIon_v=C)s@sYHY%K{Ktsp{Or}LXYlh8Vnnx+{#|Cf-{z-S;c&Pn
+z!o-d#F6dmbW#&1B)PNgG6zQ&eQupuQ&&G?0T>0QH>6w*uKHq#smfU?N<#4g4re;>#
+zQ5Skf%iR3@7?zx_U}c~mZ*5y>@%CnHtfN<8RIL>8%$c6eG}n1-Hbu6patGL>b$ey}
+zO3M{3^!c<^jL(#8SA&T}n{MvM8?+MLl75dmb_ub;hLR|o0STYrx|o#*>_eOdW#Mji
+z-^X^vXC4>Rd31}0Rm%N3N+xvom@vNWMfDC2)^)BlIYzS4Q*5eC$yxobSM06z>OYeE
+zQ(D(v35XF!+j3N}DEV`Xb8~aLe$%}}AMjbeJQe1J*Ew6Qcx^3F*Pqng!e>v!b1Ddw
+zXk-P|uq@R}3wV{Ks?4Fh>m9Bo<~0?EWKF#&+j<Mn+zo`)z2*eP#KJkQ$7Uazupf*J
+zwR|w5Guu<32z?wAXy`&~#R{VHKE$|Xhpp-2cJ9pD-uQJEO=S1gf^2ymEltA44*nSL
+zpX{8PIA62me*ZL-Vy&s86W;1SHb&<*i4Y)<>`;=c8#u6gsP+i8dvT<;_LhI*#u}&j
+zapT~r4=vd^q(k-~+^gkKVEI9pSJ%s{a88kjYYs>nyo9R}n8SE*Kd{fd(9c$=_}vr!
+zO!Q!x>1uFsYt4S+^L_6Gh#o;%f%h41y1*ECopRIIT$!A-e0C#zMV^!Vc#>n5r7y)+
+zIc&QJ4ZBf^HGAFa62;g*nXXx96yv)7`?nqX6dS~I;qL~@yX4eNv|~|GL^VCBD5h$|
+z9hVp9YHbV6fQR%1FLRhoz*y+5|4CqVz>QPf^#}&)pO|O?tpzE2?h9)cYjyzh=}J1C
+z&N|T9*%<=_@|zzY?LEf`6TzIwX@BzMiLfG|e0DH$uq!R3ZxOI}E=<|zv11|0mUN=Q
+zlpv9#)D2^*A4psG#firZ*qV18b}yIY_7kP)io(p7OQoZq6*MOtJyH4iZ=AS6kpNUy
+zZFSe*s6PS^59cMKNJR71i4GNrZ>AC`8in#(Kln=;q4l$lTjKxr`%xaHCD{eYn|=>H
+z<zn2x%zy(2J^WPiT?8X{5KF|lGpQ01Q9Q?Om`vX<fHo&RR&{5t6nh*L_o<Aba~s8H
+zNL?r2GHyf&Ohw?!r;5g9N@FTxP&|?H%xSrYrW`UP3cetTB_zO?<5Nf44&U7r1QL%d
+zk#fj!tSr2{sandU;KM<8PL&PIlqY>?1MIK9P#1p)5}hA~dLOw{$fSFH0Yu-4Nyv;j
+zd{09VpdL9eDR3)`eK(bxnG}LJ2&%Lwt*W*(-h&Z`N|?$V3R>&4d^6O6iL?yrnZt16
+zd>C<HKSA9}bP;pVT5$h*qyun7p_I8ZS0lEZI7irQZE8QNKv7QM!|}mBMjA^NqwP(V
+zp|)B+RReMXtgpbs*fIqgJR2*!PbVuSi1y+p21OPmuDE~?#{y~D^F0c_IMSvv_(}Rx
+z9UDRLcdtD&-2*u2$h{)Q-?US#w^3?)utecMjWfnzNJ)9KNN4gRQOb#Vl!!YM?XOgz
+zVQ26`a)wz9Bbfg`VTMd875`Js%m+vMstio-TOx)b?Nj;h@Y0D!x}nBZK@rTf9}e34
+zr*SEK*jAkTAkr0M4vf=d`BmNS;3znMRTWV1$efwx4jknEr*Xz;4EWg}!9SJB*#VYS
+zfRh8$m}7!Kxt!@8uNZD{meSI7^}|gUfWiS6roCn?Hh^*s6JQdv6MUw$+`js;O$Fi*
+z1qDp$Px-wlrw}HWJ%=!`E@Wud?eM|LHN3_WEtz$gF&zS(#!Q4L$6jDv%xI|ls6u-2
+zCx#uEXCr|T_hfp*V!s`@SVO10#N9@<Tf6|B9?W^E9D9IuDdN^V^BlA|Wz})r)fXq1
+zrN>GfV5V7U{tR^f$>JObF9<GVG$`G7AwK7m0n5xvoQQeNLUdr}Q)n6oI&Eo#VP8cs
+z2~T)Xcj}m3@#U8U%YW=#Hp)hHptLL;hSzcPPYn07-OTd&-JPiG?u9W*0oLam&pX}C
+zcTP^6Ug6jF44w~aSe=+kMy00}F#^5ptzZAZ%+!gbrunnmjbHt?Esb77M^-9Nz0}O+
+z&1!pP7O!r{U5;N-E+jAP*$)J)Tk-3uzP6>&shMBvCC@46(6?&2Yb)FfsfPmH`(JmN
+zIP3Se*IdeJ)h>QN)KD3HZRbMK4c^_!T-8fw@JD<l|Js#wy}bU}g>NxQoIZ=Q*S-bN
+zVY_b;Xw=2f1sCoETw9lofR$1YJ!K<l{E)-Y3ow|Onw*J$s9Ed3I9nJoXplNxXO{Q3
+zmyO4_M~Pa#Yp*lx(j^cN!7AmVgS;oKBaV<8DVj^o{;rCh;kQ4|&c&d6>_+$2qi*U9
+zHW;9jy{21VXE@{>duYK3YZ&+^8D;(3zwwst?8g9z^?5H^Y^*oZKk@a1Nlt(Zio8Y9
+zGVAj_uPt?|7-{NLo4ONDBR0|<FI02PcW=<CCedT6$HywIO69)YEBn5%4Fx0aAX@~M
+zcYDu!Pu)8hS!@~ISgL1lpkAslbXb#<7jZ#r3i2+wIl60Ea!yBR;|u2ja^=DWhe93L
+z*2t)5nr*$tFn+*wEZ?+a3Z4DCsXe#Cs;Gzgh*Fk5>3ObHv0$yAgk~eADUc4z3`RKi
+zbwKbt<bg-XqM>DUeP%+~=@`W9Ga=qY%eTOOk=A)nxh|Y+`{ke6bQbvLD4+J;_3{YD
+z^UM6@xGi@w2=cbbb*IxD(-pr&IGS~Ufe4cPQ$)hi)<taTlW9NzI#ouxBCL0ty10L~
+z3T0JA|B;^~@K$g1-0`u;XT;uhn~*+L8QKbVnbPFpahdW1^3Lmhrl_UuK7nz+sw$~x
+z$_prNF|UH=TfGTKuoZNScf;-;JXc_2Y{T1qP~)13(|N-dwJ%|8=>#9iP{w#}63U>Q
+z@#a80JQN**1#wGi<VfD#b&HR1hutprzgZO!^Q~N;=H~OpDf^x_+Peacte^TTgp|NH
+zSuVEXGo~cFL_fbKw)ckMI<zQq`FlC{se<N|^9hHreD(AeT^U~lG5h?oGk()1G<4`q
+zn*EO#3?EhAo@BPZlvY)IO@-?qA>6L#rxfFq!Cp+lc?O&8z6IUUHW(NbN(lMPTYI(R
+zW#Yr_9MX!r@s9ueu`>H*l!y(c=1yk|s6Mbt4&LY*;q9sujwy@y5$m$MG4^A<uHbqO
+z>7~(*rscv|E1d(ak&(ChRwHxh>)7il*Razi4Bc%~ysXe>_<W*<_U-D<t##}_v{1aC
+z3;4%wd_wrnV0qX{4h#t_Q&*jX8N+q^lmUl$xeK5~T*pD^PKsbF6_3Y|#Fvpe7rz2>
+zaZO365{3s1lk|pREkZEt-Fp~Tz7s<tE+0Z*Z-CsLrdu#<7KX`C5SR@Pih4&yU;-GD
+zQ>6|9YX@?qlG_MO1#rj}Bd`#dt!oy6iD5{jN<@?bi#{tsL_=UU1y2Mf2E*QWAuw(X
+zskIUjrNE*UC5R{$hIRi|fmR)ru*6r75Ge{QMfi+Zu~`sYoI@t!G0-hh%z4JD3%K(f
+z;S9$Cw9_~|l#Rmzl(IL@iFO8yfxts`m_YUhiYWUC(UFb)-_g?(p~wsY3}kY54PjBl
+zf=tPII1OEE9MC*&18YPq3j)8J)o;N7;~y0;jdMp<_09$KmfRDAQ~CS~kgTP(VUee>
+zT$OPMLdb@JhK)Uti2Hv>Kl7Nvdoa+yk(I_g>z%LLDo&rxS3_q8Ql&2st)nXFZ0%U$
+z%BOSrN~Jc#vy2E)R~mN|3chj}o5E7v&zRD=^zVhuE6~mo#w!)LiHf3TJ)dkozXc?s
+zUlOY5*K`B{2RQcaN7jNwik$tLoStesFc4Zb49<}|8AXg_Ry?)?kW5dN4at;$w19!_
+zUywowVL{9Vq`P=745X*}+#~%(fua*Iy<C74q7PP7gS7@2(}I96-Y9h>ujV2QlvHtr
+zsgvQl-+hR5pyLf7b)I@QE>j}$9tK(uBiUTXfdoZnwRNzd{oW;3H(D~B%=5g%@Qh+-
+zl+!Kqi_CHxS1ST3_wuO914#<q)beOgl+R}eR#)3khzAbAEJ`zob@mRTeH7=<nXXA&
+zzq4kfYIvatDQgOHTla+EMx|;xp@ts(=jX7Sk^Fi=Ge=kKz9Nm5Rja~g0cib`1MB3C
+z1r=z5T0H9D`L)uO!Re$npK7``gY-I8$i6A)SK~mIcBl+!dc5W#hxbEn1>@%G2nOAk
+z6Xd06eRANMyitZ^Q@;nAQO8)PwF7Z!xDoLEXC$x7357J%g`kk4{kfyPD)2J*pTi3Z
+z261l8&9{m{Pe0jmPrh3_#(kdyUm`pC<%rQES!LQm^8IW!a`3o|d+E((*Jtv-N?sez
+zxh2;sf4NAr%J28ko?&cW1jxo41U#*j?8;>0R#zz_9}68#9~O{b`FU5$aQqkJ8dVle
+z6aUt3Y9dOI@SS+Ip|!w#)<z}Mi{QQD<IVN6Xp&{IHtMBD9A9vo`}c1lzs<<sLO7EN
+z*MD10)8M^&cK7x%_n(efEVikvtV{;-+-)x~InXV^-C@&OkT1|BITZX>n;goPzR|c|
+zzf!y}e>*X3Ypq#l#m#MWpXWe{H9<w?*M1OiVgHj++yCETdI+<e)>!5Hj)_etsJ$I7
+zA7V?~qom`;pwoV+Mi3~cok!M^Kvu?lpuVpnh37@n$m`9MEOV@919kuFnY+0yk-0B=
+z!vj7aq29`_)4FkWM3=3?fKn7Ew}UZH=;p7Y<<768*(F}GIyH?g#>?@_fa{H8N+;*T
+zzcnm$q#C#L>TTDixx#yRdY5ko<I4K`&D-y7YOm_DISo*W`hSIv`(`M)%;wXp9xoQZ
+zYO*Z$=LCi`m2oHP8m5BlF5J$<voDQ7hPOpFPZ$Sdf{sFR``-e)iOXu(DJ^G`5}PR8
+z<z20-<aPGlkGgsFMrR4#?~j>`u8EUp>;}WiZA!yg$itl{r6k7|u8B<bkz{v@06=b7
+z5bpP=VST9sbrQ_GT0~$H<qyGntN_59=nGa>gW^!J3Zsf$KhF_9mWcg9h`_Jix*O;;
+zQX9d2He0e<dG<)0T&=G}Tj^>DZ6Y^AV?ZjX)N<>9MB7=iaBSQsQ#PNlUQBpZy#2SU
+zBMuVLL3YN${-alSnK|iZXJj-5`}kDsa+AtQMrCySkC_enXBSy0@ao0Ax43dYZdiz|
+z;-hbd?p{$*(c6tG`E0-76CtX0&z1zV|D4x@H~_Sc_H0%C_2gGs5toNXg7?VUDi8y`
+z#V%X=tSgZ`-xt1)_u#EaR_L3P@EJryW8>fsiI-S1!_N+Dh7w6Lrw6;aP1S1#go{T`
+z{ZjWD9qPNR=5^0}d<U7cK`B{|ZJbZ<s73i;HVbL>#xCA4i8JuZGI+joqeeNLuHJia
+z`r->sD1vS2;SYkhw119!^Sz!~3S}#IDmYzbwetG}O9dgnh9}>drS&~<SUT!$_@r+r
+zCV0G|_{J`!$+3SA&sae>tB)A8`p|>j9w>ZfESh-7=;v^ud{8(HVJBG}YW~carz|Xl
+jyY*yg^U9ZTgC$0|Zd}(t(aAmVQ6(@kFwrm5bBg*uaa{zS
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/desktop/resources/brand/tray-windows.ico b/apps/desktop/resources/brand/tray-windows.ico
+new file mode 100644
+index 0000000000000000000000000000000000000000..edadb063e5c7dda0b4c31e67b2a17abe018c7b5d
+GIT binary patch
+literal 11132
+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
+Pd}gsy`!nKyU#<NQXr4`m
+
+literal 0
+HcmV?d00001
+
+diff --git a/apps/desktop/scripts/build-product-runtime.ts b/apps/desktop/scripts/build-product-runtime.ts
+new file mode 100644
+index 0000000000..c25d8db4a4
+--- /dev/null
++++ b/apps/desktop/scripts/build-product-runtime.ts
+@@ -0,0 +1,32 @@
++/** Build Host and client libraries while using the released Web shell verbatim. */
++import { execFileSync } from 'node:child_process'
++import { cpSync, mkdirSync, rmSync } from 'node:fs'
++import { join, resolve } from 'node:path'
++import {
++  clientBuildProcessEnvironment,
++  repositoryClientBuildEnvironment,
++  resolveClientBuildEnvironment,
++  writeClientBuildRecord,
++} from '../../../scripts/client-build-environment.ts'
++import { pnpmInvocation } from '../../../scripts/pnpm-invocation.ts'
++import { libraryBuildSteps } from '../../../scripts/compile-referenced-projects.ts'
++import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
++
++const root = resolve(import.meta.dirname, '../../..')
++const client = resolveClientBuildEnvironment(repositoryClientBuildEnvironment(root, process.env), 'official')
++const environment = clientBuildProcessEnvironment(process.env, client)
++const native = pnpmInvocation(['run', 'build:native-system'], environment)
++execFileSync(native.command, native.args, { cwd: root, env: environment, stdio: 'inherit' })
++for (const step of libraryBuildSteps(root, 'all')) {
++  execFileSync(step.command, step.args, { cwd: root, env: environment, stdio: 'inherit' })
++}
++const stage = join(resolveDesktopTargetBuildPaths().root, 'published-web')
++mkdirSync(stage, { recursive: true })
++execFileSync('npm', ['pack', '@deepseek-ai/dsh-web-frontend@0.2.1-rc.2', '--ignore-scripts',
++  '--cache', join(stage, 'cache'), '--pack-destination', stage], { cwd: root, env: environment, stdio: 'inherit' })
++execFileSync('tar', ['-xzf', join(stage, 'deepseek-ai-dsh-web-frontend-0.2.1-rc.2.tgz'), '-C', stage], { cwd: root })
++const destination = join(root, 'apps/web/dist')
++rmSync(destination, { recursive: true, force: true })
++cpSync(join(stage, 'package/dist'), destination, { recursive: true })
++writeClientBuildRecord(root, client)
++console.log('desktop product runtime: released Web shell staged without a Web source build')
+diff --git a/apps/desktop/scripts/desktop-branding.d.mts b/apps/desktop/scripts/desktop-branding.d.mts
+new file mode 100644
+index 0000000000..4774f2c632
+--- /dev/null
++++ b/apps/desktop/scripts/desktop-branding.d.mts
+@@ -0,0 +1,16 @@
++export interface DesktopBrandFile {
++  readonly source: 'default' | 'file'
++  readonly productName: string
++  readonly protocol: string
++  readonly updateOrigin: string
++  readonly updateChannel: string
++}
++
++export function loadDesktopBrand(env?: NodeJS.ProcessEnv, appRoot?: string): DesktopBrandFile
++
++/** Shared feed selection for packaging, verification, and release metadata. */
++export function resolveBrandedDesktopUpdateConfig(env: NodeJS.ProcessEnv, platform: NodeJS.Platform, arch: string):
++  import('./desktop-auto-update-environment.mjs').DesktopAutoUpdateConfig
++
++/** Artifact basename without its file extension. */
++export function desktopArtifactBase(brand: Pick<DesktopBrandFile, 'source' | 'productName'>, version: string, os: string, arch: string, unsigned?: boolean): string
+diff --git a/apps/desktop/scripts/desktop-branding.mjs b/apps/desktop/scripts/desktop-branding.mjs
+new file mode 100644
+index 0000000000..174674f320
+--- /dev/null
++++ b/apps/desktop/scripts/desktop-branding.mjs
+@@ -0,0 +1,128 @@
++/** Optional product overlay. Missing config keeps the upstream Desktop identity. */
++
++import { existsSync, readFileSync } from 'node:fs'
++import { isAbsolute, join, resolve } from 'node:path'
++import { fileURLToPath } from 'node:url'
++import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
++
++export const DESKTOP_APP_ROOT = fileURLToPath(new URL('..', import.meta.url))
++
++export const UPSTREAM_DESKTOP_BRAND = {
++  productName: 'DeepSeek Harness',
++  appId: 'com.deepseek.harness',
++  protocol: 'dsh',
++  iconMac: 'resources/icon-macos.png',
++  iconWindows: 'resources/icon-windows.png',
++  trayWindows: 'resources/tray-windows.ico',
++  updateOrigin: 'https://download.deepseek.com',
++  updateChannel: 'nightly',
++  brandEn: 'DeepSeek Harness',
++  brandZh: 'DeepSeek Harness',
++}
++
++const BRAND_FIELDS = Object.keys(UPSTREAM_DESKTOP_BRAND)
++
++/**
++ * Locate an explicit branding file. Absence is the upstream default, not an error.
++ * @param {NodeJS.ProcessEnv} env - Packaging or runtime environment.
++ * @param {string} appRoot - Desktop application directory.
++ * @returns {string | undefined} Absolute config path.
++ */
++export function resolveDesktopBrandingPath(env = process.env, appRoot = DESKTOP_APP_ROOT) {
++  const fromEnv = env.DSH_DESKTOP_BRANDING
++  if (fromEnv !== undefined && fromEnv !== '') return resolve(fromEnv)
++  const local = join(appRoot, 'branding.json')
++  if (existsSync(local)) return local
++  const resources = env.DSH_DESKTOP_RESOURCES || process.resourcesPath
++  if (resources !== undefined && resources !== '' && existsSync(join(resources, 'branding.json'))) return join(resources, 'branding.json')
++  return undefined
++}
++
++/**
++ * Accept an HTTPS update base. A path is allowed; credentials, query, and fragment are not.
++ * @param {string} value - Configured update base.
++ * @param {string} name - Field name used in diagnostics.
++ * @returns {string} Origin plus path, without a trailing slash.
++ */
++export function desktopBrandUpdateBase(value, name = 'updateOrigin') {
++  let parsed
++  try {
++    parsed = new URL(value)
++  }
++  catch {
++    throw new Error(`desktop branding: ${name} must be an absolute HTTPS URL`)
++  }
++  if (parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
++    throw new Error(`desktop branding: ${name} must be HTTPS without credentials, query, or fragment`)
++  }
++  return `${parsed.origin}${parsed.pathname.replace(/\/$/u, '')}`
++}
++
++/**
++ * Load the product overlay. No file means every field stays at the upstream value.
++ * @param {NodeJS.ProcessEnv} env - Packaging or runtime environment.
++ * @param {string} appRoot - Desktop application directory.
++ * @returns {typeof UPSTREAM_DESKTOP_BRAND & { source: 'default' | 'file', file: string | undefined }} Resolved brand.
++ */
++export function loadDesktopBrand(env = process.env, appRoot = DESKTOP_APP_ROOT) {
++  const path = resolveDesktopBrandingPath(env, appRoot)
++  if (path === undefined) return { ...UPSTREAM_DESKTOP_BRAND, source: 'default', file: undefined }
++  let raw
++  try {
++    raw = JSON.parse(readFileSync(path, 'utf8'))
++  }
++  catch {
++    throw new Error(`desktop branding: cannot read ${path}`)
++  }
++  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('desktop branding: config must be an object')
++  const brand = { ...UPSTREAM_DESKTOP_BRAND }
++  for (const field of BRAND_FIELDS) {
++    if (raw[field] === undefined) continue
++    if (typeof raw[field] !== 'string' || raw[field].trim() === '') throw new Error(`desktop branding: ${field} must be a non-empty string`)
++    brand[field] = raw[field].trim()
++  }
++  if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(brand.appId)) throw new Error('desktop branding: appId must be a reverse-DNS identifier')
++  if (!/^[a-z][a-z0-9+.-]{1,31}$/u.test(brand.protocol)) throw new Error('desktop branding: protocol must be a lowercase scheme')
++  if (!/^[a-z0-9][a-z0-9-]{0,30}$/u.test(brand.updateChannel)) throw new Error('desktop branding: updateChannel must be a lowercase channel name')
++  brand.updateOrigin = desktopBrandUpdateBase(brand.updateOrigin)
++  for (const field of ['iconMac', 'iconWindows', 'trayWindows']) {
++    const icon = isAbsolute(brand[field]) ? brand[field] : join(appRoot, brand[field])
++    if (!existsSync(icon)) throw new Error(`desktop branding: ${field} does not exist: ${icon}`)
++    brand[field] = icon
++  }
++  return { ...brand, source: 'file', file: path }
++}
++
++/**
++ * Replace the upstream product name in one dictionary. Model-provider wording is left alone.
++ * @param {Record<string, string>} messages - Locale dictionary.
++ * @param {{ brandEn: string, brandZh: string }} brand - Resolved product names.
++ * @param {'en' | 'zh-CN'} locale - Dictionary language.
++ * @returns {Record<string, string>} Dictionary with the product name replaced.
++ */
++export function applyDesktopBrandMessages(messages, brand, locale) {
++  const replacement = locale === 'zh-CN' ? brand.brandZh : brand.brandEn
++  if (replacement === 'DeepSeek Harness') return messages
++  return Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value.replaceAll('DeepSeek Harness', replacement)]))
++}
++
++/** Resolve the same update feed for builder metadata, artifact verification, and the release record. */
++export function resolveBrandedDesktopUpdateConfig(env, platform, arch) {
++  const brand = loadDesktopBrand(env)
++  if (brand.source === 'default') return resolveDesktopAutoUpdateConfig(env, platform, arch)
++  // Upstream owns channel, release ID, feed and binary prefixes in both deployments.
++  const update = resolveDesktopAutoUpdateConfig({ ...env,
++    DSH_DESKTOP_UPDATE_CHANNEL: env.DSH_DESKTOP_UPDATE_CHANNEL || brand.updateChannel,
++    DOWNLOAD_TEST_ORIGIN: new URL(brand.updateOrigin).origin,
++  }, platform, arch)
++  return {
++    ...update,
++    origin: brand.updateOrigin,
++    publicUrl: `${brand.updateOrigin}/${update.keyPrefix}/`,
++  }
++}
++
++/** Name one artifact consistently in electron-builder and the completed-payload collector. */
++export function desktopArtifactBase(brand, version, os, arch, unsigned = false) {
++  return `${brand.source === 'file' ? brand.productName : 'deepseek-harness'}-${version}-${os}-${arch}${unsigned ? '-unsigned' : ''}`
++}
+diff --git a/apps/desktop/scripts/electron-builder-config.mjs b/apps/desktop/scripts/electron-builder-config.mjs
+index 4b9cd27a8d..99b1d058be 100644
+--- a/apps/desktop/scripts/electron-builder-config.mjs
++++ b/apps/desktop/scripts/electron-builder-config.mjs
+@@ -19,7 +19,7 @@ import {
+   resolveWindowsUpdatePublisher,
+   scrubWindowsSigningEnvironment,
+ } from './windows-sign.mjs'
+-import { resolveDesktopAutoUpdateConfig } from './desktop-auto-update-environment.mjs'
++import { loadDesktopBrand, resolveBrandedDesktopUpdateConfig } from './desktop-branding.mjs'
+ import { resolveDesktopBuildCommit } from './desktop-build-commit.mjs'
+ import { resolveDesktopBuildVersion } from './desktop-build-version.mjs'
+ import { resolveDesktopPolicyEnvironment } from './desktop-policy-environment.mjs'
+@@ -50,7 +50,8 @@ export function createElectronBuilderConfig(
+   preparedRuntime = undefined,
+   preparedRuntimeVersion = undefined,
+ ) {
+-  const appId = resolveDesktopAppId(env)
++  const brand = loadDesktopBrand(env)
++  const appId = brand.source === 'file' ? brand.appId : resolveDesktopAppId(env)
+   const targetPlatform = env.DSH_DESKTOP_TARGET_PLATFORM
+   const resolvedPlatform = targetPlatform ?? hostPlatform
+   const resolvedArch = env.DSH_DESKTOP_TARGET_ARCH ?? hostArch
+@@ -95,7 +96,7 @@ export function createElectronBuilderConfig(
+   if (windowsSigner !== undefined) {
+     installWindowsNsisBootstrapSigner({ sign: windowsSigner })
+   }
+-  const update = unsigned ? undefined : resolveDesktopAutoUpdateConfig(env, resolvedPlatform, resolvedArch)
++  const update = unsigned ? undefined : resolveBrandedDesktopUpdateConfig(env, resolvedPlatform, resolvedArch)
+   if (preparedRuntime !== undefined) buildPaths.dsh = preparedRuntime
+   // electron-builder merges extraMetadata into the packaged manifest, so a build version here reaches
+   // the artifact names, the update feed, and the installed app.getVersion() the updater compares against.
+@@ -105,7 +106,7 @@ export function createElectronBuilderConfig(
+   const packaged = resolveDesktopBuildCommit(env)
+   return {
+     appId,
+-    protocols: [{ name: 'DeepSeek Harness', schemes: ['dsh'] }],
++    protocols: env.DSH_DESKTOP_ISOLATED === '1' ? [] : [{ name: brand.productName, schemes: [brand.protocol] }],
+     extraMetadata: {
+       dshDesktopAppId: appId,
+       dshDesktopUpdateChannel: update?.channel ?? 'nightly',
+@@ -113,9 +114,9 @@ export function createElectronBuilderConfig(
+       ...buildVersion === productVersion ? {} : { version: buildVersion },
+       ...packaged === undefined ? {} : { dshBuildCommit: packaged.commit, dshBuildDirty: packaged.dirty },
+     },
+-    productName: 'DeepSeek Harness',
++    productName: brand.productName,
+     // Unsigned builds carry their own suffix so a shared file can never pass for a release artifact.
+-    artifactName: `deepseek-harness-\${version}-\${os}-\${arch}${output.suffix}.\${ext}`,
++    artifactName: `${brand.source === 'file' ? brand.productName : 'deepseek-harness'}-\${version}-\${os}-\${arch}${output.suffix}.\${ext}`,
+     directories: { output: output.directory },
+     asar: true,
+     electronDist: buildPaths.electron,
+@@ -152,12 +153,13 @@ export function createElectronBuilderConfig(
+     asarUnpack: unpack,
+     extraResources: [
+       { from: buildPaths.runtime, to: 'runtime' },
+-      { from: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
++      { from: brand.source === 'file' ? brand.iconWindows : fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)), to: 'icon.png' },
+       // Windows tray bitmaps; macOS keeps the Dock and ships no menu bar icon.
+-      ...(packagesWindows ? [{ from: fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
++      ...(packagesWindows ? [{ from: brand.source === 'file' ? brand.trayWindows : fileURLToPath(new URL('../resources/tray-windows.ico', import.meta.url)), to: 'tray.ico' }] : []),
++      ...(brand.file === undefined ? [] : [{ from: brand.file, to: 'branding.json' }]),
+     ],
+     mac: {
+-      icon: fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
++      icon: brand.source === 'file' ? brand.iconMac : fileURLToPath(new URL('../resources/icon-macos.png', import.meta.url)),
+       category: 'public.app-category.developer-tools',
+       // macOS matches the application locale against this bundle, not Electron Framework resources.
+       extendInfo: { CFBundleLocalizations: ['en', 'zh_CN'] },
+@@ -165,7 +167,7 @@ export function createElectronBuilderConfig(
+       identity: unsigned ? '-' : macOSSigning?.signingIdentity,
+       forceCodeSigning: !unsigned,
+       hardenedRuntime: true,
+-      extendInfo: { NSMicrophoneUsageDescription: 'DeepSeek Harness uses your microphone to transcribe speech into message drafts.' },
++      extendInfo: { NSMicrophoneUsageDescription: `${brand.productName} uses your microphone to transcribe speech into message drafts.` },
+       entitlements: fileURLToPath(new URL('./macos-entitlements.plist', import.meta.url)),
+       entitlementsInherit: fileURLToPath(new URL('./macos-entitlements.plist', import.meta.url)),
+       // Prepared runtime files retain their signatures; PAK resources are sealed by their enclosing bundle.
+@@ -236,7 +238,7 @@ export function createElectronBuilderConfig(
+       )
+     },
+     win: {
+-      icon: fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
++      icon: brand.source === 'file' ? brand.iconWindows : fileURLToPath(new URL('../resources/icon-windows.png', import.meta.url)),
+       forceCodeSigning: !unsigned,
+       signtoolOptions: {
+         sign: windowsSigner,
+diff --git a/apps/desktop/scripts/package-macos.ts b/apps/desktop/scripts/package-macos.ts
+index 4ba0fd12ca..3d49672ed1 100644
+--- a/apps/desktop/scripts/package-macos.ts
++++ b/apps/desktop/scripts/package-macos.ts
+@@ -5,6 +5,7 @@ import { mkdtemp, rename, rm, stat } from 'node:fs/promises'
+ import { basename, dirname, join } from 'node:path'
+ import { promisify } from 'node:util'
+ import { notarizeMacOS } from './notarize-macos.mjs'
++import { desktopArtifactBase, loadDesktopBrand, resolveBrandedDesktopUpdateConfig } from './desktop-branding.mjs'
+ import { packagingStep } from './packaging-step.mjs'
+ import {
+   resolveMacOSNotarizationEnvironment,
+@@ -12,7 +13,6 @@ import {
+ } from './desktop-release-environment.mjs'
+ import {
+   desktopUpdateMetadataFilename,
+-  resolveDesktopAutoUpdateConfig,
+ } from './desktop-auto-update-environment.mjs'
+ import { verifyMacOSAppUpdateConfig } from './macos-app-update-config.mjs'
+ import { verifyMacOSNotarizedApplication, verifyMacOSSignature } from './verify-macos-signature.mjs'
+@@ -77,8 +77,8 @@ export async function packageMacOSArtifacts(
+   const secrets = Object.entries(environment).filter(([name]) => /KEY|SECRET|TOKEN|PASSWORD|APPLE_ID/iu.test(name)).map(([, value]) => value ?? '')
+   const expected = resolveMacOSSigningEnvironment(environment)
+   const credentials = resolveMacOSNotarizationEnvironment(environment)
+-  const update = resolveDesktopAutoUpdateConfig(environment, 'darwin', arch)
+-  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
++  const update = resolveBrandedDesktopUpdateConfig(environment, 'darwin', arch)
++  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', `${loadDesktopBrand(environment).productName}.app`)
+   const root = await mkdtemp(join(dirname(artifactsRoot), 'notarization-'))
+   const zipApp = join(root, 'zip', basename(appPath))
+   const dmgApp = join(root, 'dmg', basename(appPath))
+@@ -110,7 +110,7 @@ export async function packageMacOSArtifacts(
+     await verifyMacOSAppUpdateConfig(dmgApp, update)
+     apple.verifySignature(zipApp, expected)
+     apple.verifySignature(dmgApp, expected)
+-    const base = `deepseek-harness-${version}-mac-${arch}`
++    const base = desktopArtifactBase(loadDesktopBrand(environment), version, 'mac', arch)
+     const artifacts = [
+       [dmgOutput, `${base}.dmg`],
+       [zipOutput, `${base}.zip`],
+diff --git a/apps/desktop/scripts/package-target.ts b/apps/desktop/scripts/package-target.ts
+index be2f577e1b..1f91046930 100644
+--- a/apps/desktop/scripts/package-target.ts
++++ b/apps/desktop/scripts/package-target.ts
+@@ -6,7 +6,6 @@ import { parseArgs } from 'node:util'
+ import { join, resolve } from 'node:path'
+ import {
+   desktopBuildRecordFilename,
+-  resolveDesktopAutoUpdateConfig,
+ } from './desktop-auto-update-environment.mjs'
+ import { desktopArtifactOutput, desktopTargetBuildPaths } from './desktop-build-paths.mjs'
+ import { packageMacOSArtifacts, type DesktopPrepackagedArtifact } from './package-macos.ts'
+@@ -18,6 +17,7 @@ import { withMacOSSigningKeychain } from './macos-signing-keychain.mjs'
+ import { macOSDownloadEnvironment, resolveMacOSPackageSettings } from './macos-package-settings.mjs'
+ import { packagingErrorDetails, packagingStep } from './packaging-step.mjs'
+ import { notarizeMacOS } from './notarize-macos.mjs'
++import { loadDesktopBrand, resolveBrandedDesktopUpdateConfig } from './desktop-branding.mjs'
+ import { resolveMacOSNotarizationEnvironment } from './desktop-release-environment.mjs'
+ import { DESKTOP_BUILD_VERSION_ENV, resolveDesktopBuildVersion, validateDesktopBuildVersion } from './desktop-build-version.mjs'
+ import { suggestDesktopBuildVersion } from './desktop-build-version-discovery.ts'
+@@ -145,7 +145,7 @@ function writeReleaseRecord(
+   }
+   const buildVersion = resolveDesktopBuildVersion(environment, dshVersion)
+   const packaged = resolveDesktopBuildCommit(environment)
+-  const update = resolveDesktopAutoUpdateConfig(environment, target.platform, target.arch)
++  const update = resolveBrandedDesktopUpdateConfig(environment, target.platform, target.arch)
+   const recordPath = join(artifactsRoot, desktopBuildRecordFilename(target.name))
+   const temporaryPath = `${recordPath}.tmp`
+   writeFileSync(temporaryPath, `${JSON.stringify({
+@@ -297,9 +297,12 @@ function runPnpm(
+   if (pnpmEntry === undefined || pnpmEntry === '') {
+     throw new Error('desktop package: invoke this script through a pnpm package command')
+   }
+-  if (run !== undefined) return run.run(args.join(' '), process.execPath, [pnpmEntry, ...args], { cwd, env })
++  // pnpm 11 publishes a native executable. Node can only load the older JavaScript entry.
++  const executable = /\.(?:mjs|cjs|js)$/u.test(pnpmEntry) ? process.execPath : pnpmEntry
++  const argv = executable === process.execPath ? [pnpmEntry, ...args] : [...args]
++  if (run !== undefined) return run.run(args.join(' '), executable, argv, { cwd, env })
+   return new Promise((resolvePromise, reject) => {
+-    const child = spawn(process.execPath, [pnpmEntry, ...args], {
++    const child = spawn(executable, argv, {
+       cwd,
+       env,
+       stdio: 'inherit',
+@@ -401,7 +404,8 @@ async function main(): Promise<void> {
+   if (success && target.platform === 'darwin' && !invocation.directory && !invocation.prepareOnly) {
+     const paths = desktopTargetBuildPaths(target.name)
+     const output = desktopArtifactOutput(paths, invocation)
+-    const filename = `deepseek-harness-${buildVersion}-mac-${target.arch}${output.suffix}.dmg`
++    const brand = loadDesktopBrand(environment)
++    const filename = `${brand.source === 'file' ? brand.productName : 'deepseek-harness'}-${buildVersion}-mac-${target.arch}${output.suffix}.dmg`
+     console.log(`DMG: ${join(output.directory, filename)}`)
+   }
+ }
+@@ -473,8 +477,10 @@ export async function packageTarget(
+         { cwd: APP_ROOT, env: electronBuilderEnv, timeoutMs: 60_000 })
+     })
+   }
+-  await execute(['run', 'build:official'], buildEnv, REPOSITORY_ROOT)
++  await execute(['exec', 'node', 'scripts/prepare-product-bundles.mjs'], buildEnv)
++  await execute(['exec', 'tsx', 'scripts/build-product-runtime.ts'], buildEnv)
+   await execute(['run', 'release:pack', '--family', 'dsh', '--out', buildPaths.packedDsh, ...packArguments], buildEnv, REPOSITORY_ROOT)
++  await execute(['exec', 'node', 'scripts/prepare-product-patches.mjs'], buildEnv)
+   await execute([
+     '--dir',
+     'apps/desktop-host',
+@@ -515,7 +521,7 @@ export async function packageTarget(
+   } else if (target.platform === 'darwin' && !invocation.unsigned && !invocation.skipNotarization) {
+     await execute([...desktopElectronBuilderArguments(target, true), '--config.mac.notarize=false'], electronBuilderEnv)
+     await execute(['exec', 'tsx', 'scripts/smoke-packaged-runtime.ts'], targetEnv)
+-    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
++    const appPath = join(buildPaths.artifacts, target.arch === 'arm64' ? 'mac-arm64' : 'mac', `${loadDesktopBrand(environment).productName}.app`)
+     await withMacOSNotarizationProxy(mac?.notarizationProxy,
+       () => notarizeMacOS({ appPath, ...resolveMacOSNotarizationEnvironment(environment) }), undefined, undefined, proxyEvent)
+   } else {
+diff --git a/apps/desktop/scripts/prepare-dsh.ts b/apps/desktop/scripts/prepare-dsh.ts
+index 9de39d3ff2..cb4059948f 100644
+--- a/apps/desktop/scripts/prepare-dsh.ts
++++ b/apps/desktop/scripts/prepare-dsh.ts
+@@ -3,7 +3,7 @@
+ import { resolveMacOSSignatureCacheDirectory } from './macos-signature-cache-directory.mjs'
+ import { packagingStep } from './packaging-step.mjs'
+ import { spawn } from 'node:child_process'
+-import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
++import { copyFileSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+ import { tmpdir } from 'node:os'
+ import { delimiter, join, relative, resolve } from 'node:path'
+ import { desktopNodeEnvironment } from '../src/node-environment.ts'
+@@ -20,8 +20,9 @@ import {
+ } from '../src/core-package-set.ts'
+ import { smokePrimaryRuntime } from './prepare-primary-runtime.ts'
+ import { smokePreparedRuntime } from './smoke-prepared-runtime.ts'
+-import { prepareRuntimeManifests } from './prepare-runtime-manifests.ts'
++import { prepareProductInstallationScope, prepareRuntimeManifests } from './prepare-runtime-manifests.ts'
+ import { prepareRuntimePatches, verifyRuntimePatches } from './prepare-runtime-patches.ts'
++import { productRuntimePatchPolicy } from './runtime-patch-policy.ts'
+ import { writeDesktopRuntime, verifyDesktopRuntime } from '../src/runtime-tree.ts'
+ import {
+   resolveDesktopAppId,
+@@ -123,7 +124,7 @@ async function main(): Promise<void> {
+       copyFileSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGE_SET_FILE), join(BUILD_ROOT, DESKTOP_PACKAGE_SET_FILE))
+       cpSync(join(PACKAGE_SET_ROOT, DESKTOP_PACKAGES_DIR), join(BUILD_ROOT, DESKTOP_PACKAGES_DIR), { recursive: true })
+       createRuntimeProjectMetadata(BUILD_ROOT, release)
+-      return prepareRuntimePatches(BUILD_ROOT, resolve(APP_ROOT, '..', '..'))
++      return prepareRuntimePatches(BUILD_ROOT, resolve(APP_ROOT, '..', '..'), productRuntimePatchPolicy())
+     })
+     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:lockfile', () => runPnpm(['install', '--lockfile-only']))
+     verifyRuntimePatches(BUILD_ROOT, patches)
+@@ -162,7 +163,24 @@ async function main(): Promise<void> {
+       await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:dsh-native', () => signMacOSRuntime(DSH_OUTPUT_ROOT, resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, cacheDirectory))
+       await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'sign:primary-native', () => signMacOSRuntime(join(RUNTIME_ROOT, 'primary-runtime'), resolveDesktopAppId(process.env), resolveMacOSSigningEnvironment(process.env), target.arch, cacheDirectory, 'primary'))
+     }
+-    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:manifests', () => prepareRuntimeManifests(DSH_OUTPUT_ROOT))
++    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:product-web-regression', async () => {
++      const destination = join(DSH_OUTPUT_ROOT, 'check-inline-result.mjs')
++      copyFileSync(join(BUILD_PATHS.root, 'products/check-inline-result.mjs'), destination)
++      try {
++        const result = await new Promise<number | null>((resolveResult, reject) => {
++          const child = spawn(NODE, [destination], {
++            env: { ...process.env, ELECTRON_RUN_AS_NODE: '1' }, stdio: 'inherit',
++          })
++          child.once('error', reject)
++          child.once('close', resolveResult)
++        })
++        if (result !== 0) throw new Error(`desktop product Web regression exited ${String(result)}`)
++      } finally { unlinkSync(destination) }
++    })
++    await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:manifests', async () => {
++      await prepareProductInstallationScope(DSH_OUTPUT_ROOT)
++      await prepareRuntimeManifests(DSH_OUTPUT_ROOT)
++    })
+     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:primary-smoke', async () => smokePrimaryRuntime(join(RUNTIME_ROOT, 'primary-runtime')))
+     await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:write-descriptor', async () => writeDesktopRuntime(DSH_OUTPUT_ROOT, release, packageSet.packages.map(entry => entry.name), target))
+     const descriptor = await packagingStep(process.env.DSH_DESKTOP_PACKAGING_RUN_DIR, 'runtime:verify-before-smoke', () => verifyDesktopRuntime(DSH_OUTPUT_ROOT, release.version, target))
+diff --git a/apps/desktop/scripts/prepare-package-set.ts b/apps/desktop/scripts/prepare-package-set.ts
+index 7e7d62eea2..8c1d050f9e 100644
+--- a/apps/desktop/scripts/prepare-package-set.ts
++++ b/apps/desktop/scripts/prepare-package-set.ts
+@@ -17,6 +17,7 @@ import { parseArgs } from 'node:util'
+ import * as yaml from 'js-yaml'
+ import {
+   DESKTOP_HOST_PACKAGE,
++  DESKTOP_PRODUCT_PACKAGES,
+   DESKTOP_HOST_RUNTIME_FILES,
+   DESKTOP_PACKAGES_DIR,
+   DESKTOP_PACKAGE_SET_FILE,
+@@ -28,7 +29,7 @@ import { tarballFiles } from '../../../scripts/release/tarball.ts'
+ import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+ 
+ const DSH_PACKAGE = '@deepseek-ai/dsh'
+-const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE] as const
++const ROOT_PACKAGES = [DSH_PACKAGE, DESKTOP_HOST_PACKAGE, ...DESKTOP_PRODUCT_PACKAGES] as const
+ const APP_ROOT = resolve(import.meta.dirname, '..')
+ const REPOSITORY_ROOT = resolve(APP_ROOT, '..', '..')
+ 
+@@ -164,6 +165,7 @@ function main(): void {
+     buildPaths.packedDsh,
+     buildPaths.packedVendor,
+     buildPaths.packedLandlock,
++    join(buildPaths.root, 'products/packed'),
+   ]
+   const { values } = parseArgs({
+     options: { from: { type: 'string', multiple: true }, out: { type: 'string' } },
+diff --git a/apps/desktop/scripts/prepare-product-bundles.mjs b/apps/desktop/scripts/prepare-product-bundles.mjs
+new file mode 100644
+index 0000000000..b9a3127d98
+--- /dev/null
++++ b/apps/desktop/scripts/prepare-product-bundles.mjs
+@@ -0,0 +1,143 @@
++/** Build isolated product snapshots from HEAD or explicitly selected working-tree sources. */
++import { createHash } from 'node:crypto'
++import { execFileSync } from 'node:child_process'
++import { cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, writeFileSync } from 'node:fs'
++import { createRequire } from 'node:module'
++import { dirname, join, relative, resolve } from 'node:path'
++import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
++
++const repository = resolve(import.meta.dirname, '../../..')
++const paths = resolveDesktopTargetBuildPaths()
++const stage = join(paths.root, 'products')
++const packed = join(stage, 'packed')
++const pnpm = join(repository, 'apps/desktop/node_modules/pnpm/bin/pnpm.mjs')
++const config = join(stage, 'config')
++mkdirSync(config, { recursive: true })
++mkdirSync(join(stage, 'home'), { recursive: true })
++for (const name of ['npm-user.conf', 'npm-global.conf']) writeFileSync(join(config, name), '')
++const environment = { PATH: process.env.PATH, HOME: join(stage, 'home'), TMPDIR: process.env.TMPDIR ?? '/tmp',
++  CI: '1', LANG: process.env.LANG ?? 'C',
++  npm_config_userconfig: join(config, 'npm-user.conf'), npm_config_globalconfig: join(config, 'npm-global.conf'),
++  COREPACK_HOME: join(stage, 'cache/corepack'), XDG_CACHE_HOME: join(stage, 'cache'),
++  GIT_CONFIG_NOSYSTEM: '1', GIT_CONFIG_GLOBAL: '/dev/null' }
++const run = (command, args, cwd) => execFileSync(command, args, { cwd, env: environment, stdio: 'inherit' })
++const require = createRequire(join(repository, 'apps/web/package.json'))
++const sourceMode = process.env.DSH_DESKTOP_PRODUCT_SOURCE_MODE ?? 'head'
++if (!['head', 'worktree'].includes(sourceMode)) throw new Error('Product source mode must be head or worktree')
++const sourceStates = {}
++const hash = bytes => createHash('sha256').update(bytes).digest('hex')
++
++function archive(source, destination, name) {
++  if (!source) throw new Error(`product bundles: ${name} source repository is required`)
++  const revision = execFileSync('git', ['-C', source, 'rev-parse', 'HEAD'], { encoding: 'utf8', env: environment }).trim()
++  rmSync(destination, { recursive: true, force: true })
++  mkdirSync(destination, { recursive: true })
++  const tar = join(stage, `${name}.tar`)
++  run('git', ['-C', source, 'archive', '--format=tar', '--output', tar, revision], repository)
++  run('tar', ['-xf', tar, '-C', destination], repository)
++  if (sourceMode === 'worktree') {
++    const git = args => execFileSync('git', ['-C', source, ...args], { env: environment, maxBuffer: 64 * 1024 * 1024 })
++    const diff = git(['diff', '--binary', 'HEAD', '--'])
++    if (diff.length) execFileSync('git', ['apply', `--directory=${relative(repository, destination)}`, '-'],
++      { cwd: repository, env: environment, input: diff })
++    const roots = name === 'vibe' ? ['desktop/', 'orchestrator/', 'datasources/'] : ['dsh/']
++    const untracked = git(['ls-files', '--others', '--exclude-standard', '-z']).toString().split('\0')
++      .filter(file => roots.some(root => file.startsWith(root)))
++      .filter(file => !file.split('/').some(part => part.startsWith('.')) && !/\.(?:key|pem|p12|pfx)$/i.test(file))
++      .sort()
++    const files = []
++    for (const file of untracked) {
++      const path = join(source, file)
++      if (!lstatSync(path).isFile()) throw new Error(`Product snapshot requires a regular file: ${file}`)
++      const bytes = readFileSync(path)
++      mkdirSync(dirname(join(destination, file)), { recursive: true })
++      writeFileSync(join(destination, file), bytes)
++      files.push({ path: file, sha256: hash(bytes) })
++    }
++    if (git(['rev-parse', 'HEAD']).toString().trim() !== revision || hash(git(['diff', '--binary', 'HEAD', '--'])) !== hash(diff)
++      || files.some(file => hash(readFileSync(join(source, file.path))) !== file.sha256)) {
++      throw new Error(`Product working tree changed during snapshot: ${name}`)
++    }
++    sourceStates[name] = { head: revision, diffCommand: 'git diff --binary HEAD --', diffSha256: hash(diff), untracked: files }
++    writeFileSync(join(stage, `${name}-worktree.patch`), diff)
++    writeFileSync(join(stage, 'worktree-sources.json'), `${JSON.stringify(sourceStates, null, 2)}\n`)
++  }
++  const files = []
++  function inventory(directory, prefix = '') {
++    for (const entry of readdirSync(directory, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name))) {
++      const file = prefix ? `${prefix}/${entry.name}` : entry.name
++      const path = join(directory, entry.name)
++      if (entry.isDirectory()) inventory(path, file)
++      else if (entry.isFile()) files.push({ path: file, bytes: lstatSync(path).size, sha256: hash(readFileSync(path)) })
++      else if (entry.isSymbolicLink()) {
++        const target = readlinkSync(path)
++        files.push({ path: file, type: 'symlink', target, sha256: hash(Buffer.from(target)) })
++      }
++      else throw new Error(`Product snapshot requires regular source files: ${file}`)
++    }
++  }
++  inventory(destination)
++  const manifest = join(stage, `${name}-source-manifest.json`)
++  writeFileSync(manifest, `${JSON.stringify({ head: revision, sourceMode, ...sourceStates[name], files }, null, 2)}\n`)
++  const snapshot = join(stage, `${name}-source-snapshot.tar`)
++  run('tar', ['-cf', snapshot, '-C', destination, '.'], repository)
++  sourceStates[name] = { ...sourceStates[name], manifest, manifestSha256: hash(readFileSync(manifest)),
++    snapshot, snapshotSha256: hash(readFileSync(snapshot)), fileCount: files.length }
++  writeFileSync(join(stage, 'worktree-sources.json'), `${JSON.stringify(sourceStates, null, 2)}\n`)
++  return revision
++}
++
++for (const directory of [packed, join(stage, 'patches'), join(stage, 'patch-probes')]) {
++  rmSync(directory, { recursive: true, force: true })
++}
++mkdirSync(packed, { recursive: true })
++const vibe = join(stage, 'vibe')
++const stock = join(stage, 'stock')
++const revisions = {
++  vibe: archive(process.env.DSH_DESKTOP_VIBE_SOURCE, vibe, 'vibe'),
++  stock: archive(process.env.DSH_DESKTOP_STOCK_SOURCE, stock, 'stock'),
++}
++run('npm', ['ci', '--ignore-scripts', '--cache', join(stage, 'npm-cache')], join(vibe, 'desktop'))
++run(process.execPath, ['dsh/build-ui.mjs'], join(vibe, 'desktop'))
++run(process.execPath, [pnpm, '--config.manage-package-manager-versions=false', 'install', '--frozen-lockfile', '--ignore-scripts', '--store-dir', join(stage, 'pnpm-store')], join(stock, 'dsh'))
++run(process.execPath, [pnpm, '--config.manage-package-manager-versions=false', 'run', 'build'], join(stock, 'dsh'))
++
++const finance = join(vibe, 'desktop/dsh/finance-ui')
++const resources = join(finance, 'product-resources')
++mkdirSync(join(resources, 'orchestrator'), { recursive: true })
++cpSync(join(vibe, 'vibe-research.config.json'), join(resources, 'vibe-research.config.json'))
++cpSync(join(vibe, 'orchestrator/package.json'), join(resources, 'orchestrator/package.json'))
++const manifest = JSON.parse(readFileSync(join(finance, 'package.json'), 'utf8'))
++manifest.dependencies = JSON.parse(readFileSync(join(vibe, 'orchestrator/package.json'), 'utf8')).dependencies
++manifest.files = ['*.mjs', '*.yml', '*.svg', 'lib', 'product-resources']
++writeFileSync(join(finance, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
++const esbuild = createRequire(require.resolve('vite/package.json'))('esbuild')
++await esbuild.build({
++  stdin: { contents: `import {installLocalData as install} from ${JSON.stringify(join(finance, 'local-data.mjs'))};
++import path from 'node:path'; import {fileURLToPath} from 'node:url';
++export function installLocalData(ctx, env=process.env) {
++  if (!env.DSH_HOME) throw new Error('Product local data requires DSH_HOME');
++  return install(ctx, {...env, VRA_REPO_ROOT:fileURLToPath(new URL('./product-resources',import.meta.url)),
++    VRA_FINANCE_DATA_ROOT:path.join(env.DSH_HOME,'finance')});
++}`, resolveDir: repository, sourcefile: 'desktop-product-local-data.mjs', loader: 'js' },
++  outfile: join(finance, 'local-data.bundle.mjs'), bundle: true, platform: 'node', format: 'esm', target: 'node24',
++  external: ['ajv'],
++  plugins: [{ name: 'product-version-resource', setup(build) {
++    build.onLoad({ filter: /orchestrator\/src\/version\.ts$/ }, args => ({
++      contents: readFileSync(args.path, 'utf8').replaceAll('import.meta.url', "new URL('./product-resources/orchestrator/src/version.ts', import.meta.url).href"), loader: 'ts',
++    }))
++  } }],
++})
++cpSync(join(finance, 'local-data.bundle.mjs'), join(finance, 'local-data.mjs'))
++run('npm', ['pack', '--ignore-scripts', '--pack-destination', packed], finance)
++run('npm', ['pack', '--ignore-scripts', '--pack-destination', packed], join(stock, 'dsh'))
++
++const patches = join(stage, 'patches')
++mkdirSync(patches, { recursive: true })
++for (const file of readdirSync(join(vibe, 'desktop/dsh/runtime/patches')).filter(name => name.endsWith('.patch'))) {
++  const content = readFileSync(join(vibe, 'desktop/dsh/runtime/patches', file), 'utf8')
++  writeFileSync(join(patches, file), content.replaceAll(/([ab])\/node_modules\/@deepseek-ai\/[^/]+\//g, '$1/'))
++}
++cpSync(join(vibe, 'desktop/dsh/runtime/check-inline-result.mjs'), join(stage, 'check-inline-result.mjs'))
++writeFileSync(join(stage, 'revisions.json'), `${JSON.stringify(revisions, null, 2)}\n`)
++console.log('product bundles: pinned builds and stable local-data entry prepared')
+diff --git a/apps/desktop/scripts/prepare-product-patches.mjs b/apps/desktop/scripts/prepare-product-patches.mjs
+new file mode 100644
+index 0000000000..2b8842b6ce
+--- /dev/null
++++ b/apps/desktop/scripts/prepare-product-patches.mjs
+@@ -0,0 +1,43 @@
++/** Normalize library patch offsets against packed bytes; leave the published Web patch intact. */
++import { createHash } from 'node:crypto'
++import { execFileSync, spawnSync } from 'node:child_process'
++import { cpSync, mkdirSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
++import { join, relative, resolve } from 'node:path'
++import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
++
++const root = resolve(import.meta.dirname, '../../..')
++const paths = resolveDesktopTargetBuildPaths()
++const products = join(paths.root, 'products')
++const directory = join(products, 'patches')
++const records = []
++const hash = bytes => createHash('sha256').update(bytes).digest('hex')
++const operations = patch => patch.split('\n')
++  .filter(line => /^[+-]/u.test(line) && !line.startsWith('+++') && !line.startsWith('---')).join('\n')
++for (const file of readdirSync(directory).filter(name => name.endsWith('.patch')).sort()) {
++  const patch = join(directory, file)
++  const original = readFileSync(join(products, 'vibe/desktop/dsh/runtime/patches', file), 'utf8')
++    .replaceAll(/([ab])\/node_modules\/@deepseek-ai\/[^/]+\//g, '$1/')
++  if (file.includes('+dsh-web-frontend+')) {
++    if (readFileSync(patch, 'utf8') !== original) throw new Error('product patches: released Web patch bytes changed')
++    records.push({ file, original: hash(original), prepared: hash(original), offsetsNormalized: false })
++    continue
++  }
++  const name = file.split('+')[1]
++  const probe = join(products, 'patch-probes', name)
++  rmSync(probe, { recursive: true, force: true })
++  mkdirSync(probe, { recursive: true })
++  execFileSync('tar', ['-xzf', join(paths.packedDsh, `deepseek-ai-${name}-0.2.1-rc.2.tgz`), '-C', probe])
++  const before = join(probe, 'package')
++  const after = join(probe, 'after')
++  cpSync(before, after, { recursive: true })
++  execFileSync('git', ['apply', `--directory=${relative(root, after)}`, '-'], { cwd: root, input: original })
++  const result = spawnSync('git', ['diff', '--no-index', '--', before, after], { cwd: probe, encoding: 'utf8' })
++  if (result.status !== 1) throw new Error(`product patches: expected a changed artifact for ${name}: ${result.stderr}`)
++  const normalized = result.stdout
++    .replaceAll(`a${before}/`, 'a/').replaceAll(`b${after}/`, 'b/')
++  if (operations(original) !== operations(normalized)) throw new Error(`product patches: changed operations for ${name}`)
++  writeFileSync(patch, normalized)
++  records.push({ file, original: hash(original), prepared: hash(normalized), offsetsNormalized: true })
++}
++writeFileSync(join(products, 'patch-receipt.json'), `${JSON.stringify(records, null, 2)}\n`)
++console.log(`product patches: ${records.filter(record => record.offsetsNormalized).length} library offsets normalized; released Web patch unchanged`)
+diff --git a/apps/desktop/scripts/prepare-runtime-manifests.ts b/apps/desktop/scripts/prepare-runtime-manifests.ts
+index 7f919b24fd..8cd609234b 100644
+--- a/apps/desktop/scripts/prepare-runtime-manifests.ts
++++ b/apps/desktop/scripts/prepare-runtime-manifests.ts
+@@ -1,7 +1,9 @@
+ /** Apply electron-builder's dependency metadata cleanup before sealing runtime bytes. */
+-import { readdir, writeFile } from 'node:fs/promises'
++import { readFile, readdir, writeFile } from 'node:fs/promises'
+ import { join } from 'node:path'
+ import { createRequire } from 'node:module'
++import { valid } from 'semver'
++import { DESKTOP_PRODUCT_PACKAGES } from '../src/core-package-set.ts'
+ 
+ // electron-builder omits declarations for its internal manifest transformer.
+ const { createTransformer } = createRequire(import.meta.url)('app-builder-lib/out/fileTransformer.js') as {
+@@ -9,6 +11,29 @@ const { createTransformer } = createRequire(import.meta.url)('app-builder-lib/ou
+   (path: string) => Promise<string | undefined> | null
+ }
+ 
++/**
++ * Declare built-in products at the CLI manifest the Host uses as its installation anchor.
++ * @param root Prepared runtime tree with both product packages already installed.
++ * @returns Resolves after preserving and extending the CLI dependency declarations.
++ */
++export async function prepareProductInstallationScope(root: string): Promise<void> {
++  const path = join(root, 'node_modules/@deepseek-ai/dsh/package.json')
++  const manifest = JSON.parse(await readFile(path, 'utf8')) as { name?: string; dependencies?: Record<string, string> }
++  if (manifest.name !== '@deepseek-ai/dsh') throw new Error('desktop products: invalid CLI installation anchor')
++  const dependencies = { ...manifest.dependencies }
++  for (const name of DESKTOP_PRODUCT_PACKAGES) {
++    const product = JSON.parse(await readFile(join(root, 'node_modules', name, 'package.json'), 'utf8')) as { name?: string; version?: string }
++    if (product.name !== name || typeof product.version !== 'string' || valid(product.version) !== product.version) {
++      throw new Error(`desktop products: invalid installed identity for ${name}`)
++    }
++    if (dependencies[name] !== undefined && dependencies[name] !== product.version) {
++      throw new Error(`desktop products: conflicting installation version for ${name}`)
++    }
++    dependencies[name] = product.version
++  }
++  await writeFile(path, `${JSON.stringify({ ...manifest, dependencies }, undefined, 2)}\n`)
++}
++
+ /**
+  * Materialize the same manifest bytes electron-builder will put in the archive.
+  * @param root Prepared application dependency tree.
+diff --git a/apps/desktop/scripts/runtime-patch-policy.ts b/apps/desktop/scripts/runtime-patch-policy.ts
+index d2ea174f2c..56b94e8fb8 100644
+--- a/apps/desktop/scripts/runtime-patch-policy.ts
++++ b/apps/desktop/scripts/runtime-patch-policy.ts
+@@ -1,4 +1,6 @@
+ /** Desktop-specific selection of workspace and runtime-only dependency patches. */
++import { relative, resolve } from 'node:path'
++import { resolveDesktopTargetBuildPaths } from './desktop-build-paths.mjs'
+ 
+ /** A patch shared with the workspace, excluded from runtime installation, or supplied only to Desktop. */
+ export type DesktopRuntimePatch =
+@@ -23,3 +25,16 @@ export const DESKTOP_RUNTIME_DEPENDENCY_OVERRIDES: Readonly<Record<string, strin
+   // The provider declares ^1.1.0; its patch is qualified against 1.1.0.
+   '@earendil-works/pi-ai@^1.1.0': '1.1.0',
+ }
++
++/** Return the ten rc.2 product patches staged through Desktop's runtime-only channel. */
++export function productRuntimePatchPolicy(): Readonly<Record<string, DesktopRuntimePatch>> {
++  const root = resolve(import.meta.dirname, '../../..')
++  const directory = relative(root, resolveDesktopTargetBuildPaths().root)
++  const names = ['api-session-controller', 'client-ui-chat', 'client-ui-conversation', 'client-ui-layout',
++    'client-ui-model-selection', 'client-ui-theme', 'client-ui-trajectory', 'llm-deepseek', 'llm-pi-ai', 'web-frontend']
++  return { ...DESKTOP_RUNTIME_PATCHES, ...Object.fromEntries(names.map(name => [
++    `@deepseek-ai/dsh-${name}@0.2.1-rc.2`,
++    { scope: 'runtime-only', path: `${directory}/products/patches/@deepseek-ai+dsh-${name}+0.2.1-rc.2.patch`,
++      reason: 'Pinned product behavior; artifact checks run before packaging.' } satisfies DesktopRuntimePatch,
++  ])) }
++}
+diff --git a/apps/desktop/scripts/smoke-packaged-runtime.ts b/apps/desktop/scripts/smoke-packaged-runtime.ts
+index 6c3c12c857..33708278f2 100644
+--- a/apps/desktop/scripts/smoke-packaged-runtime.ts
++++ b/apps/desktop/scripts/smoke-packaged-runtime.ts
+@@ -6,16 +6,18 @@ import { readDesktopRuntime, verifyDesktopRuntime } from '../src/runtime-tree.ts
+ import { verifyWindowsCode } from './windows-runtime-signature.mjs'
+ import { smokePreparedRuntime } from './smoke-prepared-runtime.ts'
+ import { resolveDesktopPackageTarget } from './package-target.ts'
++import { loadDesktopBrand } from './desktop-branding.mjs'
+ 
+ const paths = resolveDesktopTargetBuildPaths()
+ const { values } = parseArgs({ options: { unsigned: { type: 'boolean', default: false }, 'skip-notarization': { type: 'boolean', default: false } }, allowPositionals: false })
+ const target = resolveDesktopBuildTarget()
+ const windows = target === 'win-x64'
++const brand = loadDesktopBrand()
+ const artifacts = desktopArtifactOutput(paths, { unsigned: values.unsigned, skipNotarization: values['skip-notarization'] }).directory
+ const application = windows ? join(artifacts, 'win-unpacked')
+-  : join(artifacts, target === 'mac-arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app', 'Contents')
++  : join(artifacts, target === 'mac-arm64' ? 'mac-arm64' : 'mac', `${brand.productName}.app`, 'Contents')
+ const resources = join(application, windows ? 'resources' : 'Resources')
+-const executable = windows ? join(application, 'DeepSeek Harness.exe') : join(application, 'MacOS', 'DeepSeek Harness')
++const executable = windows ? join(application, `${brand.productName}.exe`) : join(application, 'MacOS', brand.productName)
+ const descriptor = await verifyDesktopRuntime(paths.dsh, readDesktopRuntime(paths.dsh).release.version,
+   resolveDesktopPackageTarget(target))
+ if (windows && !values.unsigned) await verifyWindowsCode(application)
+diff --git a/apps/desktop/src/branding.ts b/apps/desktop/src/branding.ts
+new file mode 100644
+index 0000000000..e2666f8307
+--- /dev/null
++++ b/apps/desktop/src/branding.ts
+@@ -0,0 +1,112 @@
++/** Runtime view of the optional product overlay. No file keeps the upstream identity. */
++
++import { existsSync, readFileSync } from 'node:fs'
++import { isAbsolute, join, resolve } from 'node:path'
++import { fileURLToPath } from 'node:url'
++import { homedir } from 'node:os'
++
++export const DESKTOP_APP_ROOT = fileURLToPath(new URL('..', import.meta.url))
++
++export const UPSTREAM_DESKTOP_BRAND = {
++  productName: 'DeepSeek Harness',
++  appId: 'com.deepseek.harness',
++  protocol: 'dsh',
++  iconMac: 'resources/icon-macos.png',
++  iconWindows: 'resources/icon-windows.png',
++  trayWindows: 'resources/tray-windows.ico',
++  updateOrigin: 'https://download.deepseek.com',
++  updateChannel: 'nightly',
++  brandEn: 'DeepSeek Harness',
++  brandZh: 'DeepSeek Harness',
++} as const
++
++export type DesktopBrandField = keyof typeof UPSTREAM_DESKTOP_BRAND
++
++export interface DesktopBrand extends Record<DesktopBrandField, string> {
++  readonly source: 'default' | 'file'
++  readonly file: string | undefined
++}
++
++const BRAND_FIELDS = Object.keys(UPSTREAM_DESKTOP_BRAND) as DesktopBrandField[]
++
++/**
++ * Resolve product-owned storage independently of shell DSH_HOME.
++ * @param brand - validated product identity from the existing branding configuration.
++ * @param home - operating-system home of this launch.
++ * @returns private Harness and Electron roots, or undefined for the upstream identity.
++ */
++export function resolveBrandedDesktopStorage(brand: Pick<DesktopBrand, 'appId'>, home = homedir()): {
++  readonly dshHome: string
++  readonly userData: string
++} | undefined {
++  if (brand.appId === UPSTREAM_DESKTOP_BRAND.appId) return undefined
++  const dshHome = join(home, '.dsh-products', brand.appId)
++  return { dshHome, userData: join(dshHome, 'desktop-user-data') }
++}
++
++/** Locate an explicit branding file. Absence is the upstream default, not an error. */
++export function resolveDesktopBrandingPath(env: NodeJS.ProcessEnv = process.env, appRoot = DESKTOP_APP_ROOT): string | undefined {
++  const fromEnv = env.DSH_DESKTOP_BRANDING
++  if (fromEnv !== undefined && fromEnv !== '') return resolve(fromEnv)
++  const local = join(appRoot, 'branding.json')
++  if (existsSync(local)) return local
++  const resources = env.DSH_DESKTOP_RESOURCES || process.resourcesPath
++  if (resources !== undefined && resources !== '' && existsSync(join(resources, 'branding.json'))) return join(resources, 'branding.json')
++  return undefined
++}
++
++/** Accept an HTTPS update base. A path is allowed; credentials, query, and fragment are not. */
++export function desktopBrandUpdateBase(value: string, name = 'updateOrigin'): string {
++  let parsed: URL
++  try {
++    parsed = new URL(value)
++  }
++  catch {
++    throw new Error(`desktop branding: ${name} must be an absolute HTTPS URL`)
++  }
++  if (parsed.protocol !== 'https:' || parsed.username !== '' || parsed.password !== '' || parsed.search !== '' || parsed.hash !== '') {
++    throw new Error(`desktop branding: ${name} must be HTTPS without credentials, query, or fragment`)
++  }
++  return `${parsed.origin}${parsed.pathname.replace(/\/$/u, '')}`
++}
++
++/** Load the product overlay. No file means every field stays at the upstream value. */
++export function loadDesktopBrand(env: NodeJS.ProcessEnv = process.env, appRoot = DESKTOP_APP_ROOT): DesktopBrand {
++  const path = resolveDesktopBrandingPath(env, appRoot)
++  if (path === undefined) return { ...UPSTREAM_DESKTOP_BRAND, source: 'default', file: undefined }
++  let raw: unknown
++  try {
++    raw = JSON.parse(readFileSync(path, 'utf8'))
++  }
++  catch {
++    throw new Error(`desktop branding: cannot read ${path}`)
++  }
++  if (raw === null || typeof raw !== 'object' || Array.isArray(raw)) throw new Error('desktop branding: config must be an object')
++  const record = raw as Record<string, unknown>
++  const brand: Record<DesktopBrandField, string> = { ...UPSTREAM_DESKTOP_BRAND }
++  for (const field of BRAND_FIELDS) {
++    if (record[field] === undefined) continue
++    if (typeof record[field] !== 'string' || record[field].trim() === '') throw new Error(`desktop branding: ${field} must be a non-empty string`)
++    brand[field] = record[field].trim()
++  }
++  if (!/^[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+$/u.test(brand.appId)) throw new Error('desktop branding: appId must be a reverse-DNS identifier')
++  if (!/^[a-z][a-z0-9+.-]{1,31}$/u.test(brand.protocol)) throw new Error('desktop branding: protocol must be a lowercase scheme')
++  if (!/^[a-z0-9][a-z0-9-]{0,30}$/u.test(brand.updateChannel)) throw new Error('desktop branding: updateChannel must be a lowercase channel name')
++  brand.updateOrigin = desktopBrandUpdateBase(brand.updateOrigin)
++  const resources = env.DSH_DESKTOP_RESOURCES || process.resourcesPath
++  const packaged = resources !== undefined && resources !== '' && path === join(resources, 'branding.json')
++  for (const field of ['iconMac', 'iconWindows', 'trayWindows'] as const) {
++    const icon = isAbsolute(brand[field]) ? brand[field] : join(appRoot, brand[field])
++    if (packaged) continue
++    if (!existsSync(icon)) throw new Error(`desktop branding: ${field} does not exist: ${icon}`)
++    brand[field] = icon
++  }
++  return { ...brand, source: 'file', file: path }
++}
++
++/** Replace the upstream product name in one dictionary. Model-provider wording is left alone. */
++export function applyDesktopBrandMessages<T extends Record<string, string>>(messages: T, brand: Pick<DesktopBrand, 'brandEn' | 'brandZh'>, locale: 'en' | 'zh-CN'): T {
++  const replacement = locale === 'zh-CN' ? brand.brandZh : brand.brandEn
++  if (replacement === 'DeepSeek Harness') return messages
++  return Object.fromEntries(Object.entries(messages).map(([key, value]) => [key, value.replaceAll('DeepSeek Harness', replacement)])) as T
++}
+diff --git a/apps/desktop/src/client/WelcomePage.tsx b/apps/desktop/src/client/WelcomePage.tsx
+index b367061732..a7b4669a4d 100644
+--- a/apps/desktop/src/client/WelcomePage.tsx
++++ b/apps/desktop/src/client/WelcomePage.tsx
+@@ -16,6 +16,7 @@ type Page = 'entry' | 'key' | 'account'
+  */
+ export function Welcome({ api }: { api: WelcomeApi }) {
+   const { messages: m } = api
++  const vibeFinance = api.productName === 'Vibe Finance'
+   const [expiryNotice, setExpiryNotice] = useState(false)
+   const [page, setPage] = useState<Page>('entry')
+   const pageRef = useRef<Page>('entry')
+@@ -53,6 +54,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
+     mounted.current = true
+     document.documentElement.lang = api.id
+     document.title = m.welcomeTitle
++    document.body.toggleAttribute('data-vibe-finance', vibeFinance)
+     const takeNotice = (): void => {
+       void api.takeNotice().then((notice) => {
+         if (mounted.current && notice === 'session-expired') setExpiryNotice(true)
+@@ -67,7 +69,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
+       showAccount(state)
+     })
+     return () => { mounted.current = false; stop() }
+-  }, [api, m.welcomeTitle])
++  }, [api, m.welcomeTitle, vibeFinance])
+ 
+   useEffect(() => {
+     if (page === 'entry' && visiblePage.current !== 'entry') void api.analytics?.('auth_page_view', {})
+@@ -170,14 +172,25 @@ export function Welcome({ api }: { api: WelcomeApi }) {
+     : waiting ? m.welcomeAuthWaiting : phase === 'expired' ? m.welcomeAuthExpired
+       : phase === 'failed' ? m.welcomeAuthFailed : m.welcomeAuthExchanging
+   const heading = page === 'entry' ? 'welcome-heading' : page === 'key' ? 'key-title' : 'auth-status'
++  const signIn = () => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start() }
++  const signInAction = vibeFinance
++    ? <a id="sign-in" className="text-link" href="#" onClick={(event) => { event.preventDefault(); signIn() }}>{m.welcomeSignIn}</a>
++    : <button id="sign-in" className="primary" type="button" onClick={signIn}>{m.welcomeSignIn}</button>
++  const apiKeyAction = <button ref={keyButton} id="api-key" className={vibeFinance ? 'primary' : 'secondary'} type="button" onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'api-key' }); navigate('key') }}>{m.welcomeApiKey}</button>
+ 
+   return <>
+     {expiryNotice && <Toast text={m.welcomeSessionExpired} onDone={() => { setExpiryNotice(false) }} />}
+     <div className="titlebar" aria-hidden="true" />
+     <main className="welcome" aria-labelledby={heading}>
+-      <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />
++      {vibeFinance ? <div className="brand vibe-brand" role="img" aria-label={m.welcomeBrand}>
++        <svg viewBox="0 0 64 64" fill="none" aria-hidden="true" focusable="false">
++          <path d="M8 38h12l6-22 9 34 8-26 6 14h7" stroke="currentColor" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
++        </svg>
++        <span>Vibe Finance</span>
++      </div> : <img className="brand" src="assets/welcome-brand.svg" alt={m.welcomeBrand} width="472" height="40" />}
+       <div id="tagline" className="tagline" hidden={page !== 'entry'}>
+-        <h1 id="welcome-heading"><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></h1>
++        <h1 id="welcome-heading">{vibeFinance ? `${m.welcomeTaglineBefore}${m.welcomeTaglineBrand}${m.welcomeTaglineAfter}`
++          : <><span>{m.welcomeTaglineBefore}</span><em>{m.welcomeTaglineBrand}</em><span>{m.welcomeTaglineAfter}</span></>}</h1>
+         <p id="welcome-description">{m.welcomeDescription}</p>
+       </div>
+       <form id="key-form" className="key-form" hidden={page !== 'key'} noValidate onSubmit={(event) => { void saveKey(event) }} aria-busy={busy}>
+@@ -209,8 +222,7 @@ export function Welcome({ api }: { api: WelcomeApi }) {
+           onClick={() => { void cancel() }}>{m.welcomeAuthCancel}</button>
+       </div>
+       <div id="entry-actions" className="actions" hidden={page !== 'entry'}>
+-        <button id="sign-in" className="primary" type="button" onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'sign_in' }); void start() }}>{m.welcomeSignIn}</button>
+-        <button ref={keyButton} id="api-key" className="secondary" type="button" onClick={() => { void api.analytics?.('auth_page_click', { button_name: 'api-key' }); navigate('key') }}>{m.welcomeApiKey}</button>
++        {vibeFinance ? <>{apiKeyAction}{signInAction}</> : <>{signInAction}{apiKeyAction}</>}
+       </div>
+       <div id="key-actions" className="actions" hidden={page !== 'key'}>
+         <button id="save-key" className="primary" type="submit" form="key-form" disabled={busy || draft.trim() === ''}>{m.welcomeKeySave}</button>
+diff --git a/apps/desktop/src/core-package-set.ts b/apps/desktop/src/core-package-set.ts
+index 0c148e223f..4a8de74b3e 100644
+--- a/apps/desktop/src/core-package-set.ts
++++ b/apps/desktop/src/core-package-set.ts
+@@ -13,6 +13,9 @@ export const DESKTOP_PACKAGES_DIR = 'desktop-packages'
+ /** Private package installed beside dsh to boot the Desktop Host process. */
+ export const DESKTOP_HOST_PACKAGE = '@deepseek-ai/dsh-desktop-host'
+ 
++/** Product bundles built and installed with the Desktop runtime. */
++export const DESKTOP_PRODUCT_PACKAGES = ['vibe-finance-ui', 'stock-research-dsh'] as const
++
+ /** Package-relative Desktop Host files required before a profile can boot. */
+ export const DESKTOP_HOST_RUNTIME_FILES = [
+   'lib/index.js',
+@@ -171,12 +174,15 @@ export function verifyDesktopCoreLockfile(
+   lockfile: string,
+   packageSet: DesktopCorePackageSet,
+ ): void {
++  // Patch identities name package versions but do not resolve package bytes.
++  // prepare-runtime-patches validates those hashes separately.
++  const resolutions = lockfile.replace(/^patchedDependencies:\r?\n(?:[ \t].*(?:\r?\n|$))*/mu, '')
+   for (const record of packageSet.packages) {
+     const registryResolution = new RegExp(
+       `^  ['"]?${escapeRegExp(record.name)}@${escapeRegExp(record.version)}(?:\\([^\\r\\n]*\\))?['"]?:`,
+       'mu',
+     )
+-    if (registryResolution.test(lockfile)) {
++    if (registryResolution.test(resolutions)) {
+       throw new Error(`desktop package set: lockfile resolved ${record.name}@${record.version} outside the local package set`)
+     }
+   }
+diff --git a/apps/desktop/src/locale.ts b/apps/desktop/src/locale.ts
+index 5d9d4607c7..601ed9a28e 100644
+--- a/apps/desktop/src/locale.ts
++++ b/apps/desktop/src/locale.ts
+@@ -346,26 +346,45 @@ export interface DesktopLocale {
+ }
+ 
+ /** Resolve Electron's locale to one shipped Desktop dictionary. */
+-export function resolveDesktopLocale(locale: string): DesktopLocale {
+-  return locale.toLowerCase().startsWith('zh')
+-    ? { id: 'zh-CN', messages: zh }
+-    : { id: 'en', messages: en }
++export function resolveDesktopLocale(locale: string, productName = 'DeepSeek Harness'): DesktopLocale {
++  const chinese = locale.toLowerCase().startsWith('zh')
++  const source = chinese ? zh : en
++  const branded = productName === 'DeepSeek Harness'
++    ? source
++    : Object.fromEntries(Object.entries(source).map(([key, value]) => [key, value.replaceAll('DeepSeek Harness', productName)])) as typeof source
++  const messages = productName === 'Vibe Finance'
++    ? { ...branded,
++      welcomeDescription: chinese ? '公开数据，可核对的研究' : 'Public data. Verifiable research.',
++      welcomeApiKey: chinese ? '连接 DeepSeek 开始使用' : 'Connect DeepSeek to get started',
++      welcomeSignIn: chinese ? '用 DeepSeek 账号登录' : 'Sign in with your DeepSeek account',
++      welcomeKeyTitle: chinese ? '粘贴你的 DeepSeek 密钥' : 'Paste your DeepSeek key',
++      welcomeKeyPlaceholder: chinese ? 'sk- 开头的一串字符' : 'A key starting with sk-',
++      welcomeKeyBack: chinese ? '返回' : 'Back',
++      welcomeKeyDescription: chinese
++        ? '在 DeepSeek 开放平台（platform.deepseek.com）的 API keys 页面创建密钥，再粘贴到这里。'
++        : 'Create a key on the API keys page at platform.deepseek.com, then paste it here.',
++    }
++    : branded
++  return chinese ? { id: 'zh-CN', messages } : { id: 'en', messages }
+ }
+ 
+ /**
+  * Choose a built-in dictionary from the shared preference, then ordered OS languages.
+  * @param preference - explicit locale.preference, or null when no language was selected.
+  * @param languages - operating-system languages in preference order.
++ * @param brand - optional product names for the selected language.
+  * @returns the supported dictionary, falling back to English.
+  */
+-export function resolveDesktopStartupLocale(preference: string | null, languages: readonly string[]): DesktopLocale {
++export function resolveDesktopStartupLocale(preference: string | null, languages: readonly string[],
++  brand?: { readonly brandEn: string; readonly brandZh: string }): DesktopLocale {
++  const dictionary = (language: 'zh' | 'en') => resolveDesktopLocale(language, language === 'zh' ? brand?.brandZh : brand?.brandEn)
+   const selected = preference?.toLowerCase()
+-  if (selected === 'zh' || selected === 'en') return resolveDesktopLocale(selected)
++  if (selected === 'zh' || selected === 'en') return dictionary(selected)
+   for (const language of languages) {
+     const primary = language.toLowerCase().split('-')[0]
+-    if (primary === 'zh' || primary === 'en') return resolveDesktopLocale(primary)
++    if (primary === 'zh' || primary === 'en') return dictionary(primary)
+   }
+-  return resolveDesktopLocale('en')
++  return dictionary('en')
+ }
+ 
+ /** Replace named placeholders in one locale-owned message. */
+diff --git a/apps/desktop/src/main.ts b/apps/desktop/src/main.ts
+index 2afdfd7194..03e57bb120 100644
+--- a/apps/desktop/src/main.ts
++++ b/apps/desktop/src/main.ts
+@@ -3,7 +3,8 @@ import { WINDOWS_TITLEBAR_HEIGHT } from './windows-layout.ts'
+ /** Electron shell: desktop project ownership, custom protocol, windows, and lifecycle. */
+ 
+ import { readFile, writeFile } from 'node:fs/promises'
+-import { join } from 'node:path'
++import { mkdirSync } from 'node:fs'
++import { isAbsolute, join } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+ import {
+   app,
+@@ -31,6 +32,7 @@ import { installMicrophonePermissions } from './microphone-permissions.ts'
+ import { DesktopBackendController } from './backend-controller.ts'
+ import { DESKTOP_IPC, SCHEME, assertDesktopSender, type DesktopUpdateState } from './ipc.ts'
+ import { readDeviceInfo } from './device-info.ts'
++import { loadDesktopBrand, resolveBrandedDesktopStorage } from './branding.ts'
+ import { desktopUpdateReadyConfirmation, formatDesktopMessage, resolveDesktopLocale, resolveDesktopStartupLocale } from './locale.ts'
+ import { claimDesktopSingleInstance } from './single-instance.ts'
+ import { desktopUpdateChannel } from './update-channel.ts'
+@@ -82,10 +84,33 @@ const rendererConsole = new RendererConsoleTail()
+ 
+ // Platform-conventional logs directory (macOS ~/Library/Logs/<name>, otherwise under userData);
+ // set before ready so the first fatal report already resolves under it.
+-app.setAppLogsPath()
++const isolated = process.env.DSH_DESKTOP_ISOLATED === '1'
++const productStorage = resolveBrandedDesktopStorage(loadDesktopBrand())
++if (isolated) {
++  const userData = process.env.DSH_DESKTOP_USER_DATA_DIR
++  if (!userData || !isAbsolute(userData) || !process.env.DSH_HOME || !isAbsolute(process.env.DSH_HOME)) {
++    throw new Error('Isolated Desktop requires absolute userData and DSH_HOME')
++  }
++  app.setPath('userData', userData)
++  app.setAppLogsPath(join(userData, 'logs'))
++} else if (productStorage !== undefined) {
++  mkdirSync(productStorage.userData, { recursive: true, mode: 0o700 })
++  process.env.DSH_HOME = productStorage.dshHome
++  app.setPath('userData', productStorage.userData)
++  app.setPath('sessionData', productStorage.userData)
++  app.setAppLogsPath(join(productStorage.userData, 'logs'))
++} else app.setAppLogsPath()
+ 
+ function currentDesktopLocale(): ReturnType<typeof resolveDesktopLocale> {
+-  return resolveDesktopLocale(windowsLanguage ?? app.getLocale())
++  const language = windowsLanguage ?? app.getLocale()
++  const brand = loadDesktopBrand()
++  return resolveDesktopLocale(language, language.toLowerCase().startsWith('zh') ? brand.brandZh : brand.brandEn)
++}
++
++function desktopPreloadArguments(): { additionalArguments?: string[] } {
++  const brand = loadDesktopBrand()
++  if (brand.source !== 'file') return {}
++  return { additionalArguments: [`--dsh-product-en=${encodeURIComponent(brand.brandEn)}`, `--dsh-product-zh=${encodeURIComponent(brand.brandZh)}`] }
+ }
+ /** Quit without the task confirmation; the caller has already decided the application must stop. */
+ function quitWithoutConfirmation(): void {
+@@ -207,6 +232,7 @@ function platformLoginUrl(authorizeUrl: string): string {
+ 
+ function createWindow(preload: string, show = false, primary = false): BrowserWindow {
+   const window = new BrowserWindow({
++    title: loadDesktopBrand().productName,
+     width: 1280,
+     height: 820,
+     minWidth: 520,
+@@ -230,6 +256,7 @@ function createWindow(preload: string, show = false, primary = false): BrowserWi
+     } : {}),
+     webPreferences: {
+       preload,
++      ...desktopPreloadArguments(),
+       nodeIntegration: false,
+       contextIsolation: true,
+       sandbox: true,
+@@ -332,13 +359,18 @@ async function main(): Promise<void> {
+   // The probe runs in its own process group, which outlives Desktop unless the read is aborted.
+   app.on('will-quit', () => { loginShellRead.abort() })
+   const loginShell = readDesktopLoginShellEnvironment(process.env, resolveDesktopLoginShellConfig(process.env), {
++    ...(isolated ? { shells: [] } : {}),
+     signal: loginShellRead.signal,
+   }).then((result) => {
+     for (const failure of result.failures) console.warn(`desktop login shell: ${failure.shell} failed (${failure.reason})`)
+     return result.environment
+   })
+   let hostEnvironment: NodeJS.ProcessEnv = process.env
+-  const prepareHostEnvironment = async (): Promise<void> => { hostEnvironment = await loginShell }
++  const prepareHostEnvironment = async (): Promise<void> => {
++    hostEnvironment = await loginShell
++    // Login-shell preferences cannot redirect a branded product into the official profile.
++    if (!isolated && productStorage !== undefined) hostEnvironment.DSH_HOME = productStorage.dshHome
++  }
+   let quitting = false
+   let startup: Promise<void> | undefined
+   let workspaceRecovery: Promise<void> | undefined
+@@ -353,7 +385,7 @@ async function main(): Promise<void> {
+   let updateStopFailure: DesktopHostUncleanExitError | undefined
+   let updateState: DesktopUpdateState = { phase: 'idle' }
+   const systemLanguages = app.getPreferredSystemLanguages()
+-  let locale = resolveDesktopStartupLocale(null, systemLanguages)
++  let locale = resolveDesktopStartupLocale(null, systemLanguages, loadDesktopBrand())
+   windowsLanguage = locale.id
+   let mandatoryPolicy: DesktopMandatoryUpdatePolicy | undefined
+   let mandatoryUI: DesktopMandatoryUpdateWindow | undefined
+@@ -762,7 +794,7 @@ async function main(): Promise<void> {
+     const window = mainWindow
+     if (window === undefined || event.sender !== window.webContents || event.senderFrame !== window.webContents.mainFrame
+       || typeof next !== 'string') return
+-    const current = resolveDesktopStartupLocale(next, systemLanguages)
++    const current = resolveDesktopStartupLocale(next, systemLanguages, loadDesktopBrand())
+     if (current.id === locale.id) return
+     locale = current
+     platformView.notifyLocaleChanged()
+@@ -931,8 +963,9 @@ async function main(): Promise<void> {
+ 
+   const applicationIconPath = development ? join(app.getAppPath(), 'resources', 'icon-windows.png')
+     : join(process.resourcesPath, 'icon.png')
++  const desktopBrand = loadDesktopBrand()
+   app.setAboutPanelOptions({
+-    applicationName: 'DeepSeek Harness',
++    applicationName: desktopBrand.productName,
+     applicationVersion: app.getVersion(),
+     // The release has no separate build number; omit Electron's bundle version.
+     version: '',
+@@ -1205,7 +1238,7 @@ async function main(): Promise<void> {
+     if (quitting || recovery.active) return
+     const state = await readWelcomeState()
+     if (isQuitting() || backend.state.phase !== 'ready') return
+-    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages)
++    locale = resolveDesktopStartupLocale(state.localePreference, systemLanguages, loadDesktopBrand())
+     windowsLanguage = locale.id
+     refreshApplicationMenu()
+     if (!enteredWorkspace && needsWelcome({ loggedIn: state.loggedIn, hasApiKey: state.hasApiKey })) {
+@@ -1232,10 +1265,11 @@ async function main(): Promise<void> {
+     window.focus()
+   }
+ 
+-  if (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1') app.setAsDefaultProtocolClient('dsh')
++  if (!isolated && (app.isPackaged || process.env.DSH_DESKTOP_DEV_APP === '1')) app.setAsDefaultProtocolClient(desktopBrand.protocol)
+   app.on('open-url', (event, url) => {
+     event.preventDefault()
+-    if (url === 'dsh://open' || url === 'dsh://open/') focusPrimaryWindow()
++    const open = `${desktopBrand.protocol}://open`
++    if (url === open || url === `${open}/`) focusPrimaryWindow()
+   })
+ 
+   app.on('activate', (_event, hasVisibleWindows) => {
+diff --git a/apps/desktop/src/preload-menu.ts b/apps/desktop/src/preload-menu.ts
+index f7b881278a..55fe2a2053 100644
+--- a/apps/desktop/src/preload-menu.ts
++++ b/apps/desktop/src/preload-menu.ts
+@@ -3,6 +3,12 @@ import { ipcRenderer } from 'electron'
+ import { DESKTOP_IPC } from './ipc.ts'
+ import { resolveDesktopLocale } from './locale.ts'
+ 
++function desktopProductName(locale: string): string {
++  const prefix = locale.toLowerCase().startsWith('zh') ? '--dsh-product-zh=' : '--dsh-product-en='
++  const raw = process.argv.find(argument => argument.startsWith(prefix))?.slice(prefix.length)
++  return raw === undefined ? 'DeepSeek Harness' : decodeURIComponent(raw)
++}
++
+ /**
+  * Mount the Windows caption menubar without moving focus out of the active editor.
+  * @returns Language refresh and document teardown operations.
+@@ -96,7 +102,7 @@ export function installWindowsMenu(): { update(): void; dispose(): void } {
+   observer.observe(document.body, { childList: true, subtree: true })
+   mount()
+   const update = (): void => {
+-    const { messages } = resolveDesktopLocale(document.documentElement.lang)
++    const { messages } = resolveDesktopLocale(document.documentElement.lang, desktopProductName(document.documentElement.lang))
+     bar.setAttribute('aria-label', messages.menuBar)
+     buttons[0].textContent = messages.application
+     buttons[1].textContent = messages.edit
+diff --git a/apps/desktop/src/preload-welcome.ts b/apps/desktop/src/preload-welcome.ts
+index 6748367e81..e59f671cb8 100644
+--- a/apps/desktop/src/preload-welcome.ts
++++ b/apps/desktop/src/preload-welcome.ts
+@@ -8,8 +8,11 @@ import { WELCOME_IPC, type WelcomeApi, type WelcomeNotice, type WelcomeSaveResul
+ const prefix = '--dsh-welcome-locale='
+ const locale = process.argv.find(argument => argument.startsWith(prefix))?.slice(prefix.length)
+ if (locale === undefined) throw new Error('desktop welcome: missing window locale')
++const productArgument = process.argv.find(argument => argument.startsWith('--dsh-product-name='))?.slice('--dsh-product-name='.length)
++const productName = productArgument === undefined ? undefined : decodeURIComponent(productArgument)
+ const api: WelcomeApi = {
+-  ...resolveDesktopLocale(locale),
++  ...resolveDesktopLocale(locale, productName),
++  ...(productName === undefined ? {} : { productName }),
+   analytics: async (eventName, attributes) => {
+     if (await api.analyticsEnabled()) await ipcRenderer.invoke(WELCOME_IPC.analytics, eventName, attributes)
+   },
+diff --git a/apps/desktop/src/project-manager.ts b/apps/desktop/src/project-manager.ts
+index 270d87d6b2..0a250ca2b8 100644
+--- a/apps/desktop/src/project-manager.ts
++++ b/apps/desktop/src/project-manager.ts
+@@ -16,6 +16,7 @@ import {
+ import { join } from 'node:path'
+ import {
+   DESKTOP_HOST_PACKAGE,
++  DESKTOP_PRODUCT_PACKAGES,
+   desktopCorePackageOverrides,
+   verifyDesktopCorePackageSet,
+ } from './core-package-set.ts'
+@@ -23,13 +24,14 @@ import type { DesktopPaths } from './paths.ts'
+ import type { DesktopRelease } from './release.ts'
+ import { readDesktopRuntime } from './runtime-tree.ts'
+ import {
+-  initProfile, PROFILE_TEMPLATES, removeLinkProjections, sanitizeProfile, type ProfileTemplate,
++  initProfile, PROFILE_TEMPLATES, readProfileManifest, writeProfileBundles, removeLinkProjections, sanitizeProfile, type ProfileTemplate,
+ } from '@deepseek-ai/dsh-app-boot'
+ 
+ const PROJECT_NAME = '@deepseek-ai/dsh-desktop-runtime'
+ const DSH_PACKAGE = '@deepseek-ai/dsh'
+ const CORE_BUILD_PACKAGE = '@deepseek-ai/dsh-subprocess-local'
+ const WEB_PROFILE = PROFILE_TEMPLATES.web as ProfileTemplate
++const PRODUCT_BUNDLES = [...WEB_PROFILE.bundles, ...DESKTOP_PRODUCT_PACKAGES]
+ const WORKSPACE_SETTINGS = 'nodeLinker: hoisted\nautoInstallPeers: false\n'
+ function writeJson(path: string, value: unknown): void {
+   writeFileSync(path, `${JSON.stringify(value, undefined, 2)}\n`, { mode: 0o600 })
+@@ -74,7 +76,7 @@ export class DesktopProjectManager {
+    * @returns Backup path after the locked profile write, or undefined if the patch was absent.
+    */
+   async disableAllPlugins(): Promise<string | undefined> {
+-    return this.withLock(() => sanitizeProfile('dsh', this.paths.profile, WEB_PROFILE.bundles))
++    return this.withLock(() => sanitizeProfile('dsh', this.paths.profile, PRODUCT_BUNDLES))
+   }
+ 
+   /**
+@@ -139,7 +141,7 @@ export function createRuntimeProjectMetadata(projectDir: string, release: Deskto
+     private: true,
+     version: '0.0.0',
+     dependencies: desktopCorePackageOverrides(packageSet),
+-    dsh: { profile: { bundles: [...WEB_PROFILE.bundles] } },
++    dsh: { profile: { bundles: [...PRODUCT_BUNDLES] } },
+   }
+   writeJson(join(projectDir, 'package.json'), manifest)
+   writeFileSync(
+@@ -172,5 +174,9 @@ export function createDevelopmentProjectMetadata(projectDir: string, release: De
+ 
+ /** Create the first external plugin profile without running a package manager. */
+ export function createPluginProfile(projectDir: string): void {
+-  initProfile(projectDir, WEB_PROFILE.bundles)
++  initProfile(projectDir, PRODUCT_BUNDLES)
++  const manifest = readProfileManifest('dsh', projectDir)
++  const existing = manifest.dsh?.profile?.bundles ?? []
++  const missing = PRODUCT_BUNDLES.filter(name => !existing.includes(name))
++  if (missing.length > 0) writeProfileBundles(projectDir, manifest, [...existing, ...missing])
+ }
+diff --git a/apps/desktop/src/welcome-api.ts b/apps/desktop/src/welcome-api.ts
+index c693f385d6..42d4e83ade 100644
+--- a/apps/desktop/src/welcome-api.ts
++++ b/apps/desktop/src/welcome-api.ts
+@@ -55,6 +55,8 @@ export interface WelcomeOperations {
+ 
+ /** The renderer receives localized copy, login operations, and safe account snapshots. */
+ export type WelcomeApi = DesktopLocale & WelcomeOperations & {
++  /** Optional product identity selected by the shell's branding configuration. */
++  readonly productName?: string
+   /** @param listener - safe account snapshot recipient. @returns subscription disposer. */
+   onAccountState(listener: (state: AccountView) => void): () => void
+ }
+diff --git a/apps/desktop/src/welcome-window.ts b/apps/desktop/src/welcome-window.ts
+index 61fda9e36a..4cead2f319 100644
+--- a/apps/desktop/src/welcome-window.ts
++++ b/apps/desktop/src/welcome-window.ts
+@@ -4,9 +4,16 @@ import type { SignInAttemptId } from '@deepseek-ai/dsh-deepseek-account/types'
+ import { join } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+ import { app, BrowserWindow, ipcMain, type BrowserWindowConstructorOptions, type IpcMainInvokeEvent } from 'electron'
++import { loadDesktopBrand, UPSTREAM_DESKTOP_BRAND } from './branding.ts'
+ import type { DesktopLocale } from './locale.ts'
+ import { WELCOME_IPC, type WelcomeOperations } from './welcome-api.ts'
+ 
++function welcomePreloadArguments(locale: DesktopLocale): string[] {
++  const brand = loadDesktopBrand()
++  const productName = locale.id === 'zh-CN' ? brand.brandZh : brand.brandEn
++  return [`--dsh-welcome-locale=${locale.id}`, ...(productName === 'DeepSeek Harness' ? [] : [`--dsh-product-name=${encodeURIComponent(productName)}`])]
++}
++
+ /**
+  * Resolve the fixed-size welcome window's native material and controls.
+  * @param platform - operating system hosting Electron.
+@@ -23,6 +30,7 @@ export function welcomeWindowOptions(platform: NodeJS.Platform, locale: DesktopL
+     maximizable: false,
+     fullscreenable: false,
+     show: false,
++    ...(loadDesktopBrand().appId !== UPSTREAM_DESKTOP_BRAND.appId ? { alwaysOnTop: true } : {}),
+     title: locale.messages.welcomeTitle,
+     backgroundColor: platform === 'darwin' || platform === 'win32' ? '#00000000' : '#FFFFFF',
+     ...(platform === 'darwin' ? {
+@@ -38,7 +46,7 @@ export function welcomeWindowOptions(platform: NodeJS.Platform, locale: DesktopL
+     } as const : {}),
+     webPreferences: {
+       preload: fileURLToPath(new URL('./preload-welcome.cjs', import.meta.url)),
+-      additionalArguments: [`--dsh-welcome-locale=${locale.id}`],
++      additionalArguments: welcomePreloadArguments(locale),
+       nodeIntegration: false,
+       contextIsolation: true,
+       sandbox: true,
+diff --git a/apps/desktop/tests/core-package-set.spec.ts b/apps/desktop/tests/core-package-set.spec.ts
+index 0b28a2ec3d..5ac400ec30 100644
+--- a/apps/desktop/tests/core-package-set.spec.ts
++++ b/apps/desktop/tests/core-package-set.spec.ts
+@@ -93,6 +93,12 @@ describe('desktop core package set', () => {
+         packageSet,
+       )
+     }).not.toThrow()
++    const metadata = "patchedDependencies:\n  '@deepseek-ai/dsh@1.2.3': fixture-hash\n\n"
++    expect(() => verifyDesktopCoreLockfile(metadata
++      + "packages:\n  '@deepseek-ai/dsh@file:desktop-packages/dsh.tgz':\n    resolution: {}\n", packageSet)).not.toThrow()
++    expect(() => verifyDesktopCoreLockfile(metadata
++      + "packages:\n  '@deepseek-ai/dsh@1.2.3':\n    resolution: {integrity: sha512-registry}\n", packageSet))
++      .toThrow(/outside the local package set/u)
+     expect(() => {
+       verifyDesktopCoreLockfile(
+         "packages:\n  '@deepseek-ai/dsh@1.2.3':\n    resolution: {integrity: sha512-registry}\n",
+diff --git a/apps/desktop/tests/desktop-branding.spec.ts b/apps/desktop/tests/desktop-branding.spec.ts
+new file mode 100644
+index 0000000000..dee1aafcdd
+--- /dev/null
++++ b/apps/desktop/tests/desktop-branding.spec.ts
+@@ -0,0 +1,131 @@
++/** Product overlay stays optional and feeds the package identity, protocol, and update base. */
++
++import { mkdtempSync, writeFileSync } from 'node:fs'
++import { tmpdir } from 'node:os'
++import { join } from 'node:path'
++import { fileURLToPath } from 'node:url'
++import { expect, it } from 'vitest'
++import { applyDesktopBrandMessages, loadDesktopBrand, resolveBrandedDesktopStorage } from '../src/branding.ts'
++import { loadDesktopBrand as loadBuildBrand, resolveBrandedDesktopUpdateConfig } from '../scripts/desktop-branding.mjs'
++import { resolveDesktopAutoUpdateConfig } from '../scripts/desktop-auto-update-environment.mjs'
++
++const SAMPLE = fileURLToPath(new URL('../branding.vibe-finance.json', import.meta.url))
++
++it('gives a product appId private Harness and Electron roots without changing upstream storage', () => {
++  expect(resolveBrandedDesktopStorage({ appId: 'com.deepseek.harness' }, '/home/test')).toBeUndefined()
++  expect(resolveBrandedDesktopStorage({ appId: 'com.vibefinance.desktop' }, '/home/test')).toEqual({
++    dshHome: '/home/test/.dsh-products/com.vibefinance.desktop',
++    userData: '/home/test/.dsh-products/com.vibefinance.desktop/desktop-user-data',
++  })
++})
++
++it('keeps the upstream identity when no branding file is provided', () => {
++  const runtime = loadDesktopBrand({})
++  const build = loadBuildBrand({})
++  expect(runtime.source).toBe('default')
++  expect(build.source).toBe('default')
++  expect(runtime.productName).toBe('DeepSeek Harness')
++  expect(runtime.protocol).toBe('dsh')
++  expect(runtime.updateOrigin).toBe('https://download.deepseek.com')
++  expect(build).toMatchObject({ productName: 'DeepSeek Harness', protocol: 'dsh', updateChannel: 'nightly' })
++})
++
++it('reads the Vibe Finance sample without changing model-provider wording', () => {
++  const brand = loadDesktopBrand({ DSH_DESKTOP_BRANDING: SAMPLE })
++  expect(brand).toMatchObject({
++    source: 'file',
++    productName: 'Vibe Finance',
++    appId: 'com.vibefinance.desktop',
++    protocol: 'vibefinance',
++    updateOrigin: 'https://updates.example.invalid/vibe',
++    updateChannel: 'nightly',
++  })
++  expect(brand.iconMac).toMatch(/icon-mac\.png$/u)
++  expect(brand.iconWindows).toMatch(/icon-windows\.png$/u)
++  expect(brand.trayWindows).toMatch(/tray-windows\.ico$/u)
++  const messages = applyDesktopBrandMessages({
++    about: 'About DeepSeek Harness',
++    model: 'Configure official DeepSeek models',
++  }, brand, 'en')
++  expect(messages.about).toBe('About Vibe Finance')
++  expect(messages.model).toBe('Configure official DeepSeek models')
++})
++
++it('rejects a non-HTTPS update origin', () => {
++  const root = mkdtempSync(join(tmpdir(), 'dsh-brand-'))
++  const path = join(root, 'branding.json')
++  writeFileSync(path, JSON.stringify({ updateOrigin: 'http://updates.example.invalid/vibe' }))
++  expect(() => loadDesktopBrand({ DSH_DESKTOP_BRANDING: path })).toThrow(/HTTPS/u)
++})
++
++it('shares the brand feed with artifact verification and release metadata', () => {
++  expect(resolveBrandedDesktopUpdateConfig({ DSH_DESKTOP_BRANDING: SAMPLE, DSH_DESKTOP_AUTO_UPDATE_ENV: 'production' }, 'darwin', 'arm64')).toMatchObject({
++    environment: 'production', target: 'mac-arm64', channel: 'nightly',
++    origin: 'https://updates.example.invalid/vibe',
++    publicUrl: 'https://updates.example.invalid/vibe/dsh-desk/feeds/mac-arm64/',
++  })
++})
++
++it.each(['test', 'production'] as const)('preserves rc.2 feed and binary paths in %s for both channels', environment => {
++  for (const channel of ['nightly', 'latest']) {
++    const update = resolveBrandedDesktopUpdateConfig({
++      DSH_DESKTOP_BRANDING: SAMPLE,
++      DSH_DESKTOP_AUTO_UPDATE_ENV: environment,
++      DSH_DESKTOP_UPDATE_CHANNEL: channel,
++      DOWNLOAD_TEST_RELEASE_ID: 'a'.repeat(32),
++    }, 'darwin', 'arm64')
++    const prefix = `dsh-desk${environment === 'test' ? `/${'a'.repeat(32)}` : ''}`
++    expect(update).toMatchObject({ environment, channel,
++      keyPrefix: `${prefix}/feeds/mac-arm64`,
++      binaryKeyPrefix: `${prefix}/bin/mac-arm64${channel === 'latest' ? '/latest' : ''}`,
++      publicUrl: `https://updates.example.invalid/vibe/${prefix}/feeds/mac-arm64/`,
++    })
++  }
++})
++
++it('retains the rc.2 test release ID requirement with a brand origin', () => {
++  expect(() => resolveBrandedDesktopUpdateConfig({ DSH_DESKTOP_BRANDING: SAMPLE }, 'darwin', 'arm64'))
++    .toThrow(/DOWNLOAD_TEST_RELEASE_ID/u)
++})
++
++it('leaves unbranded rc.2 update resolution unchanged', () => {
++  const environment = { DSH_DESKTOP_AUTO_UPDATE_ENV: 'test', DSH_DESKTOP_UPDATE_CHANNEL: 'latest',
++    DOWNLOAD_TEST_ORIGIN: 'https://upstream.example.com', DOWNLOAD_TEST_RELEASE_ID: 'b'.repeat(32) }
++  expect(resolveBrandedDesktopUpdateConfig(environment, 'darwin', 'arm64'))
++    .toEqual(resolveDesktopAutoUpdateConfig(environment, 'darwin', 'arm64'))
++})
++
++it('uses branded Windows icons and artifact names without enabling unsigned updates', async () => {
++  const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
++  const config = createElectronBuilderConfig({
++    DSH_DESKTOP_APP_ID: 'com.deepseek.harness',
++    DSH_DESKTOP_UNSIGNED: '1',
++    DSH_DESKTOP_BRANDING: SAMPLE,
++    DSH_DESKTOP_TARGET_PLATFORM: 'win32',
++    DSH_DESKTOP_MANDATORY_UPDATE_TEST_ORIGIN: 'https://policy.example.com',
++    DSH_DESKTOP_MANDATORY_UPDATE_CONFIG: JSON.stringify({ allowedAuthOrigins: ['https://login.example.com'] }),
++  }, 'win32', 'x64')
++  expect(config.productName).toBe('Vibe Finance')
++  expect(config.appId).toBe('com.vibefinance.desktop')
++  expect(config.protocols).toEqual([{ name: 'Vibe Finance', schemes: ['vibefinance'] }])
++  expect(config.win.icon).toMatch(/icon-windows\.png$/u)
++  expect(config.extraResources).toEqual(expect.arrayContaining([
++    expect.objectContaining({ to: 'icon.png', from: expect.stringMatching(/icon-windows\.png$/u) }),
++    expect.objectContaining({ to: 'tray.ico', from: expect.stringMatching(/tray-windows\.ico$/u) }),
++    expect.objectContaining({ to: 'branding.json' }),
++  ]))
++  expect(config.publish).toBeNull()
++  expect(config.artifactName).toBe('Vibe Finance-${version}-${os}-${arch}-unsigned.${ext}')
++})
++
++it('leaves an unbranded unsigned package on the upstream name and without an update feed', async () => {
++  const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
++  const config = createElectronBuilderConfig({
++    DSH_DESKTOP_APP_ID: 'com.example.desktop',
++    DSH_DESKTOP_UNSIGNED: '1',
++  }, 'darwin', 'arm64')
++  expect(config.productName).toBe('DeepSeek Harness')
++  expect(config.appId).toBe('com.example.desktop')
++  expect(config.protocols).toEqual([{ name: 'DeepSeek Harness', schemes: ['dsh'] }])
++  expect(config.publish).toBeNull()
++})
+diff --git a/apps/desktop/tests/locale.spec.ts b/apps/desktop/tests/locale.spec.ts
+index 2bdd6673bd..ca2d5f94f3 100644
+--- a/apps/desktop/tests/locale.spec.ts
++++ b/apps/desktop/tests/locale.spec.ts
+@@ -24,4 +24,11 @@ describe('desktop locale dictionaries', () => {
+     expect(resolveDesktopStartupLocale('ja', ['zh-CN']).id).toBe('zh-CN')
+   })
+ 
++  it('keeps product names in startup and preference-selected native dialogs', () => {
++    const brand = { brandEn: 'Vibe Finance', brandZh: 'Vibe 研究' }
++    expect(resolveDesktopStartupLocale(null, ['zh-CN'], brand).messages.quitTitle).toBe('退出 Vibe 研究？')
++    expect(resolveDesktopStartupLocale('en', ['zh-CN'], brand).messages.quitTitle).toBe('Quit Vibe Finance?')
++    expect(resolveDesktopStartupLocale(null, [], brand).messages.welcomeTitle).toBe('Vibe Finance')
++  })
++
+ })
+diff --git a/apps/desktop/tests/macos-signature.spec.ts b/apps/desktop/tests/macos-signature.spec.ts
+index 0d9f486bdd..c4dea04052 100644
+--- a/apps/desktop/tests/macos-signature.spec.ts
++++ b/apps/desktop/tests/macos-signature.spec.ts
+@@ -45,6 +45,14 @@ describe('desktop macOS release signature', () => {
+     vi.unstubAllEnvs()
+   })
+ 
++  it('uses the supplied isolation environment for protocol declarations', async () => {
++    const { createElectronBuilderConfig } = await import('../scripts/electron-builder-config.mjs')
++    const env = { ...RELEASE_ENVIRONMENT, DSH_DESKTOP_UNSIGNED: '1', DSH_DESKTOP_ISOLATED: '1' }
++    expect(createElectronBuilderConfig(env, 'darwin', 'arm64').protocols).toEqual([])
++    expect(createElectronBuilderConfig({ ...env, DSH_DESKTOP_ISOLATED: '0' }, 'darwin', 'arm64').protocols)
++      .toEqual([{ name: 'DeepSeek Harness', schemes: ['dsh'] }])
++  })
++
+   it('loads release identifiers from the environment and requires code signing', async () => {
+     const { createElectronBuilderConfig } = await import('../electron-builder.config.mjs')
+     const config = createElectronBuilderConfig(RELEASE_ENVIRONMENT, 'darwin', 'arm64')
+diff --git a/apps/desktop/tests/package-macos.spec.ts b/apps/desktop/tests/package-macos.spec.ts
+index e8fb5dcf34..f1e65232f7 100644
+--- a/apps/desktop/tests/package-macos.spec.ts
++++ b/apps/desktop/tests/package-macos.spec.ts
+@@ -4,6 +4,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/pr
+ import { existsSync } from 'node:fs'
+ import { tmpdir } from 'node:os'
+ import { dirname, join } from 'node:path'
++import { fileURLToPath } from 'node:url'
+ import { describe, expect, it, vi } from 'vitest'
+ import {
+   packageMacOSArtifacts,
+@@ -26,18 +27,21 @@ function barrier() {
+   return { promise, release }
+ }
+ 
+-async function fixture(arch: 'arm64' | 'x64' = 'arm64') {
++async function fixture(arch: 'arm64' | 'x64' = 'arm64', branded = false) {
+   const root = await mkdtemp(join(tmpdir(), 'desktop-parallel-notarization-'))
+   const artifactsRoot = join(root, 'artifacts')
+-  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', 'DeepSeek Harness.app')
++  const fixtureEnvironment = { ...environment, ...branded
++    ? { DSH_DESKTOP_BRANDING: fileURLToPath(new URL('../branding.vibe-finance.json', import.meta.url)) } : {} }
++  const appPath = join(artifactsRoot, arch === 'arm64' ? 'mac-arm64' : 'mac', `${branded ? 'Vibe Finance' : 'DeepSeek Harness'}.app`)
+   await mkdir(join(appPath, 'Contents', 'Resources'), { recursive: true })
+   await writeFile(join(appPath, 'payload'), 'signed content')
+   await writeMacOSAppUpdateConfig(join(appPath, 'Contents', 'Resources'), {
+-    publicUrl: `https://desktop-updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-${arch}/`,
++    publicUrl: branded ? `https://updates.example.invalid/vibe/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-${arch}/`
++      : `https://desktop-updates.example.com/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-${arch}/`,
+   }, 'deepseek-harness-updater')
+   const version = '1.2.3-alpha.1'
+-  const base = `deepseek-harness-${version}-mac-${arch}`
+-  const request = { arch, artifactsRoot, version, environment }
++  const base = `${branded ? 'Vibe Finance' : 'deepseek-harness'}-${version}-mac-${arch}`
++  const request = { arch, artifactsRoot, version, environment: fixtureEnvironment }
+   const apple: MacOSArtifactOperations = {
+     copyApp: async (source, destination) => {
+       await cp(source, destination, { recursive: true, verbatimSymlinks: true })
+@@ -64,6 +68,20 @@ async function fixture(arch: 'arm64' | 'x64' = 'arm64') {
+ }
+ 
+ describe('parallel macOS artifacts', () => {
++  it('verifies the brand feed and collects branded artifact filenames', async () => {
++    const f = await fixture('arm64', true)
++    try {
++      await packageMacOSArtifacts(f.request, f.build, f.apple)
++      expect(await readdir(f.request.artifactsRoot)).toEqual(expect.arrayContaining([
++        'Vibe Finance-1.2.3-alpha.1-mac-arm64.zip',
++        'Vibe Finance-1.2.3-alpha.1-mac-arm64.dmg',
++      ]))
++      expect(await readFile(join(f.appPath, 'Contents/Resources/app-update.yml'), 'utf8'))
++        .toContain('https://updates.example.invalid/vibe/dsh-desk/0123456789abcdef0123456789abcdef/feeds/mac-arm64/')
++    } finally {
++      await rm(f.root, { recursive: true, force: true })
++    }
++  })
+   it.each(['arm64', 'x64'] as const)('overlaps notarization on isolated %s copies and promotes only completed payloads', async (arch) => {
+     const f = await fixture(arch)
+     const appStarted = barrier()
+diff --git a/apps/desktop/tests/package-target-stages.spec.ts b/apps/desktop/tests/package-target-stages.spec.ts
+index 1d8b067390..2b7a78458d 100644
+--- a/apps/desktop/tests/package-target-stages.spec.ts
++++ b/apps/desktop/tests/package-target-stages.spec.ts
+@@ -46,7 +46,9 @@ function supervisor(failure?: string) {
+ it('requires one signing preflight before building, then records only the complete release', async () => {
+   const { run, stages } = supervisor()
+   await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
+-  expect(stages.slice(0, 2)).toEqual(['preflight:windows-signing', 'run build:official'])
++  expect(stages.slice(0, 3)).toEqual(['preflight:windows-signing',
++    'exec node scripts/prepare-product-bundles.mjs', 'exec tsx scripts/build-product-runtime.ts'])
++  expect(stages).not.toContain('run build:official')
+   expect(stages.filter(stage => stage === 'preflight:windows-signing')).toHaveLength(1)
+   expect(vi.mocked(withWindowsSigningStage).mock.calls.map(([options]) => options.stage))
+     .toEqual(['preflight', 'artifacts'])
+@@ -78,7 +80,9 @@ it('initializes shared storage only after acquiring the preflight stage lock', a
+   await packageTarget(parseDesktopPackageInvocation(['win-x64'], 'win32', 'x64'), environment, run)
+ })
+ 
+-it.each(['preflight:windows-signing', 'run build:official', 'run sign:primary-runtime', 'run prepare:dsh --defer-runtime-smoke', 'run sign:primary-runtime --dsh',
++it.each(['preflight:windows-signing', 'exec node scripts/prepare-product-bundles.mjs', 'exec tsx scripts/build-product-runtime.ts',
++  'exec node scripts/prepare-product-patches.mjs',
++  'run sign:primary-runtime', 'run prepare:dsh --defer-runtime-smoke', 'run sign:primary-runtime --dsh',
+   'exec tsx scripts/smoke-packaged-runtime.ts',
+   'exec electron-builder --config electron-builder.config.mjs --win --x64 --publish never'])
+ ('never continues or records a release after %s fails', async (failure) => {
+@@ -92,7 +96,7 @@ it.each(['preflight:windows-signing', 'run build:official', 'run sign:primary-ru
+ it.each(['--unsigned', '--prepare-only'])('keeps %s hardware-free and creates no release record', async (mode) => {
+   const { run, stages } = supervisor()
+   await packageTarget(parseDesktopPackageInvocation(['win-x64', mode], 'win32', 'x64'), environment, run)
+-  expect(stages[0]).toBe('run build:official')
++  expect(stages[0]).toBe('exec node scripts/prepare-product-bundles.mjs')
+   expect(stages).not.toContain('preflight:windows-signing')
+   expect(stages).not.toContain('run sign:primary-runtime')
+   expect(stages).not.toContain('run sign:primary-runtime --dsh')
+diff --git a/apps/desktop/tests/prepare-package-set.spec.ts b/apps/desktop/tests/prepare-package-set.spec.ts
+index 6db1ccbd01..391f6bb2b2 100644
+--- a/apps/desktop/tests/prepare-package-set.spec.ts
++++ b/apps/desktop/tests/prepare-package-set.spec.ts
+@@ -36,6 +36,8 @@ describe('desktop package-set selection', () => {
+       ['@deepseek-ai/cordis', packed('@deepseek-ai/cordis')],
+       ['@deepseek-ai/platform-package', packed('@deepseek-ai/platform-package')],
+       ['@deepseek-ai/unused', packed('@deepseek-ai/unused')],
++      ['vibe-finance-ui', packed('vibe-finance-ui', { dependencies: { ajv: '^8.17.1' } })],
++      ['stock-research-dsh', packed('stock-research-dsh', { peerDependencies: { '@deepseek-ai/cordis': '^1.0.0' } })],
+     ])
+     expect(selectDesktopPackageClosure(available).map(entry => entry.manifest.name)).toEqual([
+       '@deepseek-ai/cordis',
+@@ -43,6 +45,8 @@ describe('desktop package-set selection', () => {
+       '@deepseek-ai/dsh-base',
+       '@deepseek-ai/dsh-desktop-host',
+       '@deepseek-ai/platform-package',
++      'stock-research-dsh',
++      'vibe-finance-ui',
+     ])
+   })
+ 
+@@ -72,12 +76,21 @@ describe('desktop package-set selection', () => {
+         },
+       })],
+       ['@deepseek-ai/dsh-desktop-host', packed('@deepseek-ai/dsh-desktop-host')],
++      ['vibe-finance-ui', packed('vibe-finance-ui')],
++      ['stock-research-dsh', packed('stock-research-dsh')],
+     ])
+     expect(selectDesktopPackageClosure(available).map(entry => entry.manifest.name)).toEqual([
+       '@deepseek-ai/dsh', '@deepseek-ai/dsh-desktop-host',
++      'stock-research-dsh', 'vibe-finance-ui',
+     ])
+   })
+ 
++  it.each(['vibe-finance-ui', 'stock-research-dsh'])('rejects an omitted built-in product bundle %s', (name) => {
++    const available = new Map(['@deepseek-ai/dsh', '@deepseek-ai/dsh-desktop-host', 'vibe-finance-ui', 'stock-research-dsh']
++      .filter(packageName => packageName !== name).map(packageName => [packageName, packed(packageName)]))
++    expect(() => selectDesktopPackageClosure(available)).toThrow(`omit ${name}`)
++  })
++
+   it('requires both Desktop Host and public CLI entries', () => {
+     const files = [
+       'package/lib/index.js',
+diff --git a/apps/desktop/tests/profile-mcp.spec.ts b/apps/desktop/tests/profile-mcp.spec.ts
+index 663ae596b3..b9ad0440f8 100644
+--- a/apps/desktop/tests/profile-mcp.spec.ts
++++ b/apps/desktop/tests/profile-mcp.spec.ts
+@@ -1,6 +1,6 @@
+ /** MCP resource ownership in the shipped Desktop composition. */
+ 
+-import { mkdtempSync, rmSync } from 'node:fs'
++import { mkdtempSync, rmSync, readFileSync, writeFileSync } from 'node:fs'
+ import { tmpdir } from 'node:os'
+ import { join } from 'node:path'
+ import { fileURLToPath } from 'node:url'
+@@ -8,6 +8,22 @@ import { expect, it } from 'vitest'
+ import { composeEntries, loadProfileDirectory } from '@deepseek-ai/dsh-app-boot'
+ import { createPluginProfile } from '../src/project-manager.ts'
+ 
++it('restores product bundles on an existing profile and preserves user metadata and patches', () => {
++  const profile = mkdtempSync(join(tmpdir(), 'desktop-existing-profile-'))
++  writeFileSync(join(profile, 'package.json'), JSON.stringify({ private: true, dependencies: { custom: '1.0.0' },
++    dsh: { profile: { bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'custom'] } } }))
++  writeFileSync(join(profile, 'cordis.patch.yml'), '# user preferences\n')
++  createPluginProfile(profile)
++  const first = readFileSync(join(profile, 'package.json'), 'utf8')
++  expect(JSON.parse(first)).toMatchObject({ dependencies: { custom: '1.0.0' }, dsh: { profile: {
++    bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'custom', 'vibe-finance-ui', 'stock-research-dsh'],
++  } } })
++  createPluginProfile(profile)
++  expect(readFileSync(join(profile, 'package.json'), 'utf8')).toBe(first)
++  expect(readFileSync(join(profile, 'cordis.patch.yml'), 'utf8')).toBe('# user preferences\n')
++  rmSync(profile, { recursive: true, force: true })
++})
++
+ it('retains one shared resource consumer in the Desktop Web profile', () => {
+   const home = mkdtempSync(join(tmpdir(), 'dsh-desktop-profile-mcp-'))
+   try {
+diff --git a/apps/desktop/tests/runtime-manifests.spec.ts b/apps/desktop/tests/runtime-manifests.spec.ts
+index beb778c0df..1e30665368 100644
+--- a/apps/desktop/tests/runtime-manifests.spec.ts
++++ b/apps/desktop/tests/runtime-manifests.spec.ts
+@@ -2,10 +2,54 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
+ import { tmpdir } from 'node:os'
+ import { join } from 'node:path'
+ import { expect, it } from 'vitest'
+-import { prepareRuntimeManifests } from '../scripts/prepare-runtime-manifests.ts'
++import { prepareProductInstallationScope, prepareRuntimeManifests } from '../scripts/prepare-runtime-manifests.ts'
++import { DESKTOP_PRODUCT_PACKAGES } from '../src/core-package-set.ts'
++import { createRuntimeResolution } from '@deepseek-ai/dsh-app-boot'
+ import { verifyDesktopRuntime, writeDesktopRuntime } from '../src/runtime-tree.ts'
+ import { runtimeFixture } from './runtime-fixture.ts'
+ 
++it('makes built-in products visible from the actual CLI installation anchor and stays byte-stable', async () => {
++  const root = mkdtempSync(join(tmpdir(), 'product-installation-scope-'))
++  try {
++    const cli = join(root, 'node_modules/@deepseek-ai/dsh/package.json')
++    mkdirSync(join(root, 'node_modules/@deepseek-ai/dsh'), { recursive: true })
++    writeFileSync(cli, JSON.stringify({ name: '@deepseek-ai/dsh', version: '1.0.0', dependencies: {} }))
++    for (const name of DESKTOP_PRODUCT_PACKAGES) {
++      const directory = join(root, 'node_modules', name)
++      mkdirSync(directory, { recursive: true })
++      writeFileSync(join(directory, 'package.json'), JSON.stringify({ name, version: '1.0.0',
++        exports: { './package.json': './package.json' } }))
++    }
++    const before = await createRuntimeResolution({ installAnchor: cli, home: root })
++    expect(before.entries.map(entry => entry.name)).not.toContain('vibe-finance-ui')
++    await prepareProductInstallationScope(root)
++    const bytes = readFileSync(cli, 'utf8')
++    await prepareProductInstallationScope(root)
++    expect(readFileSync(cli, 'utf8')).toBe(bytes)
++    const after = await createRuntimeResolution({ installAnchor: cli, home: root })
++    for (const name of DESKTOP_PRODUCT_PACKAGES) expect(after.entries.map(entry => entry.name)).toContain(name)
++  } finally { rmSync(root, { recursive: true, force: true }) }
++})
++
++it.each(['identity', 'version', 'conflict', 'missing'])('rejects invalid product installation scope: %s', async (failure) => {
++  const root = mkdtempSync(join(tmpdir(), 'product-installation-invalid-'))
++  try {
++    const cliDir = join(root, 'node_modules/@deepseek-ai/dsh')
++    mkdirSync(cliDir, { recursive: true })
++    writeFileSync(join(cliDir, 'package.json'), JSON.stringify({ name: '@deepseek-ai/dsh',
++      dependencies: failure === 'conflict' ? { 'vibe-finance-ui': '2.0.0' } : {} }))
++    for (const name of DESKTOP_PRODUCT_PACKAGES) {
++      if (failure === 'missing') continue
++      const directory = join(root, 'node_modules', name)
++      mkdirSync(directory, { recursive: true })
++      writeFileSync(join(directory, 'package.json'), JSON.stringify({
++        name: failure === 'identity' ? 'different' : name, version: failure === 'version' ? 'invalid' : '1.0.0',
++      }))
++    }
++    await expect(prepareProductInstallationScope(root)).rejects.toThrow()
++  } finally { rmSync(root, { recursive: true, force: true }) }
++})
++
+ it('seals dependency metadata that remains unchanged by archive preparation', async () => {
+   const root = mkdtempSync(join(tmpdir(), 'runtime-manifests-'))
+   const fixture = runtimeFixture(root)
+diff --git a/apps/desktop/tests/welcome-renderer.client.spec.tsx b/apps/desktop/tests/welcome-renderer.client.spec.tsx
+index 575c7423a0..67e967799e 100644
+--- a/apps/desktop/tests/welcome-renderer.client.spec.tsx
++++ b/apps/desktop/tests/welcome-renderer.client.spec.tsx
+@@ -11,7 +11,7 @@ import type { WelcomeSaveResult, WelcomeNotice } from '../src/welcome-api.ts'
+ const html = readFileSync(join(import.meta.dirname, '../renderer/welcome.html'), 'utf8')
+ afterEach(cleanup)
+ 
+-function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotice | undefined>>().mockResolvedValue(undefined)) {
++function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotice | undefined>>().mockResolvedValue(undefined), productName?: string) {
+   cleanup()
+   const stopAccount = vi.fn()
+   const api = {
+@@ -22,7 +22,8 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
+     startSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
+     cancelSignIn: vi.fn(async (): Promise<AccountView> => ({ links: { usageUrl: 'http://localhost/usage', topUpUrl: 'http://localhost/top_up' }, status: 'signed-out', attempt: null })),
+     copySignInLink: vi.fn(async () => undefined),
+-    ...resolveDesktopLocale(language),
++    ...resolveDesktopLocale(language, productName),
++    ...(productName === undefined ? {} : { productName }),
+     saveApiKey: vi.fn<(value: string) => Promise<WelcomeSaveResult>>().mockResolvedValue({ ok: true }),
+     skip: vi.fn<() => Promise<void>>().mockResolvedValue(undefined),
+   }
+@@ -36,11 +37,11 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
+   const copy = () => {
+     const heading = document.querySelector('main')!.getAttribute('aria-labelledby')!
+     return [
+-      document.title, document.querySelector('img')!.alt, document.getElementById(heading)!.textContent,
++      document.title, document.querySelector('img')?.alt ?? document.querySelector('[role="img"]')!.getAttribute('aria-label'), document.getElementById(heading)!.textContent,
+       ...heading === 'welcome-heading' ? [document.querySelector('#welcome-description')!.textContent] : [],
+       ...heading === 'key-title' ? [document.querySelector('#key-description')!.textContent, `${input.placeholder} [password]`] : [],
+-      ...[...document.querySelectorAll('button')].filter(item => item.closest('[hidden]') === null)
+-        .map(item => `${item.textContent || item.getAttribute('aria-label')}${item.disabled ? ' [disabled]' : ''}`),
++      ...[...document.querySelectorAll<HTMLButtonElement | HTMLAnchorElement>('button, #sign-in.text-link')].filter(item => item.closest('[hidden]') === null)
++        .map(item => `${item.textContent || item.getAttribute('aria-label')}${item instanceof HTMLButtonElement && item.disabled ? ' [disabled]' : ''}${item instanceof HTMLAnchorElement ? ' [link]' : ''}`),
+       '',
+     ].join('\n')
+   }
+@@ -48,6 +49,35 @@ function mount(language = 'zh-CN', takeNotice = vi.fn<() => Promise<WelcomeNotic
+ }
+ 
+ describe('desktop welcome presentation', () => {
++  it.each(['zh-CN', 'en'])('makes the API-key action primary for the %s branded welcome', async (language) => {
++    const view = mount(language, undefined, 'Vibe Finance')
++    expect([...document.querySelectorAll('#entry-actions .primary')]).toEqual([view.button('#api-key')])
++    expect(view.button('#sign-in').className).toBe('text-link')
++    expect(screen.getByRole('link', { name: view.api.messages.welcomeSignIn })).toBeTruthy()
++    expect(document.querySelector('#entry-actions')!.firstElementChild).toBe(view.button('#api-key'))
++    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/vibe-${language}.expected.txt`)
++    fireEvent.click(view.button('#api-key'))
++    expect(document.activeElement).toBe(view.input)
++    expect(document.querySelector('#key-description')!.textContent).toContain('platform.deepseek.com')
++    await expect(view.copy()).toMatchFileSnapshot(`./expected/welcome/vibe-${language}-api-key.expected.txt`)
++    await act(async () => { fireEvent.click(view.button('#skip-key')) })
++    expect(view.api.skip).toHaveBeenCalledOnce()
++    expect(view.api.saveApiKey).not.toHaveBeenCalled()
++  })
++  it('presents Vibe Finance while retaining the sign-in and key actions', async () => {
++    const view = mount('zh-CN', undefined, 'Vibe Finance')
++    expect(document.title).toBe('Vibe Finance')
++    expect(screen.getByRole('heading', { name: '欢迎使用 Vibe Finance' })).toBeTruthy()
++    expect(screen.getByRole('img', { name: 'Vibe Finance' })).toBeTruthy()
++    expect(screen.getByText('公开数据，可核对的研究')).toBeTruthy()
++    expect(document.querySelector('img')).toBeNull()
++    await act(async () => { fireEvent.click(view.button('#sign-in')) })
++    expect(view.api.startSignIn).toHaveBeenCalledOnce()
++    fireEvent.click(view.button('#api-key'))
++    expect(view.input.type).toBe('password')
++    expect(document.activeElement).toBe(view.input)
++    expect(view.api.saveApiKey).not.toHaveBeenCalled()
++  })
+   it.each(['zh-CN', 'en'])('renders the %s entry and API-key step', async (language) => {
+     const view = mount(language)
+     expect(view.document.documentElement.lang).toBe(language)
+diff --git a/apps/desktop/tests/welcome-window.spec.ts b/apps/desktop/tests/welcome-window.spec.ts
+index 6d2807c425..b4c3a9a435 100644
+--- a/apps/desktop/tests/welcome-window.spec.ts
++++ b/apps/desktop/tests/welcome-window.spec.ts
+@@ -1,5 +1,6 @@
+ import { join } from 'node:path'
+-import { beforeEach, describe, expect, it, vi } from 'vitest'
++import { fileURLToPath } from 'node:url'
++import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+ import { resolveDesktopLocale } from '../src/locale.ts'
+ import { needsWelcome, WELCOME_IPC } from '../src/welcome-api.ts'
+ 
+@@ -38,6 +39,7 @@ function createWindow() {
+ }
+ 
+ beforeEach(() => { electron.create.mockReset(); electron.handlers.clear() })
++afterEach(() => { vi.unstubAllEnvs() })
+ 
+ const operations = {
+   analyticsEnabled: async () => true,
+@@ -50,6 +52,11 @@ const operations = {
+ }
+ 
+ describe('desktop welcome window', () => {
++  it('keeps the branded welcome above the workspace without changing upstream options', () => {
++    expect(welcomeWindowOptions('darwin', resolveDesktopLocale('zh-CN')).alwaysOnTop).toBeUndefined()
++    vi.stubEnv('DSH_DESKTOP_BRANDING', fileURLToPath(new URL('../branding.vibe-finance.json', import.meta.url)))
++    expect(welcomeWindowOptions('darwin', resolveDesktopLocale('zh-CN', 'Vibe Finance')).alwaysOnTop).toBe(true)
++  })
+   it.each(['darwin', 'win32', 'linux'] as const)('keeps the %s preview fixed-size and sandboxed', (platform) => {
+     const options = welcomeWindowOptions(platform, resolveDesktopLocale('zh-CN'))
+     expect(options).toMatchObject({
+diff --git a/apps/desktop/tests/expected/welcome/vibe-en-api-key.expected.txt b/apps/desktop/tests/expected/welcome/vibe-en-api-key.expected.txt
+new file mode 100644
+index 0000000000..8d722c5b21
+--- /dev/null
++++ b/apps/desktop/tests/expected/welcome/vibe-en-api-key.expected.txt
+@@ -0,0 +1,8 @@
++Vibe Finance
++Vibe Finance
++Paste your DeepSeek key
++Create a key on the API keys page at platform.deepseek.com, then paste it here.
++A key starting with sk- [password]
++Save and continue [disabled]
++Set up later
++Back
+diff --git a/apps/desktop/tests/expected/welcome/vibe-en.expected.txt b/apps/desktop/tests/expected/welcome/vibe-en.expected.txt
+new file mode 100644
+index 0000000000..7bbd147fc1
+--- /dev/null
++++ b/apps/desktop/tests/expected/welcome/vibe-en.expected.txt
+@@ -0,0 +1,6 @@
++Vibe Finance
++Vibe Finance
++Welcome to Vibe Finance
++Public data. Verifiable research.
++Connect DeepSeek to get started
++Sign in with your DeepSeek account [link]
+diff --git a/apps/desktop/tests/expected/welcome/vibe-zh-CN-api-key.expected.txt b/apps/desktop/tests/expected/welcome/vibe-zh-CN-api-key.expected.txt
+new file mode 100644
+index 0000000000..4b2fd3ad58
+--- /dev/null
++++ b/apps/desktop/tests/expected/welcome/vibe-zh-CN-api-key.expected.txt
+@@ -0,0 +1,8 @@
++Vibe Finance
++Vibe Finance
++粘贴你的 DeepSeek 密钥
++在 DeepSeek 开放平台（platform.deepseek.com）的 API keys 页面创建密钥，再粘贴到这里。
++sk- 开头的一串字符 [password]
++保存并继续 [disabled]
++稍后配置
++返回
+diff --git a/apps/desktop/tests/expected/welcome/vibe-zh-CN.expected.txt b/apps/desktop/tests/expected/welcome/vibe-zh-CN.expected.txt
+new file mode 100644
+index 0000000000..77cef624dd
+--- /dev/null
++++ b/apps/desktop/tests/expected/welcome/vibe-zh-CN.expected.txt
+@@ -0,0 +1,6 @@
++Vibe Finance
++Vibe Finance
++欢迎使用 Vibe Finance
++公开数据，可核对的研究
++连接 DeepSeek 开始使用
++用 DeepSeek 账号登录 [link]

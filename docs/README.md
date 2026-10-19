@@ -19,3 +19,5 @@
 检查：`node scripts/verify-protocol.mjs`（共享协议、Checklist、AGENTS、Task）、`node scripts/verify-docs.mjs`（目录结构、归档冻结、非归档且非过程记录文档的相对链接）与 `node scripts/verify-invariants.mjs`；CI 中运行。
 
 进行中的 Task 见 `tasks/active/` 目录。
+
+本机未签名桌面包的构建、缓存、原生验收和交付入口见 [桌面增量打包](../desktop/packaging/README.md)。
