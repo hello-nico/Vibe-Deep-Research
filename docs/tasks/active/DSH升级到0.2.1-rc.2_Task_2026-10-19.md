@@ -60,9 +60,9 @@ R6 所列；用户现用工作台切换（Claude 审阅、用户在 5939 验收�
 
 ## 9. 当前交接
 
-1. 状态与结论：codex2：两仓 detached .worktrees/codex2-rc2 升级完成；§5 第1–3项完成，第4项未通过。华友研究第4步两次未完成，第5、6步等待；不切换、不提交，已停。
-2. 改动文件：Vibe runtime manifest/lock、10补丁、checker/README；finance-ui 子任务创建、result-projection、dsh_paths 及测试；Stock dsh manifest/lock、background-review/research-tools 及测试。只改两仓指定 worktree；本 Task 仅回填§9。
-3. 证据：Vibe 476通过/仅#34端口占用失败，tsc/文档/不变量/checker及两仓diff检查通过；Stock 320通过。七页截图、真实图表/问助手完成、audit退出0；报告 .local/dsh-rc2-upgrade/report.md，任务 task:841b5d76969e819b。
-4. 与规格的偏差及理由：直接锁定session-controller使宿主同实例打补丁；公开创建窗口替代rc.2移除的persona/toolFilter；独立代理避免启动器读取.env。模型仅按补充授权传入环境变量，未打印/落盘；未改主目录产品代码与pi1取数文件。
-5. 未覆盖的缺口：华友首会话工具JSON格式错误；自动续跑两次保存均403 invalid research hook token，未获该令牌注入授权，第6步未执行。未验收完整整理/GBrain导航/打包；浏览器已关闭，5939保留，未触碰5930或现用DSH_HOME。
-6. 下一步谁做什么：Claude审阅两仓diff与报告；用户/Claude确认hook令牌安全进程注入方案，同时开启STOCK_RESEARCH_ACCUMULATE=1，复核模型格式错误后再授权新一轮华友研究，须见第6步完成并重审计；未通过前不切换现用工作台。
+1. 状态与结论：codex2：两仓同步指定HEAD和未提交修复后重叠rc.2，零冲突；门禁符合要求。华友六步全done，整理17:04:04完成、草案待授权。本轮无MALFORMED_RESPONSE，审计0。中文8题开头0句英文，思考摘要19/19含英，按R3停下，未提交或切换。
+2. 改动文件：两仓codex2-rc2同步Vibe 7b4afe04、Stock de8b1fc，导入指定中文及Backend修复；原rc.2差异先存.local/dsh-rc2-upgrade/sync-1757/再重放。仅worktree代码、忽略证据和本Task§9；主目录产品代码及pi1文件未自行改动。
+3. 证据：任务task:2e7436e370e28fb6；研究02634130-e5c1-490c-9402-8e79fdd9a772、整理ab36a283-aa2f-4bb2-bd60-a784ab5b0146均completed。Vibe 479项478过仅#34失败，Stock320全过，tsc/文档/不变量/checker/diff均过。report.md、company-synced-task.json、audit-synced-final.json。
+4. 与规格的偏差及理由：无范围扩张；产品resolve/prepare启动5939/5949、指定home，研究配置由产品自行取得，模型继承授权环境变量。首次并行测试有受控子任务超时，独立及全量复跑通过，未改断言。中文仅接口实测不开浏览器；未复现格式错误，未导出原始帧。
+5. 未覆盖的缺口：.local/zh-check/summary.md记录5问助手、3深聊及全部10条中文进度；非空思考块完成态首行19/19含英，未逐帧采样UI。研究保存修正裸数字后成功，但5处无效情景占位被剔除、部分参数待校准；整理完成不代表草案已发布，旧偶发JSON错误未定因。
+6. 下一步谁做什么：Claude审阅同步及rc.2差异，并按中文R3决定英文思考摘要处理；用户在5939验收，草案发布仍需授权。5939产品进程771/997保留，模型轮询已结束，本轮未开浏览器；不提交、不碰5930/现用home，codex2已停。
