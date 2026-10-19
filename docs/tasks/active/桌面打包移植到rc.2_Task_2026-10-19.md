@@ -52,9 +52,9 @@ R5 所列。
 
 ## 9. 当前交接
 
-1. 状态与结论：codex1 已完成 rc.2 品牌与装入源码移植；按 §4、§7 停下等待。rc.2 第6步尚未通过，未打包、未启动应用、未提交。
-2. 改动文件：.local/desktop-rc2/dsh-worktree 的 apps/desktop 共41文件；合成 desktop.patch、report.md、changed-files.txt 与验证日志均在 .local/desktop-rc2/。
-3. 证据：相关测试175通过/1跳过；签名配置测试17通过/1因旧builder不识ULMO失败。Host/Client直接类型检查、diff检查、文档配对通过；递归构建缺依赖及生成声明。补丁SHA-256：b56a7d1191f86509721ea46ce31ff40c0996c2ef14373f941463418ae250aa7d。
-4. 与规格的偏差及理由：离线缺锁定pnpm缓存，源码验证复用现有依赖，未声称锁定依赖全绿。品牌保留rc.2频道/bin/test发布ID与unsigned无更新配置，未改签名和校验策略。
-5. 未覆盖的缺口：锁定依赖构建、十补丁真实装入、check-inline-result实际执行、目录包与原生截图均待放行；测试使用临时夹具/mock，非真实包验收。未签名、公证、上传或触碰现用工作台。
-6. 下一步谁做什么：Claude 审阅源码补丁；明确通知rc.2第6步通过后，codex1只读Vibe/Stock的.worktrees/codex2-rc2快照，补齐锁定依赖验证再打未签名包；当前停下等待。
+1. 状态与结论：codex1 已完成最终快照、两个产品包、未签名arm64目录包及ZIP；最终包真实首启写入compact，预置standard/next-input保持。四张原生截图已保存；自动聚焦留有缺口，停止等审。
+2. 改动文件：DSH worktree的apps/desktop共41文件；本轮增加逐文件快照清单与tar哈希，移除旧registry复制。产物、快照、截图、回执及report.md均在.local/desktop-rc2/；改动见changed-files.txt。
+3. 证据：全链装配、十补丁/Web检查、封装后Host/Office冒烟、build:check通过；两实例均退出0。ZIP SHA-256：296737c87190f8315c2b52a511d107187ad61070c1f72b07201d33ec3ecbc717；产品包见artifacts/SHA256SUMS。
+4. 与规格的偏差及理由：保留用户指定两份未提交修复，来源worktree经哈希核对未变。现用rc.2入口不依赖datasources/registry.json，故修正alpha遗留复制；unsigned沿上游ad-hoc路径，不用证书、不改签名校验策略。
+5. 未覆盖的缺口：问助手打开后AX焦点仍在入口按钮；手动点击输入框后聚焦、无品牌橙，自动聚焦不记通过。未做模型研究、Windows、Developer ID签名、公证或上传。关于面板和连接页已截图。
+6. 下一步谁做什么：Claude3审阅report.md、产物和自动聚焦缺口，产品侧另判断是否修复。codex1的fresh/existing实例已退出；5930/5939仍监听，现用home未碰。不提交、不push；当前已停下。
