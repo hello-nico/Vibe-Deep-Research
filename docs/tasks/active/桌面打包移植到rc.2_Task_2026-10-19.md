@@ -55,9 +55,9 @@ R5 所列。
 
 ## 9. 当前交接
 
-1. 状态与结论：codex1完成r8欢迎文案小改：链接为“用 DeepSeek 账号登录”，密钥页标题为“粘贴你的 DeepSeek 密钥”，占位为“sk- 开头的一串字符”，返回按钮为“返回”；获取密钥说明保留。最终包两页已原生核对并截图，自建实例正常退出0。
-2. 改动文件：本轮仅locale.ts、4份品牌welcome预期与双语README，共7个文件，详见.local/desktop-rc2/r8/changed-files.txt；累计合成补丁仍47文件。截图为r8-welcome-entry.png、r8-welcome-api-key.png；布局、登录、隔离及产品来源均未改。
-3. 证据：欢迎49项、桌面构建、未签名目录打包、diff/补丁检查通过；ZIP全成员CRC及ASAR一致性通过。当前包artifacts/Vibe-Finance-0.2.1-rc.2-mac-arm64-unsigned-r8.zip，SHA-256：c07aeaa7c83788d8af5662194c98d1b6ab14c1129354a81ef881bf0489c08306。
-4. 与规格的偏差及理由：无。本轮仅改品牌分支文案并同步英文，不改上游默认文案、密钥获取说明、账号逻辑或R6/R7行为。增量范围核对见r8/incremental-change-audit.json；合成补丁及report.md已更新。
-5. 未覆盖的缺口：本轮未输入真实密钥、登录或研究，未重做已审R6/R7的完整回归；仅核对两页文案与原生显示。此前问助手自动聚焦缺口仍保留。未做Windows、Developer ID签名、公证或上传。
-6. 下一步谁做什么：Claude3审阅r8 ZIP及两张原生截图后交用户试用；自建截图实例已正常退出，未操作用户实例及5930/5939。verify-protocol通过，无提交、push，codex1已停下。
+1. 状态与结论：codex1已重打并交付r9，普通首启进入产品首页；原生红黄绿不压logo/“对话”、全屏无空带已截图核对。顶部带拖动未能证实，不记通过；自建实例正常退出0，交Claude3复核该缺口。
+2. 改动文件：产品来源改为两仓主目录Vibe 15ddf0f9+未提交D8五文件、Stock 1d4c02c；仅只读封存编译，清单与tar哈希见.local/desktop-rc2/r9/source-summary.json及sources/。r8桌面补丁未改；本轮产物、日志与截图均在同目录。
+3. 证据：两产品锁定构建、十补丁/check-inline-result、CLI/Office冒烟与D8规则4项通过；ZIP CRC及ASAR一致性通过。Downloads/Vibe-Finance-0.2.1-rc.2-mac-arm64-unsigned-r9.zip，SHA-256：c0603246a768060cfc916508d8e7321fbc261e97776f1ee95a702d2f5af5cb1b。
+4. 与规格的偏差及理由：依本轮用户指令以主目录取代§4旧worktree来源，记录全部工作树输入。拖动一次有效请求前后窗口坐标仍为(116,33)，其余尝试被工具拒绝；不能区分自动化限制与产品问题，不擅改源码。详见report.md及r9/drag-result.json。
+5. 未覆盖的缺口：顶部带实际拖动待人工复核。未填真实密钥、登录或研究；此前问助手自动聚焦缺口保留。截图为r9-native-window.png、r9-fullscreen.png等；未做Windows、Developer ID签名、公证或上传。
+6. 下一步谁做什么：Claude3在Downloads/Vibe Finance r9.app人工复核拖动并判定D8；ZIP已复制、ditto解压后改为指定r9名称，未覆盖Vibe Finance.app或Vibe Finance 2.app。只退出自建实例，未操作用户实例及5930/5939；verify-protocol通过，无提交/push，已停下。
