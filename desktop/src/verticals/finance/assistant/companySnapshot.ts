@@ -7,8 +7,8 @@
  */
 import { fieldIdLabel, findField, showField, type DataPacket, type PacketField, type PacketThreshold } from '../lib/companyPacket';
 import {
-  contributions, epsAt, flowItems, impliedPe, keyIdsOf, peerMedian, periodLabel, plainNumber, profitAt, quarterLabel, resolveSlot,
-  ruleOfThumbText, sliderUnitText, splitSentence, thresholdLine, trackingState, yiText, yuanText,
+  contributions, epsAt, flowItems, impliedPe, keyIdsOf, peerMedian, periodLabel, plainNumber, profitAt, quarterLabel, fillSlots,
+  ruleOfThumbText, sliderUnitText, TRACKING_TEXT, trackingNote, trackingState, yiText, yuanText,
   type QuarterBar, type SensitivityModel, type SliderValues,
 } from '../lib/companyNarrative';
 import type { SnapshotSection } from './snapshot';
@@ -18,7 +18,7 @@ type NarrativeId = 'business' | 'variables' | 'cash' | 'valuation' | 'tracking';
 
 /** 回答句：占位按页面规则填值，缺口写「暂缺」，与页面所见一致。 */
 export function fillSentence(text: string | undefined, packet: DataPacket | undefined, calcs: Record<string, unknown>): string {
-  return splitSentence(text ?? '').map(part => part.kind === 'text' ? part.text : resolveSlot(part.token, packet, calcs)?.text ?? '暂缺').join('').trim();
+  return fillSlots(text, packet, calcs, '暂缺').trim();
 }
 
 /** 口径只在写的是中文说明时带上（「合并经营现金流 / 同期归母净利」），带英文内部取值（provider、编号）的整条不带。 */
@@ -84,8 +84,9 @@ function trackingLines(items: readonly SnapshotTrackItem[], now?: Date): string[
     const state = trackingState({ current, threshold: item.threshold, window: item.window, now });
     const title = item.fieldId ? `${fieldIdLabel(item.fieldId)}${item.yoy ? '同比' : ''}` : item.text;
     const value = item.fieldId ? (item.field && item.field.value != null && item.field.status !== 'gap' ? showField(item.field) : '暂缺') : '';
-    const line = thresholdLine(item.threshold);
-    return `- ${title}${value ? `：${value}` : ''}；状态 ${state ?? '待定'}${line ? `；警戒 ${line}` : ''}${item.window ? `；${item.window}` : ''}${item.fieldId ? `；支柱：${item.text}` : ''}`;
+    const level = TRACKING_TEXT.holds(item.threshold);
+    const note = trackingNote({ state, title, value: value || '—', threshold: item.threshold, window: item.window });
+    return `- ${title}${value ? `：${value}` : ''}${note ? `；${note}` : ''}${level ? `；${level}` : ''}${item.window ? `；${item.window}` : ''}${item.fieldId ? `；支柱：${item.text}` : ''}`;
   });
 }
 

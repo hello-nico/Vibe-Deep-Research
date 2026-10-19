@@ -184,12 +184,19 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
     return () => window.removeEventListener("keydown", onKey);
   }, [open, close, mentionQuery]);
 
+  // 上下文标签只属于当前页：面板换到另一页时，上一页自动带入与手动 @ 的标签一律丢弃，回到原页也不恢复。
+  const chipsPage = useRef(page?.key);
   useEffect(() => {
-    if (question?.pageKey !== page?.key) return;
-    const fresh = (objects ?? []).filter(item => !chips.some(chip => chip.id === item.id));
-    if (!fresh.length) return;
-    const key = binding?.bindKey || "";
-    rememberChips(key, [...chips, ...fresh]);
+    const switched = chipsPage.current !== page?.key;
+    if (switched) {
+      chipsPage.current = page?.key;
+      chipsByBind.current.clear();
+    }
+    const base = switched ? [] : chips;
+    const fresh = question?.pageKey === page?.key ? (objects ?? []).filter(item => !base.some(chip => chip.id === item.id)) : [];
+    if (!switched && !fresh.length) return;
+    if (switched && !chips.length && !fresh.length) return;
+    rememberChips(binding?.bindKey || "", [...base, ...fresh]);
   }, [objects, chips, binding?.bindKey, rememberChips, question?.pageKey, page?.key]);
 
   const newThread = () => {
@@ -307,6 +314,8 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
     }
   };
 
+  // 面板标题已是这份文档名时，不再重复显示同名标签（标签仍随本轮发送）。
+  const shownChips = chips.filter(item => !(item.kind === 'document' && item.label === page?.title));
   const ready = Boolean(sessionId) && !seat.busy;
   if (!binding) return null;
 
@@ -353,9 +362,9 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
               <p>{error || "正在准备，马上就好…"}</p>
             </div>
           )}
-          {chips.length > 0 && (
+          {shownChips.length > 0 && (
             <div className="flex flex-wrap gap-1.5 border-t border-border/50 px-4 py-2">
-              {chips.map(item => (
+              {shownChips.map(item => (
                 <span key={item.id} className="tag max-w-full gap-1">
                   <span className="truncate" title={item.hint || item.label}>{item.label}</span>
                   <button type="button" aria-label={`移除 ${item.label}`} onClick={() => {

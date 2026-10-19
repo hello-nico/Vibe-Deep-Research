@@ -145,32 +145,38 @@ test('敏感性：页面只做 基数 + Σ 系数 × 变动 与 ÷ 股本；神�
 });
 
 test('跟踪状态：按 threshold.direction 判越线；缺省或缺当前值为待定（null）；窗口按披露截止推算', () => {
-  const { trackingState, windowPassed, thresholdLine, pendingReason } = narrative;
+  const { trackingState, windowPassed, TRACKING_TEXT, trackingNote } = narrative;
   const now = new Date('2026-10-12T04:00:00Z');
   const down = { kind: 'level', direction: 'down', value: '20', unit: '%' };
   const up = { kind: 'level', direction: 'up', value: '25', unit: '%' };
-  assert.equal(trackingState({ current: 23.2, threshold: down, window: 'FY2026年报', now }), '更稳');
-  assert.equal(trackingState({ current: 18, threshold: down, window: 'FY2026年报', now }), '打折扣');
-  assert.equal(trackingState({ current: 18, threshold: down, window: '2026-09-30', now }), '不成立');
-  assert.equal(trackingState({ current: 23, threshold: up, window: '2026-09-30', now }), '更稳');
-  assert.equal(trackingState({ current: 26, threshold: up, window: '2026年半年报', now }), '不成立');
-  assert.equal(trackingState({ current: 26, threshold: up, window: '2026年三季报', now }), '打折扣');
-  assert.equal(trackingState({ current: 26, threshold: up, window: '2026-12-31', now }), '打折扣');
+  assert.equal(trackingState({ current: 23.2, threshold: down, window: 'FY2026年报', now }), 'ok');
+  assert.equal(trackingState({ current: 18, threshold: down, window: 'FY2026年报', now }), 'crossed');
+  assert.equal(trackingState({ current: 18, threshold: down, window: '2026-09-30', now }), 'failed');
+  assert.equal(trackingState({ current: 23, threshold: up, window: '2026-09-30', now }), 'ok');
+  assert.equal(trackingState({ current: 26, threshold: up, window: '2026年半年报', now }), 'failed');
+  assert.equal(trackingState({ current: 26, threshold: up, window: '2026年三季报', now }), 'crossed');
+  assert.equal(trackingState({ current: 26, threshold: up, window: '2026-12-31', now }), 'crossed');
   // 向下的线不会因为当前值偏高而越线，向上的线不会因为偏低而越线：方向只看 direction，不看证伪句措辞。
-  assert.equal(trackingState({ current: 30, threshold: down, window: '2026-09-30', now }), '更稳');
-  assert.equal(trackingState({ current: 10, threshold: up, window: '2026-09-30', now }), '更稳');
+  assert.equal(trackingState({ current: 30, threshold: down, window: '2026-09-30', now }), 'ok');
+  assert.equal(trackingState({ current: 10, threshold: up, window: '2026-09-30', now }), 'ok');
   // 同比类阈值：当前值取年内累计同比镜头。
-  assert.equal(trackingState({ current: -8, threshold: { kind: 'yoy_pct', direction: 'down', value: '-5', unit: '%' }, window: '2026年三季报', now }), '打折扣');
-  assert.equal(trackingState({ current: -2, threshold: { kind: 'yoy_pct', direction: 'down', value: '-5', unit: '%' }, window: '2026年三季报', now }), '更稳');
+  assert.equal(trackingState({ current: -8, threshold: { kind: 'yoy_pct', direction: 'down', value: '-5', unit: '%' }, window: '2026年三季报', now }), 'crossed');
+  assert.equal(trackingState({ current: -2, threshold: { kind: 'yoy_pct', direction: 'down', value: '-5', unit: '%' }, window: '2026年三季报', now }), 'ok');
   // 缺 direction（旧研究）、缺当前值、没有阈值：不判状态。
   assert.equal(trackingState({ current: 18, threshold: { kind: 'level', value: '20', unit: '%' }, window: '2026-09-30', now }), null);
   assert.equal(trackingState({ current: null, threshold: down, window: '2026-09-30', now }), null);
   assert.equal(trackingState({ current: 10, threshold: null, now }), null);
-  assert.equal(pendingReason({ current: 18, threshold: { kind: 'level', value: '20', unit: '%' } }), '研究没有写明越线方向');
-  assert.equal(pendingReason({ current: null, threshold: down }), '当前值暂缺');
-  assert.equal(thresholdLine(down), '跌破 20.00 %');
-  assert.equal(thresholdLine(up), '突破 25.00 %');
-  assert.equal(thresholdLine({ kind: 'level', value: '20', unit: '%' }), '20.00 %');
+  // 白话：卡片上的警戒线、越线一句、观察期已过一句；正常或取不到值时没有句子。
+  assert.equal(TRACKING_TEXT.holds(down), '保持在 20% 以上');
+  assert.equal(TRACKING_TEXT.holds(up), '保持在 25% 以下');
+  assert.equal(TRACKING_TEXT.holds({ kind: 'level', value: '20', unit: '%' }), '关键值 20%');
+  assert.equal(TRACKING_TEXT.holds({ kind: 'yoy_pct', direction: 'down', value: '-5', unit: '%' }), '保持在 -5% 以上');
+  assert.equal(trackingNote({ state: 'ok', title: '毛利率', value: '23.15 %', threshold: down }), '');
+  assert.equal(trackingNote({ state: null, title: '毛利率', value: '暂缺', threshold: down }), '');
+  assert.equal(trackingNote({ state: 'crossed', title: '毛利率', value: '18.00 %', threshold: down, window: 'FY2026年报' }), '毛利率降到 18%，低于 20%，这条判断可能不成立了');
+  assert.equal(trackingNote({ state: 'crossed', title: '资本开支', value: '26.00 %', threshold: up, window: 'FY2026年报' }), '资本开支升到 26%，高于 25%，这条判断可能不成立了');
+  assert.equal(trackingNote({ state: 'failed', title: '毛利率', value: '18.00 %', threshold: down, window: '2026年三季报' }), '三季报已出，毛利率仍低于 20%，这条判断不成立');
+  assert.equal(trackingNote({ state: 'failed', title: '毛利率', value: '18.00 %', threshold: down, window: '2026-09-30' }), '观察期已过，毛利率仍低于 20%，这条判断不成立');
   assert.equal(narrative.breachDirection, undefined, '不再按措辞猜方向');
   for (const [window, expected] of [['FY2026年报', false], ['FY2025年报', true], ['2026年半年报', true], ['2026年三季报', false], ['2026年一季报', true], ['下一次定期报告', false], ['', false], ['2026-10-11', true], ['2026-10-12', false]] as const)
     assert.equal(windowPassed(window, now), expected, window);
@@ -300,54 +306,61 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   assert.equal(container.querySelectorAll('[data-company-section="business"] .metric').length >= 3, true);
 });
 
-test('跟踪卡：每个支柱一张，状态按 direction 由页面判断；旧研究缺 direction 显示状态待定；点开看支柱与证伪条件', async () => {
+test('跟踪卡：正常不出状态标签，越线才在数值下说一句白话；只有箭头能收起；旧研究缺 direction 不判状态', async () => {
   const research = directed(huaneng.research.research);
   const fixture = services({ packet: huaneng.packet, research, scenario: packetModule.scenarioTable(huaneng.scenarioResult) });
   await mount(fixture);
   const cards = [...container.querySelectorAll('[data-pillar]')];
   assert.equal(cards.length, 5);
-  // p1 是同比类警戒线（跌破 -5%），当前值取年内累计同比镜头（-5.8%）：越线且窗口（三季报）未到，打折扣。
-  assert.deepEqual(cards.map(card => card.getAttribute('data-track-state')), ['打折扣', '更稳', '更稳', '更稳', '更稳']);
+  // p1 是同比类警戒线（跌破 -5%），当前值取年内累计同比镜头（-5.8%）：越线且窗口（三季报）未到。
+  assert.deepEqual(cards.map(card => card.getAttribute('data-track-state')), ['crossed', 'ok', 'ok', 'ok', 'ok']);
+  assert.equal(container.querySelectorAll('[data-pillar] .status-pill').length, 0, '不再有状态标签');
   const p2 = container.querySelector('[data-pillar="p2"]')!.textContent!;
   assert.match(p2, /毛利率/);
   assert.match(p2, /23\.15 %/);
-  assert.match(p2, /警戒 跌破 20\.00 % · FY2026年报/);
+  assert.match(p2, /保持在 20% 以上 · FY2026年报/);
+  assert.equal(container.querySelector('[data-pillar="p2"] [data-track-note]'), null, '正常时没有白话句');
   const p1 = container.querySelector('[data-pillar="p1"]')!.textContent!;
   assert.match(p1, /营业收入同比/);
   assert.match(p1, /-5\.80 %/);
-  assert.match(p1, /警戒 跌破 同比 -5\.00% · /);
-  assert.equal(container.querySelectorAll('[data-pillar] .status-pill').length, 5);
-  assert.equal(container.querySelector('[data-pillar="p1"] .status-pill')!.textContent, '打折扣');
-  // 点开看支柱与不成立的条件；默认收起。
+  assert.match(p1, /保持在 -5% 以上/);
+  assert.equal(container.querySelector('[data-pillar="p1"] [data-track-note]')!.textContent, '营业收入同比降到 -5.8%，低于 -5%，这条判断可能不成立了');
+  // 默认展开支柱与不成立的条件；卡头不可点，只有箭头收起 / 再展开。
   const p5 = container.querySelector('[data-pillar="p5"]')!;
-  assert.equal(p5.querySelector('.narrative-track-more'), null);
-  await React.act(async () => { (p5.querySelector('.narrative-track-head') as HTMLElement).click(); });
   assert.match(p5.querySelector('.narrative-track-more')!.textContent!, /支柱：.*不成立的条件：/);
-  // 没有年内累计同比镜头时，同比类警戒线当前值暂缺、状态待定。
+  assert.equal(container.querySelectorAll('.narrative-track-more').length, 5);
+  assert.equal(p5.querySelector('.narrative-track-head')!.tagName, 'DIV');
+  await React.act(async () => { (p5.querySelector('.narrative-track-head') as HTMLElement).click(); (p5.querySelector('.narrative-track-now') as HTMLElement).click(); });
+  assert.notEqual(p5.querySelector('.narrative-track-more'), null);
+  await React.act(async () => { (p5.querySelector('.narrative-track-toggle') as HTMLElement).click(); });
+  assert.equal(p5.querySelector('.narrative-track-more'), null);
+  await React.act(async () => { (p5.querySelector('.narrative-track-toggle') as HTMLElement).click(); });
+  assert.notEqual(p5.querySelector('.narrative-track-more'), null);
+  // 没有年内累计同比镜头时，同比类警戒线当前值暂缺，不显示任何状态。
   const bare = structuredClone(huaneng.packet);
   delete bare.lenses.ytd_yoy;
   await mount(services({ packet: bare, research, scenario: packetModule.scenarioTable(huaneng.scenarioResult) }));
   assert.equal(container.querySelector('[data-pillar="p1"]')!.getAttribute('data-track-state'), null);
-  assert.match(container.querySelector('[data-pillar="p1"]')!.textContent!, /暂缺[\s\S]*状态待定|状态待定[\s\S]*暂缺/);
-  // 旧研究没有 direction：不按措辞猜，全部状态待定，悬停说明原因；警戒线不加「跌破」。
+  assert.equal(container.querySelector('[data-pillar="p1"] [data-track-note]'), null);
+  assert.match(container.querySelector('[data-pillar="p1"]')!.textContent!, /暂缺/);
+  // 旧研究没有 direction：不按措辞猜，不判状态；警戒线不加方向词。
   await mount(services({ packet: huaneng.packet, research: huaneng.research.research }));
   const legacyCards = [...container.querySelectorAll('[data-pillar]')];
   assert.deepEqual(legacyCards.map(card => card.getAttribute('data-track-state')), [null, null, null, null, null]);
-  assert.deepEqual(legacyCards.map(card => card.querySelector('.status-pill')!.textContent), Array(5).fill('状态待定'));
-  assert.equal(legacyCards[1]!.querySelector('.status-pill')!.parentElement!.getAttribute('title'), '研究没有写明越线方向');
-  assert.doesNotMatch(legacyCards[1]!.textContent!, /跌破|突破/);
+  assert.equal(container.querySelectorAll('[data-track-note]').length, 0);
+  assert.doesNotMatch(legacyCards[1]!.querySelector('.narrative-track-now')!.textContent!, /保持|低于|高于|跌破|突破|警戒/);
   await mount(fixture);
-  // 阈值被页面判成越线时：窗口未到打折扣，窗口已过不成立；向上的线按 up 判。
+  // 阈值被页面判成越线时：窗口未到说「…这条判断可能不成立了」，窗口已过说「这条判断不成立」；向上的线按 up 判。
   const worse = directed(huaneng.research.research);
   worse.falsifiers[1].threshold = { kind: 'level', direction: 'down', value: '30', unit: '%' };
   worse.falsifiers[2] = { ...worse.falsifiers[2], threshold: { kind: 'level', direction: 'down', value: '3', unit: '倍' }, window: '2025-12-31' };
   worse.falsifiers[3] = { ...worse.falsifiers[3], threshold: { ...worse.falsifiers[3].threshold, direction: 'up', value: '0.1' } };
   await mount(services({ packet: huaneng.packet, research: worse }));
-  assert.equal(container.querySelector('[data-pillar="p2"]')!.getAttribute('data-track-state'), '打折扣');
-  assert.equal(container.querySelector('[data-pillar="p3"]')!.getAttribute('data-track-state'), '不成立');
-  assert.equal(container.querySelector('[data-pillar="p4"]')!.getAttribute('data-track-state'), '打折扣');
-  assert.match(container.querySelector('[data-pillar="p4"]')!.textContent!, /突破/);
-  assert.match(container.querySelector('[data-pillar="p3"] .status-pill')!.textContent!, /不成立/);
+  assert.equal(container.querySelector('[data-pillar="p2"]')!.getAttribute('data-track-state'), 'crossed');
+  assert.equal(container.querySelector('[data-pillar="p3"]')!.getAttribute('data-track-state'), 'failed');
+  assert.equal(container.querySelector('[data-pillar="p4"]')!.getAttribute('data-track-state'), 'crossed');
+  assert.match(container.querySelector('[data-pillar="p4"] [data-track-note]')!.textContent!, /升到 .*，高于 .*，这条判断可能不成立了$/);
+  assert.match(container.querySelector('[data-pillar="p3"] [data-track-note]')!.textContent!, /^观察期已过，.*这条判断不成立$/);
 });
 
 test('缺口研究与无研究：数据照常显示，只留应有的节', async () => {

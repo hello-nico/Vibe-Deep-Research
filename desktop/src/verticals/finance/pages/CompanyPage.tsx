@@ -5,7 +5,7 @@ import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
 import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
-import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, FlowBar, GradePills, QuarterBars, SensitivityPanel, TrackingCards, ValuationBand, type BandTier, type DriverNote, type TrackItem } from '../components/CompanyNarrative';
 import { companyPageProgress, companyPageStore, companyPageTaskActive, type CompanyPageData, type CompanyPageResearch, type CompanyPageServices, type CompanyPageState } from '../lib/companyPage';
 import { financialNumber } from '../lib/financialDisplay';
@@ -178,8 +178,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   }, [services, scenarioRef]);
   // 计算凭据：敏感性与句中 {calc:…} 占位引用的凭据，读不到的占位显示「暂缺」。
   const sensitivityRef = saved?.sensitivity?.resultRef ?? undefined;
-  const summaries = Object.values(saved?.sections ?? {}).map(block => block?.summary);
-  const calcKey = unique([...(sensitivityRef ? [sensitivityRef] : []), ...summaries.flatMap(text => calcRefsIn(text)), ...calcRefsIn(saved?.thesis)]).join(',');
+  const summaries = Object.values(saved?.sections ?? {}).flatMap(block => [block?.summary, block?.details]);
+  const calcKey = unique([...(sensitivityRef ? [sensitivityRef] : []), ...[...summaries, saved?.valuation?.conditions, ...(saved?.pillars ?? []).map(item => item.text), ...(saved?.falsifiers ?? []).map(item => item.text), ...(saved?.catalysts ?? []).map(item => item.event)].flatMap(text => calcRefsIn(text)), ...calcRefsIn(saved?.thesis)]).join(',');
   useEffect(() => {
     const controller = new AbortController();
     setCalcs({});
@@ -217,6 +217,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     try { await services.revertResearch(symbol, research.researchVersion); setReverting('idle'); await store.refresh(); }
     catch (error) { console.warn('[finance/company-page] revert failed', error); setReverting('failed'); }
   };
+  // 研究文字里的 {…} 数据引用统一在这里解析成数值；解析不到写「（数据缺失）」。
+  const fill = (text?: string) => fillSlots(text, packet, calcs);
   const tracking: TrackItem[] = (saved?.pillars ?? []).map(pillar => {
     const matching = (saved?.falsifiers ?? []).filter(item => item.pillarId === pillar.id);
     const lead = matching.find(item => item.fieldId) ?? matching[0];
@@ -224,10 +226,10 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     const yoy = lead?.threshold?.kind === 'yoy_pct';
     const yoyLens = yoy ? yoyField(packet, lead?.fieldId) : undefined;
     return {
-      id: pillar.id, text: pillar.text, fieldIds: pillar.fieldIds ?? [], fieldId: lead?.fieldId, yoy,
+      id: pillar.id, text: fill(pillar.text), fieldIds: pillar.fieldIds ?? [], fieldId: lead?.fieldId, yoy,
       field: yoy ? yoyLens : lead?.fieldId ? findField(packet, lead.fieldId) : undefined,
-      threshold: lead?.threshold, window: lead?.window, falsifier: lead?.text,
-      more: matching.filter(item => item !== lead).map(item => ({ text: item.text, line: [thresholdText(item.threshold), item.window].filter(Boolean).join(' · ') })),
+      threshold: lead?.threshold, window: lead?.window, falsifier: lead?.text ? fill(lead.text) : lead?.text,
+      more: matching.filter(item => item !== lead).map(item => ({ text: fill(item.text), line: [thresholdText(item.threshold), item.window].filter(Boolean).join(' · ') })),
     };
   });
   const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">数据暂时取不到</p> : null;
@@ -249,7 +251,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     const onFirstLayer = new Set(keyIdsOf(packet, keys));
     const list = unique(ids).filter(fieldId => !onFirstLayer.has(fieldId));
     return (details || list.length) ? <Detail>
-      {details && <p>{details}</p>}
+      {details && <p>{fill(details)}</p>}
       <div className="company-page-metrics">{list.map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
     </Detail> : null;
   };
@@ -314,7 +316,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         : <>{(formulaSentence || formula) && <div className="narrative-formula" data-formula="">{formulaSentence && <AnswerSentence id="profit_formula" text={formulaSentence} packet={packet} calcs={calcs} />}{formula && <span className="company-page-gap">{formula}</span>}</div>}<QuarterBars bars={bars} /></>,
       [],
       (variableBlocks.some(item => item?.details) || variableIds.length || Object.keys(drivers).length) ? <Detail>
-        {variableBlocks.map((item, index) => item?.details ? <p key={index}>{item.details}</p> : null)}
+        {variableBlocks.map((item, index) => item?.details ? <p key={index}>{fill(item.details)}</p> : null)}
         <div className="company-page-metrics">{unique([...variableIds, ...Object.values(drivers).map(item => item.field_id ?? '')]).filter(Boolean).map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
       </Detail> : null,
       saved?.changes?.variables ?? saved?.changes?.profit_formula, model?.baseLabel ? `基数：${model.baseLabel}` : undefined)}
@@ -327,8 +329,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
       </>,
       DEFAULT_KEYS.valuation,
       <Detail>
-        {valuation?.details && <p>{valuation.details}</p>}
-        {saved?.valuation?.conditions && !gapOnly && <p data-valuation-conditions="">什么情况会改判断：{saved.valuation.conditions}</p>}
+        {valuation?.details && <p>{fill(valuation.details)}</p>}
+        {saved?.valuation?.conditions && !gapOnly && <p data-valuation-conditions="">什么情况会改判断：{fill(saved.valuation.conditions)}</p>}
         <div className="company-page-metrics">{unique(['price', ...(valuation?.fieldIds ?? []), 'eps_ttm', 'eps_forecast', 'eps_forecast_next', 'forward_pe', ...DEFAULT_KEYS.valuation]).filter(fieldId => !keyIdsOf(packet, DEFAULT_KEYS.valuation).includes(fieldId)).map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
         {peersOf(packet).length > 0 && <div className="company-page-metrics">{peersOf(packet).map(item => <FieldMetric key={item.name} label={`${item.name} 市盈率`} field={item.field} />)}</div>}
         {!gapOnly && <ScenarioTable rows={scenarioRef ? scenarios?.rows ?? null : null} mode={scenarios?.mode} />}
@@ -336,8 +338,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
       saved?.changes?.valuation, metaOf(packet, DEFAULT_KEYS.valuation))}
     {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <TrackingCards items={tracking} renderBound={fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />} />, [],
       (saved?.sections?.tracking?.details || saved?.catalysts?.length) ? <Detail>
-        {saved?.sections?.tracking?.details && <p>{saved.sections.tracking.details}</p>}
-        {saved?.catalysts?.map(item => <p key={`${item.date}${item.event}`}>{item.date} {item.event}</p>)}
+        {saved?.sections?.tracking?.details && <p>{fill(saved.sections.tracking.details)}</p>}
+        {saved?.catalysts?.map(item => <p key={`${item.date}${item.event}`}>{item.date} {fill(item.event)}</p>)}
       </Detail> : null,
       saved?.changes?.tracking)}
     <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无已确认的研究关联</p>}</Panel>

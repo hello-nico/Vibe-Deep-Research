@@ -1,12 +1,16 @@
 import { useEffect, useMemo, useRef } from 'react';
-import { PDFViewer, ScrollPlugin, SelectionPlugin, DocumentManagerPlugin, UIPlugin, ZoomMode, type PluginRegistry } from '@embedpdf/react-pdf-viewer';
+import { PDFViewer, ScrollPlugin, SelectionPlugin, DocumentManagerPlugin, UIPlugin, CommandsPlugin, ZoomMode, type PluginRegistry } from '@embedpdf/react-pdf-viewer';
 
 export interface PdfSelection { text: string; pages: number[] }
+export const ASK_COMMAND_ID = 'vibe:ask-assistant';
+export const ASK_LABEL = '问助手';
 export interface PdfReaderProps {
   src: string;
   initialPage: number;
   onPageChange: (page: number) => void;
   onSelection: (selection: PdfSelection | null) => void;
+  /** 浮动工具条里的「问助手」：用户点了才触发；阅读器本身不决定提问去向。 */
+  onAsk?: (selection: PdfSelection) => void;
   onError: () => void;
   focusRequest?: number;
 }
@@ -37,13 +41,31 @@ export function PdfReader(props: PdfReaderProps) {
     const selection = registry.getPlugin<SelectionPlugin>('selection')?.provides();
     const documents = registry.getPlugin<DocumentManagerPlugin>('document-manager')?.provides();
     const ui = registry.getPlugin<UIPlugin>('ui')?.provides();
+    const commands = registry.getPlugin<CommandsPlugin>('commands')?.provides();
+    let picked: PdfSelection | null = null;
+    // 选中文字的浮动工具条（复制旁）加「问助手」：走阅读器的命令与界面扩展点，不改阅读器内部。
+    if (commands && ui && latest.current.onAsk) {
+      commands.registerCommand({
+        id: ASK_COMMAND_ID, label: ASK_LABEL, categories: ['selection', 'selection-ask'],
+        action: () => { if (picked) latest.current.onAsk?.(picked); },
+      });
+      const schema = ui.getSchema();
+      const menu = schema.selectionMenus?.selection;
+      if (menu && !menu.items.some(item => item.id === 'ask-assistant')) {
+        ui.mergeSchema({ selectionMenus: { ...schema.selectionMenus, selection: {
+          ...menu,
+          items: [...menu.items, { type: 'command-button', id: 'ask-assistant', commandId: ASK_COMMAND_ID, variant: 'text', categories: ['selection', 'selection-ask'] }],
+          visibilityDependsOn: { itemIds: [...(menu.visibilityDependsOn?.itemIds ?? []), 'ask-assistant'] },
+        } } });
+      }
+    }
     if (!scroll || !selection) { latest.current.onError(); return; }
     cleanup.current.push(scroll.onLayoutReady(event => {
       focusDocument.current = () => ui?.forDocument(event.documentId).closeSidebarSlot('left', 'main');
       if (event.isInitial) scroll.forDocument(event.documentId).scrollToPage({ pageNumber: Math.min(Math.max(1, latest.current.initialPage), event.totalPages), behavior: 'instant' });
     }));
     cleanup.current.push(scroll.onPageChange(event => latest.current.onPageChange(event.pageNumber)));
-    cleanup.current.push(selection.onBeginSelection(() => { selectionRequest++; latest.current.onSelection(null); }));
+    cleanup.current.push(selection.onBeginSelection(() => { selectionRequest++; picked = null; latest.current.onSelection(null); }));
     cleanup.current.push(selection.onEndSelection(event => {
       const request = ++selectionRequest;
       const pages = [...new Set(selection.getFormattedSelection(event.documentId).map(item => item.pageIndex + 1))].sort((a, b) => a - b);
@@ -51,7 +73,8 @@ export function PdfReader(props: PdfReaderProps) {
         if (generation.current !== run || request !== selectionRequest) return;
         const text = parts.join('\n').trim();
         if (text) ui?.forDocument(event.documentId).closeSidebarSlot('left', 'main');
-        latest.current.onSelection(text && pages.length ? { text, pages } : null);
+        picked = text && pages.length ? { text, pages } : null;
+        latest.current.onSelection(picked);
       }).catch(() => { if (generation.current === run && request === selectionRequest) latest.current.onSelection(null); });
     }));
     if (documents) cleanup.current.push(documents.onDocumentError(() => latest.current.onError()));

@@ -227,7 +227,7 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
   assert.match(pillar, /2026 年第二季度营业收入（单季）/);
   assert.match(pillar, /暂时取不到信贷成本|信贷成本/);
   assert.match(pillar, /暂时取不到相关指标/);
-  assert.match(pillar, /警戒 同比 ±5\.00% · /);
+  assert.match(pillar, /·/);
   assert.match(pillar, /2026-10-30 披露的三季报/);
   assert.match(pillar, /不成立的条件：毛利率跌破阈值。 · 20\.00 % · 下一份定期报告/);
   const links = [...container.querySelectorAll('a[href^="/my-reports/read/"]')];

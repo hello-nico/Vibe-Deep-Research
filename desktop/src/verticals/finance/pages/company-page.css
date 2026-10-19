@@ -137,7 +137,11 @@
 .company-page-section .company-page-metrics[data-key-numbers] { margin-top: 14px; }
 .narrative-track-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; }
 .narrative-track { display: grid; align-content: start; gap: 10px; padding: 14px 16px; min-height: 96px; }
-.narrative-track-head { display: grid; gap: 8px; text-align: left; width: 100%; cursor: pointer; color: inherit; }
+.narrative-track-head { display: grid; gap: 8px; text-align: left; width: 100%; color: inherit; }
+.narrative-track-note { margin: 0; font-size: 12px; line-height: 1.6; color: var(--text-2); }
+.narrative-track-note[data-track-note="failed"] { color: hsl(var(--foreground)); font-weight: 600; }
+.narrative-track-toggle { width: 28px; height: 28px; border-radius: 8px; color: var(--text-3); line-height: 1; }
+.narrative-track-toggle:hover { background: var(--fill-1); color: var(--text-2); }
 .narrative-track-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
 .narrative-track-title > b { font-size: 13px; font-weight: 600; }
 .narrative-track-now { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }

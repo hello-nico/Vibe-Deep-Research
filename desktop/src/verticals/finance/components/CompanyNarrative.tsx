@@ -1,10 +1,10 @@
 import { useId, useState, type ReactNode } from 'react';
-import { StatusPill, Tag, type PillTone } from './ui/Card';
+import { Tag } from './ui/Card';
 import { fieldIdLabel, showField, type DataPacket, type PacketField, type PacketThreshold } from '../lib/companyPacket';
 import {
-  GRADES, contributions, conversationHint, epsAt, flowItems, impliedPe, numericValue, pendingReason, plainNumber, profitAt, quarterLabel,
-  resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, thresholdLine, trackingState, yiText, yuanText,
-  type QuarterBar, type SensitivityModel, type SliderValues, type TrackingState,
+  GRADES, contributions, conversationHint, epsAt, flowItems, impliedPe, numericValue, plainNumber, profitAt, quarterLabel,
+  resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, TRACKING_TEXT, trackingNote, trackingState, yiText, yuanText,
+  type QuarterBar, type SensitivityModel, type SliderValues,
 } from '../lib/companyNarrative';
 
 /** 回答句：句中 {占位} 由页面按字段或计算凭据填入；缺口显示灰色「暂缺」。 */
@@ -175,21 +175,24 @@ export function GradePills({ grade }: { grade: string }) {
 export interface TrackItem {
   id: string; text: string; fieldIds?: string[]; fieldId?: string; yoy?: boolean; field?: PacketField; threshold?: PacketThreshold | null; window?: string; falsifier?: string; more: { text: string; line: string }[];
 }
-const TONE: Record<TrackingState, PillTone> = { 更稳: 'ok', 打折扣: 'wait', 不成立: 'bad' };
 function TrackCard({ item, now, renderBound }: { item: TrackItem; now?: Date; renderBound?: (fieldId: string) => ReactNode }) {
-  const [open, setOpen] = useState(false);
+  // 默认展开；卡头不可点，只有右侧箭头能收起。
+  const [open, setOpen] = useState(true);
   const current = numericValue(item.field);
   const state = trackingState({ current, threshold: item.threshold, window: item.window, now });
-  const line = thresholdLine(item.threshold);
+  const level = TRACKING_TEXT.holds(item.threshold);
   const title = item.fieldId ? `${fieldIdLabel(item.fieldId)}${item.yoy ? '同比' : ''}` : item.text;
   const value = item.fieldId ? (item.field && (current != null || item.field.status === 'conflict') ? showField(item.field) : '暂缺') : '—';
-  return <article className="card narrative-track" data-pillar={item.id} data-track-state={state ?? undefined} data-track-pending={state ? undefined : ''}>
-    <button type="button" className="narrative-track-head" aria-expanded={open} onClick={() => setOpen(previous => !previous)}>
+  // 正常不出状态；只在越线时在数值下说一句白话。
+  const note = trackingNote({ state, title, value, threshold: item.threshold, window: item.window });
+  return <article className="card narrative-track" data-pillar={item.id} data-track-state={state ?? undefined}>
+    <div className="narrative-track-head">
       <span className="narrative-track-title"><b>{title}</b>
-        <span title={state ? undefined : pendingReason({ current, threshold: item.threshold })}><StatusPill tone={state ? TONE[state] : 'off'}>{state ?? '状态待定'}</StatusPill></span>
+        <button type="button" className="narrative-track-toggle" aria-expanded={open} aria-label={open ? '收起说明' : '展开说明'} title={open ? '收起说明' : '展开说明'} onClick={() => setOpen(previous => !previous)}>{open ? '▴' : '▾'}</button>
       </span>
-      <span className="narrative-track-now"><strong className={value === '暂缺' ? 'is-gap' : undefined}>{value}</strong><small>警戒 {line || '—'} · {item.window || '—'}</small></span>
-    </button>
+      <span className="narrative-track-now"><strong className={value === '暂缺' ? 'is-gap' : undefined}>{value}</strong><small>{[level, item.window].filter(Boolean).join(' · ') || '—'}</small></span>
+      {note && <p className="narrative-track-note" data-track-note={state ?? undefined}>{note}</p>}
+    </div>
     {open && <div className="narrative-track-more">
       <p>支柱：{item.text}</p>
       {item.falsifier && <p>不成立的条件：{item.falsifier}</p>}

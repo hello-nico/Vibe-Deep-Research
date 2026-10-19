@@ -7,18 +7,6 @@ const READ_TEXT_LIMIT = 24_000;
 const BIND_TIMEOUT_MS = 15_000;
 const BIND_TOTAL_LIMIT = 80_000;
 
-export interface FetchedUrlBind {
-  url: string;
-  title?: string;
-  text?: string;
-  parse_status?: string;
-  content_sha256?: string;
-  fetched_at?: string;
-  truncated?: boolean;
-  persisted?: boolean;
-  complete?: boolean;
-}
-
 function bindSignal(): AbortSignal {
   return AbortSignal.timeout(BIND_TIMEOUT_MS);
 }
@@ -45,39 +33,6 @@ function readError(item: AssistantObjectRef, error: unknown, extra = ''): string
   }
   const detail = error instanceof ResearchError ? error.message : (error instanceof Error ? error.message : '读取失败');
   return `${identityLine(item)}${extra}\n  读取失败：${detail}${error instanceof ResearchError && error.status === 409 ? '\n  该资料当前不可读（冲突或已失效），不能按正文分析。' : ''}`;
-}
-
-function formatFetch(item: AssistantObjectRef, fetched: FetchedUrlBind): string {
-  const { body, clipped } = clip(fetched.text || '');
-  const status = fetched.parse_status || (body ? 'readable' : 'empty');
-  const lines = [
-    `- ${item.label} \`${item.id}\``,
-    // 正文与页面登记的所属区块、补充说明一起传给助手。
-    item.section ? `  所属：${item.section}` : '',
-    item.detail ? `  ${item.detail}` : '',
-    `  URL：${fetched.url}`,
-    fetched.fetched_at ? `  读取时点：${fetched.fetched_at}` : '',
-    fetched.content_sha256 ? `  内容版本：${fetched.content_sha256}` : '  内容版本：不可用',
-    `  解析状态：${status}`,
-    fetched.persisted ? '  入库：是（超出快资讯默认）' : '  入库：否',
-    fetched.truncated || clipped ? '  正文被截断；内容版本对应完整抓取，不是截断片，不能当作完整原件。' : '',
-    body ? `  正文：\n${body}` : '  没有可读正文，不能按全文分析。',
-  ];
-  return lines.filter(Boolean).join('\n');
-}
-
-async function fetchCitedUrl(item: AssistantObjectRef, url: string): Promise<string> {
-  try {
-    const fetched = await researchRead<FetchedUrlBind>('/documents/fetch-url', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, persist: false, title: item.label }),
-      signal: bindSignal(),
-    });
-    return formatFetch(item, fetched);
-  } catch (error) {
-    return readError(item, error, `\n  URL：${url}\n  不能按正文分析。`);
-  }
 }
 
 function wikiSlugFromId(id: string): { slug: string; inputHash?: string } | null {
@@ -229,20 +184,25 @@ function identityLine(item: AssistantObjectRef): string {
   return item.detail ? `${line}\n  ${item.detail}` : line;
 }
 
+/** read 为 true 才表示发送时确实读取了正文；URL 与无读取契约的对象只带身份，不预读。 */
+interface BoundObject { text: string; read: boolean }
+const UNREAD_URL_NOTE = '正文未预读，需要时自行读取';
+
 async function bindCitedObject(
   item: AssistantObjectRef,
   companyQuotes: CompanySnapshotQuote[],
-): Promise<string> {
-  const url = citedUrl(item);
-  if (url) return fetchCitedUrl(item, url);
+): Promise<BoundObject> {
+  // 网页不在发送时抓取：外部阅读器要等十几秒，助手需要时自己读。
+  if (citedUrl(item)) return { text: `${identityLine(item)}\n  ${UNREAD_URL_NOTE}。`, read: false };
+  const read = async (work: Promise<string> | string): Promise<BoundObject> => ({ text: await work, read: true });
   if (item.kind === 'wiki' || item.id.includes('@') || /^(companies|industries|themes|comparisons)\//.test(item.id)) {
-    return fetchCitedWiki(item);
+    return read(fetchCitedWiki(item));
   }
-  if (item.kind === 'topic' || item.id.startsWith('topic:')) return fetchCitedTopic(item);
-  if (item.kind === 'document' || item.id.startsWith('document:')) return fetchCitedDocument(item);
-  if (item.kind === 'profile' || item.id.startsWith('profile:')) return fetchCitedProfile(item);
-  if (item.kind === 'company' || item.id.startsWith('company:')) return formatCompanyFromSnapshot(item, companyQuotes);
-  return identityLine(item) + '\n  本轮没有对应的宿主读取契约，不能按已读正文分析。';
+  if (item.kind === 'topic' || item.id.startsWith('topic:')) return read(fetchCitedTopic(item));
+  if (item.kind === 'document' || item.id.startsWith('document:')) return read(fetchCitedDocument(item));
+  if (item.kind === 'profile' || item.id.startsWith('profile:')) return read(fetchCitedProfile(item));
+  if (item.kind === 'company' || item.id.startsWith('company:')) return read(formatCompanyFromSnapshot(item, companyQuotes));
+  return { text: identityLine(item) + '\n  本轮没有对应的宿主读取契约，不能按已读正文分析。', read: false };
 }
 
 function capBoundReads(bound: string[]): string[] {
@@ -274,7 +234,9 @@ export async function bindAssistantPrompt(input: {
   companyQuotes?: CompanySnapshotQuote[];
 }): Promise<string> {
   const quoteRows: CompanySnapshotQuote[] = input.companyQuotes || [];
-  const bound = capBoundReads(await Promise.all(input.objects.map(item => bindCitedObject(item, quoteRows))));
+  const results = await Promise.all(input.objects.map(item => bindCitedObject(item, quoteRows)));
+  const bound = capBoundReads(results.filter(item => item.read).map(item => item.text));
+  const unread = results.filter(item => !item.read).map(item => item.text);
   const cited = input.objects.flatMap(item => [item.id, item.label, item.locator || '']).filter(Boolean);
   const rawSnapshot = (input.pageSnapshot || '').trim().replace(/^【页面快照】\s*/, '');
   const snapshotBody = rawSnapshot
@@ -288,6 +250,10 @@ export async function bindAssistantPrompt(input: {
     bound.length ? formatSnapshotSection('引用读取结果', [
       '以下 @ 对象已在发送时读取，直接使用，不要重复读取同一对象；需要更多信息可以补读，但补读是另一份结果，不覆盖、不混用本轮内容。',
       bound.join('\n'),
+    ]) : '',
+    unread.length ? formatSnapshotSection('引用（未预读）', [
+      '以下对象只带身份，发送时没有读取正文；需要内容时用工具自行读取，不要当作已读。',
+      unread.join('\n'),
     ]) : '',
     formatSnapshotSection('页面身份', [
       input.objects.length && !bound.length

@@ -164,8 +164,8 @@ test('URL 引用格式化带上页面登记的所属区块与补充说明，Dock
   // prompt.ts 依赖的 research.ts 用了 TS 参数属性语法，node --test 的原生 TS 剥离跑不动，
   // 不能像其它 snapshot builder 一样直接 import 执行；沿用本文件已有对 prompt.ts 内部函数的源码断言方式。
   const prompt = readFileSync(new URL('../src/verticals/finance/assistant/prompt.ts', import.meta.url), 'utf8');
-  assert.match(prompt, /item\.section \? `  所属：\$\{item\.section\}` : ''/);
-  assert.match(prompt, /item\.detail \? `  \$\{item\.detail\}` : ''/);
+  assert.match(prompt, /item\.section \? `所属：\$\{item\.section\}` : ''/);
+  assert.match(prompt, /item\.detail \? `\$\{line\}\\n  \$\{item\.detail\}` : line/);
   for (const file of ['dock/FinanceAiDock.tsx'.replace('dock/', 'components/ui/'), 'assistant/apply.ts', 'dsh/research-session.tsx']) {
     const text = readFileSync(new URL(`../src/verticals/finance/${file}`, import.meta.url), 'utf8');
     assert.match(text, /locator/, file);

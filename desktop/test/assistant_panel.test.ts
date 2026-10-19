@@ -160,3 +160,37 @@ test('个股页的两个按钮就是页面上的重新研究与撤回入口', as
   assert.match(source, /id: 'revert', label: '撤回上次更新', disabled: !page\.canRevert/);
   assert.match(source, /services\.revertResearch\?\.\(symbol, page\.researchVersion\)/);
 });
+
+test('问助手的上下文标签只属于当前页：切到别的页面再打开，上一页的标签（自动带入与手动 @）都不保留', async () => {
+  await harness(async ({ container, modules, render }) => {
+    const sessions = {
+      ...panelStore(),
+      ensureAssistant: async () => ({ sessionId: 'assistant', mode: 'agent' }),
+      focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
+    };
+    let pageKey = 'document:abc:1';
+    let title = '长江电力公告';
+    const notice = { kind: 'document', id: 'document:abc', label: '长江电力关于控股股东增持股份结果的公告' };
+    const tags = () => [...container.querySelectorAll('.finance-assistant-panel .tag, aside .tag')].map(node => node.textContent!.trim());
+    function Page() {
+      modules.page.useAiPage({ key: pageKey, title, context: '' });
+      const { cite } = modules.page.useAiQuestion();
+      return h('div', {}, h('button', { id: 'cite', onClick: () => cite(notice) }, '引用'),
+        h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('aside', {}, content) }));
+    }
+    await render(Page, sessions);
+    await act(async () => (container.querySelector('#cite') as HTMLButtonElement).click());
+    assert.ok(tags().some(text => text.includes('长江电力关于控股股东增持股份结果的公告')), '资料页引用后面板里有标签');
+    // 换到动态页：面板仍开着时沿用旧页面，再点“问助手”切到当前页。
+    pageKey = 'feed:variables'; title = '关键变量';
+    await render(Page, sessions);
+    await act(async () => (container.querySelector('button.ai-chat-trigger') as HTMLButtonElement).click());
+    assert.equal(container.querySelector('h2')!.textContent, '关键变量');
+    assert.deepEqual(tags(), [], '动态页的问助手不带资料页的标签');
+    // 回到资料页也不恢复：标签不跨页保留。
+    pageKey = 'document:abc:1'; title = '长江电力公告';
+    await render(Page, sessions);
+    await act(async () => (container.querySelector('button.ai-chat-trigger') as HTMLButtonElement).click());
+    assert.deepEqual(tags(), []);
+  });
+});

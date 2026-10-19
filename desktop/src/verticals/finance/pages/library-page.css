@@ -51,3 +51,6 @@
 @media (prefers-reduced-motion: reduce) {
   .library-row, .library-drop { transition: none; }
 }
+
+/* 文本资料选中后的浮动工具条（PDF 用阅读器自带的条，在其中加「问助手」）。 */
+.report-ask-bar { position: fixed; z-index: 40; display: flex; gap: 4px; padding: 4px; transform: translate(-50%, calc(-100% - 8px)); border: 1px solid var(--line-2); border-radius: 10px; background: hsl(var(--raised)); }

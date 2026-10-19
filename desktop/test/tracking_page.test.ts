@@ -287,3 +287,11 @@ test('设置页分段「连接」：令牌不回显，保存与三种测试结�
   assert.equal((container.querySelector('input[aria-label="访问令牌"]') as HTMLInputElement).placeholder, '');
   assert.doesNotMatch(container.textContent!, /Authorization|Bearer|401|finance-backend|请求头|接口/);
 });
+
+test('跟踪页状态点提示不被卡片裁切、不压住标题：卡片不 overflow hidden，提示以整行定位落在行的正上方', () => {
+  const css = readFileSync(new URL('../src/verticals/finance/pages/tracking.css', import.meta.url), 'utf8');
+  assert.match(css, /\.tracking-card \{ overflow: visible; \}/);
+  assert.doesNotMatch(css, /\.tracking-card \{ overflow: hidden/);
+  assert.match(css, /\.tracking-row \{ position: relative; \}/);
+  assert.match(css, /\.tracking-row \.status-dot-tip \{ left: 12px; bottom: calc\(100% \+ 4px\);/);
+});

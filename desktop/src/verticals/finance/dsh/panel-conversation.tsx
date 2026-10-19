@@ -11,6 +11,11 @@ import { SaveNoteButton } from '../components/ui/SaveNoteButton';
 import { assistantTurnNote } from './assistant-turn-note';
 import { ConversationCitations } from '../components/ConversationCitations';
 
+/** 「问问这个页面」说明卡关掉后不再出现（浏览器本地记一位）；读写失败时当作没关过。 */
+const INTRO_KEY = 'vibe.assistant.intro.closed';
+const introDismissed = (() => { try { return window.localStorage.getItem(INTRO_KEY) === '1'; } catch { return false; } });
+const dismissIntro = () => { try { window.localStorage.setItem(INTRO_KEY, '1'); } catch { /* 没有本地存储时只在本次生效 */ } };
+
 function FixedChatView({ renderSlot }: ConversationViewsProps) {
   return <>{renderSlot('conversation.session', { view: 'chat' })}</>;
 }
@@ -24,10 +29,10 @@ function PanelChat({ sessionId, topic, assistant, useSession, useConversation, u
   const settling = blank && session.openState === 'loading' && summaryBlank !== true;
   const hasAssistant = useChat(value => value.nodes.values().some(node => node.kind === 'assistant-step'));
   const showTopicOpening = Boolean(topic?.fresh && !hasAssistant && !settling);
-  const [introClosed, setIntroClosed] = useState(false);
+  const [introClosed, setIntroClosed] = useState(introDismissed);
   return <ConversationCitations className={topic ? 'finance-topic-chat' : assistant ? 'finance-assistant-native' : 'finance-panel-chat'}>
     {assistant && blank && !settling && !introClosed && <div className="finance-assistant-intro">
-      <button type="button" className="finance-assistant-intro-close" aria-label="关闭说明" onClick={() => setIntroClosed(true)}><X size={14} /></button>
+      <button type="button" className="finance-assistant-intro-close" aria-label="关闭说明" onClick={() => { dismissIntro(); setIntroClosed(true); }}><X size={14} /></button>
       <h3>问问这个页面</h3>
       <p>助手会结合本页正在显示的内容回答。想针对某一条提问，在输入框里输入 @ 选中它。</p>
       <p className="finance-assistant-intro-note">值得留下的回答，可以点回答下方的「保存为记录」。</p>

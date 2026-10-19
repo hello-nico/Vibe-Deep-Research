@@ -189,6 +189,17 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services }))));
 }
+test('「查看数据」里的 {…} 数据引用解析成数值，解析不到写（数据缺失），不漏出占位符', async () => {
+  const research = structuredClone(fixtureResearch);
+  research.sections.business!.details = '主营收入{revenue}，其他业务{segment:product:不存在业务.revenue}，计算{calc:result:00000000000000000000000000000000.profit}。';
+  research.valuation!.conditions = '收入若低于{revenue}则改档。';
+  const fixture = companyPageFixture({ research, stale: false, basisVersion: 'v1' });
+  await mountPage(fixture);
+  const business = container.querySelector('[data-company-section="business"] .company-page-detail')!.textContent!;
+  assert.match(business, /主营收入71\.00 亿元，其他业务（数据缺失），计算（数据缺失）。/);
+  assert.match(container.querySelector('[data-valuation-conditions]')!.textContent!, /收入若低于71\.00 亿元则改档/);
+  assert.doesNotMatch(container.textContent!, /\{[^}]*\}/);
+});
 test('页面按方法论模板渲染数据包、情景表、变化悬停、资料与证据墙', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
   await mountPage(fixture);
@@ -205,7 +216,7 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.match(container.textContent!, /前瞻市盈率/);
   assert.match(container.querySelector('[data-pillar="spread"]')!.textContent!, /71\.00 亿元/);
   const card = container.querySelector('[data-pillar="spread"]')!.textContent!;
-  assert.match(card, /30\.00 亿元/);
+  assert.match(card, /关键值 30 亿元/);
   assert.match(card, /下一份定期报告/);
   assert.match(container.textContent!, /22.23/);
   assert.match(container.querySelector('[data-scenario="table"] thead')!.textContent!, /情景\s*每股收益\s*倍数\s*目标价/);

@@ -37,6 +37,10 @@ export function splitSentence(text: string): SentencePart[] {
   if (last < text.length) parts.push({ kind: 'text', text: text.slice(last) });
   return parts;
 }
+/** 把文字里的 {…} 数据引用替换成带单位的数值；解析不到写 gap（默认「（数据缺失）」），不漏出原始占位符。页面与问助手快照共用。 */
+export function fillSlots(text: string | undefined, packet: DataPacket | undefined, calcs: Record<string, unknown>, gap = '（数据缺失）'): string {
+  return splitSentence(text ?? '').map(part => part.kind === 'text' ? part.text : resolveSlot(part.token, packet, calcs)?.text ?? gap).join('');
+}
 /** 句子里引用的计算凭据，页面按这些读回。 */
 export function calcRefsIn(text: string | undefined) {
   const refs = new Set<string>();
@@ -237,7 +241,41 @@ export function flowItems(packet: DataPacket | undefined): FlowItem[] {
 
 // ---------------------------------------------------------------- 跟踪卡
 
-export type TrackingState = '更稳' | '打折扣' | '不成立';
+/** 跟踪卡内部状态，不直接显示：正常不出标签，打破与不成立只用下面 TRACKING_TEXT 的白话句。 */
+export type TrackingState = 'ok' | 'crossed' | 'failed';
+const plainLevel = (text: string) => text.replace(/^同比\s*/, '').replace(/(\d+\.\d*?)0+(?=\D|$)/g, '$1').replace(/\.(?=\D|$)/g, '').replace(/\s+%/g, '%');
+const sideOf = (threshold: PacketThreshold | null | undefined) => threshold?.direction === 'down' ? '低于' : '高于';
+/** 观察期结束的说法：「年报已出」「三季报已出」；只给了日期时说「观察期已过」。 */
+function windowDoneText(window: string | undefined) {
+  const text = String(window ?? '');
+  if (/三季|第三季/.test(text)) return '三季报已出';
+  if (/半年|中报/.test(text)) return '半年报已出';
+  if (/一季|第一季/.test(text)) return '一季报已出';
+  if (/年报|年度|FY/i.test(text)) return '年报已出';
+  return '观察期已过';
+}
+/** 跟踪卡白话文案集中在这一处，改文案只改这里；不用「警戒线」等行话。 */
+export const TRACKING_TEXT = {
+  /** 这条判断靠什么成立：「保持在 55% 以上」；研究没写方向时只列「关键值」。 */
+  holds: (threshold: PacketThreshold | null | undefined) => {
+    const text = thresholdText(threshold);
+    if (!text) return '';
+    if (threshold?.direction !== 'down' && threshold?.direction !== 'up') return `关键值 ${plainLevel(text)}`;
+    return `保持在 ${plainLevel(text)} ${threshold.direction === 'down' ? '以上' : '以下'}`;
+  },
+  /** 条件被打破、对应期报告未出。 */
+  broken: (args: { title: string; value: string; threshold?: PacketThreshold | null }) =>
+    `${args.title}${args.threshold?.direction === 'down' ? '降到' : '升到'} ${plainLevel(args.value)}，${sideOf(args.threshold)} ${plainLevel(thresholdText(args.threshold))}，这条判断可能不成立了`,
+  /** 对应期报告已出仍不满足。 */
+  failed: (args: { title: string; window?: string; threshold?: PacketThreshold | null }) =>
+    `${windowDoneText(args.window)}，${args.title}仍${sideOf(args.threshold)} ${plainLevel(thresholdText(args.threshold))}，这条判断不成立`,
+};
+/** 越线时数值下的一句白话；正常或取不到当前值时为空。 */
+export function trackingNote(args: { state: TrackingState | null; title: string; value: string; threshold?: PacketThreshold | null; window?: string }) {
+  if (args.state === 'crossed') return TRACKING_TEXT.broken(args);
+  if (args.state === 'failed') return TRACKING_TEXT.failed(args);
+  return '';
+}
 /** 观察窗口是否已过。ISO 日期按日；「FY2026 年报」「2026 年三季报」按披露截止；「下一期」类视为未到。 */
 export function windowPassed(window: string | undefined, now: Date): boolean {
   const text = String(window ?? '');
@@ -253,15 +291,15 @@ export function windowPassed(window: string | undefined, now: Date): boolean {
   if (/年报|年度|FY/i.test(text)) return now.getTime() > end(y + 1, 4, 30).getTime();
   return false;
 }
-/** 状态由页面按当前值与阈值的 direction 判断；当前值取不到或没有 direction 时返回 null（界面显示「状态待定」）。
+/** 状态由页面按当前值与阈值的 direction 判断；当前值取不到或没有 direction 时返回 null（卡片不显示任何状态）。
  *  同比类阈值的当前值取自年内累计同比镜头。 */
 export function trackingState(args: { current: number | null; threshold?: PacketThreshold | null; window?: string; now?: Date }): TrackingState | null {
   const { current, threshold } = args;
   const line = num(threshold?.value);
   if (current == null || line == null || !threshold || (threshold.direction !== 'down' && threshold.direction !== 'up')) return null;
   const crossed = threshold.direction === 'down' ? current < line : current > line;
-  if (!crossed) return '更稳';
-  return windowPassed(args.window, args.now ?? new Date()) ? '不成立' : '打折扣';
+  if (!crossed) return 'ok';
+  return windowPassed(args.window, args.now ?? new Date()) ? 'failed' : 'crossed';
 }
 /** 同比类警戒线的当前值：数据包的年内累计同比镜头（收入、归母净利）。 */
 export function yoyField(packet: DataPacket | undefined, fieldId: string | undefined): PacketField | undefined {
@@ -275,17 +313,6 @@ export function numericValue(field: PacketField | undefined) {
 export const KEY_LIMIT = 3;
 export function keyIdsOf(packet: DataPacket | undefined, ids: readonly string[]) {
   return ids.filter(id => numericValue(findField(packet, id)) != null).slice(0, KEY_LIMIT);
-}
-/** 警戒线文字；有 direction 时写明「跌破 / 突破」。 */
-export function thresholdLine(threshold?: PacketThreshold | null) {
-  const text = thresholdText(threshold);
-  return text && threshold?.direction ? `${threshold.direction === 'down' ? '跌破' : '突破'} ${text}` : text;
-}
-/** 状态待定的原因，供悬停。 */
-export function pendingReason(args: { current: number | null; threshold?: PacketThreshold | null }) {
-  if (!args.threshold || num(args.threshold.value) == null) return '没有警戒线';
-  if (args.threshold.direction !== 'down' && args.threshold.direction !== 'up') return '研究没有写明越线方向';
-  return '当前值暂缺';
 }
 
 // ---------------------------------------------------------------- 页首判断变化行

@@ -130,7 +130,7 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /if \(attachGen\.current !== gen\) return/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /queryPageObjects|usePageAssistantObjects/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /draftsByBind/);
-  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /question\?\.pageKey !== page\?\.key/);
+  assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /question\?\.pageKey === page\?\.key/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /finance\.panel\.conversation/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /cancelSession/);
   assert.match(read("verticals/finance/components/ui/FinanceAiDock.tsx"), /当前回答结束后可发送/);

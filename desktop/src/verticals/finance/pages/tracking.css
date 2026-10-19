@@ -1,6 +1,15 @@
 /* 只用令牌与公共组件；这里只补布局。 */
 .tracking { display: flex; flex-direction: column; gap: 36px; }
-.tracking-card { overflow: hidden; }
+/* 状态点的悬停提示：卡片不裁切；提示以整行为定位，落在这一行的正上方，不压住本行标题。
+   状态点自身改成 19px 可悬停区（只画中间 7px），免得提示的定位基准落到点上。 */
+.tracking-card { overflow: visible; }
+.tracking-item:first-child > .tracking-row { border-top-left-radius: 15px; border-top-right-radius: 15px; }
+.tracking-item:last-child > .tracking-row:last-child, .tracking-more { border-bottom-left-radius: 15px; border-bottom-right-radius: 15px; }
+.tracking-row { position: relative; }
+.tracking-row .status-dot { position: static; box-sizing: content-box; padding: 6px; margin: -6px; background-clip: content-box; }
+.tracking-row .status-dot::before { display: none; }
+.tracking-row .status-dot-tip { left: 12px; bottom: calc(100% + 4px); transform: translateY(2px); }
+.tracking-row .status-dot:hover .status-dot-tip, .tracking-row .status-dot:focus-visible .status-dot-tip { transform: translateY(0); }
 .tracking-item + .tracking-item { border-top: 1px solid var(--line-1); }
 .tracking-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 20px; text-align: left; background: none; border: 0; cursor: pointer; }
 .tracking-row:hover { background: var(--fill-1); }
@@ -23,7 +32,7 @@
 .tracking-foot { margin: 8px 4px 0; font-size: 12px; color: var(--text-3); }
 .tracking-foot a { margin-left: 8px; color: var(--text-2); text-decoration: underline; }
 .tracking-note { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-2); }
-.tracking-skeleton { height: 64px; background: var(--fill-1); }
+.tracking-skeleton { height: 64px; border-radius: 15px; background: var(--fill-1); }
 .tracking .variable-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; width: 100%; }
 .tracking .is-up { color: hsl(var(--up)); }
 .tracking .is-down { color: hsl(var(--down)); }

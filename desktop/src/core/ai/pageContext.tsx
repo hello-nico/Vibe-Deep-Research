@@ -114,6 +114,12 @@ export function AiPageProvider({ children }: { children: ReactNode }) {
   const [registered, setRegistered] = useState<PageAssistantObject[]>([]);
   const registration = useRef({ pageKey: '', generation: 0 });
   const sequence = useRef(0);
+  // 引用与追问只属于登记它们的页面：换页时清掉上一页留下的引用对象与未处理的追问。
+  const pageKey = page?.key ?? '';
+  useEffect(() => {
+    setObjects(prev => prev.length ? [] : prev);
+    setQuestion(prev => prev && prev.pageKey !== pageKey ? null : prev);
+  }, [pageKey]);
   const value = useMemo<Store>(() => ({
     page, set: setPage, question, objects, registered,
     clearQuestion: () => setQuestion(null),
