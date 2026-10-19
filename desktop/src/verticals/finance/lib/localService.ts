@@ -1,4 +1,4 @@
-/** 本机数据服务（orchestrator，8765）客户端：页面取数、快照及 Client 选择与偏好。与 Stock Backend 客户端 `research.ts` 区分。 */
+/** 本机数据服务（orchestrator）客户端：Client 选择与偏好。行情与资讯走 Backend。与 Stock Backend 客户端 `research.ts` 区分。 */
 
 export class ApiError extends Error {
   readonly status: number;

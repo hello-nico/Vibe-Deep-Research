@@ -10,14 +10,14 @@ test("现用页面配置保留；注册快照不随输入变化", () => {
   resetPlugin(); registerPlugin(input); registerPlugin(input);
   input.evidence.markets.push("BAD");
   assert.ok(!currentPlugin().evidence.markets.includes("BAD"));
-  assert.ok(Object.isFrozen(currentPlugin().pageQueries));
-  assert.ok(currentPlugin().pageQueries?.review);
+  assert.ok(Object.isFrozen(currentPlugin().evidence));
+  assert.equal(currentPlugin().pageQueries, undefined);
   assert.throws(() => registerPlugin({ ...FINANCE_PLUGIN }), /已注册/);
 });
 
 test("退役阶段配置拒绝注册；未知字段和不完整页面不能被静默吞掉", () => {
   assert.throws(() => fresh({ stages: ["profile"] } as Partial<Plugin>), /契约/);
-  assert.throws(() => fresh({ pageQueries: { broken: { title: "页", intent: "读数据", needsContext: true, blocks: [{ id: "one", title: "一", endpoint: "test", injectContext: true }] } } }), /映射/);
+  assert.throws(() => fresh({ pageQueries: { broken: { title: "页", intent: "读数据", needsContext: true, blocks: [{ id: "one", title: "一", endpoint: "test", injectContext: true }] } } }), /上下文|映射/);
   assert.throws(() => fresh({ evidence: { ...FINANCE_PLUGIN.evidence, marketWideOnlyCodes: ["BAD"] } }), /市场代码/);
 });
 

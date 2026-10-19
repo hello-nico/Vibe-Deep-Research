@@ -15,7 +15,7 @@
 ## 2. 数据流向规则
 
 1. 产品向 Backend 发送规范对象 ID 与筛选条件，Backend 返回数据和知识。产品不保存任何研究正文的第二份副本。
-2. 产品 HTTP 适配只做受限转发：`/finance-research`（研究读取、上传与引用解析，白名单代理）、`/finance-notes` 与 `/finance-note-digest`（只读转发 Backend 记录）、`/finance-api`（本机数据服务：行情、自选、偏好）、`/finance-model`（页面模型调用）、`/finance-maintenance-refresh`（确定性刷新）及若干宿主状态端点。**不扩大为任意上游代理，浏览器不获取服务端凭据。**
+2. 产品 HTTP 适配只做受限转发：`/finance-research`（研究读取、上传与引用解析，白名单代理）、`/finance-notes` 与 `/finance-note-digest`（只读转发 Backend 记录）、`/finance-api`（本机数据服务：Client 自选、研究名单与偏好）、`/finance-model`（页面模型调用）、`/finance-maintenance-refresh`（确定性刷新）及若干宿主状态端点。行情、公告与新闻走 `/finance-research` 的 Backend 接口。**不扩大为任意上游代理，浏览器不获取服务端凭据。**
 3. DSH 工具经 Stock 插件调用 Backend 正式接口。模型不直接读写 Backend 存储或产品文件。
 4. 浏览器内的缓存、Map、标题匹配只做交互防重，不能作为业务正确性的依据；成功以 Backend 回读为准。
 5. 接口版本：Backend `/health` 的 `api.version` / `api.min_client` 与客户端 `CLIENT_API` / `MIN_SERVER_API` 互相校验。删除或改变客户端在用的接口或字段时 `API_VERSION` 加一，只新增不算；服务器不再支持旧客户端时提高 `MIN_CLIENT_API`。不兼容时连接测试和页面请求给出「请更新客户端」或「服务器版本过旧」，不把请求继续转发。

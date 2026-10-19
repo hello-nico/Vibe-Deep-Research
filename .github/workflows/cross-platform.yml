@@ -13,15 +13,9 @@ jobs:
     defaults:
       run:
         # Explicit bash uses -e -o pipefail on every runner, so an early
-        # npm/pytest failure cannot be hidden by a later successful command.
+        # npm failure cannot be hidden by a later successful command.
         shell: bash
         working-directory: Vibe-Deep-Research
-    env:
-      VRA_PYTHON: python
-      # Python subprocesses emit UTF-8 JSON. Force the Windows test runner to
-      # decode pipes and default text files with the same encoding.
-      PYTHONUTF8: "1"
-      PYTHONIOENCODING: utf-8
     strategy:
       fail-fast: false
       matrix:
@@ -48,11 +42,6 @@ jobs:
           cache-dependency-path: |
             Vibe-Deep-Research/orchestrator/package-lock.json
             Vibe-Deep-Research/desktop/package-lock.json
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-          cache: pip
-          cache-dependency-path: Vibe-Deep-Research/.agents/skills/data-access/scripts/requirements.txt
       - name: Install Node dependencies
         run: |
           npm ci --prefix orchestrator
@@ -64,8 +53,6 @@ jobs:
           node scripts/verify-invariants.mjs
           node --test scripts/verify-protocol.test.mjs scripts/verify-invariants.test.mjs
           node --test ../Stock-Research/dsh/test/tool-boundary.test.mjs
-      - name: Install Python dependencies
-        run: python -m pip install pytest -r .agents/skills/data-access/scripts/requirements.txt
       - name: Orchestrator full suite and typecheck
         if: runner.os != 'Windows'
         run: |
@@ -82,12 +69,6 @@ jobs:
         run: |
           npm test --prefix desktop
           npm run build --prefix desktop
-      - name: Python tests
-        # 只测页面取数在用的数据源模块(东财 / 概率 / 注册表装配 / 脱敏 / 产业信号)。
-        # 无产品调用方的端点测试暂留仓库、不在 CI 运行,清单见 datasources/README.md。
-        run: |
-          T=.agents/skills/data-access/scripts/tests
-          python -m pytest -q $T/test_eastmoney.py $T/test_probability.py $T/test_m36_probability_budget.py $T/test_registry_sources.py $T/test_redaction.py $T/test_industry.py
       - name: Parse Windows PowerShell entrypoints
         if: runner.os == 'Windows'
         shell: powershell

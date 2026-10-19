@@ -9,7 +9,7 @@
 ## 页面与数据
 
 - 对话：DSH 原生会话、模型、轨迹与工具调用。
-- 动态：现阶段承载资讯雷达与大盘行情。
+- 动态：现阶段承载资讯雷达（关注公司公告与新闻）。
 - 洞悉：现阶段承载研究议题、记录、成果与关联。
 - 关注：自选与研究名单合并，进入个股页读取数据与研究。
 - 资料：Backend 上传、解析与证据阅读。
@@ -38,11 +38,11 @@
 | 不变量 | — | [invariants](docs/contracts/invariants.md) |
 | 决策、待办与进行中 | — | [Human Checklist](human-checklist.md)、[待办](todo.md)、[进行中的 Task](docs/tasks/active/) |
 
-`datasources/` 与 `.agents/skills/data-access/` 保留被页面取数消费的能力；产品只给 DSH 使用，`orchestrator` 不提供 MCP 接入，也不注册研究启动工具。
+产品只给 DSH 使用，`orchestrator` 不提供 MCP 接入，也不注册研究启动工具。行情、公告与新闻由 Backend 提供，本机不再运行 Python 取数。
 
 ## 本机启动
 
-Node.js 要求 22.18+；Python 依赖与 Backend 按各自安装说明配置。先启动 Stock-Research Backend，再使用本仓库脚本：
+Node.js 要求 22.18+。先启动 Stock-Research Backend，再使用本仓库脚本：
 
 ```sh
 scripts/setup
@@ -51,7 +51,7 @@ scripts/start
 
 默认工作台 `http://127.0.0.1:5930`，本机数据服务 8765，DSH 5941。`scripts/start --no-open` 可不自动打开浏览器。启动前会先回收上一轮遗留的本仓库进程（8765 / 5930），其他程序占用时明确报错，需用 `--reclaim-any` 才一并结束。模型在工作台设置中配置；不要复制旧浏览器模型配置或用户全局 CLI 登录态。
 
-独立运行本机数据服务：`npm run run --prefix orchestrator`。`scripts/doctor` 检查本机数据服务配置和依赖，不代表模型、Backend 或完整业务已验收。
+独立运行本机数据服务：`npm run run --prefix orchestrator`。`scripts/doctor` 检查本机数据服务配置与凭据隔离；`--net` 测 Backend 连接。不代表模型或完整业务已验收。
 
 ## 验证与分发
 
@@ -62,7 +62,7 @@ npm test --prefix desktop
 npm run build --prefix desktop
 ```
 
-数据源测试可通过 `VRA_PYTHON` 指定已安装依赖的解释器。测试库和夹具与真实 Backend 验收分别报告。
+测试库和夹具与真实 Backend 验收分别报告。
 
 当前只交付 Web 工作台。旧 macOS 独立客户端已退出产品范围，不属于验收剩余项或 M9 待办。
 

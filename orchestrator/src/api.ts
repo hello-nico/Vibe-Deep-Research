@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
- * 本机 HTTP 数据服务：Bearer 鉴权，提供端点取数、页面查询与 Client 选择。
- * 会话由 DSH 执行，研究资料由 Stock Backend 管理。
+ * 本机 HTTP 数据服务：Bearer 鉴权，提供 Client 选择与偏好。
+ * 会话由 DSH 执行，研究资料与行情由 Stock Backend 管理。
  * 用法：node orchestrator/src/api.ts [--port 8765] [--host 127.0.0.1]
  */
 import fs from "node:fs";
@@ -17,7 +17,7 @@ touchResearchSymbol,
 removeResearchSymbol,removeWatch,setPref,
 } from "./client_store.ts";
 import { NOFOLLOW_FLAG,restrictPrivateFile } from "./fsutil.ts";
-import { abortActiveFetches,ServiceError,fetchEndpoint,listEndpoints,pageQuery,redact,safePath,serviceContext,type ServiceContext } from "./service.ts";
+import { abortActiveFetches,ServiceError,redact,safePath,serviceContext,type ServiceContext } from "./service.ts";
 
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
@@ -79,53 +79,12 @@ function crossSiteReject(req: http.IncomingMessage): { code: number; error: stri
   return null;
 }
 
-/** 把浏览器主动停止 / 连接中断变成模型调用的 AbortSignal，避免页面停了后台仍继续计费。 */
-async function withRequestAbort<T>(
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-  run: (signal: AbortSignal) => Promise<T>,
-): Promise<T> {
-  const ac = new AbortController();
-  const abort = () => ac.abort();
-  const responseClosed = () => { if (!res.writableEnded) abort(); };
-  req.once("aborted", abort);
-  res.once("close", responseClosed);
-  try {
-    if (req.aborted) ac.abort();
-    return await run(ac.signal);
-  } finally {
-    req.removeListener("aborted", abort);
-    res.removeListener("close", responseClosed);
-  }
-}
-
 export async function handleLocalDataRequest(req: http.IncomingMessage, res: http.ServerResponse, ctx: ServiceContext): Promise<void> {
   try {
       const url = new URL(req.url ?? "/", "http://localhost");
       const cs = crossSiteReject(req);
       if (cs) return send(res, cs.code, { error: cs.error });
-      const parts = url.pathname.split("/").filter(Boolean);
-      const q = Object.fromEntries(url.searchParams.entries());
       if (req.method === "GET" && url.pathname === "/health") return send(res, 200, { ok: true, version: productVersion() });
-      if (req.method === "GET" && url.pathname === "/endpoints") return send(res, 200, listEndpoints(ctx, { layer: q.layer, market: q.market, q: q.q, enabled_only: q.enabled_only === "1", for_ui: q.all !== "1" }));
-      // 界面查询:页面按**名字**要一屏数据,不点名物理端点(见 service.pageQuery)
-      if (req.method === "GET" && parts[0] === "page" && parts[1] && parts.length === 2) {
-        return await withRequestAbort(req, res, async (signal) => send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: q.symbol, refresh: q.refresh === "1", signal })));
-      }
-      // 用户在界面上拨过某个块参数的那次查询走 POST:参数是结构化的,塞查询串会变成字符串猜类型。
-      // ⚠️ 能拨哪些键由垂类的 `userArgs` 白名单说了算,这里不放宽(见 service.pickUserArgs)。
-      if (req.method === "POST" && parts[0] === "page" && parts[1] && parts.length === 2) {
-        return await withRequestAbort(req, res, async (signal) => {
-          const b = (await readBody(req)) as { symbol?: string; refresh?: boolean; blockArgs?: Record<string, Record<string, unknown>> };
-          return send(res, 200, await pageQuery(ctx, { query: parts[1], symbol: b?.symbol, refresh: b?.refresh === true, blockArgs: b?.blockArgs, signal }));
-        });
-      }
-      if (req.method === "POST" && url.pathname === "/fetch") {
-        return await withRequestAbort(req, res, async (signal) => {
-          const b = await readBody(req);
-          return send(res, 200, await fetchEndpoint(ctx, { ...b, signal } as never));
-        });
-      }
       if (req.method === "GET" && url.pathname === "/client/watch") return send(res, 200, listWatch(ctx));
       if (req.method === "POST" && url.pathname === "/client/watch") {
         const b = await readBody(req);

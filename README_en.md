@@ -18,7 +18,7 @@ All services can run locally. This is a responsibility boundary, not a public/pr
 
 ## Run and validate
 
-Requires Node.js 22.18+ and configured Python dependencies. Start Stock-Research Backend, then run `scripts/setup` and `scripts/start`. The workbench defaults to port 5930, local data API to 8765 and DSH to 5941. Configure models in the workbench settings.
+Requires Node.js 22.18+. Start Stock-Research Backend, then run `scripts/setup` and `scripts/start`. Quotes, announcements and news come from Backend; this machine no longer runs Python fetchers. The workbench defaults to port 5930, local data API to 8765 and DSH to 5941. Configure models in the workbench settings.
 
 ```sh
 npm run typecheck --prefix orchestrator
@@ -27,7 +27,7 @@ npm test --prefix desktop
 npm run build --prefix desktop
 ```
 
-Set `VRA_PYTHON` to the Python interpreter containing the data dependencies when needed. `scripts/doctor` checks local data-service prerequisites; it does not certify model or end-to-end research behavior.
+`scripts/doctor` checks local data-service prerequisites; with `--net` it reuses the Backend connection test. It does not certify model or end-to-end research behavior.
 
 The product serves DSH only and offers no MCP endpoint. Research execution belongs to DSH. Do not restore the former research startup tool or parallel model credentials.
 

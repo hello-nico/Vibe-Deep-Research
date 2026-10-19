@@ -1,24 +1,24 @@
 #!/usr/bin/env node
-/** 检查本机数据服务的运行环境、目录权限、注册表与凭据隔离。 */
+/** 检查本机数据服务的运行环境、目录权限与凭据隔离。网络探针复用 Backend 连接测试。 */
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 
+// 复用产品 `/finance-backend-connection/test` 的 testConnection，无单独类型声明。
+// @ts-expect-error JS 模块
+import { testConnection } from "../../desktop/dsh/finance-ui/backend-connection.mjs";
 import { nowIso,writeJson } from "./fsutil.ts";
-import { assertDataRootInside,detectPython,parseArgs,resolveDataRoot } from "./init.ts";
-import { fetchEndpoint,listEndpoints,redact,repoRootFromHere,serviceContext } from "./service.ts";
+import { assertDataRootInside,parseArgs,resolveDataRoot } from "./init.ts";
+import { repoRootFromHere } from "./service.ts";
 
 
 // **composition root**:插件在入口注册,Core 模块一律不 import 它
-// (Core 消费者靠副作用 import 硬接某个包,换垂类时靠入口 import 恢复不了 —— ESM 会缓存)。
 import "./finance/register.ts";
 export type CheckStatus = "ok" | "warn" | "fail" | "skip";
 export interface Check { id: string; title: string; status: CheckStatus; detail: string; fix?: string }
 export interface ExecResult { status: number | null; stdout: string; stderr: string }
 export type Exec = (cmd: string, args: string[], opts?: { env?: Record<string, string>; cwd?: string; timeoutMs?: number }) => ExecResult;
 export interface DoctorResult { generated_at: string; repoRoot: string; dataRoot: string; checks: Check[]; tally: Record<CheckStatus, number>; exit_code: 0 | 2 | 3; report: string | null }
-const PY_IMPORTS = "requests, pandas, lxml, akshare, baostock, mootdx.quotes";
-const NET_PROBE_ENDPOINT = "tx_quote";
 /**
  * 不扫的目录。
  * 🔴 `payload` / `release` 是**桌面外壳的构建产物**(装配好的载荷、打好的 App)。
@@ -97,9 +97,13 @@ export function scanSecrets(repoRoot: string, env: NodeJS.ProcessEnv): { hits: {
   return { hits, scanned: files.length, truncated };
 }
 
-
-/** 探测这几个取数主机是否被代理接管(解析到保留网段) */
-const PROXY_PROBE_HOSTS = ["www.swsresearch.com", "push2delay.eastmoney.com", "qt.gtimg.cn"];
+const BACKEND_STATUS: Record<string, string> = {
+  ok: "已连接",
+  unreachable: "连不上这个地址",
+  unauthorized: "访问令牌不对",
+  server_outdated: "服务器版本过旧",
+  client_outdated: "客户端需要更新",
+};
 
 export function formatDoctor(r: DoctorResult): string {
   const mark: Record<CheckStatus, string> = { ok: "OK  ", warn: "WARN", fail: "FAIL", skip: "SKIP" };
@@ -114,26 +118,20 @@ export async function runDoctor(opts: { repoRoot?: string; env?: NodeJS.ProcessE
   const repoRoot = path.resolve(opts.repoRoot ?? repoRootFromHere());
   const dataRoot = resolveDataRoot(repoRoot);
   const env = opts.env ?? process.env;
-  const exec = opts.exec ?? defaultExec;
   const checks: Check[] = [];
   const add = (id: string, title: string, ok: boolean, detail: string) => checks.push({ id, title, status: ok ? "ok" : "fail", detail });
   add("node", "Node.js", Number(process.versions.node.split('.')[0]) >= 22, process.versions.node);
   try { assertDataRootInside(repoRoot, dataRoot); add("data_root", "本机数据目录", true, dataRoot); }
   catch (error) { add("data_root", "本机数据目录", false, String(error)); }
-  const python = opts.python ?? detectPython(repoRoot) ?? "python3";
-  const probe = exec(python, ["-c", `import ${PY_IMPORTS}; print('ok')`], { env: minimalEnv(env), cwd: repoRoot });
-  add("python", "取数 Python 依赖", probe.status === 0, probe.status === 0 ? python : redact(probe.stderr, 300));
   const mounted = fs.existsSync(path.join(repoRoot, "desktop/dsh/finance-ui/local-data.mjs")) && fs.existsSync(path.join(repoRoot, "orchestrator/src/api.ts"));
   add("mount", "数据服务挂载", mounted, "产品由 DSH 插件挂载；诊断入口 node orchestrator/src/api.ts");
-  try { const endpoints = listEndpoints(serviceContext({ repoRoot, python })); add("registry", "页面取数注册表", endpoints.length > 0, `${endpoints.length} 个端点`); }
-  catch (error) { add("registry", "页面取数注册表", false, String(error)); }
   const scan = scanSecrets(repoRoot, env);
   checks.push({ id: "secrets", title: "工作树凭据扫描", status: scan.hits.length ? "fail" : scan.truncated ? "warn" : "ok", detail: `${scan.scanned} 个文件，${scan.hits.length} 个待核查命中${scan.truncated ? '，扫描达到上限' : ''}；不替代发布前完整历史扫描` });
   if (opts.net) {
     try {
-      const result = await fetchEndpoint(serviceContext({ repoRoot, python }), { endpoint: NET_PROBE_ENDPOINT, symbol: "600000.SH", refresh: true });
-      add("network", "取数连通", result.envelope.status === "ok", `状态:${result.envelope.status}`);
-    } catch (error) { add("network", "取数连通", false, String(error)); }
+      const status = await testConnection(env);
+      add("backend", "Backend 连接", status === "ok", BACKEND_STATUS[status] ?? String(status));
+    } catch (error) { add("backend", "Backend 连接", false, String(error)); }
   }
   const tally = { ok: 0, warn: 0, fail: 0, skip: 0 };
   for (const check of checks) tally[check.status]++;
@@ -147,10 +145,9 @@ export async function runDoctor(opts: { repoRoot?: string; env?: NodeJS.ProcessE
 
 if (process.argv[1] && (process.argv[1].endsWith("/doctor.ts") || process.argv[1].endsWith("\\doctor.ts"))) {
   const a = parseArgs(process.argv.slice(2));
-  const str = (v: string | boolean | undefined) => (typeof v === "string" ? v : undefined);
   await (async () => {
   try {
-    const r = await runDoctor({ net: a.net === true, python: str(a.python) });
+    const r = await runDoctor({ net: a.net === true });
     console.log(a.json === true ? JSON.stringify(r, null, 2) : formatDoctor(r));
     process.exit(r.exit_code);
   } catch (e) { console.error(`[doctor] ${e instanceof Error ? e.message : String(e)}`); process.exit(3); }

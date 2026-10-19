@@ -11,11 +11,10 @@ import { privateFilePermissions,restrictPrivateFile,restrictPrivateFileAsync } f
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
 const temp = (prefix = "vra-win-") => fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 
-test("Windows 安装脚本:优先 3.12 但允许其他受支持 Python 3；doctor 警告不伪装成安装失败", () => {
+test("Windows 安装脚本:不再安装 Python 取数依赖；doctor 警告不伪装成安装失败", () => {
   const setup = fs.readFileSync(path.join(REPO, "scripts", "setup-windows.ps1"), "utf8");
-  assert.match(setup, /py -3\.12 -c/);
-  assert.match(setup, /else \{ & py -3 -m venv/);
-  assert.match(setup, /sys\.version_info >= \(3, 11\)/);
+  assert.doesNotMatch(setup, /data-access/);
+  assert.doesNotMatch(setup, /py -3\.12/);
   assert.match(setup, /\$doctorExit -notin @\(0, 2\)/);
   assert.doesNotMatch(setup, /Assert-NativeSuccess "运行产品体检"/);
 });

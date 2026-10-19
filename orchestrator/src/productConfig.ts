@@ -63,7 +63,7 @@ function mergeLayer(base: ProductConfig, layer: Partialish): ProductConfig {
 
 export interface LoadedProductConfig extends ProductConfig {
   /** 已解析为绝对路径 */
-  resolved: { dataRoot: string; constitution: string; skills: string; scriptsRel: string };
+  resolved: { dataRoot: string; constitution: string; skills: string };
   sources: string[];
 }
 
@@ -103,7 +103,6 @@ export function loadProductConfig(repoRoot: string, opts: {
       dataRoot,
       constitution: abs(cfg.paths.constitution),
       skills: abs(cfg.paths.skills),
-      scriptsRel: path.join(cfg.paths.skills, "data-access", "scripts"),
     },
     sources,
   };

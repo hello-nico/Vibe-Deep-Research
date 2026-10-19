@@ -1800,7 +1800,7 @@ TS 221 · calc 188 · doctor 15 ok。
 - **背景**:产品数据层是从三个上游仓库**移植代码**(不是依赖引用)—— a-stock-data(CN 79 端点)、
   global-stock-data(US/HK 36 端点)、investment-news(RSS 源清单),合计构成 115 端点里的绝大部分。
   移植的代价是**上游更新不会自动流过来**,而文档里原本只写「V3.7 / V2.0」这种不精确的标注,对账会误判。
-- **新增 [datasources/UPSTREAM.md](datasources/UPSTREAM.md)**:记录每个上游的**移植 tag、上次核对日期、
+- **新增 `datasources/UPSTREAM.md`**:记录每个上游的**移植 tag、上次核对日期、
   上游当时最新版本、以及逐条判断结论**;并给出再对账的命令与判据。
 - **2026-08-24 首次对账结论**:
   - **global-stock-data**:实际移植自 **v2.0.3**(文档原写 V2.0)。该版三项数据正确性修复

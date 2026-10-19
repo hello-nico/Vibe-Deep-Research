@@ -21,7 +21,7 @@
 ## 外壳与路由的现行实现
 
 - 外壳（`components/layout/Layout.tsx`）：外框上的图标栏（`workspace-rail`）与近白大圆角内容面（`#workspace-main`，`workspace-surface`）；没有顶栏、面包屑与页面小标题。窄屏图标栏落到底部。
-- 六个入口：对话 `/`、动态 `/feed`、洞悉 `/insights`、关注 `/watch`（个股页 `/watch/:symbol`）、资料 `/my-reports`、设置 `/settings`。动态与洞悉是过渡页，分别承载原资讯雷达与大盘行情、原我的研究，由 T8b 替换。
+- 六个入口：对话 `/`、动态 `/feed`、洞悉 `/insights`、关注 `/watch`（个股页 `/watch/:symbol`）、资料 `/my-reports`、设置 `/settings`。动态现阶段承载关注公司公告与新闻；洞悉承载原我的研究。由 T8b 替换。
 - 旧地址由 `lib/routes.ts` 的 `legacyRedirect` 对照跳转：`/watchlist`、`/research` → `/watch`；`/research?company=<slug>` → `/watch/<symbol>`；`/daily-review` → `/feed?tab=market`；`/intel`、`/intel/:tab` → `/feed?tab=intel`（带小栏目时 `&sub=`）；`/my-research` → `/insights`；`/my-research/topics/:hex` → `/insights/topics/:hex`。`/evidence` 深链不变。
 - 行业、产业研究与信号页面已删除；`/sectors`、`/sectors/profiles`、`/signals` 及其全部子路径统一跳到 `/watch`，不携带旧页面查询参数。行业与产业对象链接也回关注；现有知识与资料读取保留。
 - 关注把自选与研究名单合成一张表（可切卡片）：添加同时写入两处，移出关注两处同时移除且只动 Client 选择；打开个股页才触发研究。

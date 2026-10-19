@@ -1,5 +1,5 @@
 #!/usr/bin/env sh
-# 体检:Node / 数据目录 / Python 取数依赖 / 页面取数注册表 / 工作树凭据扫描 / [--net] 取数连通。实现见 orchestrator/src/doctor.ts
+# 体检:Node / 数据目录 / 工作树凭据扫描 / [--net] Backend 连接。实现见 orchestrator/src/doctor.ts
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # 先做 Node 运行时预检:版本不够或构建未启用 TypeScript 支持时给出指引,而不是 ERR_UNKNOWN_FILE_EXTENSION(#38)
 node "$ROOT/scripts/check-node.mjs" || exit 1

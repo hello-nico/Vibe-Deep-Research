@@ -17,7 +17,6 @@ test("产品配置:无文件 → 内置默认;相对路径相对产品根解析"
   assert.equal(pc.resolved.dataRoot, path.join(repo, ".local"));
   assert.equal(pc.resolved.constitution, path.join(repo, "AGENTS.md"));
   assert.equal(pc.resolved.skills, path.join(repo, ".agents", "skills"));
-  assert.equal(pc.resolved.scriptsRel, path.join(".agents", "skills", "data-access", "scripts"));
   assert.equal(pc.python, DEFAULT_PRODUCT_CONFIG.python);
   assert.deepEqual(Object.keys(pc), ["python", "paths", "resolved", "sources"], "配置里不允许再出现 provider / 引擎字段");
 });

@@ -1,5 +1,4 @@
 import type { Plugin } from "../plugin.ts";
-import { FINANCE_PAGE_CONTEXT,FINANCE_PAGE_QUERIES } from "./page_queries.ts";
 export const FINANCE_PLUGIN: Plugin = {
 id: "finance",
 evidence: {
@@ -19,6 +18,4 @@ marketRegion: (market: string): string => {
     if (m === "" || m === "SH" || m === "SZ" || m === "BJ" || m === "CN") return "CN";
     throw new Error(`未知市场 ${market}(只接受 SH/SZ/BJ/CN/US/HK 或空)`);
   },
-pageQueries: FINANCE_PAGE_QUERIES,
-pageContext: FINANCE_PAGE_CONTEXT
 };
