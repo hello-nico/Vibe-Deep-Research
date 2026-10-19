@@ -61,3 +61,10 @@ test('工具增删注册行（已添加工具：working_directory 等）由 chat
   const patch = read('../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.2.1-alpha.2.patch');
   assert.match(patch, /^\+\s*return node\.visibility === "visible" && node\.kind !== "system-prompt" && node\.kind !== "context"/m);
 });
+
+test('全局人设统一语言规则：开头、进度、思考与回答都用简体中文，并带英文开头反例', () => {
+  const patch = read('../dsh/finance-ui/cordis.patch.yml').replace(/\s+/g, ' ');
+  assert.match(patch, /everything the user can see is natural Simplified Chinese/);
+  assert.match(patch, /Never open or continue a turn in English/);
+  assert.match(patch, /我先看看当前页面的内容/);
+});
