@@ -1,7 +1,8 @@
 diff --git a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
+index 730b8a4..363b6a9 100644
 --- a/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
 +++ b/node_modules/@deepseek-ai/dsh-api-session-controller/lib/index.js
-@@ -1572,7 +1572,7 @@
+@@ -1635,7 +1635,7 @@ var SessionHistoryController = class {
  				signal,
  				projectionMode: withProjections || address.kind === "subagent" ? "all" : "none"
  			});

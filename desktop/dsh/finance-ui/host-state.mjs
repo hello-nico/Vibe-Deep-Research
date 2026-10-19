@@ -1,9 +1,27 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { backendHeaders, readCompatibility, resolveBackend, TOKEN_REJECTED, maskSecrets } from './backend-connection.mjs';
 import { REPORT_CHILD_PERSONA, RESEARCH_CHILD_PERSONA } from './child-personas.mjs';
+
+const taskCreation = new AsyncLocalStorage();
+
+export async function startTaskActivation(ctx, spec, persona) {
+  const creation = { persona };
+  const release = ctx.on('agent/created', ({ agent }) => {
+    if (taskCreation.getStore() !== creation) return;
+    agent.ctx.tools.restrict({ allow: [] });
+    agent.ctx.systemPrompt.section({ name: 'deployment:persona-prefix',
+      order: agent.ctx.systemPrompt.getSectionOrder('DEPLOYMENT_PERSONA_PREFIX'), text: persona });
+  });
+  try {
+    return await taskCreation.run(creation, () => ctx.subagents.startActivation(spec));
+  } finally {
+    release();
+  }
+}
 
 const TOPIC_ID = /^topic:[0-9a-f]{12}$/;
 const SESSION_ID = /^[A-Za-z0-9._:-]{8,128}$/;
@@ -576,7 +594,7 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
   const onUnload = () => abort.abort();
   signal.addEventListener('abort', onUnload, { once: true });
   try {
-    const run = await ctx.subagents.startActivation({
+    const run = await startTaskActivation(ctx, {
       provider: 'spawn', label: next.pending.title, signal: abort.signal, delivery: 'caller',
       request: {
       parent: host,
@@ -587,10 +605,8 @@ async function startReportRunLocked(ctx, { slug, input_hash, prompt, title }, si
       },
       prompt: [{ type: 'text', text: prompt }],
       maxDepth: 1,
-      toolFilter: { allow: [] },
-      persona: REPORT_CHILD_PERSONA,
       },
-    });
+    }, REPORT_CHILD_PERSONA);
     if (signal.aborted) {
       // Observe a late run's rejection before disposing its native handle.
       void Promise.resolve(run.result).catch(() => {});
@@ -792,16 +808,14 @@ async function spawnResearchSession(ctx, task, prompt, signal) {
   const onUnload = () => abort.abort();
   signal.addEventListener('abort', onUnload, { once: true });
   try {
-    const run = await ctx.subagents.startActivation({
+    const run = await startTaskActivation(ctx, {
       provider: 'spawn', label: task.title, signal: abort.signal, delivery: 'caller',
       request: {
       parent: host,
       agentOptions: task.model_selection,
       prompt: [{ type: 'text', text: prompt }], maxDepth: 1,
-      toolFilter: { allow: [] },
-      persona: RESEARCH_CHILD_PERSONA,
       },
-    });
+    }, RESEARCH_CHILD_PERSONA);
     if (signal.aborted) {
       void Promise.resolve(run.result).catch(() => {});
       await releaseHandle(run);

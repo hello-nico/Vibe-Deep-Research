@@ -3,7 +3,7 @@ import fs from "node:fs";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 // @ts-expect-error DSH plugin is JavaScript.
-import { apply, bindPluginRoutes } from "../dsh/finance-ui/server.mjs";
+import { apply, bindPluginRoutes, prepareChatSettings } from "../dsh/finance-ui/server.mjs";
 // @ts-expect-error DSH plugin is JavaScript.
 import { installPageModel } from "../dsh/finance-ui/model.mjs";
 // @ts-expect-error DSH plugin is JavaScript.
@@ -26,6 +26,8 @@ function pluginCtx(webServer: ReturnType<typeof fakeWebServer>) {
   const effects: Array<() => void> = [];
   return {
     webServer,
+    root: { loader: { await: async () => {} } },
+    settings: { describe: () => [{ ns: "ui-chat", user: { transcriptView: "standard" } }] },
     tools: { register: () => () => {} },
     agentDefaultModel: { currentSelection: () => null },
     llm: { async *stream() {} },
@@ -74,7 +76,7 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   const server = readFileSync(new URL("../dsh/finance-ui/server.mjs", import.meta.url), "utf8");
   assert.doesNotMatch(server, /installStageModel|stage-model/);
   // sessionPersistence 服务 reportTasksWithLineage（报告任务血缘，M9.5），不属 M9.9。
-  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools", "connection"\]/);
+  assert.match(server, /inject = \["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools", "connection", "settings"\]/);
   const patch = readFileSync(new URL("../dsh/finance-ui/cordis.patch.yml", import.meta.url), "utf8");
   assert.match(patch, /surfaceContext:\s*false/);
   assert.match(patch, /includeRuntimeContext:\s*false/);
@@ -87,6 +89,50 @@ test("旧阶段模型入口和源码已删除，产品护栏由同一份 patch/p
   assert.match(persona, /Do not give investment actions/);
   assert.match(persona, /never from memory/);
   assert.doesNotMatch(persona, /Follow the Stock-Research research\s+discipline/);
+});
+
+test("Host 聊天设置缺少工作细节时，在 Loader 就绪后写入 Compact 且保留其它字段", async () => {
+  let ready!: () => void;
+  const loaded = new Promise<void>(resolve => { ready = resolve; });
+  const user: Record<string, unknown> = { collapseTiming: "next-input" };
+  let writes = 0;
+  const ctx = {
+    root: { loader: { await: () => loaded } },
+    settings: {
+      describe(options: unknown) {
+        assert.deepEqual(options, { redactSecrets: true });
+        return [{ ns: "ui-chat", user, value: { transcriptView: "detailed" }, revision: 7 }];
+      },
+      async update(ns: string, patch: object, revision: number) {
+        assert.equal(ns, "ui-chat");
+        assert.equal(revision, 7);
+        assert.deepEqual(patch, { transcriptView: "compact" });
+        Object.assign(user, patch);
+        writes++;
+      },
+    },
+  };
+  const pending = prepareChatSettings(ctx);
+  await Promise.resolve();
+  assert.equal(writes, 0);
+  ready();
+  await pending;
+  assert.deepEqual(user, { collapseTiming: "next-input", transcriptView: "compact" });
+  await prepareChatSettings(ctx);
+  assert.equal(writes, 1);
+});
+
+test("Host 已有工作细节选择不被产品默认值覆盖", async () => {
+  for (const mode of ["compact", "standard", "detailed", "verbose", "normal", "expanded"]) {
+    const ctx = {
+      root: { loader: { await: async () => {} } },
+      settings: {
+        describe: () => [{ ns: "ui-chat", user: { transcriptView: mode }, revision: 3 }],
+        update: () => assert.fail(`不得覆盖已有 ${mode}`),
+      },
+    };
+    await prepareChatSettings(ctx);
+  }
 });
 
 test("真实插件的每个注册失败点都回滚，并可重装卸载", () => {

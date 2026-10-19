@@ -98,6 +98,7 @@ const lifecycleCheck: VibeCheck = { turn: 1, blocks: [{ index: 0, ok: true, elem
 ] }] };
 function assistantHarness(text = lifecycleText, component?: React.ComponentType<any>, textBlocks = [text]) {
   let Wrapper: any;
+  let registration: any;
   const native = { options: { key: 'assistant-step' }, component: component ?? ((props: any) => React.createElement(React.Fragment, null,
     React.createElement('p', null, '前文'),
     ...vibeBlocks(text).map(block => React.createElement(ui.VibeBlock, { key: block.offset, code: block.code,
@@ -105,13 +106,14 @@ function assistantHarness(text = lifecycleText, component?: React.ComponentType<
     React.createElement('p', null, '后文'))) };
   const release = ui.installVibeAssistantContext({ slots: {
     inject: (_key: string, factory: () => () => void) => factory(), entries: () => [native], subscribe: () => () => {},
-    register: (_options: unknown, component: any) => { Wrapper = component; return () => {}; },
+    register: (options: unknown, component: any) => { registration = options; Wrapper = component; return () => {}; },
   } });
   const disposeRenderer = ui.registerVibeRenderer(() => null);
   return {
-    async render({ endedAt, event, pending = false, interrupted = false }: { endedAt?: number; event?: unknown; pending?: boolean; interrupted?: boolean } = {}) {
+    get registration() { return registration; },
+    async render({ endedAt, event, pending = false, interrupted = false, renderFactorySlot }: { endedAt?: number; event?: unknown; pending?: boolean; interrupted?: boolean; renderFactorySlot?: (...args: any[]) => React.ReactNode } = {}) {
       const turn = { turn: 1, ...(endedAt === undefined ? {} : { end: { time: endedAt, data: { reason: { kind: interrupted ? 'cancelled' : 'completed' } } } }) };
-      await React.act(async () => root.render(React.createElement(Wrapper, { ...actions(), pending,
+      await React.act(async () => root.render(React.createElement(Wrapper, { ...actions(), pending, renderFactorySlot,
         node: { location: { kind: 'turn', turn }, data: { step: 2, status: interrupted ? 'interrupted' : 'settled',
           ...(interrupted ? {} : { finalNode: {} }), blocks: textBlocks.map(text => ({ kind: 'text', text })) } },
         useTurnData: (key: string) => key === 'turn-process' ? { answerStep: 2 } : event,
@@ -122,6 +124,26 @@ function assistantHarness(text = lifecycleText, component?: React.ComponentType<
     async close() { await React.act(async () => root.render(null)); release(); disposeRenderer(); },
   };
 }
+
+test('VibeAssistant leaves native child slots undeclared and forwards them to their Factories', async () => {
+  const factories: [string, unknown][] = [];
+  const renderFactorySlot = (name: string, owner: unknown) => { factories.push([name, owner]); return React.createElement('span', { 'data-factory': name }); };
+  const harness = assistantHarness('普通回答', (props: any) => React.createElement(React.Fragment, null,
+    props.renderSlot('conversation.chat.reasoning.body', { text: '思考', running: false }),
+    props.renderSlot('conversation.chat.message.images', { images: [], align: 'start' })));
+  try {
+    assert.equal(harness.registration.key, 'assistant-step');
+    assert.equal(harness.registration.priority, -10);
+    assert.equal(harness.registration.children, undefined);
+    await harness.render({ endedAt: Date.now(), renderFactorySlot });
+    assert.deepEqual(new Map(factories), new Map<string, unknown>([
+      ['conversation.chat.reasoning.content', { text: '思考', running: false }],
+      ['conversation.images.content', { images: [], align: 'start' }],
+    ]));
+    assert.deepEqual([...container.querySelectorAll('[data-slot]')].map(node => node.getAttribute('data-slot')),
+      ['conversation.chat.reasoning.body', 'conversation.chat.message.images']);
+  } finally { await harness.close(); }
+});
 
 test('a running turn keeps its placeholder without an event and copies only prose', async t => {
   t.mock.timers.enable({ apis: ['Date', 'setTimeout'], now: 1_700_000_000_000 });

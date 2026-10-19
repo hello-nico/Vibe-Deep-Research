@@ -41,21 +41,21 @@ const bindings = Object.fromEntries(vendorImport[1].split(',').map(item => {
 }));
 const context = vm.createContext({ ...bindings, URL, console });
 const code = [
-  region('function as(', '(function(){'),
-  region('function ko(', 'var ba='),
-  region('const fb=2;', 'const Ob='),
-  region('function E8(', 'function Nb('),
-  region('function vibeResultParagraph(', 'const F8='),
-  region('async function l1(', 'const N3='),
-  '({ S: j, l, Bd: Lf, qd: Nf, jj: Jb, _j: Xb, _2: Zc, X6: A8, Cj: Gb, ImageResolver: qb, Z6: I8, er: l1 })',
+  region('function P1(', '(function(){'),
+  region('function qs(', 'var u0='),
+  region('const $F=2;', 'const VF='),
+  region('function iw(', 'function BF('),
+  region('function vibeResultParagraph(', 'const yw='),
+  region('async function zo(', 'const C_='),
+  '({ S: C, l: u, Bd: sC, qd: uC, jj: fU, _j: dU, _2: p4, X6: mw, Cj: aU, ImageResolver: sU, Z6: lw, er: zo })',
 ].join('\n');
 // Only style names and unrelated link icon rendering need bindings. No parser,
 // streaming, paragraph, image or protocol behavior is mocked.
-Object.assign(context, { dt: { imageAlt: 'imageAlt', image: 'image' }, bo: () => null,
-  Wc: () => ({}), b8: function CodeViewBoundary() {} });
+Object.assign(context, { St: { imageAlt: 'imageAlt', image: 'image' }, Va: () => null,
+  f4: () => ({}), rw: function CodeViewBoundary() {} });
 const api = vm.runInContext(code, context, { filename });
-assert.ok(source.includes('return{react:Lf,"react/jsx-runtime":Nf,'), 'React module identity changed');
-assert.ok(source.includes('MarkdownText:F8,') && source.includes('writeClipboard:l1}'), 'Native Markdown/copy exports changed');
+assert.ok(source.includes('return{react:sC,"react/jsx-runtime":uC,'), 'React module identity changed');
+assert.ok(source.includes('MarkdownText:yw,') && source.includes('writeClipboard:zo}'), 'Native Markdown/copy exports changed');
 assert.equal(api.Bd.default, api.S);
 assert.equal(api.qd.jsx, api.l.jsx);
 const ref = 'result:' + 'a'.repeat(32);

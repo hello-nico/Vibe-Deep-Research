@@ -31,6 +31,7 @@ function researchCtx(starts = []) {
   const host = { session: { id: 'host-company' }, dispose: async () => {} };
   let n = 0;
   const ctx = {
+    on: () => () => {},
     agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model' }) },
     agents: {
       get: (id) => id === host.session.id ? host : null,

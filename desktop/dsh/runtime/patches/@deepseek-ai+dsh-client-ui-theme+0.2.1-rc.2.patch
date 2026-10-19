@@ -1,7 +1,8 @@
 diff --git a/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js b/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
+index a2a2dee..0fb97f3 100644
 --- a/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
 +++ b/node_modules/@deepseek-ai/dsh-client-ui-theme/lib/client.js
-@@ -1067,9 +1067,9 @@
+@@ -1067,9 +1067,9 @@ window.__ModuleLoader__.load({
  		*/
  		function sectionFontSizes(section) {
  			return Object.freeze({

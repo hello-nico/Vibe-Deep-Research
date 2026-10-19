@@ -12,9 +12,13 @@ const requireRuntime = createRequire(new URL('../dsh/runtime/package.json', impo
 const runtime = async (name: string) => import(requireRuntime.resolve(`@deepseek-ai/${name}`));
 const { Context } = await runtime('cordis');
 const { LlmAdapter } = await runtime('dsh-llm');
-const stock = process.env.VRA_RESEARCH_REPO
-  ? pathToFileURL(path.join(process.env.VRA_RESEARCH_REPO, 'dsh/dist') + path.sep)
-  : new URL('../../../Stock-Research/dsh/dist/', import.meta.url);
+const checkout = path.resolve(import.meta.dirname, '../..');
+const stockRoot = path.resolve(checkout, '../Stock-Research');
+// The sibling link under .worktrees points at Stock main; use the paired checkout
+// rather than mixing alpha.2 plugin artifacts with this worktree's rc.2 runtime.
+const stockRepo = process.env.VRA_RESEARCH_REPO ?? (path.basename(path.dirname(checkout)) === '.worktrees'
+  ? path.join(stockRoot, '.worktrees', path.basename(checkout)) : stockRoot);
+const stock = pathToFileURL(path.join(fs.realpathSync(stockRepo), 'dsh/dist') + path.sep);
 // Match the DSH launcher's installation-first resolution for linked plugins.
 // Native Session records have a private brand and must use the host's module instance.
 registerHooks({ resolve(specifier, context, nextResolve) {
@@ -97,7 +101,7 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' }
         : name === 'dsh-subagent' ? { maxActiveSubagents: 1 } : {});
     }
-    await ctx.plugin((await runtime('dsh-session-persistence-jsonl')).default, { root: path.join(home, 'sessions'), compression: 'none' });
+    await ctx.plugin(await runtime('dsh-session-persistence-jsonl'), { root: path.join(home, 'sessions'), compression: 'none' });
     await ctx.plugin(await runtime('dsh-subagent-spawn-in-process'), {});
     ctx.llm.registerAdapter(['controlled'], new ControlledModel());
     await ctx.plugin(Object.assign((inner: any) => installResearchTools(inner, async () => ({ tools: [], close() {} })),
@@ -112,7 +116,8 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
       const started = new Promise<void>(resolve => { childStarted = resolve; });
       const signal = scenario === 'timeout' ? AbortSignal.timeout(100) : new AbortController().signal;
       const outcome = runBackgroundReview(ctx.subagents, parent, snapshot, signal).then((value: any) => ({ value }), (error: any) => ({ error }));
-      await Promise.race([started, outcome.then((result: any) => { throw result.error || new Error('child completed before model request'); })]);
+      await Promise.race([started, outcome.then((result: any) => { throw result.error || new Error('child completed before model request: '
+        + JSON.stringify({ scenario, status: result.value?.status, code: result.value?.error_code, detail: result.value?.error_detail })); })]);
       const child = ctx.agents.list().find((agent: any) => agent.id !== parent.id);
       assert.ok(child);
       assert.equal(ctx.tools.get('generate_market_result', child), undefined);
@@ -284,7 +289,7 @@ test('slow parent finalize does not delay the next user model request', { timeou
     for (const name of ['dsh-fs-local', 'dsh-working-directory', 'dsh-agent', 'dsh-session', 'dsh-session-projection', 'dsh-llm', 'dsh-system-prompt', 'dsh-tools', 'dsh-agent-loop', 'dsh-subagent', 'dsh-skill']) {
       await ctx.plugin((await runtime(name)).default, name === 'dsh-tools' ? { mode: 'native' } : {});
     }
-    await ctx.plugin((await runtime('dsh-session-persistence-jsonl')).default, { root: path.join(home, 'sessions'), compression: 'none' });
+    await ctx.plugin(await runtime('dsh-session-persistence-jsonl'), { root: path.join(home, 'sessions'), compression: 'none' });
     await ctx.plugin(await runtime('dsh-subagent-spawn-in-process'), {});
     ctx.llm.registerAdapter(['controlled'], new ControlledModel());
     await ctx.plugin(Object.assign((inner: any) => installResearchTools(inner, async () => ({ tools: [], close() {} })),
@@ -343,9 +348,10 @@ for (const prefix of ['', 'plugin:']) test(`${prefix || 'legacy '}maintenance pr
   } });
   for (const status of ['no_increment', 'failed', 'cancelled']) assert.equal(maintenanceDefinition.match(event(status) as never), null);
   const draft = event('awaiting_authorization');
-  assert.deepEqual(maintenanceDefinition.match(draft as never), { id: 'question-a', role: 'start' });
+  assert.deepEqual(maintenanceDefinition.match(draft as never), { id: 'question-a', role: 'start', exclusive: true });
   const state = maintenanceDefinition.start({} as never, { event: draft } as never);
   const node = maintenanceDefinition.buildViewNode({ state, start: { event: draft }, id: 'question-a' } as never);
   assert.equal(node?.anchorSeq, 12);
+  assert.equal(node?.groupTree, 'turn');
   assert.equal(node?.data.content, '草案正文');
 });

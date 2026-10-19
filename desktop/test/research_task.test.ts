@@ -29,6 +29,7 @@ test('公司任务首请求前绑定研究身份，同公司去重，不把模�
   const starts: { pending: any; request: any; finish: (value: unknown) => void }[] = [];
   const host = { session: { id: 'host-company' } };
   const ctx = {
+    on: () => () => {},
     agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'model' }) },
     agents: { get: (id: string) => id === host.session.id ? host : null,
       create: async () => ({ agent: host, dispose: async () => {} }) },
@@ -52,8 +53,8 @@ test('公司任务首请求前绑定研究身份，同公司去重，不把模�
   assert.deepEqual(starts[0]?.pending.model_selection, { provider: 'test', model: 'model' });
   assert.equal(starts[0]?.request.parent.session.id, host.session.id);
   assert.equal(starts[0]?.request.maxDepth, 1);
-  assert.match(starts[0]?.request.persona, /company_research/);
-  assert.doesNotMatch(starts[0]?.request.persona, /deep_research/);
+  assert.equal(starts[0]?.request.persona, undefined);
+  assert.equal(starts[0]?.request.toolFilter, undefined);
   assert.equal(loadReportTasks().sessions[first.session_id].kind, 'research');
   assert.equal(loadReportTasks().sessions[first.session_id].title, input.title);
   await assert.rejects(startReportRun(ctx, { slug: input.slug, input_hash: 'a'.repeat(64), prompt: '生成报告' }), /公司研究进行中/);

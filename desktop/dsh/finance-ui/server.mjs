@@ -6,7 +6,16 @@ import { installCompanyRefresh } from './maintenance.mjs';
 import { installHostState } from './host-state.mjs';
 import { installLocalData } from './local-data.mjs';
 
-export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools", "connection"];
+export const inject = ["webServer", "llm", "agentDefaultModel", "sessions", "sessionPersistence", "agents", "subagents", "tools", "connection", "settings"];
+
+/** Seed the Host preference only after its live configuration forms are ready. */
+export async function prepareChatSettings(ctx) {
+  await ctx.root.loader.await();
+  const chat = ctx.settings.describe({ redactSecrets: true }).find(section => section.ns === "ui-chat");
+  if (!chat) throw new Error("DSH 聊天设置尚未就绪");
+  if (Object.hasOwn(chat.user ?? {}, "transcriptView")) return;
+  await ctx.settings.update("ui-chat", { transcriptView: "compact" }, chat.revision);
+}
 
 function trackDisposer(owned, disposer) {
   if (typeof disposer === "function") owned.push(disposer);
@@ -60,4 +69,5 @@ export function apply(ctx) {
   ctx.on("webserver/index-inject", table => {
     table.push({ kind: "html", placement: "head", html: '<link rel="stylesheet" href="/finance-ui.css">' });
   });
+  void prepareChatSettings(ctx).catch(error => ctx.logger.error("初始化工作细节设置失败：%s", error.message));
 }

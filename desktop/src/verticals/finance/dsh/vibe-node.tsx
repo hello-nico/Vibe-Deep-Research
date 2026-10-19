@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type C
 import { createPortal } from 'react-dom';
 import type { Context } from '@deepseek-ai/cordis';
 import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
+import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { ResearchResult } from '../components/ResearchResult';
 import { financialNumber } from '../lib/financialDisplay';
@@ -151,6 +152,15 @@ export function VibeBlock({ code, options }: { code: string; options: VibeRender
   return <>{Boolean(result.content?.length) && <div className="my-3 text-foreground" data-vibe-block>{result.content}</div>}{result.suggestion}</>;
 }
 
+type AssistantProps = ChatNodeViewProps<'assistant-step'>;
+type NativeAssistantProps = AssistantProps & Pick<PropsRenderSlots<keyof typeof NATIVE_CHILD_FACTORIES>, 'renderSlot'>;
+// The native view declares these child slots and the framework allows one declarer per slot, so
+// a shadowing entry gets no renderSlot. Their default entries only forward to these root Factories.
+const NATIVE_CHILD_FACTORIES = {
+  'conversation.chat.reasoning.body': 'conversation.chat.reasoning.content',
+  'conversation.chat.message.images': 'conversation.images.content',
+} as const;
+
 /** Shadow only the assistant seat, retaining the native renderer and its inject face. */
 export function installVibeAssistantContext(ctx: Context) {
   return ctx.slots.inject('conversation.chat.node', () => {
@@ -162,8 +172,12 @@ export function installVibeAssistantContext(ctx: Context) {
       previous = native;
       release?.(); release = undefined;
       if (!native) return;
-      const Assistant = native.component as ComponentType<ChatNodeViewProps<'assistant-step'>>;
-      function VibeAssistant(props: ChatNodeViewProps<'assistant-step'>) {
+      const Assistant = native.component as ComponentType<NativeAssistantProps>;
+      function VibeAssistant(props: AssistantProps) {
+        const { renderFactorySlot } = props;
+        const renderSlot = useMemo(() => ((key: keyof typeof NATIVE_CHILD_FACTORIES, owner: object) =>
+          <div data-slot={key} style={{ display: 'contents' }}>{renderFactorySlot(NATIVE_CHILD_FACTORIES[key] as never, owner as never)}</div>
+        ) as NativeAssistantProps['renderSlot'], [renderFactorySlot]);
         const check = props.useTurnData('finance-vibe');
         const process = props.useTurnData('turn-process');
         const ownCheck = process?.answerStep === props.node.data.step ? check : undefined;
@@ -201,7 +215,7 @@ export function installVibeAssistantContext(ctx: Context) {
         }, [bare?.start, ownCheck]);
         useEffect(() => registerVibeCopySource(copyText, visibleBlocks, visibleSuggestions), [copyText, visibleBlocks, visibleSuggestions]);
         const value: VibeContextData = { check: ownCheck, texts, actions: props, phase, visibleBlocks, suggestionTarget };
-        return <VibeContext.Provider value={value}><Assistant {...props} node={{ ...props.node, data: { ...props.node.data, blocks } }} /><div ref={setSuggestionTarget} data-vibe-suggestions-tail style={{ display: 'contents' }}>{bare && ownCheck && !('failed' in ownCheck) && ownCheck.suggest && <Suggest data={ownCheck.suggest} actions={props} />}</div></VibeContext.Provider>;
+        return <VibeContext.Provider value={value}><Assistant {...props} renderSlot={renderSlot} node={{ ...props.node, data: { ...props.node.data, blocks } }} /><div ref={setSuggestionTarget} data-vibe-suggestions-tail style={{ display: 'contents' }}>{bare && ownCheck && !('failed' in ownCheck) && ownCheck.suggest && <Suggest data={ownCheck.suggest} actions={props} />}</div></VibeContext.Provider>;
       }
       release = ctx.slots.register({ name: 'conversation.chat.node', key: 'assistant-step', priority: -10, locale: 'chat',
         inject: () => native.inject?.() ?? {} }, VibeAssistant);

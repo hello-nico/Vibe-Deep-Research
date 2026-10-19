@@ -17,6 +17,7 @@
 - 不改 `node_modules`，不直接改 DSH bundle。确需上游行为，走 `desktop/dsh/runtime/` 的补丁流程并登记移除条件。
 - 对话统一用 DSH 原生渲染：右侧面板（`finance-side-panel`）嵌入原生对话，交互与只读两种模式；嵌入不调用 `uiWorkspace.openSession`，不切换主区前台会话。
 - 用户确认用 DSH 原生选项组件（`ask_user_question`），不自建聊天确认组件。
+- `finance-ui` 启动等 Loader 就绪后，通过 Host settings 服务在用户文档缺少 `ui-chat.transcriptView` 时写入 `compact`，带读取时的 revision 防止覆盖并发选择；已有用户值保持。思考收起与手动展开由 DSH 原生 Compact 渲染负责。
 
 ## 外壳与路由的现行实现
 

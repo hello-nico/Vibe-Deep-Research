@@ -219,7 +219,7 @@ for (const window of ['create', 'spawn']) {
     const waiting = new Promise<void>(resolve => { entered = resolve; });
     let creates = 0, spawns = 0, hostDisposes = 0, runDisposes = 0;
     let spawnSignal: AbortSignal | undefined;
-    const ctx = {
+    const ctx = { on: () => () => {},
       agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model' }) },
       agents: {
         get() { return null; },
@@ -272,7 +272,7 @@ test("create 返回裸 Agent 时首次启动失败，不会 spawn", async t => {
     fs.rmSync(home, { recursive: true, force: true });
   });
   const starts = [];
-  const ctx = {
+  const ctx = { on: () => () => {},
     agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model' }) },
     agents: {
       get() { return null; },
@@ -299,7 +299,7 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   let hostAgent = { session: { id: "host-task", header: { id: "host-task" } } };
   const hostDisposes = [];
   const runDisposes = [];
-  const ctx = {
+  const ctx = { on: () => () => {},
     agentDefaultModel: { currentSelection: () => ({ provider: 'test', model: 'test-model', reasoningEffort: 'high', temperature: 0.2, uiFlag: true }) },
     agents: {
       get(id) { return id === hostAgent.session.id ? hostAgent : null; },
@@ -330,7 +330,8 @@ test("报告 spawn 在首请求前写入 pending，同版本去重，取消走 A
   assert.deepEqual(starts[0].request.agentOptions, { provider: 'test', model: 'test-model', reasoningEffort: 'high' });
   assert.equal(starts[0].request.agentOptions.uiFlag, undefined);
   assert.equal(starts[0].request.agentOptions.temperature, undefined);
-  assert.deepEqual(starts[0].request.toolFilter, { allow: [] });
+  assert.equal(starts[0].request.toolFilter, undefined);
+  assert.equal(starts[0].request.persona, undefined);
   assert.equal(starts[0].pending.parent_id, starts[0].request.parent.session.id);
   assert.equal(starts[0].pending.slug, "companies/600011-sh");
   assert.equal(starts[0].request.prompt[0].text, "生成报告");

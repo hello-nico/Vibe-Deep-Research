@@ -51,6 +51,7 @@ export const resultDefinition: ConversationNodeDefinition<State> = {
     const embedded = answer?.finalNode && answer.blocks.some(block => block.kind === 'text'
       && inlineResultReferences(block.text).has(resultId));
     return { key: context.key, kind: 'finance-result', id: context.id, target: 'chat',
+      groupTree: 'turn',
       anchorSeq: end?.seq ?? context.state.seq, location, visibility: embedded ? 'hidden' : 'visible',
       data: { resultId } };
   },
@@ -64,7 +65,7 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
     if (!['stock-research/maintenance', 'plugin:stock-research/maintenance'].includes(value.type) || value.data?.status !== 'awaiting_authorization'
       || !value.data.questionIdentity || value.data.draft?.published !== false || !value.data.draft.draft_token
       || !value.data.proposal?.research_blocks?.[0]?.content) return null;
-    return { id: value.data.questionIdentity, role: 'start' };
+    return { id: value.data.questionIdentity, role: 'start', exclusive: true };
   },
   start(_context, match) {
     const data = match.event.data as unknown as { question?: string; proposal: { research_blocks: { content: string }[] }; draft?: { draft_token?: string } };
@@ -76,6 +77,7 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
   buildViewNode(context) {
     if (!context.state) return null;
     return { key: context.key, kind: 'finance-maintenance', id: context.id, target: 'chat',
+      groupTree: 'turn',
       anchorSeq: context.start?.event?.seq ?? 0, location: context.start?.location ?? { kind: 'unresolved' as const },
       visibility: 'visible', data: context.state };
   },
@@ -100,7 +102,7 @@ export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidate
     const value = event as unknown as { type: string; data?: TopicCandidateData };
     if (!['stock-research/topic-candidate', 'plugin:stock-research/topic-candidate'].includes(value.type) || value.data?.consumer === 'deep_research'
       || !value.data?.id || !value.data.question) return null;
-    return { id: value.data.id, role: 'start' };
+    return { id: value.data.id, role: 'start', exclusive: true };
   },
   start(_context, match) { return match.event.data as unknown as TopicCandidateData; },
   update(context, match) {
@@ -110,6 +112,7 @@ export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidate
   buildViewNode(context) {
     if (!context.state?.id) return null;
     return { key: context.key, kind: 'finance-topic-candidate', id: context.id, target: 'chat',
+      groupTree: 'turn',
       anchorSeq: context.start?.event?.seq ?? 0, location: context.start?.location ?? { kind: 'unresolved' as const },
       visibility: 'visible', data: context.state };
   },
@@ -134,7 +137,7 @@ export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = 
     if (!['stock-research/suggestion', 'plugin:stock-research/suggestion'].includes(value.type) || data?.consumer !== 'deep_research'
       || !data.id || !data.question || !['question', 'indicator', 'company'].includes(data.type)
       || !Array.isArray(data.items) || !data.items.length) return null;
-    return { id: data.id, role: 'start' };
+    return { id: data.id, role: 'start', exclusive: true };
   },
   start(_context, match) { return match.event.data as unknown as SuggestionData; },
   update(context) { return context.state; },
@@ -144,6 +147,7 @@ export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = 
     const turn = location.kind === 'turn' || location.kind === 'step' ? location.turn : undefined;
     if (!turn?.end) return null;
     return { key: context.key, kind: 'finance-suggestion', id: context.id, target: 'chat',
+      groupTree: 'turn',
       anchorSeq: turn.end.seq, location, visibility: 'visible', data: context.state };
   },
 };
@@ -153,12 +157,13 @@ export const researchStatusDefinition: ConversationNodeDefinition<{ text: string
   match(event) {
     const value = event as unknown as { type: string; seq: number; data?: { text?: string } };
     return ['stock-research/status', 'plugin:stock-research/status'].includes(value.type) && typeof value.data?.text === 'string'
-      ? { id: String(value.seq), role: 'start' } : null;
+      ? { id: String(value.seq), role: 'start', exclusive: true } : null;
   },
   start(_context, match) { return match.event.data as unknown as { text: string }; },
   update(context) { return context.state; },
   buildViewNode(context) {
     return context.state ? { key: context.key, kind: 'finance-research-status', id: context.id, target: 'chat',
+      groupTree: 'turn',
       anchorSeq: context.start?.event?.seq ?? 0, location: context.start?.location ?? { kind: 'unresolved' as const },
       visibility: 'visible', data: context.state } : null;
   },

@@ -48,6 +48,7 @@ function loadInstalledFactory(file: string, exposeChatDefinitions = false): Reco
     ['@deepseek-ai/dsh-client-store', store],
     ['@deepseek-ai/dsh-client-ui-primitives', callableStub],
     ['@deepseek-ai/dsh-client-ui-slots', callableStub],
+    ['@tanstack/react-virtual', callableStub],
   ]);
   const context = vm.createContext({
     window: { __ModuleLoader__: { load(value: typeof registration) { registration = value; } } },

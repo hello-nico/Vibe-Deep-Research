@@ -15,7 +15,7 @@ const events = [
 for (const prefix of ['', 'plugin:']) test(`${prefix || '旧格式'}三类推荐事件都投影为各自卡片数据`, () => {
   for (const data of events) {
     const event = { type: `${prefix}stock-research/suggestion`, seq: 10, data };
-    assert.deepEqual(suggestionDefinition.match(event as never), { id: data.id, role: 'start' });
+    assert.deepEqual(suggestionDefinition.match(event as never), { id: data.id, role: 'start', exclusive: true });
     assert.deepEqual(suggestionDefinition.start({} as never, { event } as never, {} as never), data);
   }
 });
@@ -28,6 +28,7 @@ test('推荐只在所属 turn.end 后显示并锚定到回答末尾', () => {
   } as never);
   assert.equal(view(), null);
   assert.equal(view({ seq: 14 })?.anchorSeq, 14);
+  assert.equal(view({ seq: 14 })?.groupTree, 'turn');
   assert.deepEqual(view({ seq: 14 })?.data, data);
 });
 
@@ -36,7 +37,7 @@ for (const prefix of ['', 'plugin:']) test(`${prefix || '旧格式'}推荐严格
   assert.equal(suggestionDefinition.match({ type: `${prefix}stock-research/suggestion`, seq: 1, data: { ...events[0], consumer: undefined } } as never), null);
   const candidate = { id: 'candidate-1', question: '继续研究吗', reason: '有变化' };
   assert.equal(topicCandidateDefinition.match({ type: `${prefix}stock-research/topic-candidate`, seq: 1, data: { ...candidate, consumer: 'deep_research' } } as never), null);
-  assert.deepEqual(topicCandidateDefinition.match({ type: `${prefix}stock-research/topic-candidate`, seq: 1, data: candidate } as never), { id: 'candidate-1', role: 'start' });
+  assert.deepEqual(topicCandidateDefinition.match({ type: `${prefix}stock-research/topic-candidate`, seq: 1, data: candidate } as never), { id: 'candidate-1', role: 'start', exclusive: true });
 });
 
 test('历史候选只在无入口绑定的深度对话隐藏', () => {

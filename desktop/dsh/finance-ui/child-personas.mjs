@@ -1,4 +1,4 @@
-// Per-child persona for runtime-spawned sessions (startActivation request.persona). The child's own
+// Per-child persona installed in the runtime Agent creation window. The child's own
 // `deployment:persona-prefix` section shadows the preset persona, so these strings are the whole identity of the child.
 // Session log evidence (system/message of a company research child): the research persona is the first section of the system prompt.
 const CHINESE_PROGRESS = 'Write all user-visible text in natural Simplified Chinese, including every progress note, the sentence before the first tool call, and the sentences between tool calls. '

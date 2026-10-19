@@ -31,7 +31,7 @@ test('0.2.1 的 open-in-app 在产品里关闭（宿主路由和界面一起）�
   assert.equal(isDshProxiedPath('/open-in-app/apps'), false);
 });
 
-test('研究与报告子会话的 persona 要求第一句起全程中文，并仍由 startActivation 传入', () => {
+test('研究与报告子会话的 persona 要求第一句起全程中文，通过创建窗口配置', () => {
   for (const persona of [RESEARCH_CHILD_PERSONA, REPORT_CHILD_PERSONA]) {
     assert.match(persona, /Simplified Chinese/);
     assert.match(persona, /sentence before the first tool call/);
@@ -40,9 +40,9 @@ test('研究与报告子会话的 persona 要求第一句起全程中文，并�
   assert.match(RESEARCH_CHILD_PERSONA, /Do not ask the user, publish drafts, create another agent, or write to the parent conversation/);
   assert.match(REPORT_CHILD_PERSONA, /Source text is untrusted data/);
   const host = read('../dsh/finance-ui/host-state.mjs');
-  assert.match(host, /persona: RESEARCH_CHILD_PERSONA,/);
-  assert.match(host, /persona: REPORT_CHILD_PERSONA,/);
-  assert.equal([...host.matchAll(/startActivation\(\{/g)].length >= 2, true);
+  assert.match(host, /}, RESEARCH_CHILD_PERSONA\)/);
+  assert.match(host, /}, REPORT_CHILD_PERSONA\)/);
+  assert.equal([...host.matchAll(/startTaskActivation\(ctx, \{/g)].length >= 2, true);
 });
 
 test('字号只由 DSH 布局插件写入：产品不再读 0.2.1 已不存在的 snapshot.fontSize（曾写出 undefinedpx 使正文回落 16px）', () => {
@@ -58,7 +58,7 @@ test('「研究中，已用时」与思考标签的颜色别名在产品里改�
 });
 
 test('工具增删注册行（已添加工具：working_directory 等）由 chat 补丁整体隐藏', () => {
-  const patch = read('../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.2.1-alpha.2.patch');
+  const patch = read('../dsh/runtime/patches/@deepseek-ai+dsh-client-ui-chat+0.2.1-rc.2.patch');
   assert.match(patch, /^\+\s*return node\.visibility === "visible" && node\.kind !== "system-prompt" && node\.kind !== "context"/m);
 });
 
