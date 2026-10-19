@@ -109,6 +109,22 @@ test('步骤文件合成当前步，跳过的步骤不占当前步', async (t) =
   assert.equal(view.steps[0].outputs.packet_as_of, '2026-10-14');
 });
 
+test('整理失败的步骤文件显示为失败，不退回等待', async (t) => {
+  useHome(t);
+  const task = {
+    task_id: 'task:fedcba9876543210', kind: 'company_research', symbol: '000933.SZ', slug: 'companies/000933-sz',
+    title: '神火股份', status: 'completed', steps: [],
+    sessions: ['session-a'], host_boot_id: 'boot', trigger_note: null, reason: null,
+    created_at: '2026-10-19T00:00:00.000Z', updated_at: '2026-10-19T00:00:00.000Z', finished_at: '2026-10-19T00:05:00.000Z',
+  };
+  fs.mkdirSync(path.join(process.env.DSH_HOME, 'research', 'tasks', task.task_id), { recursive: true });
+  fs.writeFileSync(path.join(process.env.DSH_HOME, 'research', 'tasks', task.task_id, 'task.json'), JSON.stringify(task));
+  ['fetch', 'read_report', 'key_variables', 'valuation', 'save'].forEach((key, i) => writeStep(task.task_id, i + 1, key, 'done'));
+  writeStep(task.task_id, 6, 'settle', 'failed');
+  const view = composeResearchTask(task);
+  assert.equal(view.steps[5].status, 'failed');
+});
+
 test('保存完成后结束不再续跑；用户中止也不续跑', async (t) => {
   useHome(t);
   t.after(() => disposeReportRuntime());

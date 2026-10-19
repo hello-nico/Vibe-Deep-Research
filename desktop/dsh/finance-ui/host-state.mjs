@@ -662,7 +662,7 @@ function listResearchTaskFiles(root = researchTasksRoot()) {
 
 function readResearchStep(taskId, index, key) {
   const marker = readJson(path.join(researchTaskDir(taskId), 'steps', `${index}-${key}.json`), null);
-  if (!marker || marker.step !== key || (marker.status !== 'done' && marker.status !== 'skipped')) return null;
+  if (!marker || marker.step !== key || !['done', 'skipped', 'failed'].includes(marker.status)) return null;
   return marker;
 }
 
