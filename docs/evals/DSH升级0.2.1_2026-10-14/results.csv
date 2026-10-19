@@ -1,0 +1,22 @@
+item,result,kind
+gate:vibe_npm_test,459/459,script
+gate:stock_pnpm_test,316/316,script
+gate:vibe_tsc_build,通过,script
+gate:orchestrator_test,97 passed 0 failed 1 skipped (Windows ACL),script
+gate:docs_invariants_protocol_diff,通过,script
+gate:tool_audit_since_054250Z,exit 0; 5 sessions / 4 headers / 0 corrupt,script
+patch:dsh-client-modules,删除 上游已等价,source_report
+patch:dsh-session,产品代码替代 appendPluginRecord,source_report
+patch:dsh-api-session-controller,重做 子会话无 cwd 冷读豁免,source_report
+patch:dsh-client-ui-layout,重做 删除上游 root/AppFrame 保留 layout 服务,source_report
+patch:dsh-client-ui-model-selection,重做 始终搜索并匹配 provider/id/name/description,source_report
+patch:dsh-client-ui-chat,重做 QUOTA/AUTH/FORBIDDEN 与产品节点,source_report
+patch:dsh-client-ui-trajectory,重做 额度/禁止文案 未用真实故障走查,source_report
+patch:dsh-llm-pi-ai,重做 额度优先于 401/403,source_report
+patch:dsh-llm-deepseek,重做 额度优先 区分 401/403,source_report
+patch:dsh-client-ui-conversation,重做 研究首页文案,source_report
+patch:dsh-web-frontend,重做 stock-ref/result/vibe 于发布产物,source_report
+run:deep_chart,session-1c07f63d-c989-4e75-9029-02896e00a868 只读图表渲染,source_report
+run:assistant,session-f39d4f6e-60d5-4109-9ce2-12f7beab70c7 只读；现金指标上下文缺口,source_report
+run:conch_research,task:83d1084ba5392c6b completed version2; 整理 skipped,source_report
+package_source,npm 0.2.1-alpha.2 未混用本地 tarball,source_report

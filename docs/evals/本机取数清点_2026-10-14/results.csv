@@ -1,0 +1,53 @@
+capability,product_use,endpoint,python,backend,migrate,kind
+A股实时报价,Watch 3s; 个股页; 跟踪; 成交额榜补市值,tx_quotes_batch,stdlib,部分 日线预览非盘中,Backend 新增批量实时报价,survey
+A股宽基指数,动态页大盘; 问助手快照,tx_quotes_batch,stdlib,部分 无四只盘中报价,新增指数报价或并进批量,survey
+全球指数,动态页大盘; 问助手快照,tx_quotes_batch,stdlib,无,Backend 新增,survey
+复盘业务日,动态页大盘分段,fetch_trade_calendar,baostock,无,Backend 新增交易日历,survey
+短线情绪与涨停梯队,动态页大盘; 问助手快照,em_limit_up_sentiment em_zt_pool em_zb_pool em_yzt_pool,requests,无,Backend 新增,survey
+强势股题材归因,复盘页取回未单独展示,ths_hot_reason,requests,无,先确认是否展示,survey
+板块资金流,资金榜与轮动,em_board_fund_flow,requests,无,Backend 新增,survey
+行业涨跌家数,大盘宽度,em_industry_comparison,requests,部分 provider 有无页面接口,挂成只读接口,survey
+全市场成交额榜,动态页大盘; 问助手快照,em_turnover_rank,requests,无,Backend 新增,survey
+全市场龙虎榜,复盘页取回页面未展示,em_daily_dragon_tiger,requests,无,先确认是否停调,survey
+关注列表个股公告,动态页资讯 A股公告,cninfo_announcements,requests,部分 已入库文档非实时清单,改调列表或新增,survey
+关注列表个股新闻,动态页资讯公开新闻,em_stock_news,requests,部分 雷达卡非标题列表,改调雷达或加列表形态,survey
+行业公开资讯,动态页投资资讯; 问助手快照,rss_news,stdlib,无,新增或改走雷达后不迁,survey
+宏观事件概率,动态页事件概率; 问助手快照,macro_probability,requests,无,新增或放弃分段,survey
+unused,前端与问助手都不调用,tx_quote,doctor only,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_reports,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_industry_reports,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_concept_blocks,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_fund_flow_minute,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_fund_flow_120d,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_dragon_tiger,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_lockup_expiry,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_margin_trading,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_block_trade,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_holder_num,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_dividend_history,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_news,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_stock_info,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_dt_pool,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_stock_monitor,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_price_anomaly,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_price_anomaly_count,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_hot_rank,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_hot_concept,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,ths_hsgt_realtime,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,ths_limit_up_pool,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,ths_hot_list,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,tx_us_quote,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,tx_hk_quote,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_quote,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_income,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_balance,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_cashflow,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_key_indicators,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_global_fund_flow,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_stock_search,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,em_market_list,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,tw_monthly_revenue,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,gpu_rent_thermometer,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,cn_commodity_futures,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,dram_spot_thermo,—,建议不迁,不迁,unused
+unused,前端与问助手都不调用,hiring_anchor_signal,—,建议不迁,不迁,unused

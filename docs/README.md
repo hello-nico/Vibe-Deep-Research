@@ -8,6 +8,7 @@
 | [decisions/proposed/](decisions/proposed/) | 有验证证据、待拍板的提案 | 先证明再设计 |
 | [decisions/implemented/](decisions/implemented/) | 已落地、仍需保留「为什么」的决策 | 跟着代码同步更新事实 |
 | [tasks/active/](tasks/active/) | 待实施与进行中的 Task 及追加过程记录 | 规格 ≤ 200 行；当前交接 ≤ 60 行；见[两仓开发协议](task-protocol.md) |
+| [evals/](evals/) | 技术验证与 Benchmark 的提炼记录：问题、方法、环境、指标、结论、重跑方式 | 只放提炼与小结果表，原始返回留在 `.local/`；公开仓库不放第三方正文 |
 | [tasks/archived/](tasks/archived/) | 收尾后的 Task 与历史记录 | 冻结，不作为现行依据 |
 | [整体验收规范](整体验收规范.md) | 长期有效的整体测试用例 | 只追加；需求变更才改预期 |
 | [视觉设计协议](design.md) | 所有页面共同遵守的视觉规格：令牌、骨架、组件、表格与审阅清单 | 改界面先改本文件再改代码 |

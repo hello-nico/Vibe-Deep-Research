@@ -1,0 +1,25 @@
+item,result,kind
+Q1,推荐随包内置固定版本一同发布；仅放入 ASAR 不会自动激活,source_report
+Q2,Stock 不能直接加载；finance-ui 只通过 manifest/patch 读取完整加载未成立,source_report
+Q3,产品首页未达到；上游原生对话页已实见,source_report
+Q4,固定产品装配放 bundle patch；用户部署值用持久产品设置；health GET 200 只证明可达,source_report
+Q5,不能仅用现成配置和资源完整覆盖品牌,source_report
+Q6,generic feed 可用但 production origin 仍固定上游；壳与 dsh 须一套发布,source_report
+Q7,本 macOS 主机不能沿现有链路生成 Windows x64 目录包（退出 1）,source_report
+Q8,中等规模改造；主要风险在可执行资源与生命周期,source_report
+patch:dsh-client-modules,上游已有同类修复；移除候选仍缺真实加载回归,source_report
+patch:dsh-api-session-controller,仍需处理可在 Desktop 构建链重做,source_report
+patch:dsh-session,改插件使用上游 appendPluginRecord 与 plugin: 命名空间,source_report
+patch:dsh-client-ui-model-selection,部分已有未等价,source_report
+patch:dsh-client-ui-chat,仍需重做/随插件事件迁移收敛,source_report
+patch:dsh-client-ui-trajectory,仍需重做,source_report
+patch:dsh-llm-pi-ai,仍需重做,source_report
+patch:dsh-llm-deepseek,仍需重做,source_report
+patch:dsh-client-ui-conversation,产品文案仍需移植,source_report
+patch:dsh-client-ui-layout,仍需处理可构建时补丁,source_report
+patch:dsh-web-frontend,必须重做旧 hash 产物补丁不可复用,source_report
+stage:lockfile_install,成功 1398 依赖,script
+stage:packaged_smoke,退出 0,script
+stage:gui_launch,两次退出 0 实见上游对话页,script
+stage:windows_target,退出 1 要求 Windows x64 构建机,script
+stage:product_acceptance,未通过 插件未内置,source_report

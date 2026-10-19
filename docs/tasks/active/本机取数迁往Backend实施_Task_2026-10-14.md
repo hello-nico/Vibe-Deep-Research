@@ -33,7 +33,7 @@ R5 不做：大盘分段的新设计；云端网络实测（用户部署后自�
 | 段 | 执行方 | worktree | 内容 |
 |---|---|---|---|
 | A | pi1 | `/Users/apple/ts/src/Stock-Research/.worktrees/pi1`（detached，主目录 HEAD） | Backend R1 三个接口、provider 接线、缓存、测试 |
-| B | claude2 | `/Users/apple/ts/src/Vibe-Deep-Research/.worktrees/claude2`（detached，主目录 HEAD） | `desktop/src/verticals/finance/`：`api.ts` 改调 R1、`Feed.tsx` 删大盘分段、`Intel.tsx` 删两个子分段、删除 `DailyReview.tsx` 等仅大盘用的组件与样式、问助手快照；`desktop/dsh/finance-ui/research.mjs` 白名单；测试。接口按 R1 契约编码，A 未合入前用测试替身 |
+| B | cursor | Vibe 主目录（2026-10-15 改：对着用户热更新工作台 5930 验证；0.2.1 已提交 7d21c313） | `desktop/src/verticals/finance/`：`api.ts` 改调 R1、`Feed.tsx` 删大盘分段、`Intel.tsx` 删两个子分段、删除 `DailyReview.tsx` 等仅大盘用的组件与样式、问助手快照；`desktop/dsh/finance-ui/research.mjs` 白名单；测试。接口按 R1 契约编码，A 未合入前用测试替身 |
 | C | pi1 | Vibe worktree（A、B 合入后基于新 HEAD） | R4 删除与 doctor 改造；`verify-docs`、`verify-invariants`、README 与契约中对取数链的描述同步改写 |
 
 ## 4. 验收
@@ -58,13 +58,18 @@ R5 所列。
 
 ## 8. 补充
 
-无。
+- 2026-10-15 Claude 决定（§6 B 触发项）：自选页 PE 列保留，R1 报价新增可空字段 `pe_ttm`（只新增，`API_VERSION` 不变）。报价源给不出时返回 null，前端显示缺口；源完全没有该数时由 pi2 停下报告，再改为删列。
+- 2026-10-15 已实现：pi1 接腾讯行情第 39 字段（PE TTM）为 `pe_ttm`，合入 Stock 主目录（`providers/quotes.py`、`tests/test_public_feed.py`，25 通过）；Claude 在 Vibe `lib/api.ts` 映射该字段并改 `quote_snapshot` 测试。
 
 ## 9. 当前交接
 
-1. 状态与结论：A 由 pi1 在 `/Users/apple/ts/src/Stock-Research/.worktrees/pi1` 完成；2026-10-14 Claude 审阅后合入 Stock 主目录，已提交 Stock `1cae4fc`，重建后 §4.2 接口验证通过。三个接口按 R1 契约可调，§6 未触发。
-2. 改动文件：`backend/app/providers/quotes.py`、`services/public_symbols.py`、`services/market_quotes.py`、`services/feed_items.py`、`api/v1/quotes.py`、`api/v1/feed.py`、`api/v1/__init__.py`、`tests/test_public_feed.py`。
-3. 证据：2026-10-14 15:41 调 127.0.0.1:8700。三只报价 200，price、change_pct、volume、amount、market_cap、as_of 均非 null，as_of 为 2026-10-14。缓存过期后连续两次 1675ms 与 4ms，载荷相同；日志只有两条访问记录、无缓存命中行，按耗时差判定第二次命中。公告 10 条、3529ms；新闻 10 条、3642ms。均未超过 10 秒。
-4. 与规格的偏差及理由：Claude 补修 `feed_items._collect`：原用 `with ThreadPoolExecutor`，退出时会等慢源跑完，8 秒截止不生效；改为 `shutdown(wait=False, cancel_futures=True)`，单只来源抛任何异常都只跳过该只。金额按元返回（成交额由万元换算，市值由亿元换算，成交量由手换算为股）。公告只为库里没有公告的代码补源，不边列边入库。新闻 `source` 用雷达条目的发布方。3 秒缓存在同一时刻并发未命中时可能各打一次源，轮询错开时影响很小，暂不加锁。
-5. 未覆盖的缺口：真实三只股票与缓存命中留到重建后；云端网络未测。
-6. 下一步谁做什么：A 段真实取数已验证，§6 未触发。B 等 claude2 的 0.2.1 前端完善合入后开始；A、B 合入后派 C。
+1. 状态与结论：A 已合入 Stock（`1cae4fc`）。B 代码与测试完成，未提交。门禁：`npx tsc --noEmit` 通过；`npm test` 471 条，仅 `#34 LAN 默认为关` 失败（改动前同样失败，与本任务无关）；
+   `verify-docs`、`verify-invariants`、`git diff --check` 通过。**§6 触发一项：自选页「PE」列依赖 R1 不提供的 `pe_ttm`**，现保持 null 显示缺口，未造替代，待决定删列或 Backend 补字段。宿主白名单已改，需用户重启工作台后才对 5930 生效；改后截图与报价是否在跳尚未取得。
+2. 改动文件：`desktop/dsh/finance-ui/research.mjs`；`lib/api.ts`（重写，只调三个 R1 接口）、`lib/localService.ts`（删 `fetch`/`page` 及信封类型与取数辅助）、`lib/routes.ts`、`lib/feedPageContext.ts`、`lib/pageAssistantObjects.ts`；`pages/Feed.tsx`、`pages/Intel.tsx`；
+   `assistant/{snapshot,prompt,apply,binding,sessions}.ts`、`core/ai/pageContext.tsx`、`components/ui/FinanceAiDock.tsx`、`dsh/research-session.tsx`、`hooks/useLiveQuotes.ts`（仅注释）；
+   删除 `pages/DailyReview.tsx`、`pages/dailyReviewStatus.ts`、`lib/marketRequest.ts`、测试 `daily_review_context`、`market_request`、`short_term_emotion`、`global_indices`；
+   改写测试 `quote_snapshot`、`assistant_context`、`feed_page_context`、`assistant_prompt_behavior`、`null_semantics`、`routes_redirect`、`variable_desk`、`workspace_visual`（仅 Feed/Intel 与助手断言两处，未动「研究中」图标那条）、`assistant_panel`、`assistant_lifecycle`。
+3. 证据：直调 127.0.0.1:8700 的 `/market/quotes`、`/feed/news` 返回与 `api.ts` 映射一致（价格、市值、`as_of` 均有值）。5930 现对 `/finance-research/market/quotes` 返回 404，原因是宿主未重启，白名单未生效。单测覆盖：补后缀与亿元换算、缺失保持 null、港美股不发请求、公告新闻批量请求、白名单只放行 GET、3 秒间隔与交易时段暂停。
+4. 与规格的偏差及理由：`api.ts` 不经 `research.ts` 而自带最小 `fetch`，因 `research.ts` 在 node 测试中无法加载；仍走同一代理。`/daily-review` 旧入口改跳 `/feed`。保留 `market` 助手角色字面量与对象类型，因已存会话仍引用，旧「大盘」引用只给身份并声明无读取契约。港股、美股报价、公告、新闻随 R1（仅 A 股）不再提供。
+5. 未覆盖的缺口：改后四张截图（动态页、资料页、关注/自选报价、个股页现价）与报价是否跳动；当前为午休（12:03），3 秒轮询仅在 09:15–11:30、13:00–15:00 运行，需重启后在交易时段确认。港美股自选的轮询判定仍按其本市场时区，会发空请求被跳过。
+6. 下一步谁做什么：用户重启工作台后，cursor 在交易时段补四张截图并核对跳动；Claude 决定 PE 列删除或让 Backend 补 `pe_ttm`；A、B 验收后派 C。
