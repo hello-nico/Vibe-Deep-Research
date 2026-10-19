@@ -23,7 +23,7 @@ test('浏览器和全屏不标记，桌面壳 macOS 窗口才标记', () => {
 
 test('标记类只加在根元素上，浏览器侧栏仍从 14px 起', () => {
   assert.match(client, /installDesktopShellMarker/)
-  assert.match(css, /html\.desktop-shell-macos \.workspace-rail \{ padding-top: var\(--dsh-frame-top-clearance, 48px\)/)
+  assert.doesNotMatch(css, /html\.desktop-shell-macos \.workspace-rail/, '窗口按钮带统一由 data-platform 规则处理，不再另给侧栏加距')
   assert.match(css, /\.workspace-rail \{[\s\S]*padding: 14px 0 12px/)
   assert.equal(DESKTOP_SHELL_MACOS_CLASS, 'desktop-shell-macos')
   assert.doesNotMatch(css, /html:not\(\.desktop-shell-macos\) \.workspace-rail/)

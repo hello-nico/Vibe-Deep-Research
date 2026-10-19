@@ -39,6 +39,7 @@ export function Layout() {
         requestAnimationFrame(() => mainRef.current?.focus());
       }}>跳到内容</a>
       <div className="workspace-shell">
+        <div className="workspace-window-band" data-window-drag="" aria-hidden="true" />
         <aside aria-label="产品侧栏" className="workspace-rail">
           <Link to="/" aria-label="Vibe Finance 对话" className="workspace-rail-brand"><BrandMark className="h-7 w-7" /></Link>
           <nav aria-label="工作台导航" className="workspace-rail-nav">
