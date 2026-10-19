@@ -2,7 +2,7 @@
 
 ## 1. 问题
 
-DeepSeek 原生 Search / Fetch API 能否替代或补充 Backend `search_external`（Exa 默认、Tavily、东方财富新闻）与现有网页读取。来源 Task：[DeepSeek检索与DSH-rc2核实](../../tasks/active/DeepSeek检索与DSH-rc2核实_Task_2026-10-19.md) A 段。
+DeepSeek 原生 Search / Fetch API 能否替代或补充 Backend `search_external`（Exa 默认、Tavily、东方财富新闻）与现有网页读取。来源 Task：[DeepSeek检索与DSH-rc2核实](../../tasks/archived/DeepSeek检索与DSH-rc2核实_Task_2026-10-19.md) A 段。
 
 ## 2. 方法与数据集
 

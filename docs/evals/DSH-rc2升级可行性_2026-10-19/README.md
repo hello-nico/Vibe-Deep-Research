@@ -2,7 +2,7 @@
 
 ## 1. 问题
 
-产品运行时从 `0.2.1-alpha.2` 升到上游 `0.2.1-rc.2` 要付出多少，能删掉哪些补丁，打包与更新源是否受影响。来源 Task：[DeepSeek检索与DSH-rc2核实](../../tasks/active/DeepSeek检索与DSH-rc2核实_Task_2026-10-19.md) B 段。
+产品运行时从 `0.2.1-alpha.2` 升到上游 `0.2.1-rc.2` 要付出多少，能删掉哪些补丁，打包与更新源是否受影响。来源 Task：[DeepSeek检索与DSH-rc2核实](../../tasks/archived/DeepSeek检索与DSH-rc2核实_Task_2026-10-19.md) B 段。
 
 ## 2. 方法与数据集
 

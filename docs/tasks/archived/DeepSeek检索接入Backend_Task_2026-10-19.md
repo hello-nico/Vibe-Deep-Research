@@ -52,7 +52,7 @@ codex1。worktree：`cd /Users/apple/ts/src/Stock-Research && git worktree add -
 
 ## 9. 当前交接
 
-1. 状态与结论：2026-10-19 codex1 已在 Stock detached `.worktrees/codex1`（HEAD `d2ac5e9c5041e6f016dfbb979a0fac56cce4d2db`）完成 R1–R6 实施及 §5.1–3 执行。检索单测、lint、真实四题通过；全量测试与协议门禁未全绿，见下。未触发 §7，按范围停下。
+1. 状态与结论：2026-10-19 Claude 审阅修订后已合入 Stock 主目录（未提交，含 docker-compose 与 test_settings 两处补充），待用户配置密钥、重建并验收。codex1 已在 Stock detached `.worktrees/codex1`（HEAD `d2ac5e9c5041e6f016dfbb979a0fac56cce4d2db`）完成 R1–R6 实施及 §5.1–3 执行。检索单测、lint、真实四题通过；全量测试与协议门禁未全绿，见下。未触发 §7，按范围停下。
 2. 改动文件：仅 §4 七项：`backend/app/services/external_search.py`、`backend/app/settings.py`、`backend/app/providers/rate_limit.py`、`backend/tests/test_external_search.py`、`.env.example`、`docs/provider-source-map.md`、`docs/architecture.md`。
    DeepSeek 默认及 auto 选择顺序、60/400 预算、4 QPS 限流、128 字请求截断、summary 字段映射、分数过滤排序、Exa 单次接替与独立预算均已实现。卡片/hash、公司新闻路由、DSH 与网页读取边界保留；无两家合并或语言路由。
 3. 证据：在 worktree/backend 复用主目录现有虚拟环境，`PATH=/Users/apple/ts/src/Stock-Research/backend/.venv/bin:$PATH uv run --no-project pytest tests/test_external_search.py -q`：43 passed。新增 mock 覆盖字段、过滤排序、402/429/5xx/超时/结构错误/空/低匹配接替、原错保留、预算、auto、新闻及长 query。

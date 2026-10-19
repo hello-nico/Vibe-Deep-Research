@@ -30,13 +30,13 @@
 
 在做（按依赖排序；2026-10-19 更新，执行方：codex1、codex2、pi1、pi2、pi3、claude2，Cursor 不再参与）：
 1. ✅ 用户层迁移与按用户隔离（[Task](docs/tasks/archived/Backend按用户隔离_Task_2026-10-14.md)）：2026-10-14 Stock `620f198` 提交、两令牌真实运行通过、归档。Wiki 里 `local` 的旧研究块保留不读（不变量 19），以后正式发布时清理。
-2. 研究关键点第二步：2026-10-15 修复轮完成（精简数据包保留最近定期报告；未做关键变量不得保存），已合入 Stock 主目录待提交；提交、重建 Backend 后重跑神火 ×2、长江电力 ×1，Claude 判断，另看神火未完成计算就保存的问题。
-3. 打包线：[插件装进桌面安装包](docs/tasks/active/插件装进桌面安装包_Task_2026-10-14.md)（Codex）与[桌面壳品牌与更新源](docs/tasks/active/桌面壳品牌与更新源_Task_2026-10-14.md)均已完成：未签名品牌包可装可用，[桌面首页两处修复](docs/tasks/active/桌面首页两处修复_Task_2026-10-15.md)真机截图通过（两仓待提交）。下一步 Claude 合成品牌与打包补丁 → 签名、公证、更新源上线 → Windows 包。
-4. [本机取数迁往 Backend 实施](docs/tasks/active/本机取数迁往Backend实施_Task_2026-10-14.md)：A 段 ✅ Stock `1cae4fc`；B 段代码完成、门禁通过，待用户验收后提交（Stock 的 `pe_ttm` 一并提交）；收尾交 claude2：北交所 920 代码判成沪市、`Quote` 过时注释、`api.quote` 兼容空参数，以及交易时段四张截图与报价跳动。C 段删除本机取数链（pi1，B 段提交后）。
+2. 研究关键点第二步：修复轮已提交（Stock `8a3c213`）；10-19 用户研究神火，关键变量先算后存。待重跑神火 ×2、长江电力 ×1，Claude 判断。
+3. 打包线：[插件装进桌面安装包](docs/tasks/active/插件装进桌面安装包_Task_2026-10-14.md)（Codex）与[桌面壳品牌与更新源](docs/tasks/active/桌面壳品牌与更新源_Task_2026-10-14.md)已完成未签名品牌包；[桌面首页两处修复](docs/tasks/archived/桌面首页两处修复_Task_2026-10-15.md)已提交归档。下一步随 6b 基于 rc.2 合成补丁 → 签名、公证、更新源 → Windows 包。
+4. [本机取数迁往 Backend 实施](docs/tasks/active/本机取数迁往Backend实施_Task_2026-10-14.md)：A ✅ Stock `1cae4fc`；B ✅ Vibe `bc57db55` 及 10-19 验收修复（[验收修复](docs/tasks/archived/验收修复与取数B段收尾_Task_2026-10-19.md)、[聚焦与资讯缓存](docs/tasks/archived/聚焦配色与资讯缓存_Task_2026-10-19.md)）。C 段删除本机取数链（pi1）待派。
 5. ✅ 客户端与 Backend 版本校验：Vibe `46008ae1`、Stock `d2ac5e9` 提交。全局横幅另做。
 6. ✅ 0.2.1 前端完善：Vibe `7d21c313` 提交。
-6a. [DeepSeek 检索接入 Backend](docs/tasks/active/DeepSeek检索接入Backend_Task_2026-10-19.md)（codex1，2026-10-19 派发）：DeepSeek 默认、Exa 补充（用户确认，依据 [检索对比](docs/evals/DeepSeek检索对比_2026-10-19/README.md)）；合入后用户在 Backend 配置 `STOCK_RESEARCH_DEEPSEEK_API_KEY` 并重建。
-6b. DSH 升级到 rc.2：待当前批次提交后写实施 Task（codex2），依据 [升级可行性](docs/evals/DSH-rc2升级可行性_2026-10-19/README.md)：无补丁可删、5 个重做、版本门禁与品牌补丁需移植；打包线基于 rc.2。
+6a. ✅ [DeepSeek 检索接入 Backend](docs/tasks/archived/DeepSeek检索接入Backend_Task_2026-10-19.md)：DeepSeek 默认、Exa 补充，10-19 用户验收。同日修复[知识整理 422](docs/tasks/archived/知识整理422修复_Task_2026-10-19.md)（自 10-14 起每次公司研究的整理都失败并被显示为已跳过）。
+6b. DSH 升级到 rc.2：待写实施 Task（codex2），依据 [升级可行性](docs/evals/DSH-rc2升级可行性_2026-10-19/README.md)：无补丁可删、5 个重做、版本门禁与品牌补丁需移植；打包线基于 rc.2。
 7. 待写 Task：T8b 定时运行（复用 DSH `packages/schedule`）、T7b 电解铝产业链页（claude2 写提示与页面，Claude 判断）、跟踪项表与「开始观察」、个股页预期对比、新用户首次打开、关于我列表、公司研究提示词定稿（中文进度、失败一句话、去内部用语）。
 
 飞书助手（第 08 屏）不在本次范围（2026-10-14 用户决定）。评估留档：约 5–6 个执行方工作日；本机 DSH 插件以长连接收发消息（参考 Memoh `internal/channel/adapters/feishu` 的 websocket 入站），不需要公网地址；表达参考 grok-bot 与 Muse；设置页「消息渠道」存自建应用凭据；主动推送依赖任务记录、T8b 与财报卡。
