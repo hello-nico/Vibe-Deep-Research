@@ -8,7 +8,7 @@
 }
 button.finance-suggest-row { cursor: pointer; }
 button.finance-suggest-row:hover:not(:disabled) { background: hsl(var(--muted) / .55); }
-button.finance-suggest-row:focus-visible { outline: 2px solid hsl(var(--primary) / .5); outline-offset: 1px; }
+button.finance-suggest-row:focus-visible { outline: 2px solid var(--line-3); outline-offset: 1px; }
 button.finance-suggest-row:disabled { cursor: default; color: hsl(var(--muted-foreground)); }
 .finance-suggest-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .finance-suggest-symbol { font-variant-numeric: tabular-nums; }

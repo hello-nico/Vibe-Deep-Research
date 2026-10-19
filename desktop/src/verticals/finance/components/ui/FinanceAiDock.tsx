@@ -405,7 +405,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
               placeholder={ASSISTANT_PLACEHOLDER}
               aria-label="问助手输入"
               rows={3}
-              className="w-full resize-none rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
+              className="w-full resize-none bg-card px-3 py-2 text-sm outline-none placeholder:text-muted-foreground/70 disabled:opacity-50"
               onCompositionStart={() => { composing.current = true; }}
               onCompositionEnd={event => {
                 composing.current = false;

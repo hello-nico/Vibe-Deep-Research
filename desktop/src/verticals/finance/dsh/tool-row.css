@@ -1,7 +1,7 @@
 .finance-tool-row { min-width: 0; color: var(--dsw-alias-label-secondary); }
 .finance-tool-row-head { width: 100%; height: calc(24px + var(--dsh-content-font-delta, 0px)); display: flex; align-items: center; gap: 6px; padding: 0; border: 0; background: transparent; color: inherit; text-align: left; cursor: pointer; font-size: var(--dsh-content-font-size-secondary, 13px); }
 .finance-tool-row-head:disabled { cursor: default; }
-.finance-tool-row-head:focus-visible, .finance-tool-row-inspect:focus-visible { outline: 2px solid var(--dsw-alias-brand-primary); outline-offset: 2px; }
+.finance-tool-row-head:focus-visible, .finance-tool-row-inspect:focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
 .finance-tool-row-leading { width: calc(16px + var(--dsh-content-font-delta, 0px)); height: 16px; flex: none; display: grid; place-items: center; color: var(--dsw-alias-label-tertiary); }
 .finance-tool-row-leading svg { width: 14px; height: 14px; }
 .finance-tool-row-status { width: 5px; height: 5px; flex: none; border-radius: 50%; background: var(--dsw-alias-label-tertiary); }

@@ -95,7 +95,7 @@ a.refresh-source-title:hover { text-decoration: underline; }
   background: var(--fill-2); color: hsl(var(--foreground));
 }
 .workspace-action.refresh-trigger { min-width: 130px; justify-content: center; white-space: nowrap; }
-.refresh-dialog :is(button, a):focus-visible { outline: 2px solid hsl(var(--brand)); outline-offset: 2px; }
+.refresh-dialog :is(button, a):focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
 @media (max-width: 640px) {
   .task-notice-stack, .task-notice-local { right: 16px; top: 80px; }
   .refresh-dialog-backdrop { padding: 12px; }

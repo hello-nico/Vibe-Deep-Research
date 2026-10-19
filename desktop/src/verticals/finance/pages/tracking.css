@@ -4,7 +4,7 @@
 .tracking-item + .tracking-item { border-top: 1px solid var(--line-1); }
 .tracking-row { display: flex; align-items: center; gap: 12px; width: 100%; padding: 14px 20px; text-align: left; background: none; border: 0; cursor: pointer; }
 .tracking-row:hover { background: var(--fill-1); }
-.tracking-row:focus-visible { outline: 2px solid hsl(var(--brand)); outline-offset: -2px; }
+.tracking-row:focus-visible { outline: 2px solid var(--line-3); outline-offset: -2px; }
 .tracking-text { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
 .tracking-text b { font-size: 14px; font-weight: 600; }
 .tracking-text > span { font-size: 13px; color: var(--text-2); }

@@ -162,7 +162,7 @@ export function AiComposer({
             "ai-input min-w-0 flex-1 resize-none rounded-lg border px-3 py-2 text-sm outline-none transition-colors",
             highlighted
               ? "border-warning/45 bg-warning/[0.075] placeholder:text-muted-foreground focus:border-warning/70 focus:bg-warning/[0.11]"
-              : "border-border bg-background/55 focus:border-primary/50 focus:bg-background/75",
+              : "border-border bg-background/55 focus:border-foreground/20 focus:bg-background/75",
           )}
         />
         {onStop ? <button type="button" onClick={onStop}

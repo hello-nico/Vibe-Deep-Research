@@ -57,7 +57,7 @@
 .topic-wall-edge.is-hard { background: #334155; color: #fff; }
 .topic-wall-edge.is-link { border: 1px solid var(--line-3); background: hsl(var(--card)); color: hsl(var(--foreground)); }
 .topic-wall-edge.is-hypothesis { border: 1px dashed #7c8798; background: hsl(var(--card)); color: hsl(var(--muted-foreground)); }
-.topic-wall-edge:focus-visible { outline: 2px solid hsl(var(--primary)); outline-offset: 2px; }
+.topic-wall-edge:focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
 
 /* Hypothesis composer */
 .topic-wall-composer { position: absolute; top: 50%; left: 50%; z-index: 4; width: min(360px, calc(100% - 32px)); transform: translate(-50%, -50%); padding: 16px; border: 1px solid hsl(var(--border)); border-radius: 14px; background: hsl(var(--card)); cursor: default; }

@@ -65,7 +65,7 @@ export function useLiveQuotes(codes: string[], enabled: boolean): LiveQuotesStat
     const requested = cs.join(",");
     setLoading(true);
     try {
-      const data = await api.quote(requested, true);
+      const data = await api.quote(requested);
       // 自动轮询只拉开盘市场，必须与休市市场已有快照合并；首次 / 手动刷新才整体替换。
       setQuotes((prev) => onlyCodes ? { ...prev, ...data } : data);
       setError(null);

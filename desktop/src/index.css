@@ -38,6 +38,8 @@
     --line-1: color-mix(in srgb, hsl(var(--base)) 8%, transparent);
     --line-2: color-mix(in srgb, hsl(var(--base)) 12%, transparent);
     --line-3: color-mix(in srgb, hsl(var(--base)) 20%, transparent);
+    /* DSH 全局 :focus-visible 读这个令牌，未设时回落到它的品牌橙；聚焦不用品牌色（design.md §5）。 */
+    --dsw-focus-ring-color: var(--line-3);
     --brand-soft: color-mix(in srgb, hsl(var(--brand)) 12%, transparent);
     --brand-line: color-mix(in srgb, hsl(var(--brand)) 45%, transparent);
 
@@ -146,9 +148,11 @@
   }
   body { @apply font-sans; margin: 0; font-variant-numeric: tabular-nums; }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
-  :where(button, a, input, textarea, select):focus-visible {
-    outline: 2px solid hsl(var(--brand)); outline-offset: 2px;
-  }
+  /* docs/design.md §5：聚焦不用品牌色。文本输入靠自身描边变化，不加外框；按钮与链接仅键盘聚焦显示墨色外框。 */
+  :where(button, a):focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
+  /* 不用 :where：须压过 DSH 注入的 :focus-visible（同为一个伪类）与 Tailwind .outline-none 的 2px 实线。 */
+  input:focus-visible, textarea:focus-visible, select:focus-visible { outline: none; }
+  :where(input, textarea, select):focus { border-color: var(--line-3); }
   ::selection { background: var(--brand-soft); }
   .prose { overflow-wrap: anywhere; }
   .prose th, .prose td { padding: .7em .9em; }
@@ -360,7 +364,7 @@
   }
 }
 /* Citation focus marks the exact row, including keyboard-driven navigation. */
-.research-evidence tr:focus { outline: 2px solid hsl(var(--brand)); outline-offset: -2px; background: var(--fill-2); }
+.research-evidence tr:focus { outline: 2px solid var(--line-3); outline-offset: -2px; background: var(--fill-2); }
 
 /* 页面助手面板：与卡片同一套令牌（白底、淡描边、无阴影），亮暗跟随主题。 */
 .ai-surface {

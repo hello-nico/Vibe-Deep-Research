@@ -290,7 +290,7 @@ body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] button[ari
 .finance-session-action:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover); }
 .finance-session-action:disabled { color: var(--dsw-alias-label-dimmed); cursor: wait; }
 .finance-session-action span, .finance-session-action svg { flex: none; white-space: nowrap; }
-.finance-session-action:focus-visible { outline: 2px solid hsl(var(--primary) / .4); outline-offset: 2px; }
+.finance-session-action:focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
 #dsh-conversation [class*="_tools"]:has(.finance-library-attach) > [data-slot="conversation.input.left"] { order: 1; }
 #dsh-conversation [class*="_tools"]:has(.finance-library-attach) > [class*="_modes"] { order: 2; }
 #dsh-conversation[data-assistant-seat] [class*="_modes"] { display: none; }
@@ -341,7 +341,7 @@ body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] button[ari
 }
 .finance-library-attach-btn:hover:not(:disabled) { background: var(--dsw-alias-interactive-bg-hover-solid); }
 .finance-library-attach-btn:disabled { opacity: .5; cursor: default; }
-.finance-library-attach-btn:focus-visible { outline: 2px solid hsl(var(--primary) / .4); outline-offset: 2px; }
+.finance-library-attach-btn:focus-visible { outline: 2px solid var(--line-3); outline-offset: 2px; }
 #dsh-conversation code > button[aria-label="打开研究材料"] {
   font-size: 0;
 }

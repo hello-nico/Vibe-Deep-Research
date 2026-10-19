@@ -79,8 +79,16 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
   flex-shrink: 0;
   background: hsl(var(--background));
 }
+/* docs/design.md §5 输入类：与 DSH 主对话输入框同款，无描边、柔和阴影、大圆角；聚焦不换成品牌色。 */
+.finance-assistant-composer textarea {
+  border: 0;
+  border-radius: 16px;
+  box-shadow: 0 2px 12px color-mix(in srgb, hsl(var(--base)) 8%, transparent);
+  transition: box-shadow 160ms ease;
+}
 .finance-assistant-composer textarea:focus {
-  border-color: hsl(var(--primary) / .45);
+  border: 0;
+  box-shadow: 0 2px 14px color-mix(in srgb, hsl(var(--base)) 14%, transparent);
 }
 .finance-assistant-mentions {
   overscroll-behavior: contain;

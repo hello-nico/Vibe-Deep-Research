@@ -23,10 +23,10 @@ export function RouteErrorPage() {
           刷新或返回首页不会清空本机配置或已保存记录。尚未保存的输入可能丢失；运行中的研究请恢复后到研究页查看。
         </p>
         <div className="mt-6 flex flex-wrap gap-3">
-          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">
+          <button type="button" onClick={() => window.location.reload()} className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/20">
             <RefreshCw aria-hidden="true" className="h-4 w-4" />重新加载页面
           </button>
-          <a href="/" className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary">返回首页</a>
+          <a href="/" className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-muted focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-foreground/20">返回首页</a>
         </div>
       </section>
     </main>

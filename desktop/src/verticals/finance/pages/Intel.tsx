@@ -6,7 +6,7 @@ import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { useArchiveThenRefresh } from "../../../core/data/useArchiveThenRefresh";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { api } from "@/lib/api";
+import { api, feedCachedAt } from "@/lib/api";
 import { loadWatch } from "@/lib/watchlist";
 import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
 
@@ -18,38 +18,46 @@ const TABS = [
 
 // 关注股公告 / 新闻聚合：从本地关注列表取代码，复用个股接口批量拉取、按时间倒序合并。
 // 只做公开信息聚合，标的均为用户自己关注列表里的，不预置、不推荐。
-const MAX_ROWS = 60;
+const MAX_ROWS = 50;
+// 股名不会变：同一页面会话内只取一次，切分段不再请求行情。
+const NAME_CACHE = new Map<string, string>();
+const clock = (at: number) => new Date(at).toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit", hour12: false });
 
 function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [depNote, setDepNote] = useState<string | null>(null);
+  const [updatedAt, setUpdatedAt] = useState<number | null>(null);
 
   // 公告与新闻各一次请求带上全部关注代码；Backend 按时间倒序返回，部分代码取不到时只少那几只。
-  const load = useCallback(async (): Promise<FeedRow[]> => {
+  const load = useCallback(async (force: boolean): Promise<FeedRow[]> => {
     const cs = codes;
     if (!cs.length) return [];
     setDepNote(null);
     // 股名（一次批量），失败则退回显示代码
-    const nameOf: Record<string, string> = {};
-    try {
-      const quotes = await api.quote(cs.join(","));
-      for (const c of cs) if (quotes[c]?.name) nameOf[c] = quotes[c].name;
-    } catch { /* 忽略：无股名不影响公告/新闻 */ }
+    const nameOf: Record<string, string> = Object.fromEntries(NAME_CACHE);
+    const missing = cs.filter(c => !NAME_CACHE.has(c));
+    if (missing.length) {
+      try {
+        const quotes = await api.quote(missing.join(","));
+        for (const c of missing) if (quotes[c]?.name) { nameOf[c] = quotes[c].name; NAME_CACHE.set(c, quotes[c].name); }
+      } catch { /* 忽略：无股名不影响公告/新闻 */ }
+    }
     const codeOf = (symbol: string) => symbol.slice(0, 6);
     const stamp = (value: string | null) => (value || "").replace("T", " ");
     const out: FeedRow[] = kind === "filings"
-      ? (await api.announcements(cs, MAX_ROWS)).map(x => ({
+      ? (await api.announcements(cs, MAX_ROWS, { force })).map(x => ({
         code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title, meta: x.document_id ? "已入库" : "", url: x.url ?? "",
       }))
-      : (await api.news(cs, MAX_ROWS)).map(x => ({
+      : (await api.news(cs, MAX_ROWS, { force })).map(x => ({
         code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title || "", url: x.url ?? "",
       }));
+    setUpdatedAt(feedCachedAt(kind === "filings" ? "/feed/announcements" : "/feed/news", cs, MAX_ROWS));
     if (cs.some(c => !/^\d{6}$/.test(c))) setDepNote("港股、美股暂无公告与新闻，只汇总 A 股关注。");
     return out.slice(0, MAX_ROWS);
   }, [kind, codes]);
 
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
-    useArchiveThenRefresh<FeedRow[]>(() => load(), [kind, codes.join(",")], { refreshOnEnter: false });
+    useArchiveThenRefresh<FeedRow[]>(force => load(force), [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
   const feedPage = feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote });
   useAiPage(feedPage);
@@ -82,6 +90,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
             </span>
           )}
           {loading && <span className="text-[11px]">正在加载…</span>}
+          {updatedAt !== null && !loading && <span className="text-[11px]">更新于 {clock(updatedAt)}</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
         <button onClick={refresh} disabled={loading || refreshing}

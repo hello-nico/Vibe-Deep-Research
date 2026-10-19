@@ -13,7 +13,6 @@ export interface Quote {
   /** 全部可为 null：Backend 取不到的字段不编造，页面显示缺口而不是 0。 */
   name: string; price: number | null; last_close: number | null; change_pct: number | null;
   market: MarketCode; currency: CurrencyCode;
-  /** Backend 的行情接口不含估值倍数，保持 null；估值走研究资料。 */
   pe_ttm: number | null; pb: number | null; mcap_yi: number | null; turnover_pct: number | null;
   limit_up: number | null; limit_down: number | null;
   float_mcap_yi: number | null;
@@ -41,10 +40,10 @@ const YI = 1e8;
 const nullable = (value: number | null | undefined): number | null => (typeof value === "number" && Number.isFinite(value) ? value : null);
 
 /** 页面用 6 位代码；Backend 用 `600519.SH`。Backend 只提供 A 股报价，港美股不请求、也不显示报价。 */
-function qualified(code: string): string | null {
+export function qualified(code: string): string | null {
   const symbol = normalizeMarketSymbol(code);
   if (!symbol || marketOfSymbol(symbol) !== "CN") return null;
-  const suffix = /^(?:6|9)/.test(symbol) ? "SH" : /^(?:4|8)/.test(symbol) ? "BJ" : "SZ";
+  const suffix = /^(?:92|4|8)/.test(symbol) ? "BJ" : /^[69]/.test(symbol) ? "SH" : "SZ";
   return `${symbol}.${suffix}`;
 }
 
@@ -63,7 +62,7 @@ async function read<T>(route: string, params: Record<string, string>): Promise<T
     const detail = (body as { detail?: unknown } | null)?.detail;
     const message = typeof detail === "string" ? detail
       : detail && typeof detail === "object" && typeof (detail as { message?: unknown }).message === "string"
-        ? (detail as { message: string }).message : `行情服务暂不可用（HTTP ${response.status}）`;
+        ? (detail as { message: string }).message : `研究服务暂不可用（HTTP ${response.status}）`;
     throw new ApiError(message, response.status, String(response.status));
   }
   if (body === null || typeof body !== "object") throw new ApiError("行情服务返回了无法识别的内容", response.status, "bad_response");
@@ -104,16 +103,39 @@ async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
   return out;
 }
 
-async function feedItems<T>(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number): Promise<T[]> {
+/** 资讯在浏览器内存里缓存 30 分钟（刷新页面即清空）；键为接口 + 规范化代码 + limit，失败不缓存。 */
+export const FEED_CACHE_MS = 30 * 60 * 1000;
+const feedCache = new Map<string, { at: number; items: unknown[] }>();
+export interface FeedOptions { /** 绕过缓存重取，并覆盖缓存。 */ force?: boolean }
+
+function feedKey(route: string, codes: string[], limit: number): { key: string; symbols: string[] } {
   const symbols = [...new Set(codes.map(qualified).filter((code): code is string => code !== null))];
+  return { key: `${route}|${[...symbols].sort().join(",")}|${limit}`, symbols };
+}
+
+/** 该组合缓存写入的时刻（毫秒）；没有有效缓存时为 null。页面据此显示「更新于 HH:MM」。 */
+export function feedCachedAt(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number): number | null {
+  const hit = feedCache.get(feedKey(route, codes, limit).key);
+  return hit && Date.now() - hit.at < FEED_CACHE_MS ? hit.at : null;
+}
+
+/** 仅测试用：清空缓存。 */
+export function clearFeedCache(): void { feedCache.clear(); }
+
+async function feedItems<T>(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number, options: FeedOptions = {}): Promise<T[]> {
+  const { key, symbols } = feedKey(route, codes, limit);
   if (!symbols.length) return [];
+  const hit = feedCache.get(key);
+  if (!options.force && hit && Date.now() - hit.at < FEED_CACHE_MS) return hit.items as T[];
   const body = await read<{ items: T[] }>(route, { symbols: symbols.join(","), limit: String(limit) });
-  return body.items ?? [];
+  const items = body.items ?? [];
+  feedCache.set(key, { at: Date.now(), items });
+  return items;
 }
 
 export const api = {
-  /** 报价；`refresh` 保留旧签名，Backend 自带 3 秒共享缓存，不需要也不支持强制刷新。 */
-  quote: (codes: string, _refresh = false) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean)),
-  announcements: (codes: string[], limit = 20) => feedItems<Announcement>("/feed/announcements", codes, limit),
-  news: (codes: string[], limit = 20) => feedItems<NewsItem>("/feed/news", codes, limit),
+  /** 报价；Backend 自带 3 秒共享缓存，不需要也不支持强制刷新。 */
+  quote: (codes: string) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean)),
+  announcements: (codes: string[], limit = 20, options?: FeedOptions) => feedItems<Announcement>("/feed/announcements", codes, limit, options),
+  news: (codes: string[], limit = 20, options?: FeedOptions) => feedItems<NewsItem>("/feed/news", codes, limit, options),
 };

@@ -1,4 +1,4 @@
 .connection-input { width: 280px; height: 32px; padding: 0 10px; font-size: 13px; color: var(--text-1); background: var(--fill-1); border: 1px solid var(--line-1); border-radius: 8px; outline: none; }
-.connection-input:focus-visible { border-color: hsl(var(--brand)); }
+.connection-input:focus-visible { border-color: var(--line-3); }
 .connection-input::placeholder { color: var(--text-3); }
 .connection-message { font-size: 13px; font-weight: 400; color: var(--text-2); }

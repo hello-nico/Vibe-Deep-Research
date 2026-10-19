@@ -30,10 +30,6 @@ function PanelChat({ sessionId, topic, assistant, useSession, useConversation, u
       <button type="button" className="finance-assistant-intro-close" aria-label="关闭说明" onClick={() => setIntroClosed(true)}><X size={14} /></button>
       <h3>问问这个页面</h3>
       <p>助手会结合本页正在显示的内容回答。想针对某一条提问，在输入框里输入 @ 选中它。</p>
-      <ul>
-        <li><strong>Ask 即答</strong>只用本页和你 @ 的条目，几秒内回答。</li>
-        <li><strong>Agent 深查</strong>信息不够时会去读研究页、原文和网页，稍慢一些。</li>
-      </ul>
       <p className="finance-assistant-intro-note">值得留下的回答，可以点回答下方的「保存为记录」。</p>
     </div>}
     {showTopicOpening && topic && <div className="finance-topic-opening">
