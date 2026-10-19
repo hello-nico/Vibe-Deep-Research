@@ -33,9 +33,7 @@ export interface AiPage {
   /** 发送时按模式和已选对象生成快照；页面负责自身的数据边界。 */
   snapshotForSend?: (mode: 'ask' | 'agent', objects: AssistantObjectRef[]) => string;
   snapshotVersion?: string;
-  /** 大盘页 @ 指数时从快照取显示值的结构化索引行 */
-  marketIndices?: { id: string; name: string; price: number | null; change_pct: number | null; asOf?: string; source?: string; fetched_at?: string }[];
-  /** 大盘页 @ 连板/成交额个股时从快照取显示值 */
+  /** @ 个股时从快照取显示值 */
   companyQuotes?: CompanySnapshotQuote[];
   /** 空对话时给几个可点的问题 */
   suggestions?: string[];
@@ -203,9 +201,7 @@ export function useAiPage(page: AiPage | null): void {
   const context = page?.context ?? "";
   const snapshotForSend = page?.snapshotForSend;
   const snapshotVersion = page?.snapshotVersion ?? "";
-  const marketIndices = page?.marketIndices;
   const companyQuotes = page?.companyQuotes;
-  const marketSig = marketIndices ? JSON.stringify(marketIndices) : "";
   const quoteSig = companyQuotes ? JSON.stringify(companyQuotes) : "";
   // 只为比较用：把建议压成一个字符串，免得数组每次都是新对象
   const sig = page?.suggestions?.join("\u0000") ?? "";
@@ -219,7 +215,6 @@ export function useAiPage(page: AiPage | null): void {
     const next: AiPage | null = has
       ? {
         key, title, context, snapshotForSend,
-        marketIndices: marketIndices?.length ? marketIndices : undefined,
         companyQuotes: companyQuotes?.length ? companyQuotes : undefined,
         suggestions: sig ? sig.split("\u0000") : [],
         actions: actionSig ? (actionsRef.current ?? []).map(item => ({ ...item, run: () => actionsRef.current?.find(action => action.id === item.id)?.run() })) : undefined,
@@ -230,7 +225,7 @@ export function useAiPage(page: AiPage | null): void {
     return () => {
       set((prev) => (prev === mine.current ? null : prev));
     };
-  }, [set, has, key, title, context, snapshotVersion, marketSig, quoteSig, sig, actionSig]);
+  }, [set, has, key, title, context, snapshotVersion, quoteSig, sig, actionSig]);
 }
 
 /** 当前页已加载对象进入问助手 `@` 范围；卸载或换批次时注销，不抓正文。 */

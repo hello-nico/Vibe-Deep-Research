@@ -22,24 +22,12 @@ test('本轮页面内容仅供工具读取，用户消息只保留原话和引�
   assert.doesNotMatch(message, /【页面快照】|页面数据|引用读取结果/);
 });
 
-test('宽基集合不因全球行情加入而扩张，全球指数仍能单独读取', async () => {
-  const marketIndices = [
-    { id: '000001.SH', name: '上证指数', price: 3000, change_pct: 1 },
-    { id: 'market:000300.SH', name: '沪深300', price: 4000, change_pct: 1 },
-    { id: '399001.SZ', name: '深证成指', price: 10000, change_pct: 1 },
-    { id: '399006.SZ', name: '创业板指', price: 2000, change_pct: 1 },
-    { id: 'global:sp500', name: '标普500', price: 6000, change_pct: 2 },
-  ];
-  const text = await bindAssistantPrompt({ ...common, marketIndices,
+test('已移除的大盘指数引用不再绑定页面显示值，只给身份并声明没有读取契约', async () => {
+  const text = await bindAssistantPrompt({ ...common,
     objects: [{ kind: 'market', id: 'market:indices', label: '宽基指数集合' }],
   });
-  for (const row of marketIndices.slice(0, 4)) assert.ok(text.includes(row.name));
-  assert.doesNotMatch(text, /标普500|global:sp500/);
-  const globalText = await bindAssistantPrompt({ ...common, marketIndices,
-    objects: [{ kind: 'market', id: 'market:global:sp500', label: '标普500' }],
-  });
-  assert.match(globalText, /点位 6000/);
-  assert.doesNotMatch(globalText, /没有该指数/);
+  assert.match(text, /没有对应的宿主读取契约/);
+  assert.doesNotMatch(text, /点位/);
 });
 
 for (const outcome of ['success', 'network', 'timeout', 'http'] as const) {

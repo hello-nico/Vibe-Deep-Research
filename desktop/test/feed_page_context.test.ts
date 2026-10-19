@@ -1,9 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { feedPageContext, investmentNewsPageContext } from '../src/verticals/finance/lib/feedPageContext.ts';
+import { feedPageContext } from '../src/verticals/finance/lib/feedPageContext.ts';
 import { ASSISTANT_PLACEHOLDER, assistantIntro } from '../src/verticals/finance/assistant/sessions.ts';
 import { assistantBindingForPage } from '../src/verticals/finance/assistant/binding.ts';
-import { companyQuoteObject, dailyReviewQuoteObjects, wikiAssistantObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
+import { companyQuoteObject, wikiAssistantObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
 
 const snapshot = { kind: 'news' as const, watchCount: 1, loading: false, refreshing: false,
   err: null, staleNote: null, depNote: null,
@@ -34,36 +34,7 @@ test('公告上下文独立，空态及刷新失败不冒充已有最新数据',
   assert.equal(feedPageContext({ ...snapshot, watchCount: 0 }).objects.length, 0);
 });
 
-const newsSnapshot = {
-  industryKey: 'ai', industryName: 'AI / 大模型',
-  tracks: [{ key: 'ai', name: 'AI / 大模型', count: 1 }, { key: 'semi', name: '半导体', count: 0 }],
-  items: [{ time: '2026-09-15', source: '量子位', title: '华为云全面面向智能体，推出盘古 5.0', original: 'English title', url: 'https://example.com/huawei-cloud' }],
-  generatedAt: '2026-09-15T14:15:22+08:00', recentDays: 3, sourceCount: 98,
-  loading: false, refreshing: false, err: null, staleNote: null,
-};
-test('Investment News 对象绑定当前赛道真实 URL，不含栏目壳', () => {
-  const page = investmentNewsPageContext(newsSnapshot);
-  assert.equal(page.key, 'intel:investment-news:ai');
-  assert.match(page.context, /当前赛道：AI \/ 大模型/);
-  assert.equal(page.objects[0]?.label, '华为云全面面向智能体，推出盘古 5.0');
-  assert.equal(page.objects[0]?.id, 'url:https://example.com/huawei-cloud');
-  assert.equal(page.objects[0]?.source, '量子位');
-  assert.match(page.context, /当前栏目：Investment News/);
-  assert.doesNotMatch(page.context, /【页面快照】/);
-  assert.match(page.context, /华为云/);
-  assert.match(page.context, /@ 后由宿主读取/);
-  assert.doesNotMatch(page.context, /可选栏目/);
-});
-test('Investment News 空态与刷新中不冒充已有最新条目', () => {
-  const empty = investmentNewsPageContext({ ...newsSnapshot, items: [], generatedAt: null });
-  assert.match(empty.context, /尚未抓取资讯/);
-  assert.equal(empty.objects.length, 0);
-  const stale = investmentNewsPageContext({ ...newsSnapshot, refreshing: true, staleNote: '刷新失败，保留快照' });
-  assert.match(stale.context, /刷新失败/);
-  assert.match(stale.context, /不代表刷新后的最新结果/);
-  assert.equal(stale.objects[0]?.label, newsSnapshot.items[0]?.title);
-});
-test('资讯三栏发送快照按 @ 与 Ask/Agent 裁剪，最多最近 20 条', () => {
+test('资讯两栏发送快照按 @ 与 Ask/Agent 裁剪，最多最近 20 条', () => {
   const rows = Array.from({ length: 25 }, (_, i) => ({ code: '000001', name: '测试公司', when: `2026-09-${String(25 - i).padStart(2, '0')}`, title: `标题${i}`, url: `https://example.com/${i}` }));
   for (const kind of ['news', 'filings'] as const) {
     const page = feedPageContext({ ...snapshot, kind, rows });
@@ -81,25 +52,10 @@ test('资讯三栏发送快照按 @ 与 Ask/Agent 裁剪，最多最近 20 条',
       assert.equal(whole.includes('https://example.com/0'), mode === 'agent');
     }
   }
-  const items = rows.map(row => ({ time: row.when, source: '公开源', title: row.title, url: row.url }));
-  const news = investmentNewsPageContext({ ...newsSnapshot, items });
-  for (const mode of ['ask', 'agent'] as const) {
-    const selected = news.snapshotForSend(mode, [news.objects[3]!]);
-    assert.match(selected, /本栏共 25 条，其余未提供/);
-    assert.match(selected, /标题3/);
-    assert.doesNotMatch(selected, /标题2|标题4/);
-    assert.equal(selected.includes('https://example.com/3'), mode === 'agent');
-    const whole = news.snapshotForSend(mode, []);
-    assert.match(whole, /共 25 条，以下最近 20 条/);
-    assert.doesNotMatch(whole, /标题20/);
-    assert.equal(whole.includes('https://example.com/0'), mode === 'agent');
-  }
 });
 test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不换会话键', () => {
-  assert.deepEqual(assistantBindingForPage('daily-review'), { plugin: 'market', target: '', bindKey: 'market:daily-review' });
-  assert.equal(assistantBindingForPage('intel:investment-news:ai')?.plugin, 'intel');
-  assert.equal(assistantBindingForPage('intel:investment-news:ai')?.bindKey, 'intel:radar');
-  assert.equal(assistantBindingForPage('intel:investment-news:semi')?.bindKey, 'intel:radar');
+  assert.equal(assistantBindingForPage('daily-review'), null);
+  assert.equal(assistantBindingForPage('intel:news')?.plugin, 'intel');
   assert.equal(assistantBindingForPage('intel:news')?.bindKey, 'intel:radar');
   assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.plugin, 'industry_profile');
   // §9.2 缺口修复：产业研究详情页绑定 Profile 身份供只读叙述，列表页仍不绑定具体对象。
@@ -115,8 +71,7 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
   assert.equal(assistantBindingForPage('signals'), null);
 });
 test('问助手开场介绍按页面区分，对象提示不出现已发布版本或当前页', () => {
-  assert.match(assistantIntro('market', 'daily-review'), /今天的盘面/);
-  assert.match(assistantIntro('intel', 'intel:investment-news:ai'), /选一篇报道/);
+  assert.match(assistantIntro('intel', 'intel:news'), /选一条新闻/);
   assert.match(assistantIntro('intel', 'intel:filings'), /选一条公告/);
   assert.match(assistantIntro('industry_wiki', 'industry-wiki:industries/nbs-power'), /这个行业怎么赚钱/);
   assert.match(assistantIntro('industry_profile', 'industry-profile:list'), /选一个产业/);
@@ -129,17 +84,7 @@ test('问助手开场介绍按页面区分，对象提示不出现已发布版�
 test('问助手输入框不分模式，只给一句提示', () => {
   assert.equal(ASSISTANT_PLACEHOLDER, '问问这一页的内容，或让它帮你查');
 });
-test('大盘可见个股登记为公司行情身份，不把连板数字当版本，也不造涨停榜集合', () => {
+test('个股行情登记为公司行情身份，不把裸代码当版本', () => {
   assert.equal(companyQuoteObject({ symbol: '002403', name: '爱仕达' })?.id, 'company:002403.SZ');
   assert.equal(companyQuoteObject({ symbol: '600865', name: '百大集团' })?.id, 'company:600865.SH');
-  const objects = dailyReviewQuoteObjects({
-    asOf: '2026-09-20',
-    lianban: [{ code: '002403', name: '爱仕达' }, { code: '600865', name: '百大集团' }],
-    turnover: [{ code: '002403', name: '爱仕达' }, { code: '000001', name: '平安银行' }],
-  });
-  assert.deepEqual(objects.map(item => item.id), ['company:002403.SZ', 'company:600865.SH', 'company:000001.SZ']);
-  assert.equal(objects[0]?.section, '连板股');
-  assert.equal(objects[2]?.section, '成交额');
-  assert.match(objects[0]?.hint || '', /观察范围 2026-09-20/);
-  assert.equal(objects.some(item => item.id.includes('zt') || item.kind === 'limit-up'), false);
 });

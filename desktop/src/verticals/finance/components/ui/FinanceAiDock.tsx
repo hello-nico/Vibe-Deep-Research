@@ -280,7 +280,6 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
         // “就此追问”选中的原文放在问题的 context 里，必须随本轮页面上下文一起交给助手，否则它不知道问的是哪一段。
         pageSnapshot: [page.snapshotForSend?.('agent', chips) ?? page.context, selectedExcerpt ? activeQuestion?.context : '']
           .filter(Boolean).join('\n\n'),
-        marketIndices: page.marketIndices,
         companyQuotes: page.companyQuotes,
         objects: chips.map(item => ({
           kind: item.kind,

@@ -8,13 +8,6 @@ function qualifyAShare(symbol: string): string | null {
 }
 
 const HTTP_URL = /^https?:\/\//i;
-export const MARKET_INDEX_IDS: Record<string, string> = {
-  上证指数: '000001.SH',
-  沪深300: '000300.SH',
-  深证成指: '399001.SZ',
-  创业板指: '399006.SZ',
-};
-
 export function urlAssistantObject(input: {
   title: string;
   url?: string;
@@ -52,57 +45,6 @@ export function wikiAssistantObject(input: {
     label: input.title || slug,
     version: input.inputHash,
     section: input.section,
-    readable: true,
-  };
-}
-
-export function marketAssistantObject(input: {
-  name: string;
-  code?: string;
-  asOf?: string;
-}): PageAssistantObject | null {
-  const id = input.code || MARKET_INDEX_IDS[input.name];
-  if (!id || !/^(\d{6}\.(SH|SZ))$/.test(id)) return null;
-  return {
-    kind: 'market',
-    id: `market:${id}`,
-    label: input.name || id,
-    locator: id,
-    hint: input.asOf ? `观察范围 ${input.asOf}` : '宽基指数',
-    section: '指数',
-    readable: true,
-  };
-}
-
-/** 全球指数（美股/港股等）没有 6 位 A 股代码，不能复用 marketAssistantObject 的 id 空间；
- * 用取数层给的 `key`（稳定标识）另开 market:global: 命名，与宽基指数区分但共享 market kind。 */
-export function globalIndexObject(input: {
-  key: string;
-  name: string;
-  region?: string;
-  asOf?: string;
-}): PageAssistantObject | null {
-  const key = (input.key || '').trim();
-  if (!key || !/^[A-Za-z0-9._-]+$/.test(key)) return null;
-  return {
-    kind: 'market',
-    id: `market:global:${key}`,
-    label: input.name || key,
-    locator: key,
-    hint: [input.region, input.asOf ? `观察范围 ${input.asOf}` : ''].filter(Boolean).join(' · ') || '全球指数',
-    section: '全球指数',
-    readable: true,
-  };
-}
-
-export function marketIndicesObject(members: PageAssistantObject[]): PageAssistantObject | null {
-  if (!members.length) return null;
-  return {
-    kind: 'market',
-    id: 'market:indices',
-    label: '宽基指数集合',
-    hint: members.map(item => item.label).join('、'),
-    section: '指数',
     readable: true,
   };
 }
@@ -147,23 +89,4 @@ export function companyQuoteObject(input: {
     section: input.section || '行情',
     readable: true,
   };
-}
-
-export function dailyReviewQuoteObjects(input: {
-  asOf?: string;
-  lianban?: { code: string; name: string }[];
-  turnover?: { code: string; name: string }[];
-}): PageAssistantObject[] {
-  const seen = new Set<string>();
-  const out: PageAssistantObject[] = [];
-  for (const item of [
-    ...(input.lianban || []).map(row => ({ ...row, section: '连板股' })),
-    ...(input.turnover || []).map(row => ({ ...row, section: '成交额' })),
-  ]) {
-    const object = companyQuoteObject({ symbol: item.code, name: item.name, asOf: input.asOf, section: item.section });
-    if (!object || seen.has(object.id)) continue;
-    seen.add(object.id);
-    out.push(object);
-  }
-  return out;
 }

@@ -1,5 +1,5 @@
 import type { PageAssistantObject } from '../../../core/ai/pageContext';
-import { buildFeedListSnapshot, buildInvestmentNewsSnapshot } from '../assistant/snapshot.ts';
+import { buildFeedListSnapshot } from '../assistant/snapshot.ts';
 
 export interface FeedRow {
   code: string; name: string; when: string; title: string; meta?: string; url?: string;
@@ -63,56 +63,5 @@ export function feedPageContext(input: {
     }),
     suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
     objects: feedObjects(input.kind, rows),
-  };
-}
-
-export interface InvestmentNewsRow {
-  time: string; source: string; title: string; original?: string; url: string;
-}
-
-export function investmentNewsObjects(items: readonly InvestmentNewsRow[]): PageAssistantObject[] {
-  return items.flatMap(row => {
-    const object = urlObject({
-      title: row.title,
-      url: row.url,
-      source: row.source,
-      time: row.time,
-      section: 'Investment News',
-    });
-    return object ? [object] : [];
-  });
-}
-
-/** Current Investment News track list only; not linked article bodies. */
-export function investmentNewsPageContext(input: {
-  industryKey: string | null; industryName: string | null;
-  tracks: readonly { key: string; name: string; count: number }[];
-  items: readonly InvestmentNewsRow[];
-  generatedAt: string | null; recentDays: number | null; sourceCount: number | null;
-  loading: boolean; refreshing: boolean; err: string | null; staleNote: string | null;
-}) {
-  const track = input.industryName ?? '未选择赛道';
-  const items = input.items;
-  return {
-    key: `intel:investment-news:${input.industryKey ?? 'none'}`,
-    title: `资讯雷达 · Investment News · ${track}`,
-    context: buildInvestmentNewsSnapshot({
-      industryName: input.industryName,
-      tracks: input.tracks,
-      items: input.items,
-      generatedAt: input.generatedAt,
-      recentDays: input.recentDays,
-      sourceCount: input.sourceCount,
-      loading: input.loading,
-      refreshing: input.refreshing,
-      err: input.err,
-      staleNote: input.staleNote,
-    }),
-    snapshotVersion: JSON.stringify(items.map(row => row.url)),
-    snapshotForSend: (mode: 'ask' | 'agent', selected: PageAssistantObject[]) => buildInvestmentNewsSnapshot({
-      ...input, mode, selectedUrls: selected.length ? selected.filter(item => item.kind === 'url').map(item => item.url || item.id.replace(/^url:/, '')) : undefined,
-    }),
-    suggestions: ['这个栏目适合看什么', '帮我把要点提炼一下', '有哪些值得追的线索'],
-    objects: investmentNewsObjects(items),
   };
 }

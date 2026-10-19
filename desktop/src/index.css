@@ -163,6 +163,8 @@
     display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 72px;
     padding: 14px 0 12px; gap: 8px; z-index: 50; color: hsl(var(--foreground));
   }
+  /* The shell preload marks a macOS window; only then does the rail clear the traffic lights. */
+  html.desktop-shell-macos .workspace-rail { padding-top: var(--dsh-frame-top-clearance, 48px); }
   .workspace-rail-brand { display: flex; align-items: center; justify-content: center; width: 36px; height: 36px; margin-bottom: 8px; color: hsl(var(--brand)); }
   .workspace-rail-nav { display: flex; flex-direction: column; align-items: center; gap: 4px; min-height: 0; flex: 1; width: 100%; overflow-y: auto; }
   .workspace-nav-link {
@@ -185,6 +187,7 @@
   @media (max-width: 767px) {
     .workspace-shell { flex-direction: column-reverse; }
     .workspace-rail { flex-direction: row; width: 100%; height: 56px; padding: 4px 8px; justify-content: space-around; }
+    html.desktop-shell-macos .workspace-rail { padding-top: 4px; }
     .workspace-rail-brand { display: none; }
     .workspace-rail-nav { flex-direction: row; justify-content: space-around; overflow: visible; }
     .workspace-nav-link { width: 48px; height: 46px; }

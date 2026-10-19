@@ -33,6 +33,7 @@ import { type SlotProps } from "./NativeDsh";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { FinanceRoot } from '../components/layout/FinanceRoot';
 import { FinanceAssistantSeat } from '../components/layout/FinanceAssistantSurface';
+import { installDesktopShellMarker } from '../lib/desktopShell';
 import "../../../index.css";
 import "./native-dsh.css";
 import "./tool-row.css";
@@ -143,6 +144,7 @@ function openResearchTarget(value: string) { openRegisteredObject(value); }
 
 /** Product composition; the standard DSH Web kernel boots and mounts it. */
 export function apply(ctx: Context) {
+  if (typeof document !== 'undefined') installDesktopShellMarker();
   const client = ctx as unknown as Client;
   if (client.locale.getLocale().active !== 'zh') client.locale.setLocale('zh');
   installResultNode(ctx);

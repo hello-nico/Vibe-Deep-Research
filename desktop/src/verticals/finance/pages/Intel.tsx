@@ -1,312 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Link } from "react-router-dom";
-import { TrendingUp, FileText, Newspaper, Rss, RefreshCw, Loader2, AlertCircle, Sparkles, Lightbulb, Star } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { FileText, Newspaper, RefreshCw, Loader2, AlertCircle, Star } from "lucide-react";
 import { WorkspaceTabs } from "@/components/ui/WorkspaceTabs";
 import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { useArchiveThenRefresh } from "../../../core/data/useArchiveThenRefresh";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { SaveNoteButton } from "@/components/ui/SaveNoteButton";
-import { api, ApiError, type RadarData, type Industry, type Announcement, type NewsItem, type MacroProbability, type MacroProbItem } from "@/lib/api";
-import { displayedHeadlineTranslation, hasChinese, headlineNeedsTranslation, loadHeadlineTranslationCache, saveHeadlineTranslationCache, splitHeadlineBatches } from "@/lib/headlineTranslation";
+import { api } from "@/lib/api";
 import { loadWatch } from "@/lib/watchlist";
-import { chatStream, translateHeadlineBatch } from "@/lib/llm";
-import { cn } from "@/lib/utils";
-import { feedPageContext, investmentNewsPageContext, type FeedRow } from '@/lib/feedPageContext';
-import { buildEventsProbabilitySnapshot } from '../assistant/snapshot.ts';
+import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
 
-// 页内分段顺序；侧栏只有一级入口「资讯雷达」（2026-09-24 取消二级菜单）
+// 页内分段：关注公司的公开新闻与公告，均经 Backend 公共接口读取。
 const TABS = [
-  { key: "investment-news", label: "投资资讯", icon: Rss, integrated: true, desc: "12 个赛道的全球公开资讯" },
-  { key: "news", label: "公开新闻", icon: Newspaper, integrated: false, desc: "汇总关注列表里各个股的近期新闻（公开源）" },
-  { key: "filings", label: "A股公告", icon: FileText, integrated: false, desc: "汇总关注列表里各个股的近期公告（东财公开披露）" },
-  { key: "events", label: "事件概率", icon: TrendingUp, integrated: true, desc: "全球宏观预期概率 —— 预测市场的公开定价（Polymarket / Kalshi），只读、免登录" },
+  { key: "news", label: "公开新闻", icon: Newspaper, desc: "汇总关注列表里各个股的近期新闻（公开源）" },
+  { key: "filings", label: "A股公告", icon: FileText, desc: "汇总关注列表里各个股的近期公告" },
 ];
-
-interface Digest { loading?: boolean; text?: string; err?: string }
-interface TitleTranslation {
-  status: "running" | "done" | "partial";
-  done: number;
-  total: number;
-  error?: string;
-}
-
-function InvestmentNewsPanel() {
-  const [active, setActive] = useState("ai");
-  const [digests, setDigests] = useState<Record<string, Digest>>({});
-  const [bulk, setBulk] = useState<{ running: boolean; done: number; total: number }>({ running: false, done: 0, total: 0 });
-  const [titleTranslations, setTitleTranslations] = useState<Record<string, TitleTranslation>>({});
-  const translationCache = useRef(loadHeadlineTranslationCache(typeof window === "undefined" ? undefined : window.localStorage));
-  const latestTranslationRun = useRef(new Map<string, string>());
-  const attemptedGeneration = useRef(new Set<string>());
-  const [, redrawTranslations] = useState(0);
-
-  // 进入优先读缓存；缺失由后端取数，只有手动刷新才强制更新。
-  const { data, err, loading, refreshing, staleNote, refresh } =
-    useArchiveThenRefresh<RadarData>((r) => (r ? api.radarRefresh() : api.radar()), [], { refreshOnEnter: false });
-
-  const industries: Industry[] = data?.industries || [];
-  const cur = industries.find((i) => i.key === active) || industries[0];
-  const hasData = !!data?.generated_at;
-
-  /**
-   * 原始 investment-news 的 digest.py 是“每个赛道批量翻译”，这里沿用同一粒度。
-   * 已有中文 / 本地缓存先用，只把缺的英文标题发给用户选中的模型。
-   * 单批失败继续下一批；最终缺几条就照实报几条，原文始终在。
-   */
-  const translateIndustry = useCallback(async (ind: Industry, generation: string, force = false) => {
-    const runId = `${generation}\u0000${force ? Date.now() : "auto"}`;
-    latestTranslationRun.current.set(ind.key, runId);
-    const isLatest = () => latestTranslationRun.current.get(ind.key) === runId;
-    const cache = translationCache.current;
-    const completedThisRun = new Set<string>();
-    const doneCount = () => ind.items.filter((it) =>
-      hasChinese(it.title) || (force ? completedThisRun.has(it.title) : Boolean(it.zh || cache.has(it.title))),
-    ).length;
-    const unique = new Map<string, { id: string; title: string }>();
-    ind.items.forEach((it, i) => {
-      if (!headlineNeedsTranslation(it, cache, force) || unique.has(it.title)) return;
-      unique.set(it.title, { id: String(i), title: it.title });
-    });
-    const targets = [...unique.values()];
-    if (!targets.length) {
-      setTitleTranslations((s) => ({ ...s, [ind.key]: { status: "done", done: ind.items.length, total: ind.items.length } }));
-      return;
-    }
-
-    setTitleTranslations((s) => ({ ...s, [ind.key]: { status: "running", done: doneCount(), total: ind.items.length } }));
-    const errors: string[] = [];
-    for (const batch of splitHeadlineBatches(targets)) {
-      try {
-        const got = await translateHeadlineBatch(batch);
-        for (const item of batch) {
-          const zh = got.get(item.id);
-          if (zh) {
-            cache.set(item.title, zh);
-            completedThisRun.add(item.title);
-          }
-        }
-        saveHeadlineTranslationCache(cache, typeof window === "undefined" ? undefined : window.localStorage);
-        redrawTranslations((n) => n + 1);
-      } catch (e) {
-        errors.push(e instanceof Error ? e.message : "翻译失败");
-      }
-      if (isLatest()) {
-        setTitleTranslations((s) => ({ ...s, [ind.key]: { status: "running", done: doneCount(), total: ind.items.length } }));
-      }
-    }
-    if (!isLatest()) return;
-    const done = doneCount();
-    setTitleTranslations((s) => ({
-      ...s,
-      [ind.key]: done === ind.items.length
-        ? { status: "done", done, total: ind.items.length }
-        : { status: "partial", done, total: ind.items.length, error: errors[0] ?? "部分标题未翻译" },
-    }));
-  }, []);
-
-  // 先等背景刷新收口，再自动翻译当前赛道；切换赛道时按需翻译。
-  // 250ms 延迟让“存档立即显示 → 后台真刷新”有机会先把 refreshing 立起来，避免对旧快照白跑一轮。
-  useEffect(() => {
-    if (!cur || !hasData || refreshing) return;
-    const generation = data?.generated_at ?? "archive";
-    const attemptKey = `${cur.key}\u0000${generation}`;
-    if (attemptedGeneration.current.has(attemptKey)) return;
-    const timer = window.setTimeout(() => {
-      attemptedGeneration.current.add(attemptKey);
-      void translateIndustry(cur, generation);
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [cur, data?.generated_at, hasData, refreshing, translateIndustry]);
-
-  const genDigest = async (ind: Industry) => {
-    setDigests((d) => ({ ...d, [ind.key]: { loading: true } }));
-    const ctx = ind.items.slice(0, 25).map((it) => `[${it.time}] ${it.source}｜${displayedHeadlineTranslation(it, translationCache.current) || it.title}`).join("\n");
-    const prompt =
-      `以下是「${ind.name}」赛道近期资讯。请提炼「今日要点」3-5 条：每条一句话（≤40 字），` +
-      `只客观陈述重要事件 / 趋势，不推荐标的、不预测涨跌、不构成建议。直接用「- 」列点，不要多余前后缀。\n\n${ctx}`;
-    try {
-      let acc = "";
-      await chatStream([{ role: "user", content: prompt }], `${ind.name}赛道资讯`, {
-        onDelta: (t) => { acc += t; setDigests((d) => ({ ...d, [ind.key]: { text: acc } })); },
-      });
-    } catch (e) {
-      setDigests((d) => ({ ...d, [ind.key]: { err: e instanceof Error ? e.message : "生成失败" } }));
-    }
-  };
-
-  // 一键提炼全部赛道要点（串行，带进度；单赛道按需的按钮仍保留）
-  const genAll = async () => {
-    const targets = industries.filter((i) => i.items.length > 0);
-    setBulk({ running: true, done: 0, total: targets.length });
-    for (const ind of targets) {
-      await genDigest(ind);
-      setBulk((b) => ({ ...b, done: b.done + 1 }));
-    }
-    setBulk((b) => ({ ...b, running: false }));
-  };
-
-  const dg = cur ? digests[cur.key] : undefined;
-  const tr = cur ? titleTranslations[cur.key] : undefined;
-  const newsPage = investmentNewsPageContext({
-    industryKey: cur?.key ?? null,
-    industryName: cur?.name ?? null,
-    tracks: industries.map((ind) => ({ key: ind.key, name: ind.name, count: ind.items.length })),
-    items: (cur?.items ?? []).map((it) => {
-      const zh = displayedHeadlineTranslation(it, translationCache.current);
-      return { time: it.time, source: it.source, title: zh || it.title, original: it.title, url: it.url };
-    }),
-    generatedAt: data?.generated_at ?? null,
-    recentDays: data?.recent_days ?? null,
-    sourceCount: data?.stats.total_sources ?? null,
-    loading, refreshing, err, staleNote,
-  });
-  useAiPage(newsPage);
-  useAiPageObjects(newsPage.key, newsPage.objects);
-
-  return (
-    <div>
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-          <span>
-            {hasData ? `${data!.stats.total_sources} 个公开源 · 近 ${data!.recent_days} 天 · 更新于 ${data!.generated_at}` : "12 赛道 · 106 个公开源"}
-          </span>
-          {/* 🔴 先给存档、后台刷 ⇒ 用户必须看得出他现在看的是**哪一份**：
-              刷新中 = 下面是存档、新的在路上；刷新没成功 = 下面仍是存档，别让他以为是最新的。 */}
-          {refreshing && hasData && (
-            <span className="status-pill tone-run">
-              <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
-            </span>
-          )}
-          {loading && <span className="text-[11px]">正在加载…</span>}
-          {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
-        </span>
-        <div className="flex flex-wrap items-center gap-2">
-          {hasData && (
-            <button onClick={genAll} disabled={bulk.running || refreshing}
-              className="btn">
-              {bulk.running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
-              {bulk.running ? `提炼中 ${bulk.done}/${bulk.total}` : "一键提炼全部要点"}
-            </button>
-          )}
-          <button onClick={refresh} disabled={refreshing || bulk.running}
-            className="workspace-action">
-            {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {refreshing ? "更新中…" : "刷新"}
-          </button>
-        </div>
-      </div>
-
-      {err && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
-          <AlertCircle className="h-4 w-4 shrink-0" /> {err}
-        </div>
-      )}
-
-      {!hasData && !err ? (
-        <div className="rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">
-          还没有资讯，点上方<b className="text-foreground">「刷新」</b>获取（约 20-40 秒）。
-        </div>
-      ) : (
-        <>
-          {/* 赛道筛选 —— 暖橙边框 pill */}
-          <div className="mb-4 flex flex-wrap gap-2">
-            {industries.map((ind) => (
-              <button key={ind.key} onClick={() => setActive(ind.key)}
-                className={cn(
-                  "inline-flex h-7 items-center gap-1.5 rounded-full px-3 text-xs transition-colors",
-                  active === ind.key
-                    ? "bg-[var(--fill-2)] font-semibold text-foreground"
-                    : "text-[var(--text-2)] hover:bg-[var(--fill-1)] hover:text-foreground",
-                )}>
-                <span className="h-2 w-2 rounded-full" data-intel-dot={active === ind.key ? "active" : "idle"} style={{ background: active === ind.key ? "hsl(var(--brand))" : "var(--text-3)" }} />
-                {ind.name}<span className="text-muted-foreground/50">{ind.items.length}</span>
-              </button>
-            ))}
-          </div>
-
-          {cur && (
-            <>
-              <div className="mb-3 flex min-h-7 flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-muted-foreground">
-                  {tr?.status === "running" ? (
-                    <span className="inline-flex items-center gap-1.5 text-brand"><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI 正在翻译标题 {tr.done}/{tr.total}</span>
-                  ) : tr?.status === "done" ? (
-                    <span className="text-[11px] text-[var(--text-3)]">标题已翻译 {tr.done}/{tr.total}</span>
-                  ) : tr?.status === "partial" ? (
-                    <span className="text-warning">标题已翻译 {tr.done}/{tr.total}，其余保留原文{tr.error ? `（${tr.error}）` : ""}</span>
-                  ) : (
-                    <span>标题翻译将在资讯刷新后自动开始</span>
-                  )}
-                </span>
-                {(tr?.status === "partial" || tr?.status === "done") && (
-                  <button
-                    onClick={() => void translateIndustry(cur, data?.generated_at ?? "manual", tr.status === "done")}
-                    disabled={refreshing}
-                    className="text-muted-foreground hover:text-foreground disabled:opacity-50"
-                  >
-                    {tr.status === "done" ? "重新翻译" : "继续翻译"}
-                  </button>
-                )}
-              </div>
-
-              {/* 今日要点总结框（暖橙框） */}
-              <div className="mb-4 rounded-2xl border border-border p-4">
-                <div className="mb-2 flex items-center justify-between">
-                  <span className="flex items-center gap-1.5 text-sm font-semibold">
-                    <Lightbulb className="h-4 w-4 text-[var(--text-3)]" /> 今日要点 · {cur.name}
-                  </span>
-                  {(dg?.text || dg?.err) && (
-                    <button onClick={() => genDigest(cur)} className="text-xs text-muted-foreground hover:text-foreground">重新提炼</button>
-                  )}
-                </div>
-                {dg?.loading ? (
-                  <p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="h-3.5 w-3.5 animate-spin" /> AI 正在读这个赛道的资讯…</p>
-                ) : dg?.text ? (
-                  <>
-                    <div className="prose prose-sm dark:prose-invert max-w-none text-foreground"><ReactMarkdown remarkPlugins={[remarkGfm]}>{dg.text}</ReactMarkdown></div>
-                    <div className="mt-2"><SaveNoteButton kind="今日要点" title={`${cur.name} 今日要点`} content={dg.text} /></div>
-                  </>
-                ) : dg?.err ? (
-                  <p className="text-sm text-destructive">{dg.err}</p>
-                ) : (
-                  <button onClick={() => genDigest(cur)}
-                    className="btn">
-                    <Sparkles className="h-4 w-4" /> 让助手提炼今日要点
-                  </button>
-                )}
-              </div>
-
-              {/* 资讯列表 */}
-              <div className="space-y-2">
-                {cur.items.length === 0 ? (
-                  <p className="py-6 text-center text-sm text-muted-foreground/60">近 {data!.recent_days} 天该赛道暂无更新</p>
-                ) : (
-                  cur.items.map((it, i) => {
-                    const zh = displayedHeadlineTranslation(it, translationCache.current);
-                    const translated = Boolean(zh && zh !== it.title);
-                    return (
-                      <div key={i} className="group flex items-start gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
-                        <span className="w-24 shrink-0 pt-0.5 font-mono text-xs text-muted-foreground/70">{it.time}</span>
-                        <span className="w-20 shrink-0 truncate pt-0.5 text-xs text-muted-foreground">{it.source}</span>
-                        <a href={it.url} target="_blank" rel="noreferrer" className="min-w-0 flex-1 hover:underline">
-                          <span className="block">{zh || it.title}</span>
-                          {translated && <span className="mt-0.5 block text-xs leading-relaxed text-muted-foreground/65">{it.title}</span>}
-                        </a>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
 
 // 关注股公告 / 新闻聚合：从本地关注列表取代码，复用个股接口批量拉取、按时间倒序合并。
 // 只做公开信息聚合，标的均为用户自己关注列表里的，不预置、不推荐。
@@ -316,63 +24,32 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [depNote, setDepNote] = useState<string | null>(null);
 
-  // 按当前自选聚合已有快照，手动刷新失败的股票回退到其原快照。
-  const load = useCallback(async (doRefresh: boolean): Promise<FeedRow[]> => {
+  // 公告与新闻各一次请求带上全部关注代码；Backend 按时间倒序返回，部分代码取不到时只少那几只。
+  const load = useCallback(async (): Promise<FeedRow[]> => {
     const cs = codes;
     if (!cs.length) return [];
     setDepNote(null);
-    {
-      // 股名（一次批量），失败则退回显示代码
-      const nameOf: Record<string, string> = {};
-      try {
-        const quotes = await api.quote(cs.join(","));
-        for (const c of cs) if (quotes[c]?.name) nameOf[c] = quotes[c].name;
-      } catch { /* 忽略：无股名不影响公告/新闻 */ }
-
-      const out: FeedRow[] = [];
-      if (kind === "filings") {
-        const res = await Promise.all(
-          cs.map(async c => {
-            try { return { c, a: await api.announcements(c, doRefresh) }; }
-            catch {
-              setDepNote('部分股票公告未更新，优先保留已有资料。');
-              return { c, a: doRefresh ? await api.announcements(c, false).catch(() => [] as Announcement[]) : [] as Announcement[] };
-            }
-          }),
-        );
-        for (const { c, a } of res)
-          for (const x of a)
-            out.push({ code: c, name: nameOf[c] || c, when: x.date, title: x.title.replace(/^[^:：]*[:：]/, ""), meta: x.type, url: x.url });
-      } else {
-        let dep: string | null = null;
-        const res = await Promise.all(
-          cs.map((c) =>
-            api.news(c, doRefresh).then((n) => ({ c, n })).catch(async (e) => {
-              if (e instanceof ApiError && e.status === 501) dep = e.message;
-              setDepNote('部分股票新闻未更新，优先保留已有资料。');
-              return { c, n: doRefresh ? await api.news(c, false).catch(() => [] as NewsItem[]) : [] as NewsItem[] };
-            }),
-          ),
-        );
-        for (const { c, n } of res)
-          for (const x of n)
-            out.push({ code: c, name: nameOf[c] || c, when: x.发布时间 || "", title: x.新闻标题 || "", url: x.新闻链接 });
-        if (dep && out.length === 0) setDepNote(dep);
-      }
-      // 按真实时间倒序：多新闻源的时间字符串格式不统一（有无秒/斜杠日期），字典序会排乱
-      const ts = (s: string) => {
-        const raw = (s || "").trim();
-        let t = Date.parse(raw);
-        if (Number.isNaN(t)) t = Date.parse(raw.replace(" ", "T"));
-        return Number.isNaN(t) ? 0 : t;
-      };
-      out.sort((p, q) => ts(q.when) - ts(p.when));
-      return out.slice(0, MAX_ROWS);
-    }
+    // 股名（一次批量），失败则退回显示代码
+    const nameOf: Record<string, string> = {};
+    try {
+      const quotes = await api.quote(cs.join(","));
+      for (const c of cs) if (quotes[c]?.name) nameOf[c] = quotes[c].name;
+    } catch { /* 忽略：无股名不影响公告/新闻 */ }
+    const codeOf = (symbol: string) => symbol.slice(0, 6);
+    const stamp = (value: string | null) => (value || "").replace("T", " ");
+    const out: FeedRow[] = kind === "filings"
+      ? (await api.announcements(cs, MAX_ROWS)).map(x => ({
+        code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title, meta: x.document_id ? "已入库" : "", url: x.url ?? "",
+      }))
+      : (await api.news(cs, MAX_ROWS)).map(x => ({
+        code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title || "", url: x.url ?? "",
+      }));
+    if (cs.some(c => !/^\d{6}$/.test(c))) setDepNote("港股、美股暂无公告与新闻，只汇总 A 股关注。");
+    return out.slice(0, MAX_ROWS);
   }, [kind, codes]);
 
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
-    useArchiveThenRefresh<FeedRow[]>(load, [kind, codes.join(",")], { refreshOnEnter: false });
+    useArchiveThenRefresh<FeedRow[]>(() => load(), [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
   const feedPage = feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote });
   useAiPage(feedPage);
@@ -441,17 +118,7 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   );
 }
 
-function IntelOverviewContext({ tab, label }: { tab: string; label: string }) {
-  useAiPage({
-    key: `intel:${tab}`,
-    title: `资讯雷达 · ${label}`,
-    context: `资讯雷达 · 当前栏目「${label}」。可选栏目：${TABS.map((t) => t.label).join("、")}。`,
-    suggestions: ["这个栏目适合看什么", "帮我把要点提炼一下", "有哪些值得追的线索"],
-  });
-  return null;
-}
-
-/** 动态页「资讯」分段的内容；小栏目由 `/feed?tab=intel&sub=` 驱动，不认识的回落到第一个。 */
+/** 动态页「资讯」分段的内容；小栏目由 `/feed?tab=intel&sub=` 驱动，不认识的（含已移除的旧栏目）回落到第一个。 */
 export function Intel({ sub, onSub }: { sub?: string | null; onSub?: (key: string) => void } = {}) {
   const tabParam = sub ?? undefined;
   const tab = TABS.some((t) => t.key === tabParam) ? tabParam! : TABS[0]!.key;
@@ -459,141 +126,23 @@ export function Intel({ sub, onSub }: { sub?: string | null; onSub?: (key: strin
 
   return (
     <div>
-      {tab !== 'news' && tab !== 'filings' && tab !== 'investment-news' && tab !== 'events' && <IntelOverviewContext key={tab} tab={tab} label={cur.label} />}
       <div className="mb-4">
         <WorkspaceTabs
           aria-label="资讯栏目"
           value={tab}
           onChange={key => onSub?.(key)}
-          options={TABS.map(({ key, label, icon }) => ({
-            value: key,
-            label,
-            icon,
-          }))}
+          options={TABS.map(({ key, label, icon }) => ({ value: key, label, icon }))}
         />
       </div>
 
       <GlassCard>
-        {cur.key === "investment-news" ? (
-          <InvestmentNewsPanel />
-        ) : cur.key === "filings" ? (
-          <WatchlistFeed key="filings" kind="filings" />
-        ) : cur.key === "news" ? (
-          <WatchlistFeed key="news" kind="news" />
-        ) : cur.key === "events" ? (
-          <EventsPanel />
-        ) : (
-          <>
-            <p className="text-sm text-muted-foreground">{cur.desc}</p>
-            <div className="mt-4 rounded-lg border border-dashed border-border/70 p-8 text-center text-sm text-muted-foreground/70">该数据源规划中——可先用「投资资讯」看 12 赛道公开资讯，或用「A 股公告 / 公开新闻」看关注股动态。</div>
-          </>
-        )}
+        {cur.key === "filings" ? <WatchlistFeed key="filings" kind="filings" /> : <WatchlistFeed key="news" kind="news" />}
       </GlassCard>
 
       <p className="mt-3 text-[11px] text-muted-foreground/60">
-        只做公开信息聚合、不做推荐、不预测涨跌。公告 / 新闻均来自你关注列表里个股的公开披露与公开源；赛道资讯已按合规词表过滤。今日要点由本地助手组织数据，再交给你选择的模型完成推理。
+        只做公开信息聚合、不做推荐、不预测涨跌。公告 / 新闻均来自你关注列表里个股的公开披露与公开源。
       </p>
       <Disclaimer />
-    </div>
-  );
-}
-
-/**
- * 事件概率 —— 预测市场（Polymarket / Kalshi）对宏观事件的公开定价。
- *
- * 🔴 三条渲染纪律：
- *    ① 概率**与结算日同屏**（一个没有结算日的概率说不清是在问哪一天的事）
- *    ② 取数层的「读法」护栏与数字同段，不改写、不省略
- *    ③ 只取到一部分时明说 partial —— 否则用户以为"就这么几条"
- */
-function EventsPanel() {
-  const { data, err, loading, refreshing, staleNote, refresh } =
-    useArchiveThenRefresh<MacroProbability>((r) => api.macroProbability(r), [], { refreshOnEnter: false });
-
-  const eventsPage = {
-    key: 'intel:events',
-    title: '资讯雷达 · 事件概率',
-    context: buildEventsProbabilitySnapshot({
-      items: data?.items ?? [],
-      howToRead: data?.how_to_read ?? [],
-      updated: data?.updated ?? null,
-      partial: data?.partial ?? false,
-      loading, refreshing, err, staleNote,
-    }),
-    suggestions: ['这些事件概率说明了什么', '哪个合约值得关注', '这些数据该怎么读'],
-  };
-  useAiPage(eventsPage);
-  useAiPageObjects(eventsPage.key, []);
-
-  if (loading) return <p className="mt-4 text-sm text-muted-foreground">正在加载…</p>;
-  if (err) return <p className="mt-4 text-sm text-destructive">{err}</p>;
-  if (!data || data.items.length === 0)
-    return <p className="mt-4 text-sm text-muted-foreground">这一轮没取到合约报价（上游可能暂时不可用），不代表没有相关事件。</p>;
-
-  const byTopic = new Map<string, MacroProbItem[]>();
-  for (const it of data.items) byTopic.set(it.topic, [...(byTopic.get(it.topic) ?? []), it]);
-
-  return (
-    <div className="mt-3">
-      <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-        <span>{`共 ${data.items.length} 份合约`}</span>
-        {data.partial && <span className="text-warning">· 部分源没取到，这不是完整清单</span>}
-        <span className="text-[11px] text-muted-foreground/60">{`更新于 ${data.updated}`}</span>
-        {refreshing && (
-          <span className="status-pill tone-run">
-            <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
-          </span>
-        )}
-        {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
-        <button onClick={refresh} disabled={refreshing}
-          className="workspace-action workspace-action-compact">
-          <RefreshCw className="h-3 w-3" /> 刷新
-        </button>
-      </p>
-
-      {[...byTopic.entries()].map(([topic, items]) => (
-        <div key={topic} className="mt-4">
-          <h4 className="mb-2 text-xs font-semibold text-muted-foreground">{topic}</h4>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead className="text-[11px] text-muted-foreground/70">
-                <tr>
-                  <th className="px-2 py-1 text-left font-normal">合约在问什么</th>
-                  <th className="px-2 py-1 text-right font-normal">概率</th>
-                  <th className="px-2 py-1 text-left font-normal">结算日</th>
-                  <th className="px-2 py-1 text-right font-normal">24h 成交量</th>
-                  <th className="px-2 py-1 text-left font-normal">来源</th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it, i) => (
-                  <tr key={`${it.title}-${i}`} className="border-t border-border/40">
-                    <td className="px-2 py-2">{it.title}{it.leg && <span className="ml-1 text-[11px] text-muted-foreground/60">（{it.leg}）</span>}</td>
-                    <td className="px-2 py-2 text-right font-mono font-semibold">
-                      {it.prob === null ? "—" : `${(it.prob * 100).toFixed(1)}%`}
-                    </td>
-                    <td className="px-2 py-2 font-mono text-[11px] text-muted-foreground">{it.settle || "—"}</td>
-                    <td className="px-2 py-2 text-right font-mono text-[11px] text-muted-foreground">
-                      {it.volume === null ? "—" : it.volume.toLocaleString("en-US")}
-                    </td>
-                    <td className="px-2 py-2 text-[11px] text-muted-foreground">{it.source}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ))}
-
-      {/* 🔴 护栏与数字同屏 —— 照抄取数层原话，不改写 */}
-      {data.how_to_read.length > 0 && (
-        <div className="mt-4 rounded-lg border border-border/60 bg-muted/20 p-3">
-          <p className="mb-1 text-xs font-semibold text-muted-foreground">怎么读这组数</p>
-          {data.how_to_read.map((h: string) => (
-            <p key={h} className="text-[11px] leading-relaxed text-muted-foreground/80">{h}</p>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

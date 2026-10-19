@@ -165,7 +165,6 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
             title: input.title,
             mode,
             pageSnapshot: input.pageSnapshot,
-            marketIndices: input.marketIndices,
             companyQuotes: input.companyQuotes as CompanySnapshotQuote[] | undefined,
             objects: (input.objects || []).map(item => ({
               kind: item.kind || 'object',

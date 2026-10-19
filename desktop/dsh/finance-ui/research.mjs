@@ -22,6 +22,7 @@ export function researchRoute(method, pathname) {
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports', '/wiki/pages/diff',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
     '/tracking/variables',
+    '/market/quotes', '/feed/announcements', '/feed/news',
   ].includes(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || TOPIC_BASIS.test(pathname) || TOPIC_SNAPSHOT.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;

@@ -30,11 +30,12 @@ test("外壳：六个两字入口、图标栏放在外框上，页首无面包�
   assert.match(header, /<h1 className="workspace-title">/);
   assert.match(header, /<AssistantSlot \/>/);
   const intel = read("verticals/finance/pages/Intel.tsx");
-  for (const key of ["investment-news", "news", "filings", "events"]) assert.ok(intel.includes(`key: "${key}"`));
+  for (const key of ["news", "filings"]) assert.ok(intel.includes(`key: "${key}"`));
+  for (const key of ["investment-news", "events"]) assert.ok(!intel.includes(`key: "${key}"`), key);
   assert.doesNotMatch(intel, /label: "Investment News"/);
   const feed = read("verticals/finance/pages/Feed.tsx");
   assert.match(feed, /label: "资讯"/);
-  assert.match(feed, /label: "市场"/);
+  assert.doesNotMatch(feed, /label: "市场"|DailyReview/);
 });
 test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝与求索文案", () => {
   const dsh = read("verticals/finance/dsh/native-dsh.css");
@@ -159,7 +160,7 @@ test("问助手是页首右侧的次要胶囊按钮，面板与侧面板共用�
   assert.match(read("core/ai/pageContext.tsx"), /\[pageKey, sig\]/);
   assert.doesNotMatch(read("core/ai/pageContext.tsx"), /}, \[ctx, pageKey, sig\]/);
   assert.match(read("verticals/finance/assistant/prompt.ts"), /已在发送时读取，直接使用[^']*补读是另一份结果，不覆盖、不混用本轮内容/);
-  assert.match(read("verticals/finance/assistant/prompt.ts"), /页面显示值，不是工具读取的证据/);
+  assert.match(read("verticals/finance/assistant/snapshot.ts"), /页面显示值，不是工具读取的证据/);
   assert.doesNotMatch(read("verticals/finance/assistant/prompt.ts"), /persist=false|统一 Fetcher/);
   assert.match(read("verticals/finance/assistant/apply.ts"), /async ensureAssistant[\s\S]*assistantStarts\.has\(key\)/);
   assert.match(read("verticals/finance/assistant/apply.ts"), /bindAssistantPrompt/);
@@ -245,4 +246,13 @@ test("状态点与状态胶囊的 info 不用蓝色，墨灰表示提示（链�
   assert.match(dot, /\.status-dot\.tone-info \{ background: var\(--text-2\); \}/);
   assert.match(pill, /\.status-pill\.tone-info \{ background: var\(--fill-1\); color: var\(--text-2\); \}/);
   assert.doesNotMatch(dot + pill, /tone-info[^}]*var\(--info\)/);
+});
+
+test("「研究中」前的 DSH 鲸鱼图标换成品牌脉搏线：CSS 覆盖，品牌橙，尊重减少动效", () => {
+  const css = read("verticals/finance/dsh/native-dsh.css");
+  assert.match(css, /\[data-chat-running\] > span:last-child > span\[aria-hidden="true"\]:first-child > \* \{ display: none; \}/);
+  assert.match(css, /M8 38h12l6-22 9 34 8-26 6 14h7/);
+  assert.match(css, /background: hsl\(var\(--primary\)\);\n  -webkit-mask/);
+  assert.match(css, /@media \(prefers-reduced-motion: reduce\)[\s\S]*animation: none/);
+  assert.match(read("verticals/finance/components/ui/BrandMark.tsx"), /M8 38h12l6-22 9 34 8-26 6 14h7/);
 });

@@ -2,8 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { buildDailyReviewSnapshot, buildDirectorySnapshot, buildEventsProbabilitySnapshot, buildFeedListSnapshot, buildIndustryProfileSnapshot, buildWikiPageSnapshot, citedWikiVersionFailure, clipPageSnapshot, formatCompanyFromSnapshot } from '../src/verticals/finance/assistant/snapshot.ts';
-import { MARKET_INDEX_IDS, globalIndexObject } from '../src/verticals/finance/lib/pageAssistantObjects.ts';
+import { buildDirectorySnapshot, buildFeedListSnapshot, buildIndustryProfileSnapshot, buildWikiPageSnapshot, citedWikiVersionFailure, clipPageSnapshot, formatCompanyFromSnapshot } from '../src/verticals/finance/assistant/snapshot.ts';
 
 test('大盘 company: 从快照绑定连板股显示值，无该股写缺口', () => {
   const quotes = [{
@@ -40,89 +39,6 @@ test('Topic 绑定契约读取 markdown 或主张/观察/判断，时点 last_to
   assert.match(source, /kind === 'company'/);
   assert.match(source, /绑定版本已不在修订列表/);
   assert.doesNotMatch(source, /来源：同花顺|来源：东方财富/);
-});
-
-test('大盘快照按块标注信封来源与时点，缺则未标注，不写死来源', () => {
-  const snapshot = buildDailyReviewSnapshot({
-    reviewDate: '2026-09-18',
-    reviewReason: '今天不是交易日,显示最近一个交易日',
-    fetchedAt: '2026-09-18T15:05:00+08:00',
-    dataReady: true,
-    indices: [{ name: '上证指数', price: 3200, change_pct: 0.5, source: 'tencent', fetched_at: '2026-09-18T15:00:00+08:00' }],
-    globalIndices: [{ name: '道琼斯', region: '美股', price: 100, change_pct: 0.1, source: 'tencent', fetched_at: '2026-09-18T04:00:00+08:00' }],
-    globalDone: true,
-    sentiment: {
-      breadth: '偏强', speculation: '活跃', up: 3000, down: 2000, source: 'eastmoney', fetched_at: '2026-09-18T15:01:00+08:00',
-    },
-    emotion: {
-      date: '2026-09-18', source: 'eastmoney', fetched_at: '2026-09-18T15:02:00+08:00',
-      zt_count: 40, dt_count: 2, max_boards: 5, lianban_count: 12,
-      seal_rate: 0.7, break_rate: 0.2, promotion_rate: 0.3,
-      lianban_stocks: [{ code: '600865', name: '百大集团', boards: 3, price: 12.3, pct: 10, amount: 1e8 }],
-    },
-    emoDone: true,
-    ovDone: true,
-    sectors: [{ name: '银行', pct: 1, net: 2 }],
-    sectorsSource: 'eastmoney',
-    sectorsFetchedAt: '2026-09-18T15:03:00+08:00',
-    turnover: { source: 'eastmoney', updated: '2026-09-18T15:04:00+08:00', stocks: [{ name: '平安银行', code: '000001', price: 10, pct: 1, amount: 2e9 }] },
-    toDone: true,
-    idxDone: true,
-    idxErr: false,
-  });
-  assert.match(snapshot, /业务日 2026-09-18（今天不是交易日,显示最近一个交易日）/);
-  assert.match(snapshot, /抓取时间，不是数据所属日期/);
-  assert.match(snapshot, /来源 tencent/);
-  assert.match(snapshot, /取数时点 2026-09-18T15:00:00\+08:00/);
-  assert.match(snapshot, /来源 eastmoney/);
-  assert.match(snapshot, /前端按上涨家数占比与涨停家数阈值派生/);
-  assert.match(snapshot, /行业板块成分加总，不是交易所公布口径/);
-  assert.match(snapshot, /连板股/);
-  assert.match(snapshot, /百大集团/);
-  assert.doesNotMatch(snapshot, /orchestrator/);
-  assert.doesNotMatch(snapshot, /来源 同花顺|来源 东方财富/);
-  assert.doesNotMatch(snapshot, /【页面快照】/);
-  assert.match(snapshot, /【页面状态】/);
-  assert.equal(MARKET_INDEX_IDS['上证指数'], '000001.SH');
-  const unlabeled = buildDailyReviewSnapshot({
-    reviewDate: '2026-09-18',
-    fetchedAt: null,
-    dataReady: true,
-    indices: [{ name: '上证指数', price: 3200, change_pct: 0.5 }],
-    globalIndices: [],
-    globalDone: true,
-    emoDone: true,
-    ovDone: true,
-    sectors: [],
-    turnover: { stocks: [{ name: '平安银行', code: '000001', price: 10, pct: 1, amount: 2e9 }] },
-    toDone: true,
-    idxDone: true,
-    idxErr: false,
-  });
-  assert.match(unlabeled, /来源 未标注/);
-  assert.match(unlabeled, /取数时点未标注/);
-});
-
-test('大盘刷新中保留已显示块，完成后仍按同一数据写快照', () => {
-  const visible = {
-    reviewDate: '2026-09-18', fetchedAt: '2026-09-18T15:05:00+08:00', dataReady: false,
-    indices: [], globalIndices: [], globalDone: false, idxDone: false, idxErr: false,
-    sentiment: { breadth: '偏强', up: 3000, fetched_at: '2026-09-18T15:01:00+08:00' },
-    emotion: { zt_count: 40, lianban_stocks: [{ code: '600865', name: '百大集团', boards: 3 }] },
-    sectors: [{ name: '银行', pct: 1, net: 2 }],
-    turnover: { stocks: [{ name: '平安银行', code: '000001', price: 10, pct: 1, amount: 2e9 }] },
-  };
-  const refreshing = buildDailyReviewSnapshot({ ...visible, emoDone: false, ovDone: false, toDone: false });
-  for (const name of ['偏强', '涨停 40', '百大集团', '银行', '平安银行']) assert.match(refreshing, new RegExp(name));
-  for (const section of ['市场情绪', '短线情绪', '连板股', '板块资金趋势', '成交额榜 TOP20']) {
-    assert.doesNotMatch(refreshing, new RegExp(`【${section}】\\n未加载`), section);
-  }
-  const complete = buildDailyReviewSnapshot({ ...visible, dataReady: true, emoDone: true, ovDone: true, toDone: true });
-  for (const name of ['偏强', '涨停 40', '百大集团', '银行', '平安银行']) assert.match(complete, new RegExp(name));
-  const empty = buildDailyReviewSnapshot({ ...visible, sentiment: null, emotion: null, sectors: [], turnover: null,
-    emoDone: false, ovDone: false, toDone: false });
-  assert.match(empty, /【市场情绪】\n未加载/);
-  assert.match(empty, /【成交额榜 TOP20】\n未加载/);
 });
 
 test('截断优先保留与 @ 相关段落', () => {
@@ -219,7 +135,6 @@ test('现用 snapshot builder 与页面组装都不自写【页面快照】', ()
   const pages = [
     readFileSync(new URL('../src/verticals/finance/pages/CompanyWiki.tsx', import.meta.url), 'utf8'),
     readFileSync(new URL('../src/verticals/finance/lib/feedPageContext.ts', import.meta.url), 'utf8'),
-    readFileSync(new URL('../src/verticals/finance/pages/DailyReview.tsx', import.meta.url), 'utf8'),
   ];
   for (const source of pages) assert.doesNotMatch(source, /【页面快照】/);
 });
@@ -243,39 +158,6 @@ test('A股公告/公开新闻快照每行带公司代码，不必靠公司名反
     rows: [{ when: '2026-09-20', name: '长江电力', title: '媒体报道', url: 'https://example.com/b' }],
   });
   assert.doesNotMatch(withoutCode, /（undefined）/);
-});
-
-test('事件概率快照携带合约条目与读法护栏，没有 URL 时不编造 @ 引用', () => {
-  const snapshot = buildEventsProbabilitySnapshot({
-    items: [{ topic: '货币政策', source: 'polymarket', title: '美联储 12 月是否降息', leg: 'Yes', prob: 0.62, settle: '2026-12-18', volume: 120000 }],
-    howToRead: ['概率是市场定价，不是预测结论'],
-    updated: '2026-09-22T10:00:00+08:00',
-    partial: false,
-  });
-  assert.match(snapshot, /美联储 12 月是否降息/);
-  assert.match(snapshot, /概率 62\.0%/);
-  assert.match(snapshot, /结算日 2026-12-18/);
-  assert.match(snapshot, /怎么读这组数：概率是市场定价，不是预测结论/);
-  const empty = buildEventsProbabilitySnapshot({ items: [], howToRead: [], updated: null, partial: false });
-  assert.match(empty, /这一轮没取到合约报价/);
-});
-
-test('全球指数用取数层 key 开辟独立 market: 身份，与 6 位 A 股代码空间不冲突', () => {
-  assert.equal(globalIndexObject({ key: 'sp500', name: '标普500', region: '美国' })?.id, 'market:global:sp500');
-  assert.equal(globalIndexObject({ key: '', name: '无 key' }), null);
-  assert.equal(globalIndexObject({ key: '带 空格', name: '非法 key' }), null);
-});
-
-test('大盘页把全球指数一并注册为可 @ 对象，且行数据表与对象共用同一 id 空间', () => {
-  const text = readFileSync(new URL('../src/verticals/finance/pages/DailyReview.tsx', import.meta.url), 'utf8');
-  assert.match(text, /globalIndexObject/);
-  assert.match(text, /id: `global:\$\{item\.key\}`/);
-});
-
-test('资讯雷达「事件概率」有自己的助手上下文，不再落到通用占位文案', () => {
-  const text = readFileSync(new URL('../src/verticals/finance/pages/Intel.tsx', import.meta.url), 'utf8');
-  assert.match(text, /buildEventsProbabilitySnapshot/);
-  assert.match(text, /tab !== 'events'/);
 });
 
 test('URL 引用格式化带上页面登记的所属区块与补充说明，Dock→apply 链路不再丢字段', () => {

@@ -12,7 +12,7 @@ test("旧入口按 N3 对照表重定向，/evidence 与新地址不动", () => 
   assert.equal(legacyRedirect("/research", "?company=companies/600309-sh&view=report"), "/watch/600309");
   assert.equal(legacyRedirect("/research", "?company=600519"), "/watch/600519");
   assert.equal(legacyRedirect("/research", "?company=%21%21"), "/watch");
-  assert.equal(legacyRedirect("/daily-review"), "/feed?tab=market");
+  assert.equal(legacyRedirect("/daily-review"), "/feed");
   assert.equal(legacyRedirect("/intel"), "/feed?tab=intel");
   assert.equal(legacyRedirect("/intel/filings"), "/feed?tab=intel&sub=filings");
   assert.equal(legacyRedirect("/my-research"), "/insights");

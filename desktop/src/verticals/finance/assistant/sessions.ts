@@ -103,8 +103,6 @@ export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
   }
   if (plugin === 'intel') {
     if (pageKey.includes('filings')) return '输入 @ 选一条公告，我帮你读懂它说了什么、可能影响什么。';
-    if (pageKey.includes('investment-news')) return '输入 @ 选一篇报道，我帮你解读这件事，以及它会影响谁。';
-    if (pageKey.includes('events')) return '输入 @ 选一个事件，我帮你看它在问什么、市场怎么定价。';
     return '输入 @ 选一条新闻，我帮你解读这件事，以及它会影响谁。';
   }
   if (plugin === 'industry_wiki') {

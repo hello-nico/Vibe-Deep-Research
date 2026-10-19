@@ -62,13 +62,13 @@ test('面板没有模式与模型菜单，一律以深查发送；早先的即�
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'daily-review', title: '大盘行情', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
     await act(async () => container.querySelector('button')!.click());
     assert.equal(ensured[0].mode, 'agent');
-    assert.deepEqual(switched, [['assistant', 'agent', 'market:daily-review']], '旧的即答会话切到深查，只切一次');
+    assert.deepEqual(switched, [['assistant', 'agent', 'company_wiki:feed-variables']], '旧的即答会话切到深查，只切一次');
     assert.equal(container.querySelector('[aria-label="问助手模式"]'), null);
     assert.equal(container.querySelector('[aria-label="问助手模型"]'), null);
     assert.doesNotMatch(container.textContent!, /Ask|Agent/);
@@ -91,7 +91,7 @@ test('旧会话切换失败时沿用现有错误提示，面板不装作已就�
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'daily-review', title: '大盘行情', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
@@ -144,7 +144,7 @@ test('没有页面动作的页面不显示按钮行', async () => {
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'daily-review', title: '大盘行情', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);

@@ -2,7 +2,6 @@ import { ResearchError, researchRead, type ResearchTopic, type WikiPage } from '
 import { citedWikiVersionFailure, clipPageSnapshot, formatSnapshotSection, formatCompanyFromSnapshot } from './snapshot.ts';
 import { parseDocumentRef, documentRef, type LibraryDocument } from '../lib/library.ts';
 import type { AssistantObjectRef, CompanySnapshotQuote } from '../../../core/ai/pageContext.tsx';
-import { MARKET_INDEX_IDS } from '../lib/pageAssistantObjects.ts';
 
 const READ_TEXT_LIMIT = 24_000;
 const BIND_TIMEOUT_MS = 15_000;
@@ -18,16 +17,6 @@ export interface FetchedUrlBind {
   truncated?: boolean;
   persisted?: boolean;
   complete?: boolean;
-}
-
-export interface MarketSnapshotIndex {
-  id: string;
-  name: string;
-  price: number | null;
-  change_pct: number | null;
-  asOf?: string;
-  source?: string;
-  fetched_at?: string;
 }
 
 function bindSignal(): AbortSignal {
@@ -230,30 +219,6 @@ async function fetchCitedProfile(item: AssistantObjectRef): Promise<string> {
   }
 }
 
-function formatMarketFromSnapshot(item: AssistantObjectRef, indices: MarketSnapshotIndex[]): string {
-  if (item.id === 'market:indices') {
-    const memberIds = new Set(Object.values(MARKET_INDEX_IDS));
-    const members = indices.filter(i => memberIds.has(i.id.replace(/^market:/, '')));
-    const body = members.length
-      ? members.map(i => `  - ${i.name}（${i.id.replace(/^market:/, '')}）：点位 ${i.price ?? '—'}，涨跌幅 ${i.change_pct == null ? '—' : `${i.change_pct > 0 ? '+' : ''}${i.change_pct}%`}`).join('\n')
-      : '  集合成员未在页面快照中';
-    return `- 宽基指数集合 \`market:indices\`\n  页面快照显示值：\n${body}`;
-  }
-  const code = item.id.replace(/^market:/, '');
-  const row = indices.find(i => i.id === code || i.id === `market:${code}`);
-  if (!row) {
-    return `- ${item.label} \`${item.id}\`\n  页面快照中没有该指数的显示值；不能假装已读取行情。`;
-  }
-  return [
-    `- ${row.name || item.label} \`${item.id}\``,
-    row.asOf ? `  观察日：${row.asOf}` : '',
-    `  来源：${row.source?.trim() || '未标注'}`,
-    row.fetched_at ? `  取数时点：${row.fetched_at}` : '',
-    `  页面显示：点位 ${row.price ?? '—'}，涨跌幅 ${row.change_pct == null ? '—' : `${row.change_pct > 0 ? '+' : ''}${row.change_pct}%`}`,
-    '  说明：这是页面显示值，不是工具读取的证据。',
-  ].filter(Boolean).join('\n');
-}
-
 function identityLine(item: AssistantObjectRef): string {
   const bits = [
     item.version ? `版本 ${item.version}` : '',
@@ -266,7 +231,6 @@ function identityLine(item: AssistantObjectRef): string {
 
 async function bindCitedObject(
   item: AssistantObjectRef,
-  marketIndices: MarketSnapshotIndex[],
   companyQuotes: CompanySnapshotQuote[],
 ): Promise<string> {
   const url = citedUrl(item);
@@ -277,7 +241,6 @@ async function bindCitedObject(
   if (item.kind === 'topic' || item.id.startsWith('topic:')) return fetchCitedTopic(item);
   if (item.kind === 'document' || item.id.startsWith('document:')) return fetchCitedDocument(item);
   if (item.kind === 'profile' || item.id.startsWith('profile:')) return fetchCitedProfile(item);
-  if (item.kind === 'market' || item.id.startsWith('market:')) return formatMarketFromSnapshot(item, marketIndices);
   if (item.kind === 'company' || item.id.startsWith('company:')) return formatCompanyFromSnapshot(item, companyQuotes);
   return identityLine(item) + '\n  本轮没有对应的宿主读取契约，不能按已读正文分析。';
 }
@@ -308,12 +271,10 @@ export async function bindAssistantPrompt(input: {
   mode: 'ask' | 'agent';
   pageSnapshot?: string;
   objects: AssistantObjectRef[];
-  marketIndices?: MarketSnapshotIndex[];
   companyQuotes?: CompanySnapshotQuote[];
 }): Promise<string> {
-  const marketRows: MarketSnapshotIndex[] = input.marketIndices || [];
   const quoteRows: CompanySnapshotQuote[] = input.companyQuotes || [];
-  const bound = capBoundReads(await Promise.all(input.objects.map(item => bindCitedObject(item, marketRows, quoteRows))));
+  const bound = capBoundReads(await Promise.all(input.objects.map(item => bindCitedObject(item, quoteRows))));
   const cited = input.objects.flatMap(item => [item.id, item.label, item.locator || '']).filter(Boolean);
   const rawSnapshot = (input.pageSnapshot || '').trim().replace(/^【页面快照】\s*/, '');
   const snapshotBody = rawSnapshot

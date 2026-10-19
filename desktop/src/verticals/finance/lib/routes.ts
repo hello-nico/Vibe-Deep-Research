@@ -23,7 +23,7 @@ export function legacyRedirect(pathname: string, search = ''): string | null {
     const company = params.get('company');
     return company ? watchPathOfCompany(company) : '/watch';
   }
-  if (path === '/daily-review') return '/feed?tab=market';
+  if (path === '/daily-review') return '/feed';
   if (path === '/intel') return '/feed?tab=intel';
   const intel = /^\/intel\/([^/]+)$/.exec(path);
   if (intel) return `/feed?tab=intel&sub=${intel[1]}`;

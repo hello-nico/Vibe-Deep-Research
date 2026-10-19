@@ -162,10 +162,10 @@ test('请求走 Backend 读取通道：关注名单补后缀后请求 /tracking/
   } finally { globalThis.fetch = previous.fetch; }
 });
 
-test('动态页：「关键变量」是第一个分段且为默认；「资讯」「市场」不变', () => {
+test('动态页：「关键变量」是第一个分段且为默认；「资讯」保留，「市场」已移除', () => {
   const feed = readFileSync(new URL('../src/verticals/finance/pages/Feed.tsx', import.meta.url), 'utf8');
-  assert.match(feed, /\[\{ value: "variables", label: "关键变量" \}, \{ value: "intel", label: "资讯" \}, \{ value: "market", label: "市场" \}\]/);
-  assert.match(feed, /params\.get\("tab"\) === "market" \? "market" : params\.get\("tab"\) === "intel" \? "intel" : "variables"/);
+  assert.match(feed, /\[\{ value: "variables", label: "关键变量" \}, \{ value: "intel", label: "资讯" \}\]/);
+  assert.match(feed, /params\.get\("tab"\) === "intel" \? "intel" : "variables"/);
   assert.match(feed, /<Intel sub=\{params\.get\("sub"\)\} onSub=\{selectSub\} \/>/);
 });
 
