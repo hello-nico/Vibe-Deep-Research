@@ -1,8 +1,21 @@
 import assert from "node:assert/strict";
+import net from "node:net";
 import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { createServer, loadConfigFromFile } from "vite";
 import { isDshProxiedPath } from "../dsh-dev.ts";
+
+function freePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      probe.close(error => error || port === 0 ? reject(error ?? new Error("no port")) : resolve(port));
+    });
+  });
+}
 
 test("#34 LAN 默认为关，跨站请求在进入 DSH 前被拒绝", async () => {
   const previous = process.env.VRA_LAN;
@@ -15,10 +28,12 @@ test("#34 LAN 默认为关，跨站请求在进入 DSH 前被拒绝", async () =
       assert.equal(loaded.config.server?.proxy?.["/finance-api"], undefined);
       assert.equal(isDshProxiedPath("/finance-api/health"), true);
       const plugins = loaded.config.plugins?.filter(p => p && !Array.isArray(p) && !("name" in p && p.name === "vibe-dsh-development"));
+      const port = await freePort();
       const server = await createServer({ ...loaded.config, configFile: false, plugins, root, logLevel: "silent", optimizeDeps: { noDiscovery: true, include: [] }, server: {
         ...loaded.config.server,
         host: "127.0.0.1",
-        port: 0,
+        port,
+        strictPort: true,
         hmr: false,
       } });
       try {
