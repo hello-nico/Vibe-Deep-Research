@@ -24,3 +24,5 @@
 ## Claude 审阅（2026-10-20，claude）
 
 - 结论：通过（合入排在本轮验收提交之后）。只改四个测试文件：缺 Chromium 时按名单 skip 并写原因，缺原件 skip，两项过时测试改夹具；未改产品代码、未装浏览器。worktree 全量 1404 过 / 30 跳过 / 0 失败。
+- 合入后主目录仍有 test_real_evidence_artifacts 5 项失败：本机有原件但缺解析文本 / revision，skip 只覆盖了无原件。需补一处跳过条件，派 pi2。
+- 补丁合入（2026-10-20）：缺 raw / markdown / revision 任一即 skip；主目录全量 0 失败。

@@ -1,0 +1,4 @@
+company,dps_ttm,yield_now_pct,p25,p50,p75,px_pess,px_mid,px_opt,price_live,grade_yield,gordon_pess,gordon_mid,gordon_opt,yield_days,yield_start,kline_source,div_source,note
+长江电力,1.00,3.368,3.295,3.424,3.569,28.02,29.20,30.35,29.69,中性,17.70,21.51,27.40,785,2023-07-21,eastmoney kline fqt=0 1.600900,F10 BonusFinancing 10派实施方案,近12月=0.79+0.21；与数据包 FY2025 DPS 1.00 一致
+华能国际,0.40,5.348,2.841,3.411,3.714,10.77,11.73,14.08,7.48,很低,7.08,8.60,10.96,550,2024-07-11,eastmoney kline fqt=0 1.600011,F10 10派,可实施分红自 2024；TTM 序列不足三年；DPS 上台阶使现股息率高于历史分位
+中国移动,4.7112,4.629,4.091,4.302,4.787,98.41,109.51,115.15,101.77,偏低,—,—,—,1063,2022-06-01,eastmoney kline fqt=0 1.600941,F10 10派 25.1+22.012,数据包 DPS/股本 gap；coverage 已有 FY2025 年报；A 股 10派可补

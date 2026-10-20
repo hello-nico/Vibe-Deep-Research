@@ -1,0 +1,223 @@
+id,symbol,name,kind,gold,gold3,jev_choice,p_max,auto_0.8,jev_bool_p,claim
+0000,000933.SZ,神火股份,section.business.details,部分支持,,says_nothing,0.6,False,0.29,电解铝主要由云南神火、新疆神火承载，少数股东分走部分利润，上市公司股东净利{latest_net_profit_attributable}元低于含少数股东的净利润{latest_net_profit}元。
+0001,000933.SZ,神火股份,section.profit_formula.summary,支持,supports,says_nothing,0.66,False,0.37,利润来自铝价与氧化铝、电力成本的价差，以及煤价与开采成本的价差，毛利率{gross_margin}。
+0002,000933.SZ,神火股份,section.profit_formula.details,部分支持,,says_nothing,0.78,False,0.3,三季报称电解铝、煤炭售价同比上涨、主要原材料氧化铝价格同比下降共同推高盈利，营业利润同比接近翻倍。
+0003,000933.SZ,神火股份,section.variables.summary,支持,supports,says_nothing,0.93,True,0.19,沪铝每涨一千元/吨，股东净利约增{calc:result:80f072dcda5b4630bf88411743b85ea1.rule_of_thumb.0.profit_delta}，氧化铝同幅上涨则反向抵消。
+0004,000933.SZ,神火股份,section.variables.details,支持,supports,says_nothing,0.78,False,0.25,单季看，{lens:single_quarters.2026Q3.revenue}元收入对应股东净利{lens:single_quarters.2026Q3.net_profit_attributable}元，环比仍在改善。
+0005,000933.SZ,神火股份,section.cash.summary,部分支持,,says_nothing,0.8,True,0.26,经营现金流远高于净利润，资本开支轻，现金转化倍数达{lens:cash_conversion.cash_conversion}倍。
+0006,000933.SZ,神火股份,section.cash.details,不支持,contradicts,says_nothing,0.98,True,0.14,三季报经营现金流同比增长约六成，主要来自销售回款与预收电解铝货款增加。
+0007,000933.SZ,神火股份,section.cash.details,支持,supports,supports,0.51,False,0.61,年度方案每股分红{dividend_per_share}元，对应股息率{dividend_yield}。
+0008,000933.SZ,神火股份,section.valuation.summary,部分支持,,says_nothing,0.83,True,0.28,现价对应市盈率{pe}倍、市净率{pb}倍，三档情景中枢在现价上方，估值处于合理区间。
+0009,000933.SZ,神火股份,section.valuation.details,不支持,contradicts,says_nothing,0.99,True,0.08,同业四家可比公司市盈率中位数{lens:peer_comparison.pe}倍，公司低于该中位数；
+0010,000933.SZ,神火股份,section.valuation.details,支持,supports,says_nothing,0.98,True,0.2,按同业四分位给倍数，中性情景目标价{calc:result:ec588d3d83e440fd9c3bc18cc4a5356b.scenarios.1.price}元，悲观情景为低价与低倍数组合下的下限。
+0011,000933.SZ,神火股份,section.valuation.details,支持,supports,says_nothing,0.99,True,0.14,现价隐含沪铝{calc:result:80f072dcda5b4630bf88411743b85ea1.implied.value}元/吨。
+0012,000933.SZ,神火股份,section.valuation.details,支持,supports,supports,0.68,False,0.9,卖方一致预期每股收益{eps_forecast}元，对应前瞻市盈率{forward_pe}倍。
+0013,000933.SZ,神火股份,section.tracking.summary,支持,supports,says_nothing,0.6,False,0.35,后续盯沪铝与氧化铝价差、煤炭售价与利润归属，累计营收增速{lens:ytd_yoy.revenue}。
+0014,000933.SZ,神火股份,section.tracking.details,支持,supports,says_nothing,0.97,True,0.14,云南神火少数股东损益占比高，股东净利增速可能低于净利润增速，累计股东净利同比{lens:ytd_yoy.net_profit_attributable}已有回落风险。
+0015,000933.SZ,神火股份,pillar,部分支持,,supports,0.62,False,0.71,电解铝价差是利润主引擎，售价上行叠加氧化铝降本推高盈利。
+0016,000933.SZ,神火股份,pillar,部分支持,,supports,0.71,False,0.67,现金创造力强：经营现金流远超利润，资本开支轻，分红有支撑。
+0017,000933.SZ,神火股份,pillar,部分支持,,says_nothing,0.61,False,0.55,煤炭与铝加工起稳定作用，但少数股东分流使股东净利低于净利润。
+0018,000933.SZ,神火股份,pillar,部分支持,,says_nothing,0.99,True,0.1,估值位于同业中位下方，现价尚未反映中性情景的价差水平。
+0019,000933.SZ,神火股份,falsifier,原文无关,says_nothing,contradicts,0.84,True,0.05,毛利率跌回周期底部水平，说明价差扩张已经逆转。（阈值 18%，窗口 2026年年度报告）
+0020,000933.SZ,神火股份,falsifier,原文无关,says_nothing,contradicts,0.95,True,0.05,累计股东净利同比转弱，说明少数股东与煤价拖累加剧。（阈值 50%，窗口 2026年年度报告）
+0021,000933.SZ,神火股份,falsifier,原文无关,says_nothing,contradicts,0.85,True,0.05,市盈率升破同业上四分位，估值相对优势消失。（阈值 9倍，窗口 2026年年度报告）
+0022,000807.SZ,云铝股份,section.profit_formula.details,部分支持,,supports,0.86,True,0.64,当期收入同比{lens:ytd_yoy.revenue}，归母净利同比{lens:ytd_yoy.net_profit_attributable}，利润增速远高于收入增速，说明成本相对刚性、价格上行时利润被放大；
+0023,000807.SZ,云铝股份,section.variables.details,支持,supports,supports,0.78,False,0.63,单季口径备查：单季营收{lens:single_quarters.2026Q2.revenue}，单季归母净利{lens:single_quarters.2026Q2.net_profit_attributable}。
+0024,000807.SZ,云铝股份,section.cash.summary,部分支持,,says_nothing,0.49,False,0.29,利润现金含量高，扣除资本开支后仍有较大现金留存，但分红方案尚取不到。
+0025,000807.SZ,云铝股份,section.cash.details,支持,supports,says_nothing,0.67,False,0.18,公司处于产业链一体化投入阶段，现金主要用于维持与技改，分红条款与当期付款安排的字段暂时取不到，无法据此判断股东回报的现金落实程度。
+0026,000807.SZ,云铝股份,section.valuation.summary,部分支持,,says_nothing,0.84,True,0.17,现价对应市盈率{pe}，隐含沪铝约元/吨，处于不极端但已含偏乐观预期。
+0027,000807.SZ,云铝股份,section.valuation.details,支持,supports,supports,0.72,False,0.79,以总市值与滚动归母净利计算的市盈率为{pe}，市净率{pb}，前瞻市盈率{forward_pe}基于机构预测中值。
+0028,000807.SZ,云铝股份,section.valuation.details,不支持,contradicts,says_nothing,0.84,True,0.05,同业市盈率中位数{lens:peer_comparison.pe}、市净率中位数{lens:peer_comparison.pb}，公司市净率更高而市盈率相当。
+0029,000807.SZ,云铝股份,section.valuation.details,支持,supports,says_nothing,0.94,True,0.18,三档情景下中性档利润对应目标价{calc:result:4a0fe9e4cf3c489992e073fe436b9780.scenarios.1.price}，乐观档{calc:result:4a0fe9e4cf3c489992e073fe436b9780.scenarios.2.price}低于中性档，原因是工具给出的乐观档铝价分位并不高于中性档；
+0030,000807.SZ,云铝股份,section.valuation.details,部分支持,,says_nothing,0.97,True,0.2,悲观档为亏损，市盈率不适用。
+0031,000807.SZ,云铝股份,section.tracking.summary,原文无关,says_nothing,says_nothing,0.97,True,0.19,接下来盯三季报的分部毛利率、氧化铝价格与市盈率位置，三项均需对照警戒线。
+0032,000807.SZ,云铝股份,section.tracking.details,原文无关,says_nothing,says_nothing,0.98,True,0.12,警戒线均设在当前值之外：电解铝分部成本升破上述水平、累计归母净利同比增速跌破警戒值、市盈率升破警戒值即视为越线。
+0033,000807.SZ,云铝股份,section.tracking.details,支持,supports,says_nothing,0.97,True,0.26,需要持续验证的缺口包括：氧化铝与电力成本占比缺少公司披露口径，三季度单季数据字段暂时取不到，历史估值分位暂时取不到，分红方案现金落实程度暂时取不到。
+0034,000807.SZ,云铝股份,pillar,部分支持,,says_nothing,0.9,True,0.22,电解铝与铝加工产品贡献几乎全部收入，产品结构决定利润随铝价波动
+0035,000807.SZ,云铝股份,pillar,部分支持,,says_nothing,0.93,True,0.3,电解铝毛利受铝价与氧化铝成本双向挤压，氧化铝是主要外购原料
+0036,000807.SZ,云铝股份,pillar,部分支持,,supports,0.8099999999999999,True,0.76,当期盈利大幅回升，净利润增速远快于收入增速，经营杠杆明显
+0037,000807.SZ,云铝股份,pillar,部分支持,,says_nothing,0.94,True,0.13,利润现金含量高，资本开支收现占经营现金流比重小，现金留存在体内
+0038,000807.SZ,云铝股份,pillar,部分支持,,says_nothing,0.97,True,0.11,相对同业估值处于中位，市盈率与市净率低于部分同行，分红比率偏低
+0039,000807.SZ,云铝股份,falsifier,原文无关,says_nothing,says_nothing,0.92,True,0.11,铝加工产品收入占比明显下滑，或电解铝收入连续两期下降（阈值 11000000000元，窗口 2026年三季报）
+0040,000807.SZ,云铝股份,falsifier,原文无关,says_nothing,says_nothing,0.99,True,0.06,电解铝分部毛利率跌破一成，显示原料涨价无法向下游传导（阈值 16000000000元，窗口 2026年三季报）
+0041,000807.SZ,云铝股份,falsifier,原文无关,says_nothing,contradicts,0.56,False,0.06,累计归母净利润同比增速回落至个位数，盈利弹性结束（阈值 20%，窗口 2026年三季报）
+0042,000807.SZ,云铝股份,falsifier,原文无关,says_nothing,contradicts,0.61,False,0.09,市盈率升至同业中位数以上，相对估值优势消失（阈值 10倍，窗口 2026-12-31）
+0043,600900.SH,长江电力,section.business.summary,部分支持,,says_nothing,0.48,False,0.42,靠境内六座梯级水电站售电赚钱，收入几乎全部来自水电，毛利率{gross_margin}。
+0044,600900.SH,长江电力,section.profit_formula.summary,支持,supports,says_nothing,0.89,True,0.34,电量乘电价形成收入，折旧与利息是刚性成本，毛利率{gross_margin}决定利润底盘。
+0045,600900.SH,长江电力,section.profit_formula.details,部分支持,,says_nothing,0.99,True,0.08,最新半年报披露了浮动利率借款的敏感性口径：以浮动利率计算的借款利率每上升或下降一定幅度，其他因素不变时净利润相应减少或增加。
+0046,600900.SH,长江电力,section.variables.summary,支持,supports,says_nothing,0.98,True,0.16,境内发电量每变动一个百分点，归母净利约变动{calc:result:d941208178db4fec9ec75b0e910d1857.rule_of_thumb.0.profit_delta}元。
+0047,600900.SH,长江电力,section.variables.details,支持,supports,says_nothing,0.99,True,0.1,折旧摊销每变动一个百分点影响约{calc:result:d941208178db4fec9ec75b0e910d1857.rule_of_thumb.1.profit_delta}元。
+0048,600900.SH,长江电力,section.variables.details,部分支持,,says_nothing,0.91,True,0.24,三档情形假设电量下降、持平、上升一成，折旧反向变动一成；
+0049,600900.SH,长江电力,section.cash.details,支持,supports,says_nothing,0.6,False,0.51,每股分红方案{dividend_per_share}元，对应股息率{dividend_yield}。
+0050,600900.SH,长江电力,section.cash.details,部分支持,,says_nothing,0.97,True,0.17,年内分红实际付款与剩余现金为缺口，只能按方案口径理解。
+0051,600900.SH,长江电力,section.valuation.summary,支持,supports,says_nothing,0.67,False,0.35,现价市盈率{pe}倍、股息率{dividend_yield}，落在中性情景附近，定价反映平水年电量与稳定派息。
+0052,600900.SH,长江电力,section.valuation.details,支持,supports,says_nothing,0.92,True,0.2,三档目标价以中性情景为中轴，乐观{calc:result:16b3b284cc714225bf205a3b4cfd58c2.extra.scenarios.2.price}元、悲观{calc:result:16b3b284cc714225bf205a3b4cfd58c2.extra.scenarios.0.price}元；
+0053,600900.SH,长江电力,section.valuation.details,部分支持,,says_nothing,0.99,True,0.11,同业市盈率不足三家、历史分位不可得，倍数沿用上次判断的区间。
+0054,600900.SH,长江电力,section.tracking.summary,支持,supports,says_nothing,0.53,False,0.64,先看季报电量与利润增速能否延续，{lens:ytd_yoy.net_profit_attributable}的累计同比是最直接的检验。
+0055,600900.SH,长江电力,section.tracking.details,部分支持,,says_nothing,0.92,True,0.26,三条线：长江来水与梯级电站发电量、浮动利率借款成本（半年报已披露其敏感性，利率上行直接压减净利润）、以及每股分红方案的执行。
+0056,600900.SH,长江电力,section.tracking.details,原文无关,says_nothing,says_nothing,0.97,True,0.15,折旧占比与税率为待校准假设，毛利率跌破警戒线即视为电量或电价假设失效。
+0057,600900.SH,长江电力,pillar,部分支持,,says_nothing,0.83,True,0.33,境内水电收入占营业收入主体，毛利水平高，收入随电量与电价波动。
+0058,600900.SH,长江电力,pillar,部分支持,,says_nothing,0.97,True,0.15,折旧与利息构成刚性成本，发电量变动直接放大利润波动。
+0059,600900.SH,长江电力,pillar,部分支持,,says_nothing,1,True,0.05,经营现金流对净利倍数高，扣资本开支后仍有可观现金支撑派息。
+0060,600900.SH,长江电力,pillar,部分支持,,says_nothing,0.94,True,0.1,现价市盈率处于中性情景附近，估值对电量与利率的容忍度有限。
+0061,600900.SH,长江电力,falsifier,原文无关,says_nothing,says_nothing,0.9,True,0.17,毛利率跌破该线，说明电量或电价弱于平水年假设。（阈值 55%，窗口 三季报）
+0062,600900.SH,长江电力,falsifier,原文无关,says_nothing,contradicts,0.78,False,0.09,归母净利累计同比转负，说明电量或利率出现反向变化。（阈值 0%，窗口 三季报）
+0063,600900.SH,长江电力,falsifier,原文无关,says_nothing,says_nothing,0.69,False,0.07,市盈率升破该水平而利润未同步上修，说明估值已提前反映乐观情景。（阈值 24倍，窗口 下一交易日）
+0064,600863.SH,华能蒙电,section.business.details,支持,supports,supports,0.5,False,0.69,数据包中行业驱动的电量、电价与单位成本三行暂时取不到，收入结构目前只能由合并口径的收入、毛利率与归母净利间接观察。
+0065,600863.SH,华能蒙电,section.profit_formula.details,部分支持,,says_nothing,0.74,False,0.35,已披露口径可以观察传导方向：单季收入与单季归母净利同比同时下滑，且利润降幅明显大于收入降幅，符合固定成本与折旧占比较高的发电业务特征，即量价下行会被放大到利润端。
+0066,600863.SH,华能蒙电,section.profit_formula.details,部分支持,,says_nothing,0.5,False,0.58,年度营业收入、毛利率与归母净利可作为公式结果的校验值。
+0067,600863.SH,华能蒙电,section.variables.details,部分支持,,says_nothing,0.53,False,0.36,可用的近似证据是单季同比：收入下滑一成多时，单季归母净利下降近两成半，说明利润对量价的放大效应明显；
+0068,600863.SH,华能蒙电,section.cash.summary,支持,supports,supports,0.85,True,0.66,经营现金流对归母净利的覆盖很厚，资本开支后仍有结余，但分红总量与剩余现金口径暂时取不到
+0069,600863.SH,华能蒙电,section.cash.details,支持,supports,supports,0.89,True,0.79,分红方面只看到每股含税方案的金额与由不复权价格推算的股息率，年度分红总额、方案股本基数以及是否已实施中期分红的相关口径均未核对，因此分红付款与剩余现金两项暂时取不到。
+0070,600863.SH,华能蒙电,section.valuation.summary,部分支持,,says_nothing,0.51,False,0.22,当期市盈率略低于同业中位数，市净率高于同业，但净资产收益率明显更高，整体处在合理区间。
+0071,600863.SH,华能蒙电,section.valuation.details,部分支持,,says_nothing,0.51,False,0.15,同业对比显示，当期市盈率略低于申万二级电力四家样本的中位数，市净率则明显高于同业中位数，差异可由公司显著更高的净资产收益率解释：高回报资产配更高的净资产定价属常见结构。
+0072,600863.SH,华能蒙电,section.valuation.details,部分支持,,supports,0.68,False,0.58,前瞻市盈率低于当期市盈率，隐含盈利回升预期，但机构预测样本偏少，且当年预测每股收益对应下半年利润需大幅同比改善，与上半年归母净利同比下滑的事实存在张力，该预期不宜直接采信。
+0073,600863.SH,华能蒙电,section.tracking.details,部分支持,,says_nothing,0.75,False,0.45,其二，单季收入与归母净利同比降幅是否收窄，用来验证前瞻倍数隐含的回升预期是否成立；
+0074,600863.SH,华能蒙电,section.tracking.details,部分支持,,says_nothing,0.95,True,0.23,其三，分红方案实施进度与现金转化是否维持当前水平。
+0075,600863.SH,华能蒙电,pillar,部分支持,,says_nothing,0.81,True,0.43,公司以火电与新能源上网售电为主要收入来源，上网电量与平均售电单价是收入与利润的主驱动。
+0076,600863.SH,华能蒙电,pillar,部分支持,,says_nothing,0.39,False,0.43,单季利润降幅大于收入降幅，固定成本与折旧占比高，量价下行对利润有明显放大效应。
+0077,600863.SH,华能蒙电,pillar,部分支持,,supports,0.77,False,0.63,经营现金流对归母净利的覆盖倍数较高，资本开支后仍有结余，利润的现金质量好于账面表现。
+0078,600863.SH,华能蒙电,pillar,部分支持,,says_nothing,0.59,False,0.08,当期市盈率略低于同业中位数而市净率偏高，净资产收益率显著高于同业，估值差异有基本面解释。
+0079,600863.SH,华能蒙电,pillar,部分支持,,supports,0.76,False,0.72,机构预测每股收益隐含盈利回升，但覆盖样本偏少，且与上半年利润同比下滑的事实存在张力。
+0080,600863.SH,华能蒙电,falsifier,原文无关,says_nothing,says_nothing,0.98,True,0.09,若行业电量、电价与单位成本三行在后续定期报告中一直无法匹配，收入结构判断需改用分部口径重建。
+0081,600863.SH,华能蒙电,falsifier,原文无关,says_nothing,says_nothing,0.86,True,0.13,若单季归母净利同比降幅收窄至零附近或转为增长，量价放大效应的判断需修正。（阈值 0%，窗口 2026年三季报）
+0082,600863.SH,华能蒙电,falsifier,原文无关,says_nothing,says_nothing,0.9,True,0.17,若市净率回落至同业中位数附近而净资产收益率同步走低，估值合理的判断需下调。（阈值 1.35倍，窗口 2026年三季报）
+0083,600863.SH,华能蒙电,falsifier,原文无关,says_nothing,says_nothing,0.99,True,0.09,若机构覆盖增加后当年预测每股收益被下调，或前瞻市盈率回升至高于当期市盈率，回升预期不再成立。
+0084,600011.SH,华能国际,section.business.details,部分支持,,says_nothing,0.94,True,0.13,本期半年报披露，公司可控发电装机中风电与太阳能合计规模继续扩大，低碳清洁能源装机比重同比提高；
+0085,600011.SH,华能国际,section.business.details,部分支持,,says_nothing,0.58,False,0.3,境内上网结算电价与上网电量同比下降，标煤单价同步回落，燃煤、风电与光伏板块税前利润同比减少，燃机板块增利。
+0086,600011.SH,华能国际,section.business.details,支持,supports,supports,0.77,False,0.69,年度口径营业收入{revenue}、归母净利{net_profit_attributable}，利润下降主要由于上网电量和电价同比减少与燃料成本回落的综合影响。
+0087,600011.SH,华能国际,section.profit_formula.details,支持,supports,supports,0.75,False,0.65,半年报口径下，营业收入同比{lens:ytd_yoy.revenue}，归母净利同比{lens:ytd_yoy.net_profit_attributable}，毛利水平{gross_margin}；
+0088,600011.SH,华能国际,section.profit_formula.details,支持,supports,contradicts,0.39,False,0.39,单季归母净利由{lens:single_quarters.2026Q1.net_profit_attributable}回落到{lens:single_quarters.2026Q2.net_profit_attributable}，与电价、煤价的变化方向一致。
+0089,600011.SH,华能国际,section.variables.summary,支持,supports,says_nothing,0.98,True,0.18,境内上网电价每变动一个百分点，归母净利约变动{calc:result:3a9996f83a434200b088a977d3482415.rule_of_thumb.0.profit_delta}。
+0090,600011.SH,华能国际,section.variables.details,支持,supports,says_nothing,0.95,True,0.21,标煤单价每变动一个百分点，归母净利约反向变动{calc:result:3a9996f83a434200b088a977d3482415.rule_of_thumb.1.profit_delta}。
+0091,600011.SH,华能国际,section.variables.details,部分支持,,says_nothing,0.93,True,0.14,原文披露境内除税发电耗用标煤单价同比下降，并预计下半年燃料市场延续供应偏紧、保供控价压力较大。
+0092,600011.SH,华能国际,section.cash.details,支持,supports,says_nothing,0.82,True,0.42,年度分红方案每股{dividend_per_share}，对应股息率{dividend_yield}；
+0093,600011.SH,华能国际,section.cash.details,支持,supports,says_nothing,0.98,True,0.32,实际分红支付与剩余现金口径暂时取不到。
+0094,600011.SH,华能国际,section.valuation.summary,支持,supports,says_nothing,0.91,True,0.17,现价{price}接近中性情景目标价{calc:result:589592a6ccee4614a53cc73ed85f6a6a.extra.scenarios.1.price}，在股息率{dividend_yield}支撑下估值处于合理区间。
+0095,600011.SH,华能国际,section.valuation.details,部分支持,,says_nothing,0.98,True,0.16,三档情景中，电价与标煤单价假设决定归母净利与目标价的分布很宽，现价隐含的主变量取值接近当前基准、略偏低。
+0096,600011.SH,华能国际,section.valuation.details,支持,supports,supports,0.66,False,0.74,当前市盈率{pe}、市净率{pb}、机构预测市盈率{forward_pe}，股息率{dividend_yield}。
+0097,600011.SH,华能国际,section.tracking.summary,支持,supports,says_nothing,0.64,False,0.5,后续盯境内上网电价与标煤单价，以及{lens:single_quarters.2026Q2.net_profit_attributable}之后的单季归母净利能否止跌。
+0098,600011.SH,华能国际,pillar,部分支持,,says_nothing,0.86,True,0.37,收入主体是境内电力热力销售，火电与新能源共同贡献利润
+0099,600011.SH,华能国际,pillar,部分支持,,says_nothing,0.5,False,0.49,盈利杠杆来自上网电价与标煤单价，两者方向相反地决定利润变动
+0100,600011.SH,华能国际,pillar,部分支持,,says_nothing,0.44,False,0.5,经营现金流对归母净利覆盖倍数高，扣资本开支后仍有结余
+0101,600011.SH,华能国际,pillar,部分支持,,supports,0.76,False,0.75,永续债等权益工具规模大，普通股权益明显低于归母净资产
+0102,600011.SH,华能国际,pillar,部分支持,,says_nothing,0.52,False,0.5,年度分红方案对应的股息率处于较高水平，为估值提供支撑
+0103,600011.SH,华能国际,falsifier,原文无关,says_nothing,says_nothing,0.9,True,0.17,上网电量与电价继续双双下滑，境内电力热力收入段进一步收缩（阈值 -8%，窗口 2026年三季报）
+0104,600011.SH,华能国际,falsifier,原文无关,says_nothing,contradicts,0.83,True,0.05,电价下行与煤价上行的组合使归母净利下滑幅度明显扩大（阈值 -45%，窗口 2026年三季报）
+0105,600011.SH,华能国际,falsifier,原文无关,says_nothing,says_nothing,0.99,True,0.08,普通股权益因偿债或赎回工具而明显下降，每股净资产被摊薄（阈值 50000000000元，窗口 2026年年度报告）
+0106,600011.SH,华能国际,falsifier,原文无关,says_nothing,says_nothing,0.9,True,0.08,分红方案下调或股价上行使股息率跌回较低水平（阈值 4%，窗口 2026年年度报告）
+0107,603799.SH,华友钴业,section.business.summary,支持,supports,says_nothing,0.73,False,0.43,收入靠镍产品、正极材料与钴产品，综合毛利率{gross_margin}。
+0108,603799.SH,华友钴业,section.profit_formula.summary,支持,supports,says_nothing,0.85,True,0.33,镍价与正极、钴售价决定利润弹性，毛利率{gross_margin}。
+0109,603799.SH,华友钴业,section.profit_formula.details,支持,supports,says_nothing,0.95,True,0.15,沪镍每涨一千元/吨，归母净利约增加{calc:result:24782033d0fc48f28b3bb51d8d1b300d.rule_of_thumb.0.profit_delta}元；
+0110,603799.SH,华友钴业,section.profit_formula.details,支持,supports,says_nothing,0.89,True,0.24,碳酸锂每涨一千元/吨，归母净利约变动{calc:result:24782033d0fc48f28b3bb51d8d1b300d.rule_of_thumb.2.profit_delta}元。
+0111,603799.SH,华友钴业,section.variables.summary,支持,supports,says_nothing,0.82,True,0.16,沪镍与碳酸锂是主变量，二季度归母净利{lens:single_quarters.2026Q2.net_profit_attributable}元。
+0112,603799.SH,华友钴业,section.variables.details,支持,supports,says_nothing,0.89,True,0.33,三档情景归母净利分别为{calc:result:24782033d0fc48f28b3bb51d8d1b300d.extra.scenarios.0.profit}元、{calc:result:24782033d0fc48f28b3bb51d8d1b300d.extra.scenarios.1.profit}元、{calc:result:24782033d0fc48f28b3bb51d8d1b30
+0113,603799.SH,华友钴业,section.valuation.summary,支持,supports,says_nothing,0.84,True,0.31,现价对应市盈率{pe}倍，位于悲观与中性情景目标价之间。
+0114,603799.SH,华友钴业,section.valuation.details,支持,supports,says_nothing,0.96,True,0.2,现价隐含沪镍约{calc:result:24782033d0fc48f28b3bb51d8d1b300d.extra.implied.value}元/吨，低于当前镍价，说明价格未假设镍价上行。
+0115,603799.SH,华友钴业,section.tracking.summary,支持,supports,supports,0.57,False,0.58,收入同比{lens:ytd_yoy.revenue}，重点是单季利润与毛利率能否同步修复。
+0116,603799.SH,华友钴业,section.tracking.details,部分支持,,says_nothing,0.98,True,0.06,华飞公司部分产线自2026年5月1日起停产检修，MHP出货同比下降约一成九，运营成本上升；
+0117,603799.SH,华友钴业,section.tracking.details,部分支持,,says_nothing,0.85,True,0.52,观察窗口为下一次定期报告，看单季归母净利与毛利率能否回到一季度水平。
+0118,603799.SH,华友钴业,pillar,部分支持,,says_nothing,0.84,True,0.35,收入以镍产品、正极材料、钴产品为主，一体化链条从印尼镍冶炼连到正极材料。
+0119,603799.SH,华友钴业,pillar,部分支持,,says_nothing,0.96,True,0.23,沪镍价格是利润第一弹性来源，镍产品满产与否直接决定单季利润。
+0120,603799.SH,华友钴业,pillar,部分支持,,supports,0.59,False,0.7,经营现金流扣掉资本开支仍为净流出，扩张期自由现金依赖外部融资。
+0121,603799.SH,华友钴业,pillar,部分支持,,says_nothing,0.92,True,0.13,现价对应市盈率低于周期中枢，价格尚未计入镍价回到中位的情景。
+0122,603799.SH,华友钴业,pillar,部分支持,,says_nothing,0.97,True,0.09,钴产品受消费电子拖累出货下滑，锂产品规模仍小，收入增长靠正极与镍。
+0123,603799.SH,华友钴业,falsifier,原文无关,says_nothing,contradicts,0.77,False,0.07,毛利率跌破一成四说明一体化成本优势被原料涨价侵蚀。（阈值 14%，窗口 2026年年度报告）
+0124,603799.SH,华友钴业,falsifier,原文无关,says_nothing,says_nothing,0.66,False,0.08,单季归母净利跌破八亿元说明镍与正极环节盈利同步走弱。（阈值 800000000元，窗口 2026年第三季度报告）
+0125,603799.SH,华友钴业,falsifier,原文无关,says_nothing,contradicts,0.89,True,0.04,市盈率升破十二倍说明市场已提前计入盈利修复。（阈值 12倍，窗口 2026年第三季度报告）
+0126,603799.SH,华友钴业,falsifier,原文无关,says_nothing,contradicts,0.88,True,0.07,收入同比增速回落到两成以下说明销量驱动减弱。（阈值 20%，窗口 2026年第三季度报告）
+0127,300750.SZ,宁德时代,section.business.details,支持,supports,says_nothing,0.94,True,0.14,分地区境内{segment:region:境内.revenue}、境外{segment:region:境外.revenue}，境外毛利率高于境内。
+0128,300750.SZ,宁德时代,section.profit_formula.summary,支持,supports,says_nothing,0.99,True,0.19,利润由电池销量与单位盈利决定，售价每变动一个百分点，归母净利约变动{calc:result:2a9a47fdaf5647b38ac5f5cb3aaa0377.rule_of_thumb.0.profit_delta}。
+0129,300750.SZ,宁德时代,section.profit_formula.details,支持,supports,says_nothing,0.57,False,0.55,报告期收入增速{lens:ytd_yoy.revenue}快于归母净利增速{lens:ytd_yoy.net_profit_attributable}，分产品毛利率同比小幅波动，说明增长主要由规模与结构贡献。
+0130,300750.SZ,宁德时代,section.profit_formula.details,支持,supports,says_nothing,0.83,True,0.54,毛利率{gross_margin}是观察成本传导是否顺畅的直接指标。
+0131,300750.SZ,宁德时代,section.variables.summary,支持,supports,says_nothing,0.93,True,0.27,关键变量为碳酸锂价格与电池销售均价，碳酸锂每上涨一千元/吨，归母净利影响约{calc:result:2a9a47fdaf5647b38ac5f5cb3aaa0377.rule_of_thumb.1.profit_delta}。
+0132,300750.SZ,宁德时代,section.variables.details,支持,supports,supports,0.87,True,0.95,单季口径下，最近两个季度的营业收入为{lens:single_quarters.2026Q1.revenue}与{lens:single_quarters.2026Q2.revenue}，归母净利为{lens:single_quarters.2026Q1.net_profit_attributable}与{lens:single_quarters.2026Q2.net_profit_attribu
+0133,300750.SZ,宁德时代,section.cash.details,支持,supports,says_nothing,0.67,False,0.22,报告期经营活动现金流{lens:single_quarters.2026Q2.operating_cash_flow}，与利润增长节奏基本匹配；
+0134,300750.SZ,宁德时代,section.cash.details,支持,supports,supports,0.72,False,0.87,分红方案为每股{dividend_per_share}，对应股息率{dividend_yield}。
+0135,300750.SZ,宁德时代,section.valuation.summary,支持,supports,supports,0.52,False,0.36,三档情景目标价自{calc:result:1c3dbbd844b54403a6e1124afb1be36d.extra.scenarios.0.price}至{calc:result:1c3dbbd844b54403a6e1124afb1be36d.extra.scenarios.2.price}，滚动市盈率{pe}倍。
+0136,300750.SZ,宁德时代,section.valuation.details,支持,supports,says_nothing,0.94,True,0.21,中性情景目标价为{calc:result:1c3dbbd844b54403a6e1124afb1be36d.extra.scenarios.1.price}，现价{price}略高于中性情景水平；
+0137,300750.SZ,宁德时代,section.tracking.summary,支持,supports,says_nothing,0.6,False,0.38,盯碳酸锂价格、电池售价与储能出货，收入增速{lens:ytd_yoy.revenue}与毛利率走势决定判断是否成立。
+0138,300750.SZ,宁德时代,section.tracking.details,原文无关,says_nothing,says_nothing,0.95,True,0.23,越线条件：综合毛利率跌破约定警戒线、经营现金流对归母净利覆盖倍数低于约定水平、或前瞻市盈率高于约定上限；
+0139,300750.SZ,宁德时代,section.tracking.details,部分支持,,says_nothing,0.79,False,0.5,若碳酸锂价格大幅上行而电池售价无法传导，单位盈利会先于收入体现在毛利率上。
+0140,300750.SZ,宁德时代,pillar,部分支持,,says_nothing,0.97,True,0.14,动力电池是全球份额领先的主力业务，收入规模与交付能力构成基本盘。
+0141,300750.SZ,宁德时代,pillar,部分支持,,says_nothing,0.97,True,0.15,储能电池是增速最快的第二增长极，出货量位居全球第一。
+0142,300750.SZ,宁德时代,pillar,部分支持,,supports,0.59,False,0.67,单位盈利决定利润弹性，碳酸锂等原材料成本与电池售价共同影响毛利率。
+0143,300750.SZ,宁德时代,pillar,部分支持,,says_nothing,0.99,True,0.11,利润现金含量高，资本开支后仍有可观现金留存，支撑分红与海外扩产。
+0144,300750.SZ,宁德时代,pillar,部分支持,,says_nothing,0.92,True,0.14,估值以滚动与前瞻市盈率衡量，境外收入约占三成带来汇率与地缘敞口。
+0145,300750.SZ,宁德时代,falsifier,原文无关,says_nothing,says_nothing,1,True,0.07,动力电池系统收入同比转为负增长（阈值 0%，窗口 2026年三季度报告）
+0146,300750.SZ,宁德时代,falsifier,原文无关,says_nothing,says_nothing,1,True,0.07,储能电池系统收入同比增速明显回落（阈值 30%，窗口 2026年三季度报告）
+0147,300750.SZ,宁德时代,falsifier,原文无关,says_nothing,says_nothing,0.51,False,0.2,综合毛利率跌破警戒线（阈值 24%，窗口 2026年年度报告）
+0148,300750.SZ,宁德时代,falsifier,原文无关,says_nothing,contradicts,0.89,True,0.05,前瞻市盈率升至警戒线上方（阈值 20倍，窗口 2026年三季度报告）
+0149,601899.SH,紫金矿业,section.business.summary,支持,supports,says_nothing,0.89,True,0.21,公司靠自有矿山产铜与产金赚取主要利润，整体毛利率{gross_margin}，冶炼与贸易收入规模大而毛利薄。
+0150,601899.SH,紫金矿业,section.profit_formula.summary,支持,supports,says_nothing,0.68,False,0.3,利润由沪铜、沪金价格与矿山产量共同决定，上半年归母净利同比{lens:ytd_yoy.net_profit_attributable}。
+0151,601899.SH,紫金矿业,section.profit_formula.details,支持,supports,says_nothing,0.74,False,0.22,年度毛利率{gross_margin}，上半年归母净利{latest_net_profit_attributable}，年度扣非净利{net_profit_ex_nonrecurring}。
+0152,601899.SH,紫金矿业,section.variables.details,支持,supports,says_nothing,0.96,True,0.21,沪铜、沪金与碳酸锂价格每上升一个百分点，归母净利约变动{calc:result:59d99065bb284953a3aa3ccfac5654f0.rule_of_thumb.0.profit_delta}、{calc:result:59d99065bb284953a3aa3ccfac5654f0.rule_of_thumb.1.profit_delta}、{calc:result:59d99065
+0153,601899.SH,紫金矿业,section.cash.details,支持,supports,says_nothing,0.82,True,0.39,公司在建项目与并购支出会继续占用现金，年度每股分红{dividend_per_share}，股息率{dividend_yield}，分红力度偏克制。
+0154,601899.SH,紫金矿业,section.valuation.summary,支持,supports,says_nothing,0.54,False,0.4,现价{price}对应静态市盈率{pe}与预测市盈率{forward_pe}，三档情景目标价均高于现价。
+0155,601899.SH,紫金矿业,section.valuation.details,支持,supports,says_nothing,0.78,False,0.45,三档情景目标价：悲观{calc:result:0f107b6871694050979fc89d0fae442a.extra.scenarios.0.price}、中性{calc:result:0f107b6871694050979fc89d0fae442a.extra.scenarios.1.price}、乐观{calc:result:0f107b6871694050979fc89d0fae442
+0156,601899.SH,紫金矿业,section.valuation.details,支持,supports,says_nothing,0.84,True,0.25,现价隐含的主变量取值暂时取不到，线性反解超出变量合理区间，市场定价大致落在中性情景附近。
+0157,601899.SH,紫金矿业,section.tracking.summary,支持,supports,says_nothing,0.6,False,0.51,接下来盯季度产量、单位成本与金铜价格，看利润能否守住{lens:ytd_yoy.net_profit_attributable}的同比增势。
+0158,601899.SH,紫金矿业,section.tracking.details,部分支持,,says_nothing,0.95,True,0.21,矿山产铜、矿山产金产量能否延续规划增长；
+0159,601899.SH,紫金矿业,pillar,部分支持,,says_nothing,0.95,True,0.17,利润主要来自自有矿山铜金产品，冶炼与贸易贡献规模而非利润。
+0160,601899.SH,紫金矿业,pillar,部分支持,,says_nothing,0.85,True,0.34,沪铜与沪金价格是核心变量，价格与矿山产量共同决定利润弹性。
+0161,601899.SH,紫金矿业,pillar,部分支持,,says_nothing,0.7,False,0.37,现价对应周期高位盈利，市净率与股息率显示市场已给出较高溢价。
+0162,601899.SH,紫金矿业,falsifier,原文无关,says_nothing,contradicts,0.92,True,0.06,综合毛利率跌破两成，说明矿山端成本优势或价格支撑明显减弱（阈值 20%，窗口 FY2026 年报）
+0163,601899.SH,紫金矿业,falsifier,原文无关,says_nothing,contradicts,0.92,True,0.04,归母净利累计同比转负，价格与产量共同驱动的逻辑被打破（阈值 0%，窗口 2026年三季报）
+0164,601899.SH,紫金矿业,falsifier,原文无关,says_nothing,contradicts,0.89,True,0.11,静态市盈率升过十五倍，周期高位盈利的估值吸引力下降（阈值 15倍，窗口 2026-12-31）
+0165,600585.SH,海螺水泥,section.business.summary,支持,supports,says_nothing,0.56,False,0.19,靠自产水泥熟料销售赚钱，主力品种收入{segment:product:42.5级水泥.revenue}，骨料与海外贡献增量。
+0166,600585.SH,海螺水泥,section.business.details,支持,supports,supports,0.97,True,0.9,半年报口径：主营收入同比{lens:ytd_yoy.revenue}，归母净利同比{lens:ytd_yoy.net_profit_attributable}。
+0167,600585.SH,海螺水泥,section.business.details,支持,supports,supports,0.52,False,0.64,产品结构上，主力水泥{segment:product:42.5级水泥.revenue}、骨料及机制砂{segment:product:骨料及机制砂.revenue}；
+0168,600585.SH,海螺水泥,section.business.details,支持,supports,says_nothing,0.98,True,0.08,地区结构上海外{segment:region:海外.revenue}，是毛利率最高的区域。
+0169,600585.SH,海螺水泥,section.profit_formula.summary,支持,supports,says_nothing,0.6799999999999999,False,0.39,利润由水泥销量乘吨售价、减去煤电等成本决定，毛利率{gross_margin}即价差读数。
+0170,600585.SH,海螺水泥,section.profit_formula.details,部分支持,,says_nothing,0.76,False,0.14,公司原话是『加大替代燃料使用、优化原燃材料的采购渠道等方式提升成本管控水平』，自产品综合成本同比下降，但售价降幅更大，毛利率同比明显压缩。
+0171,600585.SH,海螺水泥,section.variables.summary,支持,supports,says_nothing,0.78,False,0.41,水泥吨售价与煤电成本反向决定吨毛利，毛利率{gross_margin}是核心读数。
+0172,600585.SH,海螺水泥,section.variables.details,支持,supports,says_nothing,0.95,True,0.17,售价：主力水泥吨售价每上升百分之一，归母净利约增加{calc:result:1fe1064a02494c2296a0f790a1e70ed0.rule_of_thumb.0.profit_delta}；
+0173,600585.SH,海螺水泥,section.variables.details,支持,supports,says_nothing,0.94,True,0.19,成本：燃料及动力（煤、电）每上升百分之一，归母净利约减少{calc:result:1fe1064a02494c2296a0f790a1e70ed0.rule_of_thumb.1.profit_delta}。
+0174,600585.SH,海螺水泥,section.variables.details,部分支持,,says_nothing,0.98,True,0.08,半年报另披露利率上升一百个基点对净利润与权益的影响为正但量级很小，未纳入三档情景。
+0175,600585.SH,海螺水泥,section.cash.details,支持,supports,says_nothing,0.92,True,0.18,第二季度单季经营现金流{lens:single_quarters.2026Q2.operating_cash_flow}，较第一季度大幅回升，与季节性回款改善一致。
+0176,600585.SH,海螺水泥,section.cash.details,支持,supports,says_nothing,0.96,True,0.44,分红与股息率数据暂时取不到，本期无法评估股东回报分量。
+0177,600585.SH,海螺水泥,section.valuation.summary,支持,supports,says_nothing,0.62,False,0.27,现价{price}、市盈率{pe}、市净率{pb}：市场押注水泥价差触底后小幅修复。
+0178,600585.SH,海螺水泥,section.tracking.summary,部分支持,,says_nothing,0.85,True,0.32,下一步盯三季报吨售价与自产品毛利率；
+0179,600585.SH,海螺水泥,section.tracking.details,原文无关,says_nothing,says_nothing,0.94,True,0.16,警戒线均设在当前值之外：自产品毛利率跌破两成、营业成本突破七百亿元、现金流覆盖倍数低于一倍、海外收入低于三十亿元、市盈率升破十八倍，任一项成立就要重审现有判断。
+0180,600585.SH,海螺水泥,section.tracking.details,支持,supports,says_nothing,0.81,True,0.69,分红与股息率数据暂时取不到。
+0181,600585.SH,海螺水泥,pillar,部分支持,,says_nothing,0.76,False,0.39,水泥吨售价是盈利第一变量，售价与煤电成本反向拉动归母净利。
+0182,600585.SH,海螺水泥,pillar,部分支持,,says_nothing,0.94,True,0.19,燃料及动力占自产品成本过半，煤电价格决定成本端的下行空间。
+0183,600585.SH,海螺水泥,pillar,部分支持,,says_nothing,0.98,True,0.17,现金流含量高、负债率低，弱市里的资本开支与现金分配空间较宽裕。
+0184,600585.SH,海螺水泥,pillar,部分支持,,says_nothing,0.89,True,0.14,海外与骨料及机制砂是高毛利增量，决定利润结构能否改善。
+0185,600585.SH,海螺水泥,pillar,部分支持,,supports,0.73,False,0.41,估值锚在低市净率：市值不足净资产五成，市盈率计的是底部利润。
+0186,600585.SH,海螺水泥,falsifier,原文无关,says_nothing,contradicts,0.81,True,0.19,毛利率跌破两成，说明价差仍在压缩而非改善。（阈值 20%，窗口 2026年三季报）
+0187,600585.SH,海螺水泥,falsifier,原文无关,says_nothing,says_nothing,0.97,True,0.08,单位成本同比转升，成本端从缓冲变为拖累。（阈值 70000000000元，窗口 FY2026年报）
+0188,600585.SH,海螺水泥,falsifier,原文无关,says_nothing,supports,0.9,True,0.71,海外收入低于三十亿元，增量逻辑受阻。（阈值 3000000000元，窗口 2026年三季报）
+0189,600585.SH,海螺水泥,falsifier,原文无关,says_nothing,contradicts,0.99,True,0.05,市盈率升破十八倍，估值缓冲进一步收窄。（阈值 18倍，窗口 2026年三季报）
+0190,600309.SH,万华化学,section.business.details,部分支持,,says_nothing,0.67,False,0.45,毛利率反映产品价差强弱，是盈利的核心来源。
+0191,600309.SH,万华化学,section.variables.details,部分支持,,says_nothing,0.87,True,0.18,现阶段改用收入与归母净利的同比联动、以及收入到利润的转化比例替代观察。
+0192,600309.SH,万华化学,section.cash.summary,支持,supports,supports,0.75,False,0.54,经营现金流对利润覆盖较高，重资本开支后留存有限，分红口径待补。
+0193,600309.SH,万华化学,section.cash.details,支持,supports,supports,0.55,False,0.59,每股分红方案与股息率已可读，但年度分红实际支付额与剩余现金暂时取不到，分红的可持续性需待后续核对。
+0194,600309.SH,万华化学,section.valuation.summary,部分支持,,says_nothing,0.79,False,0.16,滚动与前瞻估值低于同业样本中位数，情景测算显示价格处于合理区间。
+0195,600309.SH,万华化学,section.valuation.details,部分支持,,says_nothing,0.87,True,0.14,同业样本仅三到四家小市值公司，市盈率中位数明显偏高，可比性有限。
+0196,600309.SH,万华化学,section.valuation.details,部分支持,,says_nothing,0.51,False,0.47,公司自身滚动市盈率与前瞻市盈率之差反映一成左右的盈利增长预期，六家机构对次年每股收益的预测中位数较当年高约一成。
+0197,600309.SH,万华化学,section.valuation.details,部分支持,,says_nothing,0.8,True,0.38,三档情景分别以滚动每股收益配偏低倍数、以当年预测每股收益配中性倍数与乐观倍数测算。
+0198,600309.SH,万华化学,section.tracking.details,部分支持,,says_nothing,0.67,False,0.54,关注收入与利润的同比方向、毛利率走势、现金转化倍数与资本开支强度，以及估值与机构预测增速的匹配度；
+0199,600309.SH,万华化学,pillar,部分支持,,says_nothing,0.7,False,0.36,产销规模与收入扩张是盈利弹性的基础，单季收入与利润保持增长。
+0200,600309.SH,万华化学,pillar,部分支持,,says_nothing,0.86,True,0.37,产品价差决定毛利率水平，售价涨幅需不慢于单位成本涨幅。
+0201,600309.SH,万华化学,pillar,部分支持,,supports,0.88,True,0.69,经营现金流覆盖利润的能力较强，支撑高强度资本开支。
+0202,600309.SH,万华化学,pillar,部分支持,,supports,0.64,False,0.51,估值由周期盈利与机构预测增速共同决定，股息提供底部参考。
+0203,600309.SH,万华化学,falsifier,原文无关,says_nothing,says_nothing,0.8,True,0.18,年度收入低于上年水平，规模扩张逻辑被削弱。（阈值 203234573814.42元，窗口 FY2026年度报告）
+0204,600309.SH,万华化学,falsifier,原文无关,says_nothing,contradicts,0.77,False,0.17,毛利率回落至上年水平以下，价差逻辑弱化。（阈值 13.61234383789531189430697939%，窗口 2026年第三季度报告）
+0205,600309.SH,万华化学,falsifier,原文无关,says_nothing,says_nothing,0.83,True,0.2,滚动市盈率升破当前水平而盈利未同步改善，估值支撑减弱。（阈值 13.15499345574888682727631489倍，窗口 2026-12-31）
+0206,601288.SH,农业银行,section.cash.summary,部分支持,,supports,0.92,True,0.74,银行现金转化与剩余现金口径不适用，分红以每股方案与股息率呈现，派现总额当日取不到。
+0207,601288.SH,农业银行,section.cash.details,部分支持,,supports,0.95,True,0.82,分红方面年度普通股含税每股分红与股息率有取值，但派现总额因缺上一年度方案与股本基数取不到，派现率暂无法计算。
+0208,601288.SH,农业银行,section.valuation.summary,部分支持,,supports,0.43,False,0.41,相对同业存在估值溢价，前瞻市盈率高于当前市盈率，盈利预期偏弱，结论为偏高。
+0209,601288.SH,农业银行,section.valuation.details,部分支持,,says_nothing,0.71,False,0.09,同业对比显示本公司市盈率在同组中次高、市净率最高，而净资产收益率为次高，溢价需要盈利优势持续印证。
+0210,601288.SH,农业银行,section.valuation.details,部分支持,,says_nothing,0.55,False,0.36,前瞻市盈率高于当前市盈率，说明机构给出的当年每股收益低于滚动口径，且给出预测的机构偏少，样本代表性不足。
+0211,601288.SH,农业银行,section.valuation.details,部分支持,,says_nothing,0.81,True,0.1,三档情景按同业市盈率区间与预测或滚动每股收益组合计算，悲观取同业最低倍数配当年预测每股收益，中性取同业中位数，乐观取同业最高倍数配滚动每股收益，乐观情景也只在当前价格附近。
+0212,601288.SH,农业银行,section.tracking.summary,部分支持,,says_nothing,0.71,False,0.35,跟踪息差与规模、盈利质量、单季动能、估值溢价与分红四条线，并给出证伪阈值与窗口。
+0213,601288.SH,农业银行,section.tracking.details,部分支持,,supports,0.58,False,0.62,四条支柱分别绑定息差与规模、盈利质量与收入转化、单季盈利动能、估值溢价与分红吸引力；
+0214,601288.SH,农业银行,pillar,部分支持,,supports,0.56,False,0.19,利息净收入由生息资产规模与净利息收益率共同决定，息差是当日唯一可量化的驱动。
+0215,601288.SH,农业银行,pillar,部分支持,,says_nothing,0.54,False,0.12,盈利质量看收入到利润的转化与净资产收益率，后者高于同业中位数。
+0216,601288.SH,农业银行,pillar,部分支持,,contradicts,0.74,False,0.48,单季归母净利同比保持正增，盈利动能尚未转弱。
+0217,601288.SH,农业银行,pillar,部分支持,,says_nothing,0.82,True,0.16,估值在同业中偏贵，市净率最高、市盈率次高，溢价依赖净资产收益率优势与分红吸引力。
+0218,601288.SH,农业银行,falsifier,原文无关,says_nothing,says_nothing,0.95,True,0.09,营业收入转为同比下降，规模与定价的共同支撑不再成立。（阈值 0%，窗口 2026年年度报告）
+0219,601288.SH,农业银行,falsifier,原文无关,says_nothing,contradicts,0.5,False,0.12,净资产收益率低于同业中位数，盈利质量优势消失。（阈值 8.48%，窗口 2026年年度报告）
+0220,601288.SH,农业银行,falsifier,原文无关,says_nothing,says_nothing,0.61,False,0.13,单季归母净利转为同比下降，动能假设被证伪。（阈值 0%，窗口 2026年第三季度报告）
+0221,601288.SH,农业银行,falsifier,原文无关,says_nothing,contradicts,0.91,True,0.13,股息率跌破约定水平，分红对估值的支撑减弱。（阈值 3.0%，窗口 2026年度利润分配方案）

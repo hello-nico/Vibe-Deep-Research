@@ -1,0 +1,22 @@
+company,template,item,latest,period,freq,earliest,source,hist,note
+农业银行,bank_pb,ROE_TTM,9.2074%,TTM:2026H1,季,TTM:2026H1,数据包 fields.roe,无五年序列,provider 计算
+农业银行,bank_pb,ROE_FY,10.16% / 10.46% / 10.91%,FY2025/2024/2023,年,FY2023,数据包 readings.roe,三年非五年,缺 FY2021–2022（净资产快照无对应年）
+农业银行,bank_pb,PB_packet,0.8805,2026-10-20,日快照,仅当日,数据包 fields.pb,无,对应数据包价 7.19（2026-10-12）
+农业银行,bank_pb,PB_live,0.900,2026-10-20,日,仅当日,quotes 7.35 × 普通股权益 2.858万亿 / 股本,无,演示重算；lens 写明不能倒推五年 PB 分位
+农业银行,bank_pb,PB_5y_percentile,, ,年,无,lens:valuation_percentile.pb,无,缺口：缺近五年不复权价与每股净资产
+农业银行,bank_pb,净息差,1.28% / 1.42% / 1.60% / 1.90%,FY2025–FY2022,年,FY2022,数据包 readings.net_interest_margin,四年,page-research 证伪阈值 1.2%
+农业银行,bank_pb,信贷成本,,,,无,page-research driver:credit_cost,无,缺口
+农业银行,bank_pb,不良率,,,,无,数据包无字段,无,缺口；未新下年报
+农业银行,bank_pb,拨备覆盖率,,,,无,数据包无字段,无,缺口
+农业银行,bank_pb,分红率,30.0%,FY2025,年,FY2025,DPS 0.2495 × 股本 / FY2025 归母净利,仅一年,演示；派现总额字段缺口
+农业银行,bank_pb,现价,7.35 元,2026-10-20,日,当日,GET /market/quotes,无,数据包价 7.19 停在 10-12
+农业银行,bank_pb,CGB10Y,1.6497%,2026-10-19,日,东财序列,eastmoney.treasury_yield EMM00166466,有,Stock 已登记宏观
+中国平安,insurance_pev,寿险EV,9286.30 亿元,FY2025,年,FY2024（8350.93）,FY2025 年报内含价值章 / 适用性预判 p45,两年,百万：928630 / 835093
+中国平安,insurance_pev,集团EV,15042.88 亿元,FY2025,年,FY2024（14226.02）,同年报；每股 EV 83.07 元,两年,未关注；数据包全 gap
+中国平安,insurance_pev,NBV,368.97 亿元 +29.3%,FY2025,年,FY2023（310.80）,年报三年列 368.97/285.34/310.80；p41,三年,付费终端未用
+中国平安,insurance_pev,综合成本率,96.8%,FY2025,年,FY2023（100.7）,年报 96.8/98.3/100.7；p49,三年,
+中国平安,insurance_pev,综合投资收益率,6.3%,FY2025,年,FY2024（5.8%）,年报 p54,两年,近十年平均综合 4.9%
+中国平安,insurance_pev,长期投资回报假设,4.0%,FY2025,年,FY2024（4.0%）,年报「长期投资回报率假设」,两年,
+中国平安,insurance_pev,P/EV,0.609,2026-10-20 / FY2025 EV,现价÷年报每股EV,仅一点,quotes 50.61 / 83.07,无历史分位,Stop：EV 历史只用年报年份
+中国平安,insurance_pev,现价,50.61 元,2026-10-20,日,当日,GET /market/quotes,无,未 ensure
+中国平安,insurance_pev,数据包,全部 gap,2026-10-20,,无,GET data-packet 0 snapshots,无,未关注、未调 ensure

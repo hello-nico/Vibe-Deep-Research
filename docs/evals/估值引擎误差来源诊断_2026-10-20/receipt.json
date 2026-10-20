@@ -1,0 +1,11 @@
+{
+  "finished_at": "2026-10-20T04:20:23.050116+00:00",
+  "script_sha256": "22c1ea3b736f89ab733169b2c9bc2f255d4f4b74328cd69536653e4889e08fd1",
+  "input_manifest_sha256": "4755115658f5eb103d2fe6e4c5917c46c70debb632e4784bf4df593d07e9ae3a",
+  "g2_inputs_sha256": "0e38f7afd9816904802a4f56a98c31177e71fb92c2e3ad79ff808e4728fc07b8",
+  "regression_or_tuning": false,
+  "product_writes": false,
+  "G1_n": 31,
+  "G2_bridges": 5,
+  "G3_n": 31
+}

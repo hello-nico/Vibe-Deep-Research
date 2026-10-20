@@ -1,0 +1,22 @@
+company,template,item,latest,period,freq,earliest,source,hist,note
+长江电力,infra_yield,现价,29.69 元,2026-10-20,日,当日,GET /market/quotes,无,数据包价 29.36 同日
+长江电力,infra_yield,PE_TTM,20.07,2026-10-20,日快照,仅当日,quotes / 数据包 pe,无五年分位,lens 拒绝倒推
+长江电力,infra_yield,股息率,3.41%,TTM:FY2025,年,一年,数据包 dividend_yield,一年,
+长江电力,infra_yield,DPS,1.00 元,FY2025,年,FY2024 方案 0.733,readings dividend_per_share / scheme_per_share,两年,
+长江电力,infra_yield,TTM利润,362.02 亿,TTM:2026H1,季,FY2023 起 readings,数据包,三年归母,
+长江电力,infra_yield,发电量/上网电价,,,,无,readings 无此 metric,无,Profile 问发电量与电价；page-research 有电量驱动无填数
+长江电力,infra_yield,同业PE分位,,,,无,lens peer_comparison.pe gap,无,不足三家已核对同行；申万电力 801161 成分取不到
+长江电力,infra_yield,CGB10Y,1.6497%,2026-10-19,日,东财序列,eastmoney.treasury_yield,有,
+华能国际,infra_yield,现价,7.48 元,2026-10-20,日,当日,quotes,无,数据包价 7.57 停在 10-14
+华能国际,infra_yield,PE_TTM,10.01,2026-10-20,日快照,仅当日,quotes,无五年分位,
+华能国际,infra_yield,股息率,5.28%,TTM:FY2025,年,一年,数据包,一年,
+华能国际,infra_yield,DPS,0.40 元,FY2025,年,FY2025,readings,一年,
+华能国际,infra_yield,TTM利润,117.33 亿,TTM:2026H1,季,FY2023 readings,数据包,三年,
+华能国际,infra_yield,上网电价/煤价,,,,无,readings 无,无,page-research 记电价与标煤为跟踪项
+华能国际,infra_yield,同业PE分位,,,,无,lens gap,无,同长江电力
+中国移动,infra_yield,现价,101.77 元,2026-10-20,日,当日,quotes,无,数据包价 97.98 停在 10-09
+中国移动,infra_yield,PE_TTM,16.75,2026-10-20,日快照,仅当日,quotes,无五年分位,已关注；page-research 无
+中国移动,infra_yield,DPS/股息率/股本,,,,无,数据包 gap,无,未研究未 ensure；不能做股息三档
+中国移动,infra_yield,TTM利润,1317.94 亿,TTM:2026H1,季,季度 readings,数据包,有收入与 capex
+中国移动,infra_yield,用户数/ARPU,,,,无,readings 无,无,Profile 未把 ARPU 写成估值问题（六条偏分红与算力）
+中国移动,infra_yield,同业PE分位,,,,无,lens gap,无,申万通信服务 801223

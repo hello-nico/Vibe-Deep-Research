@@ -1,0 +1,8 @@
+item,fit,source,url,login_free,freq,earliest,latest,口径,terms
+比亚迪产销快报,部分,东财公告转载深交所披露,https://np-anotice-stock.eastmoney.com/api/security/ann?stock_list=002594,是,月,2021-01,2026-09 合计销量 463561 辆,公司产销快报合计本月销量（新能源）；未经审计,法定公告公开转载；内测期 Checklist 允许东财；需解析正文表格
+乘联会月度销量,不能,乘联会官网,https://www.cpcaauto.com/,否（本次 403）,月,未取到,未取到,乘用车批发/零售行业口径,未登录、未绕过 WAF
+中汽协月度产销简析,部分,中汽协官网国内数据,http://www.caam.org.cn/chn/5/cate_39/con_5237330.html,是（邮箱登录为站内邮箱）,月,公开页可见 2023-07 起标题,2026-08 简析 2026-09-24 发布,行业产销总量；正文为图片,免登录可见图片；详细统计在会员专区未进
+TV/手机面板报价,不能,WitsView/TrendForce；生意社,https://www.witsview.com/prices,否,周/月,未取到,未取到,面板研究报价,WitsView 需 Sign In；TrendForce 订阅；生意社 100ppi 验证码；未注册未付费
+制冷剂 R32/R134a,不能,氟务在线；隆众/卓创,https://www.fluor.cn/,否,日/周,未取到,未取到,现货挂牌价,氟务无公开价表；sci99/oilchem/chem99 要登录；100ppi 验证码
+白酒批价,不能,酒商/资讯站；对照茅台公告,东财 600519 公告,否（批价序列）,日（批价）/季（公司经营数据）,茅台经营数据为季,2026Q1 经营数据公告 2026-04-25,批价是渠道批发价；公司公告是分产品收入,无免登录批价序列；茅台仅季报级经营数据
+CXO 对照,不能,药明康德公告,https://np-anotice-stock.eastmoney.com/api/security/ann?stock_list=603259,是（列表可查）,无月度经营,近 200 条无产销/月度经营,无,在手订单与收入在定期报告,作为负对照：没有可盯的月度驱动

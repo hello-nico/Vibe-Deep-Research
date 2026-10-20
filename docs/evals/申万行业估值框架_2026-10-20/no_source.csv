@@ -1,0 +1,4 @@
+sw2,sw2_name,l1,fallback
+801011.SI,林业Ⅱ,农林牧渔,volume_pe/commodity_pe 通用量价，无 Profile 问题
+801722.SI,装修装饰Ⅱ,建筑装饰,backlog_pe 订单结算通用，无 Profile 问题
+801952.SI,焦炭Ⅱ,煤炭,commodity_pe；目录已有焦炭 J，仍无 Profile 问题

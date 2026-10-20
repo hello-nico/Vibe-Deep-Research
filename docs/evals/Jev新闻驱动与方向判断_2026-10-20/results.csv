@@ -1,0 +1,5 @@
+method,n,accuracy,false_positive,false_negative,hit_exact,direction_acc,auto,review
+keyword,158,0.8797,3,13,3,,158,0
+jev,158,0.9367,3,5,12,1.0,158,0
+jev_p_ge_0.5,158,0.9367,3,5,12,1.0,158,0
+jev_p_ge_0.8,150,0.96,,,,,150,8

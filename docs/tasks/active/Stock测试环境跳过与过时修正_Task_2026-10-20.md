@@ -1,7 +1,7 @@
 # Stock 测试环境跳过与过时修正（修复）
 
 2026-10-20 claude 写定，待 pi2 实施。实施仓库 Stock-Research，worktree `/Users/apple/ts/src/Stock-Research/.worktrees/pi2-tests`；只改测试；不提交、不 push；不重启服务；不装浏览器；不读凭据。
-权威：[Stock后端测试基线失败](Stock后端测试基线失败_Task_2026-10-20.md) §9 与 log；记录 `/Users/apple/ts/src/Vibe-Deep-Research/.local/stock-test-baseline/`。
+权威：[Stock后端测试基线失败](../archived/Stock后端测试基线失败_Task_2026-10-20.md) §9 与 log；记录 `/Users/apple/ts/src/Vibe-Deep-Research/.local/stock-test-baseline/`。
 
 ## 1. 目标
 

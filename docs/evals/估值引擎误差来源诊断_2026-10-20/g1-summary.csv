@@ -1,0 +1,6 @@
+code,company,n,tested_var,same_direction_n,all_observed_prices_same_direction_n,median_abs_ratio,within_factor_10_n,ratio_n,zero_price_change_n
+000933,神火,7,cmdty:SHFE.AL,4,4,4.406565556521891768210288477,6,7,0
+000807,云铝,6,cmdty:SHFE.AL,3,5,2.213413935203379023942576552,4,6,0
+601899,紫金,6,cmdty:SHFE.CU,4,5,9.17411538518366891232092237,3,6,0
+603799,华友,6,cmdty:SHFE.NI,2,2,5.751547504719570304810391935,4,6,0
+300750,宁德,6,cmdty:GFEX.LC,3,3,4.421856270910767819604300856,5,6,0

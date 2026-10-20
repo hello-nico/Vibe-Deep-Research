@@ -1,0 +1,316 @@
+[
+  {
+    "file": "results.json",
+    "origin": ".local/base-window-backtest/results.json",
+    "sha256": "9470a0e47a637ac77572eb190e1972a459422a5dc209cc47cdf1a1f47cc5b74a"
+  },
+  {
+    "file": "quarter-sources.json",
+    "origin": ".local/base-window-backtest/quarter-sources.json",
+    "sha256": "9ef187b4109ab62fd28397776bd7a130afac52216fcd3779e0555b86d21095c8"
+  },
+  {
+    "file": "protocol.json",
+    "origin": ".local/base-window-backtest/protocol.json",
+    "sha256": "c44f58bae6dfb68b68d06320bd6ca2abe8946249efb4a3c38fab05e987683f33"
+  },
+  {
+    "file": "shenhuo-2025H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/shenhuo-2025H1.pdf",
+    "sha256": "97ec84986c87f3fa73c6076cf6468f43735f7a36710dd3ba4801a61f175441d8"
+  },
+  {
+    "file": "yunlv-2026Q1-public.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2026Q1-public.pdf",
+    "sha256": "89f5a57b664599c09859fe1910cd9dc6625ee5be9cdbb0a81f9f2df5bf5361c2"
+  },
+  {
+    "file": "shenhuo-2024H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/shenhuo-2024H1.pdf",
+    "sha256": "be19a5be161a7e1cb01525f25e7c2ce273e52f3d14a3e478cd2a86f5df68aa6e"
+  },
+  {
+    "file": "shenhuo-2026H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/shenhuo-2026H1.pdf",
+    "sha256": "0400f35923a5c1c8fb92bedc9534c0b061f4defa3a9c57ead0a85a80f587fb7a"
+  },
+  {
+    "file": "yunlv-FY2025.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-FY2025.pdf",
+    "sha256": "9e95477d713a06853954ec3549742367a0642b6e061ba222a06178d82c0bf7fd"
+  },
+  {
+    "file": "yunlv-FY2024.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-FY2024.pdf",
+    "sha256": "94aec3194b25b59effa05256f7f0aef138ef976fd78025af61f8b4d6388102c4"
+  },
+  {
+    "file": "yunlv-2024Q3.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2024Q3.pdf",
+    "sha256": "34525099e07ca1256f648e9a984d9bc405b04b69209d1d80c4b91d05c4688aec"
+  },
+  {
+    "file": "yunlv-2024H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2024H1.pdf",
+    "sha256": "a477401c7264e991848fbc2ef9615f66aec0e532b67deb9f6effe7e0578cca4d"
+  },
+  {
+    "file": "shenhuo-FY2024.pdf",
+    "origin": ".local/chain-model-backtest/raw/shenhuo-FY2024.pdf",
+    "sha256": "b748f4e0d9135c6d8b832759d213aa9ff718ff69871400f9cd0831e49dad9fb2"
+  },
+  {
+    "file": "shenhuo-FY2025.pdf",
+    "origin": ".local/chain-model-backtest/raw/shenhuo-FY2025.pdf",
+    "sha256": "a666703bc261f51206f0484aa1d430fd6b8ff42ceefe57bb1f89c055c5aa3303"
+  },
+  {
+    "file": "yunlv-2024Q1.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2024Q1.pdf",
+    "sha256": "ee22bfd48b663ee17547dde744cbf186e0dcf2b9173a4c071aa645fdca6210b5"
+  },
+  {
+    "file": "yunlv-2026H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2026H1.pdf",
+    "sha256": "5ba2611a2c84b88142842a16bbfcf406f9ca08ab92cb0a28f4be8708d2a3238c"
+  },
+  {
+    "file": "industry-al.pdf",
+    "origin": ".local/chain-model-backtest/raw/industry-al.pdf",
+    "sha256": "d1a42c9e3b9c1d209643d929b6437da06a54feda641b6a38e54f5c114cf3570b"
+  },
+  {
+    "file": "yunlv-2025Q3-public.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2025Q3-public.pdf",
+    "sha256": "3bf833b1a8dd386748fcaec88d2875d1526d02edac6de9fd81e8e74c7f5ee6a6"
+  },
+  {
+    "file": "yunlv-2025Q1.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2025Q1.pdf",
+    "sha256": "711d825f51807f6ed8b1d118ca885bb28f3a96c8cddda1c902aa28fa0cb9cc32"
+  },
+  {
+    "file": "yunlv-2025H1.pdf",
+    "origin": ".local/chain-model-backtest/raw/yunlv-2025H1.pdf",
+    "sha256": "05bf5bce393887523d9dcf8df1a32a85a38012c243e790c07ed39350d981f6a5"
+  },
+  {
+    "file": "r6-r8-inputs.json",
+    "origin": ".local/chain-model-backtest/r6-r8-inputs.json",
+    "sha256": "3062619c9f75b3c438409780891233452c280eb057674ea5c1d6c07171d346f4"
+  },
+  {
+    "file": "revised-inputs.json",
+    "origin": ".local/chain-model-backtest/revised-inputs.json",
+    "sha256": "21a05f7d84940fbca3c65984b650468f2eaafb092e9ed7d9f05e5bfbc3595cb7"
+  },
+  {
+    "file": "000933-Q3.pdf",
+    "origin": ".local/q3-calibration/raw/000933-Q3.pdf",
+    "sha256": "3a8a2cb8d85f8cffcfb9522dd19984314c27149f77bee41301319be79bf160dc"
+  },
+  {
+    "file": "000933-documents.json",
+    "url": "http://127.0.0.1:8700/api/v1/wiki/companies/000933.SZ/documents",
+    "sha256": "b4f19e60d9612d1af42c6de601166e373f0d03272624b7d3c20185587ff86616",
+    "fetched_at": "2026-10-20T04:04:58.416908+00:00"
+  },
+  {
+    "file": "000933-indicators.json",
+    "url": "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DMSK_FN_MAIN&columns=ALL&filter=%28SECUCODE%3D%22000933.SZ%22%29&pageSize=20&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1",
+    "sha256": "260da6c6e070ac298ec674b194a3813545fa2ba70e5b770f4e73b8cc48e3bc70",
+    "fetched_at": "2026-10-20T04:05:00.042928+00:00"
+  },
+  {
+    "file": "000807-documents.json",
+    "url": "http://127.0.0.1:8700/api/v1/wiki/companies/000807.SZ/documents",
+    "sha256": "b09bf43dcb98abe8ed669b55aa516e25d6fbaf35b3fcc08d932f932b3385d24a",
+    "fetched_at": "2026-10-20T04:04:58.410450+00:00"
+  },
+  {
+    "file": "000807-indicators.json",
+    "url": "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DMSK_FN_MAIN&columns=ALL&filter=%28SECUCODE%3D%22000807.SZ%22%29&pageSize=20&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1",
+    "sha256": "260da6c6e070ac298ec674b194a3813545fa2ba70e5b770f4e73b8cc48e3bc70",
+    "fetched_at": "2026-10-20T04:05:00.057007+00:00"
+  },
+  {
+    "file": "601899-documents.json",
+    "url": "http://127.0.0.1:8700/api/v1/wiki/companies/601899.SH/documents",
+    "sha256": "87bdb9b806cce5b162b21eb61e5fbf01640d86a7ad7e74704140bc1976e46488",
+    "fetched_at": "2026-10-20T04:04:58.440641+00:00"
+  },
+  {
+    "file": "601899-indicators.json",
+    "url": "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DMSK_FN_MAIN&columns=ALL&filter=%28SECUCODE%3D%22601899.SH%22%29&pageSize=20&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1",
+    "sha256": "260da6c6e070ac298ec674b194a3813545fa2ba70e5b770f4e73b8cc48e3bc70",
+    "fetched_at": "2026-10-20T04:04:59.864126+00:00"
+  },
+  {
+    "file": "603799-documents.json",
+    "url": "http://127.0.0.1:8700/api/v1/wiki/companies/603799.SH/documents",
+    "sha256": "c9d590369995913fc72b0ac5ccf4fa53202cb54f852228c9f739a2fb17b918d0",
+    "fetched_at": "2026-10-20T04:04:59.909493+00:00"
+  },
+  {
+    "file": "603799-indicators.json",
+    "url": "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DMSK_FN_MAIN&columns=ALL&filter=%28SECUCODE%3D%22603799.SH%22%29&pageSize=20&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1",
+    "sha256": "260da6c6e070ac298ec674b194a3813545fa2ba70e5b770f4e73b8cc48e3bc70",
+    "fetched_at": "2026-10-20T04:05:01.253949+00:00"
+  },
+  {
+    "file": "300750-documents.json",
+    "url": "http://127.0.0.1:8700/api/v1/wiki/companies/300750.SZ/documents",
+    "sha256": "8b478c1ad2a22549e5f2a4549fdb441b95045b8426b7a718b7bdb55464b50908",
+    "fetched_at": "2026-10-20T04:05:00.078804+00:00"
+  },
+  {
+    "file": "300750-indicators.json",
+    "url": "https://datacenter-web.eastmoney.com/api/data/v1/get?reportName=RPT_DMSK_FN_MAIN&columns=ALL&filter=%28SECUCODE%3D%22300750.SZ%22%29&pageSize=20&pageNumber=1&sortColumns=REPORT_DATE&sortTypes=-1",
+    "sha256": "260da6c6e070ac298ec674b194a3813545fa2ba70e5b770f4e73b8cc48e3bc70",
+    "fetched_at": "2026-10-20T04:05:01.596764+00:00"
+  },
+  {
+    "file": "000933-2026H1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/47adcdac757e490b8b74dd3ebfdbaabd/raw",
+    "sha256": "0400f35923a5c1c8fb92bedc9534c0b061f4defa3a9c57ead0a85a80f587fb7a",
+    "fetched_at": "2026-10-20T04:05:01.639134+00:00"
+  },
+  {
+    "file": "000933-2026Q1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/62a6793e9396418b8633d4de54994b47/raw",
+    "sha256": "b5a7e83aa5d970c203913a158eee25665fc0c0185532cdb4191f4eaa1b471e93",
+    "fetched_at": "2026-10-20T04:05:11.456111+00:00"
+  },
+  {
+    "file": "000933-FY2025.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/372df6e1b88046fd9936129426067016/raw",
+    "sha256": "a666703bc261f51206f0484aa1d430fd6b8ff42ceefe57bb1f89c055c5aa3303",
+    "fetched_at": "2026-10-20T04:05:01.645862+00:00"
+  },
+  {
+    "file": "000933-2025Q3.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/3a69a0e01c8c4447b2f6f38c9bed8755/raw",
+    "sha256": "4e026a72bf36fad196a19cbc5cdbfd4e9063cba80737ba26134416f8803271a7",
+    "fetched_at": "2026-10-20T04:05:11.456450+00:00"
+  },
+  {
+    "file": "000807-2026H1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/31a5f0796a3847f5893eb617d63d09f0/raw",
+    "sha256": "5ba2611a2c84b88142842a16bbfcf406f9ca08ab92cb0a28f4be8708d2a3238c",
+    "fetched_at": "2026-10-20T04:05:01.666904+00:00"
+  },
+  {
+    "file": "000807-2026Q1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/4210311e0bc04f06b53ef22c02778b18/raw",
+    "sha256": "89f5a57b664599c09859fe1910cd9dc6625ee5be9cdbb0a81f9f2df5bf5361c2",
+    "fetched_at": "2026-10-20T04:05:01.676143+00:00"
+  },
+  {
+    "file": "000807-FY2025.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/f7ac71112f844565a2505737d7fa61e9/raw",
+    "sha256": "9e95477d713a06853954ec3549742367a0642b6e061ba222a06178d82c0bf7fd",
+    "fetched_at": "2026-10-20T04:05:01.705946+00:00"
+  },
+  {
+    "file": "000807-2025Q3.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/9a461be053e144fd80b7994115f202cb/raw",
+    "sha256": "3bf833b1a8dd386748fcaec88d2875d1526d02edac6de9fd81e8e74c7f5ee6a6",
+    "fetched_at": "2026-10-20T04:05:11.455536+00:00"
+  },
+  {
+    "file": "601899-2026H1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/55f716e166414e68aeef447ca82c7b40/raw",
+    "sha256": "b934ec8dde5757b3fbd757e6c8c6ae5bd13a09c65e5a7acbfa58430b538d75ad",
+    "fetched_at": "2026-10-20T04:05:11.490529+00:00"
+  },
+  {
+    "file": "601899-2026Q1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/8a36e20f392046159776e4ba0c06d069/raw",
+    "sha256": "79b59ab2766b653874d9500cc01cd405eef42c39009a072574e7bef73ceafe9b",
+    "fetched_at": "2026-10-20T04:05:11.470272+00:00"
+  },
+  {
+    "file": "601899-FY2025.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/fcce3e92bd284fb2966cf8702d86d983/raw",
+    "sha256": "01819e1c7daad939d1779a8aa729f50f02151192e609cb28c2c405634a8f343d",
+    "fetched_at": "2026-10-20T04:05:28.629359+00:00"
+  },
+  {
+    "file": "601899-2025Q3.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/b12e4732324044c3ba5638ffb4986886/raw",
+    "sha256": "a44db9c6a2f2193ac5015ab244090b76e0c30ce60b1ee5e8cc317b3269a4abfe",
+    "fetched_at": "2026-10-20T04:05:11.482726+00:00"
+  },
+  {
+    "file": "603799-2026H1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/166d30c718a64bcf934cf1bf365c851a/raw",
+    "sha256": "a13cf4d273a8f670d030b018c472c7eb9efa56eb403093636231d8a1da23e751",
+    "fetched_at": "2026-10-20T04:05:28.087037+00:00"
+  },
+  {
+    "file": "603799-2026Q1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/c9e31d2ae0e6493086c37b24cf5fb029/raw",
+    "sha256": "7dd52aa8eab16de70fa3f2a2096f9c362f32fc66240c01a7aef761df945d86e7",
+    "fetched_at": "2026-10-20T04:05:28.083544+00:00"
+  },
+  {
+    "file": "603799-FY2025.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/c5d9c6cc82a6483b9cba0883c8c8fb9c/raw",
+    "sha256": "86db43e2a9d21cab742fd627370367ef0941229a11f8631f4d5d3413fe769e04",
+    "fetched_at": "2026-10-20T04:05:28.103535+00:00"
+  },
+  {
+    "file": "603799-2025Q3.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/3199482395a34fab9ecfb9bec7504be6/raw",
+    "sha256": "ad954f83dcba62994316c7ac4af6d171e785581e234df6be91e59d8c965386d1",
+    "fetched_at": "2026-10-20T04:05:36.083791+00:00"
+  },
+  {
+    "file": "300750-2026H1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/78e6e1f272a048ac8c8124bb305123a8/raw",
+    "sha256": "d96b5d49ae75bec5913d032de781873565f5405bf99fd8b011eab152549862b9",
+    "fetched_at": "2026-10-20T04:05:36.090555+00:00"
+  },
+  {
+    "file": "300750-2026Q1.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/d8a9abab8e6e4980830d9373d541e69e/raw",
+    "sha256": "32e4936e6dd68a89741a8167b4c4ae3f8b4bc7ef61d70f35b294e1cb0e46fbe8",
+    "fetched_at": "2026-10-20T04:05:36.086105+00:00"
+  },
+  {
+    "file": "300750-FY2025.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/7facbbe90e5c4558a6b229ba1f2d34bb/raw",
+    "sha256": "c15272977147dee7e6935a38ea0e4fd6855370aabb106f54cfe20f7cf6048ec9",
+    "fetched_at": "2026-10-20T04:05:41.495727+00:00"
+  },
+  {
+    "file": "300750-2025Q3.pdf",
+    "url": "http://127.0.0.1:8700/api/v1/documents/bc7b1fb678654ac08fdf16742e177b1f/raw",
+    "sha256": "d099bc0054f4bf8624d34fffa2c82399b7d8e31cce8f84aab909955da9d84f50",
+    "fetched_at": "2026-10-20T04:05:41.491019+00:00"
+  },
+  {
+    "file": "601899-FY2024.pdf",
+    "url": "https://static.cninfo.com.cn/finalpage/2025-03-22/1225550234.PDF",
+    "sha256": "004f733e709beea878229ae02b80a952c543129037fc940aaf01b77dfa977a89",
+    "fetched_at": "2026-10-20T04:08:13.683843+00:00"
+  },
+  {
+    "file": "601899-FY2024-alternate.pdf",
+    "url": "https://static.cninfo.com.cn/finalpage/2025-03-22/1222870413.PDF",
+    "sha256": "004f733e709beea878229ae02b80a952c543129037fc940aaf01b77dfa977a89",
+    "fetched_at": "2026-10-20T04:08:18.594032+00:00"
+  },
+  {
+    "file": "603799-FY2024.pdf",
+    "url": "https://static.cninfo.com.cn/finalpage/2025-04-19/1223152968.PDF",
+    "sha256": "4da40e4243add3cba3d74615037870e98f33d201d51f4089afe609e8074ee0cc",
+    "fetched_at": "2026-10-20T04:08:21.420474+00:00"
+  },
+  {
+    "file": "300750-FY2024.pdf",
+    "url": "https://static.cninfo.com.cn/finalpage/2025-03-15/1222806982.PDF",
+    "sha256": "b4f1713d7b821eb076c102711d177fe942ccc2bc8dd171ae5d7a95799a65b0ad",
+    "fetched_at": "2026-10-20T04:08:23.686463+00:00"
+  }
+]
