@@ -1,8 +1,11 @@
 import type { PageAssistantObject } from '../../../core/ai/pageContext';
 import { buildFeedListSnapshot } from '../assistant/snapshot.ts';
+import type { NewsFactor } from './api';
 
 export interface FeedRow {
   code: string; name: string; when: string; title: string; meta?: string; url?: string;
+  /** Backend 的 Jev 读到的驱动与方向；同一事件另有几篇报道；是否新进展；是否例行公告。 */
+  factor?: NewsFactor; also?: number; followUp?: boolean; routine?: boolean;
 }
 
 function urlObject(input: { title: string; url?: string; source?: string; time?: string; section?: string }): PageAssistantObject | null {

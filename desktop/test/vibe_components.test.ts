@@ -331,6 +331,50 @@ test('company suggestions call Client addWatch only and show watched and failure
   assert.deepEqual(requests.map(r => r.method), ['GET']);
 });
 
+test('开始观察：显示「开始观察：指标」与为什么重要；点击走话题路由并写入完整跟踪项；成功后「已在观察」，失败一句灰字，重载后按已有跟踪项直接显示已在观察', async () => {
+  const item = { tracking_key: 'al-spread', hypothesis: '铝价与氧化铝的价差决定电解铝利润', baseline: { as_of: '2026-10-20', known_at: '2026-10-20T04:30:00.000Z', basis_refs: ['result:' + 'c'.repeat(32)] },
+    observables: ['价差'], conditions: { strengthen: ['站上 17000'], weaken: ['低于 12000'], overturn: ['低于 9000'] }, next_source: '下一份定期报告', last_assessment: null };
+  const suggest = { type: 'indicator', items: [{ name: '沪铝价差', reason: item.hypothesis, tracking_item: item }] };
+  const text = '```vibe\n<suggest type="observe"><watch key="al-spread" name="沪铝价差" source="下一份定期报告" refs="result:cc"><why>x</why></watch></suggest>\n```';
+  const event = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'suggest', status: 'ok' }, { path: '0.0', component: 'watch', status: 'ok' }, { path: '0.0.0', component: 'why', status: 'ok' }] }], suggest };
+  let saved = false, fail = true;
+  const posts: { url: string; body: any }[] = [];
+  globalThis.fetch = async (input, init) => {
+    const url = String(input), method = init?.method || 'GET';
+    if (method === 'GET' && url.includes('/wiki/research-topics?pool=active')) return Response.json({ items: saved ? [{ topic_id: 'topic:abc', tracking_items: [item] }] : [], next_offset: null });
+    if (method === 'GET' && url.endsWith('/wiki/research-topics/topic%3Aabc')) return Response.json({ topic_id: 'topic:abc', revision: 3, tracking_items: [] });
+    if (method === 'POST') {
+      const body = JSON.parse(String(init!.body)); posts.push({ url, body });
+      if (url.endsWith('/research-topics/route')) return Response.json({ action: 'create', topic: { topic_id: 'topic:abc' } });
+      if (fail) return Response.json({ detail: 'x' }, { status: 500 });
+      saved = true; return Response.json({ topic_id: 'topic:abc' });
+    }
+    return Response.json({ detail: 'unused' }, { status: 404 });
+  };
+  assert.deepEqual(readVibeCheck(event), event, '校验事件里的观察推荐能被读取');
+  assert.equal(readVibeCheck({ ...event, suggest: { type: 'indicator', items: [{ name: '沪铝价差', reason: 'x' }] } }), undefined, '缺跟踪项的观察推荐丢弃');
+  await mount(text, event);
+  const row = container.querySelector('[aria-label="开始观察 沪铝价差"]') as HTMLElement;
+  assert.ok(row);
+  assert.match(row.textContent!, /开始观察：沪铝价差铝价与氧化铝的价差决定电解铝利润开始观察/);
+  assert.equal(container.querySelector('.finance-suggest-title')!.textContent, '开始观察');
+  await click('开始观察 沪铝价差');
+  assert.ok(container.querySelector('[data-observe-error]'), '失败一句灰字');
+  assert.doesNotMatch(container.textContent!, /Topic|tracking|indicator|topic:/);
+  fail = false;
+  await click('开始观察 沪铝价差');
+  assert.ok(container.textContent!.includes('已在观察'));
+  const route = posts.find(post => post.url.endsWith('/research-topics/route'))!;
+  assert.match(route.body.question, /^沪铝价差：铝价与氧化铝的价差决定电解铝利润/);
+  const write = posts.filter(post => post.url.endsWith('/wiki/research-topics/topic%3Aabc')).at(-1)!;
+  assert.deepEqual(write.body, { tracking_items: [item], expected_revision: 3 });
+  await React.act(async () => root.render(null));
+  await mount(text, event);
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+  const done = [...container.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === '开始观察 沪铝价差') as HTMLButtonElement;
+  assert.ok(done.disabled && done.textContent!.includes('已在观察'), '已保存的跟踪项重载后仍显示已在观察');
+});
+
 test('question click respects busy input; historical suggestion events share the read-only view', async () => {
   const event = { ...check, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'suggest', status: 'ok' }] }] };
   const text = '```vibe\n<suggest type="question"><q>煤价如何传导？</q></suggest>\n```';

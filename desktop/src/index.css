@@ -136,7 +136,6 @@
   .card { border: 1px solid var(--line-2); border-radius: 16px; background: hsl(var(--raised)); }
   .card-hover { transition: border-color .15s; }
   .card-hover:hover { border-color: var(--line-3); }
-  .card-alert { border-color: var(--brand-line); }
   .text-glow { text-shadow: none; }
 }
 

@@ -8,6 +8,8 @@ import {
   shortName, tone, withUnit, yuanPerShareText,
   type TrackedVariable, type TrackingVariables, type VariableCard, type VariableCompany,
 } from "../lib/trackingVariables";
+import { loadFlipCards, type FlipCard } from "../lib/flipCards";
+import { loadReconCards, type ReconCard } from "../lib/quarterRecon";
 import "./variable-desk.css";
 
 type Loader = (signal?: AbortSignal) => Promise<TrackingVariables | null>;
@@ -16,11 +18,37 @@ const toneSpans = (pieces: { text: string; tone?: 'up' | 'down' }[]) => pieces.m
 const codeOf = (symbol: string) => symbol.split(".")[0]!;
 
 /** 动态页「关键变量」：价格动了，对你关注的公司意味着什么。每张卡一件事，金额点「展开」才看。变量总表在「跟踪」页。 */
-export function VariableDesk({ load = loadTrackingVariables }: { load?: Loader }) {
+/** 取得关注公司的跳档提醒；失败当没有，不影响其余卡片。 */
+export function useFlipCards(data: TrackingVariables | null | undefined, loadFlips: typeof loadFlipCards = loadFlipCards): FlipCard[] {
+  const [flips, setFlips] = useState<FlipCard[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setFlips([]);
+    if (data) loadFlips(data, controller.signal).then(cards => { if (!controller.signal.aborted) setFlips(cards); }, error => { if (!controller.signal.aborted) console.warn("[finance/flip-cards] unavailable", error); });
+    return () => controller.abort();
+  }, [data, loadFlips]);
+  return flips;
+}
+
+/** 新季报的对账卡；失败当没有，不影响其余卡片。 */
+export function useReconCards(data: TrackingVariables | null | undefined, loadRecon: typeof loadReconCards = loadReconCards): ReconCard[] {
+  const [cards, setCards] = useState<ReconCard[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    setCards([]);
+    if (data) loadRecon(data, controller.signal, undefined, items => { if (!controller.signal.aborted) setCards(items); }).then(items => { if (!controller.signal.aborted) setCards(items); }, error => { if (!controller.signal.aborted) console.warn("[finance/recon-cards] unavailable", error); });
+    return () => controller.abort();
+  }, [data, loadRecon]);
+  return cards;
+}
+
+export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFlipCards, loadRecon = loadReconCards }: { load?: Loader; loadFlips?: typeof loadFlipCards; loadRecon?: typeof loadReconCards }) {
   const { ask } = useAiQuestion();
   const [data, setData] = useState<TrackingVariables | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const flips = useFlipCards(data, loadFlips);
+  const recon = useReconCards(data, loadRecon);
   useEffect(() => {
     const controller = new AbortController();
     setData(undefined); setFailed(false);
@@ -43,19 +71,49 @@ export function VariableDesk({ load = loadTrackingVariables }: { load?: Loader }
   if (data === undefined) return <div className="variable-desk" aria-busy="true" aria-label="正在加载"><div className="variable-desk-skeleton" /><div className="variable-desk-skeleton" /></div>;
   if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们研究里影响利润的价格变动。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
   return <div className="variable-desk">
+    {flips.length > 0 && <div className="variable-desk-cards" data-flip-cards="">{flips.map(flip => <Card key={flip.symbol}>
+      <article className="variable-card" data-flip-card={flip.symbol} data-flip-kind={flip.kind}>
+        <p className="variable-card-title">{flip.text}</p>
+        <div className="variable-card-foot"><span />
+          <span className="variable-card-actions"><Link className="btn btn-sm" to={watchPath(codeOf(flip.symbol))}>看个股页 · {flip.company}</Link></span></div>
+      </article>
+    </Card>)}</div>}
+    <ReconCards cards={recon} />
     <Cards cards={data.cards} onDiscuss={discuss} />
   </div>;
+}
+
+function ReconCards({ cards }: { cards: ReconCard[] }) {
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
+  if (!cards.length) return null;
+  return <div className="variable-desk-cards" data-recon-cards="">{cards.map(card => {
+    const expanded = open.has(card.symbol);
+    return <Card key={card.symbol}>
+      <article className="variable-card" data-recon-card={card.symbol}>
+        <div>
+          <h4 className="variable-card-title">{card.headline}</h4>
+          {card.explain && <p className="variable-card-touch">{card.explain}</p>}
+        </div>
+        {expanded && <div className="variable-card-effects">{card.details.map(line => <p key={line}>{line}</p>)}</div>}
+        <div className="variable-card-foot"><span>新季报</span>
+          <span className="variable-card-actions">
+            {card.details.length > 0 && <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => setOpen(previous => { const next = new Set(previous); if (!next.delete(card.symbol)) next.add(card.symbol); return next; })}>{expanded ? "收起" : "展开"}</button>}
+            <Link className="btn btn-sm" to={watchPath(codeOf(card.symbol))}>看个股页 · {card.company}</Link>
+          </span>
+        </div>
+      </article>
+    </Card>;
+  })}</div>;
 }
 
 function Cards({ cards, onDiscuss }: { cards: VariableCard[]; onDiscuss: (card: VariableCard) => void }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const toggle = (key: string) => setOpen(previous => { const next = new Set(previous); if (!next.delete(key)) next.add(key); return next; });
   if (cards.length === 0) return <p className="variable-desk-empty">最近 20 个交易日没有足以影响利润的价格变动</p>;
-  const alertKey = cards.find(card => card.judgment_changed)?.var_id; // 判断改变才提醒，同屏最多一张
   return <div className="variable-desk-cards">{cards.map(card => {
     const key = `${card.date}:${card.var_id}`;
     const expanded = open.has(key);
-    return <Card key={key} alert={card.var_id === alertKey && card.judgment_changed === true}>
+    return <Card key={key}>
       <article className="variable-card" data-variable-card={card.var_id}>
         <div>
           <h4 className="variable-card-title">{toneSpans(cardTitlePieces(card))}</h4>

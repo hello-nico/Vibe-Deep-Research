@@ -23,10 +23,19 @@ export interface Quote {
 /** 关注公司公告。`document_id` 非空表示已在 Backend 入库，可在资料里打开。 */
 export interface Announcement {
   symbol: string; title: string; published_at: string | null; url: string | null; document_id: string | null;
+  /** Jev 判为例行（只在「查看全部」里出现）。 */
+  routine?: boolean;
 }
 
+/** Backend 的 Jev 读到的这条新闻碰到公司哪个驱动与方向；没读到的新闻没有这个字段，页面用关键词结果。 */
+export interface NewsFactor { driver: string; direction: "positive" | "negative" | "unclear"; p?: number | null }
 export interface NewsItem {
   symbol: string; title: string; source: string | null; published_at: string | null; url: string | null;
+  factor?: NewsFactor;
+  /** 同一事件的另有几篇改写报道已合并到这一条。 */
+  also?: number;
+  /** 同一事件的新进展。 */
+  follow_up?: boolean;
 }
 
 interface QuoteRow {
@@ -105,17 +114,21 @@ async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
 
 /** 资讯在浏览器内存里缓存 30 分钟（刷新页面即清空）；键为接口 + 规范化代码 + limit，失败不缓存。 */
 export const FEED_CACHE_MS = 30 * 60 * 1000;
-const feedCache = new Map<string, { at: number; items: unknown[] }>();
-export interface FeedOptions { /** 绕过缓存重取，并覆盖缓存。 */ force?: boolean }
+const feedCache = new Map<string, { at: number; items: unknown[]; hidden: number }>();
+export interface FeedOptions { /** 绕过缓存重取，并覆盖缓存。 */ force?: boolean; /** 公告：连 Jev 判为例行的一起要。 */ all?: boolean }
 
-function feedKey(route: string, codes: string[], limit: number): { key: string; symbols: string[] } {
+function feedKey(route: string, codes: string[], limit: number, all = false): { key: string; symbols: string[] } {
   const symbols = [...new Set(codes.map(qualified).filter((code): code is string => code !== null))];
-  return { key: `${route}|${[...symbols].sort().join(",")}|${limit}`, symbols };
+  return { key: `${route}|${[...symbols].sort().join(",")}|${limit}${all ? "|all" : ""}`, symbols };
+}
+/** 公告里被 Jev 隐藏的例行条数（读最近一次不带 all 的结果）；没有缓存为 0。 */
+export function feedHidden(codes: string[], limit: number): number {
+  return (feedCache.get(feedKey("/feed/announcements", codes, limit).key) ?? feedCache.get(feedKey("/feed/announcements", codes, limit, true).key))?.hidden ?? 0;
 }
 
 /** 该组合缓存写入的时刻（毫秒）；没有有效缓存时为 null。页面据此显示「更新于 HH:MM」。 */
-export function feedCachedAt(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number): number | null {
-  const hit = feedCache.get(feedKey(route, codes, limit).key);
+export function feedCachedAt(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number, all = false): number | null {
+  const hit = feedCache.get(feedKey(route, codes, limit, all).key);
   return hit && Date.now() - hit.at < FEED_CACHE_MS ? hit.at : null;
 }
 
@@ -123,13 +136,14 @@ export function feedCachedAt(route: "/feed/announcements" | "/feed/news", codes:
 export function clearFeedCache(): void { feedCache.clear(); }
 
 async function feedItems<T>(route: "/feed/announcements" | "/feed/news", codes: string[], limit: number, options: FeedOptions = {}): Promise<T[]> {
-  const { key, symbols } = feedKey(route, codes, limit);
+  const all = route === "/feed/announcements" && options.all === true;
+  const { key, symbols } = feedKey(route, codes, limit, all);
   if (!symbols.length) return [];
   const hit = feedCache.get(key);
   if (!options.force && hit && Date.now() - hit.at < FEED_CACHE_MS) return hit.items as T[];
-  const body = await read<{ items: T[] }>(route, { symbols: symbols.join(","), limit: String(limit) });
+  const body = await read<{ items: T[]; hidden?: number }>(route, { symbols: symbols.join(","), limit: String(limit), ...(all ? { all: "1" } : {}) });
   const items = body.items ?? [];
-  feedCache.set(key, { at: Date.now(), items });
+  feedCache.set(key, { at: Date.now(), items, hidden: typeof body.hidden === "number" ? body.hidden : 0 });
   return items;
 }
 

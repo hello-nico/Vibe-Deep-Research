@@ -1,0 +1,414 @@
+{
+ "source": ".local/recon-check/run.py 对修复后的 Stock 重跑（2026-10-20，只读）",
+ "companies": [
+  {
+   "symbol": "000933.SZ",
+   "period": "2026Q3",
+   "previous_period": "2026Q2",
+   "actual": "2705407375.63",
+   "previous": "2491685422.23",
+   "change": "213721953.40",
+   "reported_on": "2026-10-20",
+   "provider": "hithink",
+   "researched_at": "2026-10-20T03:47:50.625931+00:00",
+   "model_ref": "result:80f072dcda5b4630bf88411743b85ea1",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [
+    {
+     "var_id": "cmdty:SHFE.AL",
+     "name": "沪铝",
+     "unit": "元/吨",
+     "coef_per_unit": "911946.7441146670265860827827",
+     "previous_mean": "24399.16666666666666666666667",
+     "mean": "23724.15384615384615384615385",
+     "move": "-675.01282051282051282051282",
+     "contribution": "-153893935.9755811974896918095",
+     "days": [
+      60,
+      65
+     ],
+     "series": "cmdty:SHFE.AL"
+    },
+    {
+     "var_id": "cmdty:SHFE.AO",
+     "name": "氧化铝",
+     "unit": "元/吨",
+     "coef_per_unit": "-1483379.545386428113703380038",
+     "previous_mean": "2805.300",
+     "mean": "2698.630769230769230769230769",
+     "move": "-106.669230769230769230769231",
+     "contribution": "39557738.76129538202447071352",
+     "days": [
+      60,
+      65
+     ],
+     "series": "cmdty:SHFE.AO"
+    },
+    {
+     "var_id": "000933.SZ:coal_price",
+     "name": "煤炭销售均价",
+     "unit": "CNY/t",
+     "coef_per_unit": "4581222.370155423989289170023",
+     "previous_mean": "859.7997361185913077859115597",
+     "mean": "978.1442185289610031186865647",
+     "move": "118.3444824103696953327750050",
+     "contribution": "135540597.5507126849487937792",
+     "days": [
+      60,
+      65
+     ],
+     "series": "cmdty:DCE.JM"
+    }
+   ],
+   "unexplained": [],
+   "price_total": "21204400.3364268694835726832",
+   "rest": "192517553.0635731305164273168",
+   "name": "神火股份"
+  },
+  {
+   "symbol": "000807.SZ",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "4083799831.01",
+   "previous": "3599885593.79",
+   "change": "483914237.22",
+   "reported_on": "2026-08-28",
+   "provider": "hithink",
+   "researched_at": "2026-10-14T03:25:48.699120+00:00",
+   "model_ref": "result:26e90c10495e49fd98f470bc395dfeaf",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [
+    {
+     "var_id": "cmdty:SHFE.AL",
+     "name": "沪铝",
+     "unit": "元/吨",
+     "coef_per_unit": "2091016.351987403051260476477",
+     "previous_mean": "24245.17857142857142857142857",
+     "mean": "24399.16666666666666666666667",
+     "move": "153.98809523809523809523810",
+     "contribution": "80497906.2885626740120662621",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.AL"
+    },
+    {
+     "var_id": "cmdty:SHFE.AO",
+     "name": "氧化铝",
+     "unit": "元/吨",
+     "coef_per_unit": "-2466264.765520300450056861574",
+     "previous_mean": "2845.589285714285714285714286",
+     "mean": "2805.300",
+     "move": "-40.289285714285714285714286",
+     "contribution": "24841011.44628081194383165680",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.AO"
+    },
+    {
+     "var_id": "cmdty:SHFE.CU",
+     "name": "沪铜",
+     "unit": "元/吨",
+     "coef_per_unit": "-4266.427652792584563876071190",
+     "previous_mean": "100841.0714285714285714285714",
+     "mean": "103109.3333333333333333333333",
+     "move": "2268.2619047619047619047619",
+     "contribution": "-2419343.828563042581230843293",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.CU"
+    }
+   ],
+   "unexplained": [],
+   "price_total": "102919573.9062804433746670756",
+   "rest": "380994663.3137195566253329244",
+   "name": "云铝股份"
+  },
+  {
+   "symbol": "600900.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "7994687876.05",
+   "previous": "6761006898.48",
+   "change": "1233680977.57",
+   "reported_on": "2026-08-31",
+   "provider": "hithink",
+   "researched_at": "2026-10-20T03:11:40.378020+00:00",
+   "model_ref": "result:d941208178db4fec9ec75b0e910d1857",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [
+    "境内水电发电量",
+    "折旧摊销"
+   ],
+   "price_total": null,
+   "rest": null,
+   "name": "长江电力"
+  },
+  {
+   "symbol": "600863.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "795790469.17",
+   "previous": "694366411.62",
+   "change": "101424057.55",
+   "reported_on": "2026-08-28",
+   "provider": "hithink",
+   "researched_at": "2026-10-12T13:17:28.608200+00:00",
+   "model_ref": null,
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [],
+   "price_total": null,
+   "rest": null,
+   "name": "华能蒙电"
+  },
+  {
+   "symbol": "600011.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "2101810656",
+   "previous": "4483918670",
+   "change": "-2382108014",
+   "reported_on": "2026-08-19",
+   "provider": "hithink",
+   "researched_at": "2026-10-13T09:29:35.124514+00:00",
+   "model_ref": "result:3a9996f83a434200b088a977d3482415",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [
+    "境内上网结算电价",
+    "境内除税发电耗用标煤单价"
+   ],
+   "price_total": null,
+   "rest": null,
+   "name": "华能国际"
+  },
+  {
+   "symbol": "603799.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "1010127191.09",
+   "previous": "2497278226.82",
+   "change": "-1487151035.73",
+   "reported_on": "2026-08-19",
+   "provider": "hithink",
+   "researched_at": "2026-10-19T09:03:15.712003+00:00",
+   "model_ref": "result:24782033d0fc48f28b3bb51d8d1b300d",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [
+    {
+     "var_id": "cmdty:SHFE.NI",
+     "name": "沪镍",
+     "unit": "元/吨",
+     "coef_per_unit": "89306.27290183863216660685010",
+     "previous_mean": "138641.4285714285714285714286",
+     "mean": "140279.8333333333333333333333",
+     "move": "1638.4047619047619047619047",
+     "contribution": "36579955.69758465354333760085",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.NI"
+    },
+    {
+     "var_id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "coef_per_unit": "-25385.59228512930532283659630",
+     "previous_mean": "155107.8571428571428571428571",
+     "mean": "174132.3333333333333333333333",
+     "move": "19024.4761904761904761904762",
+     "contribution": "-120736899.0023946343660445231",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:GFEX.LC"
+    }
+   ],
+   "unexplained": [
+    "正极材料售价",
+    "钴产品售价"
+   ],
+   "price_total": "-84156943.30480998082270692225",
+   "rest": "-1402994092.425190019177293078",
+   "name": "华友钴业"
+  },
+  {
+   "symbol": "300750.SZ",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "22546292000",
+   "previous": "20737710000",
+   "change": "1808582000",
+   "reported_on": "2026-07-25",
+   "provider": "hithink",
+   "researched_at": "2026-10-13T10:16:03.158147+00:00",
+   "model_ref": "result:2a9a47fdaf5647b38ac5f5cb3aaa0377",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [
+    {
+     "var_id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "coef_per_unit": "-144642.3634858874200366783397",
+     "previous_mean": "155107.8571428571428571428571",
+     "mean": "174132.3333333333333333333333",
+     "move": "19024.4761904761904761904762",
+     "contribution": "-687936300.0678669848634941695",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:GFEX.LC"
+    }
+   ],
+   "unexplained": [
+    "动力电池系统销售均价",
+    "储能电池系统销售均价"
+   ],
+   "price_total": "-687936300.0678669848634941695",
+   "rest": "2496518300.067866984863494170",
+   "name": "宁德时代"
+  },
+  {
+   "symbol": "601899.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "19090415736",
+   "previous": "20079391507",
+   "change": "-988975771",
+   "reported_on": "2026-08-22",
+   "provider": "hithink",
+   "researched_at": "2026-10-13T10:55:46.882927+00:00",
+   "model_ref": "result:59d99065bb284953a3aa3ccfac5654f0",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [
+    {
+     "var_id": "cmdty:SHFE.CU",
+     "name": "沪铜",
+     "unit": "元/吨",
+     "coef_per_unit": "329334.2076142122648200698807",
+     "previous_mean": "100841.0714285714285714285714",
+     "mean": "103109.3333333333333333333333",
+     "move": "2268.2619047619047619047619",
+     "contribution": "186754059.2665664275750809361",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.CU"
+    },
+    {
+     "var_id": "cmdty:SHFE.AU",
+     "name": "沪金",
+     "unit": "元/克",
+     "coef_per_unit": "31229831.67859144739093861614",
+     "previous_mean": "1091.334285714285714285714286",
+     "mean": "992.353",
+     "move": "-98.981285714285714285714286",
+     "contribution": "-772792223.046927770082580289",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:SHFE.AU"
+    },
+    {
+     "var_id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "coef_per_unit": "21966.75978462914576075700012",
+     "previous_mean": "155107.8571428571428571428571",
+     "mean": "174132.3333333333333333333333",
+     "move": "19024.4761904761904761904762",
+     "contribution": "104476524.6261467683269413351",
+     "days": [
+      56,
+      60
+     ],
+     "series": "cmdty:GFEX.LC"
+    }
+   ],
+   "unexplained": [],
+   "price_total": "-481561639.1542145741805580178",
+   "rest": "-507414131.8457854258194419822",
+   "name": "紫金矿业"
+  },
+  {
+   "symbol": "600585.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "1058862583",
+   "previous": "1467849109",
+   "change": "-408986526",
+   "reported_on": "2026-08-27",
+   "provider": "hithink",
+   "researched_at": "2026-10-14T05:52:31.136443+00:00",
+   "model_ref": "result:1fe1064a02494c2296a0f790a1e70ed0",
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [
+    "42.5级水泥售价",
+    "燃料及动力（煤、电）"
+   ],
+   "price_total": null,
+   "rest": null,
+   "name": "海螺水泥"
+  },
+  {
+   "symbol": "600309.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "6345255670.88",
+   "previous": "3717707873.93",
+   "change": "2627547796.95",
+   "reported_on": "2026-08-25",
+   "provider": "hithink",
+   "researched_at": "2026-10-12T13:18:32.334362+00:00",
+   "model_ref": null,
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [],
+   "price_total": null,
+   "rest": null,
+   "name": "万华化学"
+  },
+  {
+   "symbol": "601288.SH",
+   "period": "2026Q2",
+   "previous_period": "2026Q1",
+   "actual": "71196000000",
+   "previous": "75185000000",
+   "change": "-3989000000",
+   "reported_on": "2026-08-29",
+   "provider": "hithink",
+   "researched_at": "2026-10-12T13:27:01.951306+00:00",
+   "model_ref": null,
+   "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+   "status": "ok",
+   "variables": [],
+   "unexplained": [],
+   "price_total": null,
+   "rest": null,
+   "name": "农业银行"
+  }
+ ]
+}

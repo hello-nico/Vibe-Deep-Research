@@ -6,10 +6,13 @@ import { useAiPage, useAiPageObjects } from "../../../core/ai/pageContext";
 import { useArchiveThenRefresh } from "../../../core/data/useArchiveThenRefresh";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { Disclaimer } from "@/components/ui/Disclaimer";
-import { api, feedCachedAt } from "@/lib/api";
+import { Tag } from "@/components/ui/Card";
+import { api, feedCachedAt, feedHidden } from "@/lib/api";
 import { loadWatch } from "@/lib/watchlist";
 import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
 import { factorNote, loadFactorModel } from "@/lib/feedFactor";
+import { driverNote, loadDriverSet, type DriverSet } from "@/lib/templateDrivers";
+import { jevFactorText } from "@/lib/feedJev";
 import { aShareQualified } from "@/lib/research";
 import type { SensitivityModel } from "@/lib/companyNarrative";
 
@@ -30,6 +33,9 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const [codes, setCodes] = useState<string[]>(loadWatch);
   const [depNote, setDepNote] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
+  // 公告：Jev 判为例行的默认不显示，点「查看全部」才出来。
+  const [showAll, setShowAll] = useState(false);
+  const [hidden, setHidden] = useState(0);
 
   // 公告与新闻各一次请求带上全部关注代码；Backend 按时间倒序返回，部分代码取不到时只少那几只。
   const load = useCallback(async (force: boolean): Promise<FeedRow[]> => {
@@ -48,19 +54,21 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
     const codeOf = (symbol: string) => symbol.slice(0, 6);
     const stamp = (value: string | null) => (value || "").replace("T", " ");
     const out: FeedRow[] = kind === "filings"
-      ? (await api.announcements(cs, MAX_ROWS, { force })).map(x => ({
-        code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title, meta: x.document_id ? "已入库" : "", url: x.url ?? "",
+      ? (await api.announcements(cs, MAX_ROWS, { force, all: showAll })).map(x => ({
+        code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title, meta: x.document_id ? "已入库" : "", url: x.url ?? "", routine: x.routine === true,
       }))
       : (await api.news(cs, MAX_ROWS, { force })).map(x => ({
         code: codeOf(x.symbol), name: nameOf[codeOf(x.symbol)] || codeOf(x.symbol), when: stamp(x.published_at), title: x.title || "", url: x.url ?? "",
+        factor: x.factor, also: x.also, followUp: x.follow_up === true,
       }));
-    setUpdatedAt(feedCachedAt(kind === "filings" ? "/feed/announcements" : "/feed/news", cs, MAX_ROWS));
+    if (kind === "filings") setHidden(feedHidden(cs, MAX_ROWS));
+    setUpdatedAt(feedCachedAt(kind === "filings" ? "/feed/announcements" : "/feed/news", cs, MAX_ROWS, kind === "filings" && showAll));
     if (cs.some(c => !/^\d{6}$/.test(c))) setDepNote("港股、美股暂无公告与新闻，只汇总 A 股关注。");
     return out.slice(0, MAX_ROWS);
-  }, [kind, codes]);
+  }, [kind, codes, showAll]);
 
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
-    useArchiveThenRefresh<FeedRow[]>(force => load(force), [kind, codes.join(",")], { refreshOnEnter: false });
+    useArchiveThenRefresh<FeedRow[]>(force => load(force), [kind, codes.join(","), showAll], { refreshOnEnter: false });
   const rows = data ?? [];
   // 每条标题下的因素一句：按该公司已存的利润试算变量匹配；没有研究或没命中就不写。
   const [models, setModels] = useState<Record<string, SensitivityModel | null>>({});
@@ -74,6 +82,16 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
     }
     return () => { alive = false; };
   }, [codesKey]);
+  // 没有价格模型的公司（银行、电力、消费等）：按所属行业估值框架的驱动标出新闻碰到什么；价格变量的一句优先。
+  const [driverSets, setDriverSets] = useState<Record<string, DriverSet | null>>({});
+  const withoutModel = Object.entries(models).filter(([, model]) => model === null).map(([code]) => code).sort().join(",");
+  useEffect(() => {
+    let alive = true;
+    for (const code of withoutModel.split(",").filter(Boolean)) {
+      void loadDriverSet(code).then(set => { if (alive && set) setDriverSets(previous => previous[code] === set ? previous : { ...previous, [code]: set }); });
+    }
+    return () => { alive = false; };
+  }, [withoutModel]);
   const feedPage = feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote });
   useAiPage(feedPage);
   useAiPageObjects(feedPage.key, feedPage.objects);
@@ -104,10 +122,14 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
               <Loader2 className="h-3 w-3 animate-spin" /> 正在更新，先显示上次的内容
             </span>
           )}
-          {loading && <span className="text-[11px]">正在加载…</span>}
           {updatedAt !== null && !loading && <span className="text-[11px]">更新于 {clock(updatedAt)}</span>}
           {staleNote && <span className="text-[11px] text-warning">{staleNote}</span>}
         </span>
+        {kind === "filings" && (hidden > 0 || showAll) && (
+          <button type="button" className="workspace-action" data-show-all="" aria-pressed={showAll} onClick={() => setShowAll(value => !value)}>
+            {showAll ? "只看重要的" : `查看全部（另有 ${hidden} 条例行）`}
+          </button>
+        )}
         <button onClick={refresh} disabled={loading || refreshing}
           className="workspace-action">
           {refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
@@ -129,7 +151,8 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
       ) : (
         <div className="space-y-2">
           {rows.map((r, i) => {
-            const factor = factorNote(models[r.code], r.title);
+            // Jev 读到的优先；没读到（首次读取、Jev 没开或失败）用关键词结果：价格变量一句优先，其次行业驱动。
+            const factor = jevFactorText(r.factor, models[r.code]) || factorNote(models[r.code], r.title) || (models[r.code] === null ? driverNote(driverSets[r.code], r.title) : "");
             return (
               <div key={i} className="border-b border-border/30 pb-2 text-sm last:border-0">
                 <div className="group flex items-baseline gap-3">
@@ -137,6 +160,9 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
                   <span className="w-16 shrink-0 truncate text-xs text-[var(--text-2)]" title={r.code}>{r.name}</span>
                   {kind === "filings" && r.meta && <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block">{r.meta}</span>}
                   {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:underline">{r.title}</a> : <span className="flex-1">{r.title}</span>}
+                  {r.followUp && <Tag><span data-feed-followup="">新进展</span></Tag>}
+                  {r.also ? <Tag><span data-feed-also="" title={`另有 ${r.also} 篇相似报道，已合并为这一条`}>另有 {r.also} 篇相似报道，已合并为这一条</span></Tag> : null}
+                  {r.routine && <Tag><span data-feed-routine="">例行</span></Tag>}
                 </div>
                 {factor && <p className="mt-1 pl-[calc(5rem+0.75rem+4rem+0.75rem)] text-xs text-muted-foreground" data-feed-factor="">{factor}</p>}
               </div>

@@ -16,3 +16,4 @@ button.finance-suggest-row:disabled { cursor: default; color: hsl(var(--muted-fo
 .finance-suggest-arrow { flex: none; color: hsl(var(--muted-foreground)); opacity: 0; transition: opacity .15s; }
 .finance-suggest-row:hover:not(:disabled) .finance-suggest-arrow,
 .finance-suggest-row:focus-visible .finance-suggest-arrow { opacity: 1; }
+.finance-suggest-why { display: block; margin-top: 2px; color: hsl(var(--muted-foreground)); font-size: 12px; font-weight: 400; }

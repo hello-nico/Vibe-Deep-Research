@@ -1,0 +1,56 @@
+{
+ "symbol": "000933.SZ",
+ "period": "2026Q3",
+ "previous_period": "2026Q2",
+ "actual": "2705407375.63",
+ "previous": "2491685422.23",
+ "change": "213721953.40",
+ "reported_on": "2026-10-20",
+ "provider": "hithink",
+ "refs": [
+  "provider:hithink:000933.SZ:net_profit_attributable:2026-10-20T11:09:23.431596+08:00:d180cd45cb9afdfccfeda749",
+  "provider:hithink:000933.SZ:net_profit_attributable:2026-10-20T11:09:23.431596+08:00:dbb06bfe122cf867406dc5fa",
+  "provider:hithink:000933.SZ:net_profit_attributable:2026-10-20T11:09:23.431596+08:00:eed9448a9864246df82319c6"
+ ],
+ "researched_at": "2026-10-14T00:00:00Z",
+ "model_ref": "result:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+ "basis": "环比：本季单季归母净利 − 上季单季归母净利；价格解释 = Σ 年化系数 × (本季均价 − 上季均价) ÷ 4；其余为量和成本等，报告未单独披露",
+ "status": "ok",
+ "variables": [
+  {
+   "var_id": "cmdty:SHFE.AL",
+   "name": "沪铝",
+   "unit": "元/吨",
+   "coef_per_unit": "887480.6644425592032962006811",
+   "previous_mean": "24399.16666666666666666666667",
+   "mean": "23724.15384615384615384615385",
+   "move": "-675.01282051282051282051282",
+   "contribution": "-149765206.6139909763229110962",
+   "days": [
+    60,
+    65
+   ],
+   "series": "cmdty:SHFE.AL"
+  },
+  {
+   "var_id": "cmdty:SHFE.AO",
+   "name": "氧化铝",
+   "unit": "元/吨",
+   "coef_per_unit": "-1671140.540681943535660039991",
+   "previous_mean": "2805.300",
+   "mean": "2698.630769230769230769230769",
+   "move": "-106.669230769230769230769231",
+   "contribution": "44564818.99545482886345725885",
+   "days": [
+    60,
+    65
+   ],
+   "series": "cmdty:SHFE.AO"
+  }
+ ],
+ "unexplained": [
+  "无烟煤价格"
+ ],
+ "price_total": "-105200387.6185361474594538374",
+ "rest": "318922341.0185361474594538374"
+}

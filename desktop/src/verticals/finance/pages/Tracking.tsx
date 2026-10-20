@@ -14,7 +14,9 @@ import {
   companyNameOf, latestPerCompany, loadResearchTasks, readValuationGrade, researchActive, researchLine, researchStepRows, stepProgress,
   type ResearchRecord, type ResearchStepStatus,
 } from "../lib/researchTasks";
-import { Detail } from "./VariableDesk";
+import { Detail, useFlipCards } from "./VariableDesk";
+import { loadObserving, type ObservingItem } from "../lib/observing";
+import { loadDriverSet, type DriverSet } from "../lib/templateDrivers";
 import "./tracking.css";
 
 /** 跟踪：交出去的事情的回执。「正在盯的」是研究里自动产生的关键变量，「研究」是每家公司研究到哪一步、结果如何。 */
@@ -24,6 +26,7 @@ export function Tracking() {
     <PageHeader title="跟踪" />
     <div className="tracking">
       <Watching />
+      <Observing />
       <Research />
     </div>
     <Disclaimer />
@@ -109,11 +112,41 @@ function WatchRow({ variable, data, expanded, onToggle }: { variable: TrackedVar
   </div>;
 }
 
+/** 正在观察：对话里点了「开始观察」建成的指标，一行一项。没有、或读取失败时整组不出现。 */
+function Observing() {
+  const [items, setItems] = useState<ObservingItem[]>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadObserving(controller.signal).then(setItems, () => {});
+    return () => controller.abort();
+  }, []);
+  if (!items.length) return null;
+  return <section data-tracking="observing"><SectionLabel aside="对话里点了「开始观察」的指标">正在观察</SectionLabel>
+    <div className="card tracking-card">{items.map(item => <div key={`${item.topicId}:${item.key}`} className="tracking-item" data-observing-row={item.key}>
+      <div className="tracking-row"><span className="tracking-text">
+        <b>{item.metric}</b>
+        <span>{item.why}{item.source ? ` · 下一个来源：${item.source}` : ""}</span>
+      </span></div>
+    </div>)}</div>
+  </section>;
+}
+
 const STEP_TONE: Record<ResearchStepStatus, StatusTone> = { pending: "off", running: "run", done: "ok", skipped: "off", failed: "bad" };
 const recordTone = (record: ResearchRecord): StatusTone => researchActive(record) ? "run" : record.status === "completed" ? "ok" : record.status === "failed" ? "bad" : "off";
 const recordLabel = (record: ResearchRecord) => researchActive(record) ? "研究中" : record.status === "completed" ? "已完成" : record.status === "failed" ? "没有完成" : "已中止";
 
 function Research() {
+  // 跳档提醒：与动态「行情」同一份数据与同一句话，按公司挂在对应那行。
+  const [variables, setVariables] = useState<TrackingVariables | null | undefined>(undefined);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadTrackingVariables(controller.signal).then(setVariables, () => {});
+    return () => controller.abort();
+  }, []);
+  const flips = useFlipCards(variables);
+  // 没有价格模型的公司：那一行写所属行业估值框架的驱动（最多三个），代替“只有下一次报告”。
+  const [driverSets, setDriverSets] = useState<Record<string, DriverSet | null>>({});
+  const priced = new Set(variables?.variables.flatMap(item => item.companies.map(company => company.symbol)) ?? []);
   const [records, setRecords] = useState<ResearchRecord[] | undefined>(undefined);
   const [grades, setGrades] = useState<Record<string, string | null>>({});
   const [failed, setFailed] = useState(false);
@@ -128,6 +161,14 @@ function Research() {
     if (!signal.aborted) setGrades(Object.fromEntries(entries));
   }, []);
   const active = !!records?.some(researchActive);
+  const doneKey = variables === undefined ? "" : (records ?? []).filter(item => item.status === "completed" && !priced.has(item.symbol)).map(item => codeOf(item.symbol)).sort().join(",");
+  useEffect(() => {
+    let alive = true;
+    for (const code of doneKey.split(",").filter(Boolean)) {
+      void loadDriverSet(code).then(set => { if (alive && set) setDriverSets(previous => previous[code] === set ? previous : { ...previous, [code]: set }); });
+    }
+    return () => { alive = false; };
+  }, [doneKey]);
   useEffect(() => {
     const controller = new AbortController();
     read(controller.signal).catch(error => {
@@ -151,6 +192,8 @@ function Research() {
         <span className="tracking-text">
           <b>{companyNameOf(record)}</b>
           <span>{researchLine(record, grades[record.symbol])}</span>
+          {variables !== undefined && !priced.has(record.symbol) && driverSets[codeOf(record.symbol)] && <span className="tracking-drivers" data-driver-line="">盯：{driverSets[codeOf(record.symbol)]!.drivers.slice(0, 3).map(driver => driver.name).join("、")}</span>}
+          {flips.filter(flip => flip.symbol === record.symbol).map(flip => <span key={flip.kind} className="tracking-flip" data-flip-line={flip.kind}>{flip.text}</span>)}
           {running && <i className="tracking-bar" role="progressbar" aria-label={stepProgress(record)} aria-valuemin={0} aria-valuemax={record.steps.length} aria-valuenow={record.current_step - 1}><u style={{ width: `${Math.max(0, record.current_step - 1) / Math.max(1, record.steps.length) * 100}%` }} /></i>}
         </span>
         <time>{when(record.updated_at)}</time>

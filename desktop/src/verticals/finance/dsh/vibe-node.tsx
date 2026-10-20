@@ -210,8 +210,9 @@ export function installVibeAssistantContext(ctx: Context) {
         const visibleSuggestions = useMemo(() => {
           if (!bare || !ownCheck || 'failed' in ownCheck || !ownCheck.suggest) return new Map<number, string>();
           const suggest = ownCheck.suggest;
-          const labels = suggest.type === 'question' ? suggest.items.map(item => item.text) : suggest.items.map(item => `${item.symbol}：${item.reason}`);
-          return new Map([[bare.start, '相关推荐：' + labels.join('；') + '。']]);
+          const labels = suggest.type === 'question' ? suggest.items.map(item => item.text)
+            : suggest.type === 'indicator' ? suggest.items.map(item => `${item.name}：${item.reason}`) : suggest.items.map(item => `${item.symbol}：${item.reason}`);
+          return new Map([[bare.start, (suggest.type === 'indicator' ? '开始观察：' : '相关推荐：') + labels.join('；') + '。']]);
         }, [bare?.start, ownCheck]);
         useEffect(() => registerVibeCopySource(copyText, visibleBlocks, visibleSuggestions), [copyText, visibleBlocks, visibleSuggestions]);
         const value: VibeContextData = { check: ownCheck, texts, actions: props, phase, visibleBlocks, suggestionTarget };

@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import "./ui.css";
 
 /** 白底、淡描边的卡片容器；不使用阴影、渐变与模糊。 */
-export function Card({ children, className, alert, onClick }: { children: ReactNode; className?: string; alert?: boolean; onClick?: () => void }) {
-  return <div onClick={onClick} className={cn("card", alert && "card-alert", onClick && "card-hover cursor-pointer", className)}>{children}</div>;
+export function Card({ children, className, onClick }: { children: ReactNode; className?: string; onClick?: () => void }) {
+  return <div onClick={onClick} className={cn("card", onClick && "card-hover cursor-pointer", className)}>{children}</div>;
 }
 
 /** 区块组名：放在卡片或表格外的左上方，右侧可放一句说明或时点。 */

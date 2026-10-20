@@ -8,14 +8,14 @@ import "./ui.css";
 export type ObjectTone = "stock" | "industry" | "chain" | "material";
 
 /** 对象卡：头部（图标块 + 名称与代码 + 关键数）、主体（一句话 + 数据线）、底部（时点 + 进入）。 */
-export function ObjectCard({ icon: Icon, tone, name, code, keyValue, text, emptyText, data, foot, to, onOpen, openLabel = "进入", alert, menu }: {
+export function ObjectCard({ icon: Icon, tone, name, code, keyValue, text, emptyText, data, foot, to, onOpen, openLabel = "进入", menu }: {
   icon: LucideIcon; tone: ObjectTone; name: string; code?: string; keyValue?: ReactNode;
   text?: ReactNode; emptyText?: ReactNode; data?: ReactNode; foot?: ReactNode;
-  to?: string; onOpen?: () => void; openLabel?: string; alert?: boolean; menu?: ReactNode;
+  to?: string; onOpen?: () => void; openLabel?: string; menu?: ReactNode;
 }) {
   const open = to ? <Link to={to} className="object-card-open" aria-label={`${openLabel} ${name}`}>{openLabel}<ArrowRight size={13} aria-hidden="true" /></Link>
     : onOpen ? <button type="button" className="object-card-open" onClick={onOpen} aria-label={`${openLabel} ${name}`}>{openLabel}<ArrowRight size={13} aria-hidden="true" /></button> : null;
-  return <article className={cn("card card-hover object-card", alert && "card-alert")}>
+  return <article className={"card card-hover object-card"}>
     <header className="object-card-head">
       <div className="object-card-id">
         <span className={cn("type-icon", `type-${tone}`)} aria-hidden="true"><Icon /></span>

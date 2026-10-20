@@ -7,9 +7,12 @@ import { hydrateWatch, loadWatch } from '../lib/watchlist';
 import { normalizeMarketSymbol } from '../lib/marketSymbol';
 import {
   followSuggestedCompany,
+  SuggestionChoiceNeeded,
   sendSuggestedQuestion,
+  startSuggestedIndicator,
 } from './suggestion-actions';
-import type { CompanySuggestion, QuestionSuggestion } from './result-projection';
+import { loadObserving } from '../lib/observing';
+import type { CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection';
 import type { VibeSuggest } from './vibe';
 
 type Props = Pick<ChatNodeViewProps<'finance-suggestion'>, 'node' | 'inputActions' | 'useInput' | 'useSession'>;
@@ -57,9 +60,36 @@ function CompanyItem({ item }: { item: CompanySuggestion }) {
   </li>;
 }
 
+/** 开始观察：点一下把这条指标建成跟踪项；已经在观察的直接显示「已在观察」。 */
+function IndicatorItem({ item }: { item: IndicatorSuggestion }) {
+  const [status, setStatus] = useState<'idle' | 'busy' | 'done'>('idle');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    loadObserving().then(rows => { if (live && rows.some(row => row.key === item.tracking_item.tracking_key)) setStatus(current => current === 'idle' ? 'done' : current); }, () => undefined);
+    return () => { live = false; };
+  }, [item.tracking_item.tracking_key]);
+  const run = async () => {
+    if (status !== 'idle') return;
+    setStatus('busy'); setError('');
+    try { await startSuggestedIndicator(`${item.name}：${item.reason}`, item.tracking_item); setStatus('done'); }
+    catch (cause) {
+      setStatus('idle');
+      setError(cause instanceof SuggestionChoiceNeeded ? '已有相近的研究，这一项没有自动保存。' : userFacingRuntimeError(cause, '没能开始观察'));
+    }
+  };
+  return <li>
+    <button type="button" className="finance-suggest-row" aria-label={`开始观察 ${item.name}`} title={item.reason} disabled={status !== 'idle'} onClick={() => void run()}>
+      <span className="finance-suggest-text">开始观察：{item.name}<small className="finance-suggest-why" data-observe-why="">{item.reason}</small></span>
+      <span className="finance-suggest-status">{status === 'busy' ? '正在保存…' : status === 'done' ? '已在观察' : '开始观察'}</span>
+    </button>
+    {error && <p role="alert" className="mt-2 text-xs text-muted-foreground" data-observe-error="">{error}</p>}
+  </li>;
+}
+
 export function Suggest({ data, actions }: { data: VibeSuggest; actions?: SuggestActions }) {
   if (!data.items.length) return null;
-  const title = data.type === 'question' ? '相关问题' : '相关公司';
+  const title = data.type === 'question' ? '相关问题' : data.type === 'indicator' ? '开始观察' : '相关公司';
   return <section className="finance-suggest" aria-label={title}>
     <p className="finance-suggest-title">{title}</p>
     <ul>
@@ -69,6 +99,9 @@ export function Suggest({ data, actions }: { data: VibeSuggest; actions?: Sugges
       {data.type === 'company' && data.items.map(item => actions
         ? <CompanyItem key={item.symbol} item={item} />
         : <li key={item.symbol} className="finance-suggest-row"><span className="finance-suggest-text" title={item.reason}>{item.symbol} · {item.reason}</span></li>)}
+      {data.type === 'indicator' && data.items.map(item => actions
+        ? <IndicatorItem key={item.tracking_item.tracking_key} item={item} />
+        : <li key={item.tracking_item.tracking_key} className="finance-suggest-row"><span className="finance-suggest-text" title={item.reason}>{item.name} · {item.reason}</span></li>)}
     </ul>
   </section>;
 }

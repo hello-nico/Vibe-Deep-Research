@@ -35,7 +35,7 @@ before(async () => {
 });
 after(async () => { await React.act(async () => root?.unmount()); await server?.close(); win?.happyDOM.abort(); Object.assign(globalThis, previous); });
 
-const STEPS = ['取数', '读报告', '计算关键变量', '估值与论点', '保存到个股页', '整理结论'];
+const STEPS = ['收集资料', '读报告', '算价格对利润的影响', '估值与判断', '保存资料', '整理结论'];
 function record(symbol: string, name: string, over: Record<string, unknown> = {}) {
   const status = (over.status as string) ?? 'running';
   const current = (over.current_step as number) ?? 2;
@@ -45,7 +45,7 @@ function record(symbol: string, name: string, over: Record<string, unknown> = {}
     sessions: ['s1'], host_boot_id: 'boot', trigger_note: null, reason: null, created_at: '2026-10-14T01:00:00Z', updated_at: '2026-10-14T02:00:00Z', finished_at: null, ...over };
 }
 
-function mockFetch(options: { records?: unknown[] | 'fail'; variables?: unknown; grades?: Record<string, string | null> }) {
+function mockFetch(options: { records?: unknown[] | 'fail'; variables?: unknown; grades?: Record<string, string | null>; topics?: unknown[] | 'fail' }) {
   const requested: string[] = [];
   globalThis.fetch = (async (url: string) => {
     const path = String(url);
@@ -56,6 +56,7 @@ function mockFetch(options: { records?: unknown[] | 'fail'; variables?: unknown;
       const grade = options.grades?.[symbol];
       return Response.json({ research: grade ? { valuation: { grade } } : null, stale: false, basisVersion: 'v' });
     }
+    if (path.startsWith('/finance-research/wiki/research-topics?pool=active')) return options.topics === 'fail' ? Response.json({}, { status: 503 }) : Response.json({ items: options.topics ?? [], next_offset: null });
     if (path.startsWith('/finance-research/tracking/variables')) return Response.json(options.variables ?? trackingFixture);
     if (path.includes('client') || path.includes('watch')) return Response.json({ symbols: ['000933', '601899'] });
     return Response.json({ detail: 'unused' }, { status: 404 });
@@ -184,7 +185,7 @@ test('研究：点开显示六步；读报告附报告标题，价格影响步�
   await render(h(page.Tracking));
   await React.act(async () => (container.querySelector('[data-research-row] button.tracking-row') as HTMLButtonElement).click());
   const steps = [...container.querySelectorAll('.tracking-steps li')];
-  assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['取数', '读报告2026 年半年度报告', '算价格对利润的影响沪铝、氧化铝、电价', '估值与论点', '保存到个股页', '整理结论']);
+  assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['收集资料', '读报告2026 年半年度报告', '算价格对利润的影响沪铝、氧化铝、电价', '估值与判断', '保存资料', '整理结论']);
   assert.deepEqual(steps.map(li => li.querySelector('em')!.textContent), ['完成', '完成', '完成', '进行中', '等待', '等待']);
   assert.doesNotMatch(container.textContent!, /secret|packet_as_of|2026-10-14|document_id|sha|result:|session/i);
   assert.equal([...container.querySelectorAll('.tracking-detail a')].find(a => a.textContent === '去个股页')!.getAttribute('href'), '/watch/000933');
@@ -227,21 +228,21 @@ test('资料页分段「记录」可打开，列出你保存的记录', async ()
   assert.ok(container.querySelector('.rl-note, .rl-notes, [placeholder="搜索记录标题或正文"]'));
 });
 
-test('设置页分段「记忆」可打开，原样显示画像与近期记忆', async () => {
+test('设置页分段「关于我 / 模型 / 连接」，默认「关于我」，切到「模型」才显示模型入口', async () => {
   globalThis.fetch = (async () => Response.json({ detail: 'unused' }, { status: 404 })) as typeof fetch;
   await render(h(native.ModelSettings), '/settings');
-  assert.deepEqual([...container.querySelectorAll('.segmented [role="tab"]')].map(tab => tab.textContent), ['模型', '连接', '记忆']);
-  assert.match(container.textContent!, /打开模型设置/);
+  assert.deepEqual([...container.querySelectorAll('.segmented [role="tab"]')].map(tab => tab.textContent), ['关于我', '模型', '连接']);
+  assert.equal(container.querySelector('.segmented [aria-selected="true"]')!.textContent, '关于我');
   assert.ok(container.querySelector('.page-head-actions .segmented'), '分段在页首右组，与标题同一行');
   assert.equal(container.querySelector('.page-head-title h1')!.textContent, '设置');
   assert.equal(container.querySelector('[data-assistant-slot]'), null, '设置页没有助手落点');
   const layoutSource = readFileSync(new URL('../src/verticals/finance/components/layout/Layout.tsx', import.meta.url), 'utf8');
   assert.match(layoutSource, /pathname !== "\/settings"/, '设置页不显示「问助手」');
-  await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '记忆') as HTMLElement).click());
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
-  assert.match(container.textContent!, /助手回答时会参考这里的内容/);
-  assert.match(container.textContent!, /用户画像/);
+  assert.ok(container.querySelector('input[aria-label="补充关于我"]'));
   assert.doesNotMatch(container.textContent!, /打开模型设置/);
+  await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '模型') as HTMLElement).click());
+  assert.match(container.textContent!, /打开模型设置/);
 });
 
 test('设置页分段「连接」：令牌不回显，保存与三种测试结果各一句话，页面不出现技术细节', async () => {
@@ -294,4 +295,29 @@ test('跟踪页状态点提示不被卡片裁切、不压住标题：卡片不 o
   assert.doesNotMatch(css, /\.tracking-card \{ overflow: hidden/);
   assert.match(css, /\.tracking-row \{ position: relative; \}/);
   assert.match(css, /\.tracking-row \.status-dot-tip \{ left: 12px; bottom: calc\(100% \+ 4px\);/);
+});
+
+test('正在观察：读议题里已保存的跟踪项，一行「指标 · 为什么重要 · 下一个来源」；没有、读取失败、格式不全都不出现，不改价格变量组', async () => {
+  const item = (key: string, over: Record<string, unknown> = {}) => ({ tracking_key: key, hypothesis: '铝价与氧化铝的价差决定电解铝利润', observables: ['沪铝减 1.93 倍氧化铝的价差', '氧化铝价格'], next_source: '下一份定期报告', ...over });
+  mockFetch({ records: [], topics: [{ topic_id: 'topic:a', tracking_items: [item('al-spread'), item('broken', { hypothesis: '' })] }, { topic_id: 'topic:b', tracking_items: [item('coal', { hypothesis: '煤价决定火电成本', observables: ['动力煤价'], next_source: '' })] }, { topic_id: 'topic:c' }] });
+  await render(React.createElement(page.Tracking));
+  const group = container.querySelector('[data-tracking="observing"]')!;
+  assert.ok(group);
+  assert.match(group.querySelector('.tracking-section-label, [class*="label"]')?.textContent ?? group.textContent!, /正在观察/);
+  const rows = [...group.querySelectorAll('[data-observing-row]')];
+  assert.deepEqual(rows.map(row => row.getAttribute('data-observing-row')), ['al-spread', 'coal'], '格式不全的丢掉');
+  assert.equal(rows[0]!.querySelector('b')!.textContent, '沪铝减 1.93 倍氧化铝的价差、氧化铝价格');
+  assert.equal(rows[0]!.querySelector('span span')!.textContent, '铝价与氧化铝的价差决定电解铝利润 · 下一个来源：下一份定期报告');
+  assert.equal(rows[1]!.querySelector('span span')!.textContent, '煤价决定火电成本', '没有来源就不写来源');
+  assert.ok(container.querySelector('[data-tracking="watching"]') && container.querySelector('[data-tracking="research"]'), '其余两组照常');
+  assert.doesNotMatch(group.textContent!, /Topic|tracking|indicator|topic:|undefined/);
+  // 顺序：正在盯的 → 正在观察 → 研究。
+  assert.deepEqual([...container.querySelectorAll('[data-tracking]')].map(node => node.getAttribute('data-tracking')), ['watching', 'observing', 'research']);
+  mockFetch({ records: [], topics: [] });
+  await render(React.createElement(page.Tracking));
+  assert.equal(container.querySelector('[data-tracking="observing"]'), null);
+  mockFetch({ records: [], topics: 'fail' });
+  await render(React.createElement(page.Tracking));
+  assert.equal(container.querySelector('[data-tracking="observing"]'), null);
+  assert.ok(container.querySelector('[data-tracking="watching"]'));
 });

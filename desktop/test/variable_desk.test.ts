@@ -96,7 +96,7 @@ test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有�
   assert.deepEqual(lib.orderWatching([coal, ao, al], trackingFixture.cards).map((v: any) => v.var_id), ['cmdty:SHFE.AL', '000933.SZ:coal_price', 'cmdty:SHFE.AO']);
 });
 
-test('卡片：价格变动卡不描边，判断改变的提醒卡才描边且同屏一张；展开才看金额；看个股页进入该公司；讨论打开问助手面板而不是新开对话', async () => {
+test('卡片：价格变动卡不描边；展开才看金额；看个股页进入该公司；讨论打开问助手面板而不是新开对话', async () => {
   await show(async () => trackingFixture);
   const card = container.querySelector('[data-variable-card]')!;
   assert.doesNotMatch(card.closest('.card')!.className, /card-alert/, '纯价格变动卡不描边');
@@ -175,12 +175,19 @@ test('宿主研究代理放行关键变量读取', async () => {
   assert.equal(researchRoute('POST', '/tracking/variables'), false);
 });
 
-test('提醒卡才有品牌橙描边，同屏最多一张', async () => {
+test('设计原则 4：提醒卡也不用品牌橙描边，样式与普通动态卡一致（判断改变的卡同样）', async () => {
   const [card] = trackingFixture.cards;
   const data = { ...trackingFixture, cards: [{ ...card, judgment_changed: true }, { ...card, var_id: 'cmdty:X', judgment_changed: true }] };
   await show(async () => data);
-  assert.equal(container.querySelectorAll('.card-alert').length, 1);
-  assert.match(container.querySelector('[data-variable-card="' + card.var_id + '"]')!.closest('.card')!.className, /card-alert/);
+  assert.equal(container.querySelectorAll('.card-alert').length, 0);
+  assert.equal(container.querySelectorAll('[data-variable-card]').length, 2);
+  for (const element of container.querySelectorAll('[data-variable-card]')) assert.equal(element.closest('.card')!.className.trim(), 'card');
+  // 源码里也不留这条路：Card / ObjectCard 没有 alert，样式表没有 .card-alert。
+  const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
+  assert.doesNotMatch(read('../src/index.css'), /card-alert/);
+  assert.doesNotMatch(read('../src/verticals/finance/components/ui/Card.tsx'), /alert/);
+  assert.doesNotMatch(read('../src/verticals/finance/components/ui/ObjectCard.tsx'), /alert/);
+  assert.doesNotMatch(read('../src/verticals/finance/pages/VariableDesk.tsx'), /card-alert|alert=/);
 });
 
 test('标题与第二行按对利润方向着色：不利跌色、有利涨色、方向不同不着色', () => {
