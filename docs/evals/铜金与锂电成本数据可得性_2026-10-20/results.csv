@@ -1,0 +1,20 @@
+id,chain,item,judge,source,login_free,freq,start,latest,basis,terms,evidence
+P-CU,价格对照,沪铜日线,能用,新浪 InnerFuturesNewService CU0 / 目录 cmdty:SHFE.CU,是,日,2005-01-04,2026-10-19,主力连续未复权收盘，不是精矿或阴极铜现货,Checklist 内测公开接口,sina_CU0
+P-AU,价格对照,沪金日线,能用,新浪 AU0 / cmdty:SHFE.AU,是,日,2008-01-09,2026-10-19,主力连续未复权收盘，元/克,同上,sina_AU0
+P-NI,价格对照,沪镍日线,能用,新浪 NI0 / cmdty:SHFE.NI,是,日,2015-03-27,2026-10-19,镍期货不是硫酸镍现货,同上,sina_NI0
+P-LC,价格对照,碳酸锂期货日线,能用,新浪 LC0 / cmdty:GFEX.LC,是,日,2023-07-21,2026-10-19,广期所主力连续，不是电池级现货,同上,sina_LC0
+CU-TCRC,铜金,铜精矿加工费 TC/RC,不能,SMM hq.smm.cn/history2；Mysteel,否,—,,,SMM 历史页写明未登录不能查询,著作权声明，停条件记不能,smm_hist
+CU-C1,铜金,铜矿 C1 现金成本行业值,不能,USGS MCS 2025 copper PDF；ICSG 需会员,USGS 是 / ICSG 否,年（产量）,2024（USGS 估计）,2024,USGS 只有矿山/精炼产量与储量，无 C1,USGS 公有领域；ICSG Login,usgs_copper
+AU-AISC,铜金,黄金 AISC 行业值,不能,WGC Goldhub；USGS MCS 2025 gold,否（Goldhub 登录钮）,—,,,USGS 无 AISC；WGC 数据页需登录,停条件,wgc_data
+CU-SHFE-INV,铜金,上期所铜库存周报,部分,shfe.com.cn 日周数据页；weeklydata/{date}weeklystock.dat,页面是,周（若文件可得）,未取到文件,未取到文件,导航可开，20261017 等 dat/html 均 404；即便取到是交割库存不是社会库存,上期所网站,shfe_weekly_page
+CU-LME-INV,铜金,LME 铜库存,不能,lme.com warehouse and stocks,否（403/SSL）,—,,,匿名 HTTP 403 或 SSL 失败,停条件,lme_stocks
+AU-COMEX-INV,铜金,COMEX 金库存,不能,cmegroup.com gold/copper,否（403）,—,,,匿名 403,停条件,cme_gold
+ZJ-PROD,铜金,紫金矿产铜金产量,部分,巨潮年报/半年报/产量公告 PDF,是,年/半年，偶有产量公告,至少 2023 产量公告,2026H1 摘要：矿产铜 53.4 万吨、矿产金 47 吨,免登录 PDF，需解析；含联营权益产量，初步核算以年报为准,巨潮法定披露,zijin_2023_prod_pdf
+LI-SPOT,锂电钴镍,电池级碳酸锂/氢氧化锂现货,不能,SMM 现货；LC0 仅为期货,否,—,,,price.smm.cn 跳转历史页且未登录不能查询,停条件,smm_hist
+CO-SPOT,锂电钴镍,电解钴/四氧化三钴/硫酸钴,不能,SMM/Mysteel,否,—,,,无公开免登录序列,停条件,smm_home
+NI-SO4,锂电钴镍,硫酸镍现货,不能,SMM；NI0 是沪镍期货,否,—,,,期货不能代替硫酸镍,停条件,sina_NI0
+CAM,锂电钴镍,三元/磷酸铁锂正极价格,不能,SMM/Mysteel,否,—,,,无公开序列,停条件,mysteel
+CELL-ASP,锂电钴镍,动力/储能电芯均价,不能,无登记；公司 ASP 变量,—,—,,,覆盖分析已记 ASP 无目录,—,none
+CABIA,锂电钴镍,动力电池联盟装车量/产量,不能,cbea.com 403；中汽协首页无装车序列,否,—,,,联盟站 403；中汽协仅为汽车新闻稿,停条件,cbea
+HY-PROD,锂电钴镍,华友年报产销与单位成本,部分,巨潮年报/半年报 PDF,是,年/半年,至少 2023 年报,2026 半年报列表 200,摘要无产销表，需解析全文 PDF；产量搜索 0 条,巨潮,cninfo_603799_annual
+CATL-PROD,锂电钴镍,宁德年报产销与单位成本,部分,巨潮年报/半年报 PDF,是,年/半年,至少 2023 年报,2026 半年报列表 200,摘要无 GWh 表，需解析全文；产量搜索 0 条,巨潮,cninfo_300750_annual
