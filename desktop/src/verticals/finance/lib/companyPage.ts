@@ -1,4 +1,5 @@
 import type { Quote } from './api';
+import type { ReportCalendar } from './companyNarrative';
 import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
 import { CLIENT_OUTDATED, SERVER_OUTDATED } from './researchSymbol.ts';
 
@@ -82,6 +83,8 @@ export interface CompanyPageServices {
   readScenario?(ref: string, signal?: AbortSignal): Promise<ScenarioTableData | null>;
   /** 读回一份计算凭据（敏感性、占位引用的 calc）。读不到返回 null，页面照常显示其余内容。 */
   readResult?(ref: string, signal?: AbortSignal): Promise<unknown | null>;
+  /** 下一份定期报告的预约披露日（Backend 日历）；读不到返回 null，页面退回法定截止日。 */
+  readCalendar?(symbol: string, signal?: AbortSignal): Promise<ReportCalendar | null>;
   /** 撤回对话写回：恢复上一版研究。 */
   revertResearch?(symbol: string, expectedResearchVersion?: string): Promise<void>;
   subscribeResearch?(listener: () => void): () => void;

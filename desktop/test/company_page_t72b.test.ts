@@ -99,7 +99,7 @@ test('阈值：yoy_pct 显示「同比 ±x%」，level 按字段单位，缺 kin
   assert.equal(thresholdText({ kind: 'yoy_pct', value: '5', unit: '%' }), '同比 ±5.00%');
   assert.equal(thresholdText({ kind: 'yoy_pct', value: '-10', unit: '%' }), '同比 -10.00%');
   assert.equal(thresholdText({ kind: 'yoy_pct', value: '+3', unit: '%' }), '同比 +3.00%');
-  assert.equal(thresholdText({ kind: 'level', value: '20', unit: '%' }), '20.00 %');
+  assert.equal(thresholdText({ kind: 'level', value: '20', unit: '%' }), '20.00%');
   assert.equal(thresholdText({ kind: 'level', value: '3200000000000', unit: '元' }), '32,000.00 亿元');
   assert.equal(thresholdText({ value: '0.70', unit: '倍' }), '0.70 倍');
   assert.equal(thresholdText({ value: '0', unit: '元' }), '0.00 元');
@@ -229,7 +229,7 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
   assert.match(pillar, /暂时取不到相关指标/);
   assert.match(pillar, /·/);
   assert.match(pillar, /2026-10-30 披露的三季报/);
-  assert.match(pillar, /不成立的条件：毛利率跌破阈值。 · 20\.00 % · 下一份定期报告/);
+  assert.match(pillar, /不成立的条件：毛利率跌破阈值。 · 20\.00% · 下一份定期报告/);
   const links = [...container.querySelectorAll('a[href^="/my-reports/read/"]')];
   const shown = links.map(link => link.textContent!.replace('↗', '').trim());
   assert.deepEqual(shown.slice(0, 3), ['2季度出货超预期，关注盈利修复节奏及供需变化', '1季度业绩超预期，盈利维持韧性', real.plainTitles[0]]);

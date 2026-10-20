@@ -15,7 +15,7 @@ test('大盘 company: 从快照绑定连板股显示值，无该股写缺口', (
   assert.match(bound, /现价 12.3/);
   assert.match(bound, /流通市值 21 亿/);
   assert.match(bound, /来源：eastmoney/);
-  assert.match(bound, /取数时点：2026-09-18T15:00:00\+08:00/);
+  assert.match(bound, /数据时点：2026-09-18T15:00:00\+08:00/);
   assert.doesNotMatch(bound, /没有对应的宿主读取契约/);
   const missing = formatCompanyFromSnapshot({ id: 'company:000001.SZ', label: '平安银行' }, quotes);
   assert.match(missing, /页面快照中没有该股的显示值/);

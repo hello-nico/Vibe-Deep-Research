@@ -1,0 +1,568 @@
+{
+ "source": ".local/verdict-check/generated.json 2026-10-20，隐含值从当时输出的文字还原",
+ "rows": [
+  {
+   "symbol": "000933.SZ",
+   "name": "神火股份",
+   "grade": "合理",
+   "companyType": "commodity_cycle",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "cmdty:SHFE.AL",
+     "name": "沪铝",
+     "unit": "元/吨",
+     "current": 22970,
+     "coef": 911946.7441146671
+    },
+    {
+     "id": "cmdty:SHFE.AO",
+     "name": "氧化铝",
+     "unit": "元/吨",
+     "current": 2635,
+     "coef": -1483379.545386428
+    },
+    {
+     "id": "000933.SZ:coal_price",
+     "name": "煤炭销售均价",
+     "unit": "CNY/t",
+     "current": 959.9132868676337,
+     "coef": 4581222.370155424
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "电解铝毛利",
+      "value": "77.30 亿元",
+      "title": "收入 170.51 亿元 · 成本 93.21 亿元"
+     },
+     {
+      "label": "煤炭毛利",
+      "value": "7.41 亿元",
+      "title": "收入 31.30 亿元 · 成本 23.89 亿元"
+     }
+    ],
+    "costGaps": [
+     "铝箔",
+     "铝箔坯料",
+     "贸易",
+     "其他业务"
+    ],
+    "gapText": "铝箔、铝箔坯料、贸易、其他业务的分部成本暂缺，没有算毛利。"
+   },
+   "business": "电解铝是收入和利润主体，煤炭与铝加工补充，盈利主要随铝价与煤价波动{segment:product:电解铝.revenue}。",
+   "tracking": "后续盯沪铝与氧化铝价差、煤炭售价与利润归属，累计营收增速{lens:ytd_yoy.revenue}。",
+   "impliedValue": 22117.0,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌沪铝约 22,117 元/吨，现在 22,970 元/吨",
+    "flip": "涨过 23,018 元/吨，判断变为估值偏低",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "000807.SZ",
+   "name": "云铝股份",
+   "grade": "合理",
+   "companyType": "commodity_cycle",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "cmdty:SHFE.AL",
+     "name": "沪铝",
+     "unit": "元/吨",
+     "current": 23320,
+     "coef": 2091016.3519874031
+    },
+    {
+     "id": "cmdty:SHFE.AO",
+     "name": "氧化铝",
+     "unit": "元/吨",
+     "current": 2639,
+     "coef": -2466264.7655203003
+    },
+    {
+     "id": "cmdty:SHFE.CU",
+     "name": "沪铜",
+     "unit": "元/吨",
+     "current": 110990,
+     "coef": -4266.427652792585
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "电解铝毛利",
+      "value": "69.34 亿元",
+      "title": "收入 203.71 亿元 · 成本 134.37 亿元"
+     },
+     {
+      "label": "铝加工产品毛利",
+      "value": "41.72 亿元",
+      "title": "收入 139.66 亿元 · 成本 97.94 亿元"
+     },
+     {
+      "label": "其他毛利",
+      "value": "0.31 亿元",
+      "title": "收入 6.44 亿元 · 成本 6.12 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "公司以氧化铝、电解铝与铝加工一体化生产销售赚钱，电解铝占收入{segment:product:电解铝.revenue}。",
+   "tracking": "接下来盯三季报的分部毛利率、氧化铝价格与市盈率位置，三项均需对照警戒线。",
+   "impliedValue": 23306.0,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌沪铝约 23,306 元/吨，现在 23,320 元/吨",
+    "flip": "",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "600900.SH",
+   "name": "长江电力",
+   "grade": "合理",
+   "companyType": "leveraged_cyclical_utility",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "600900.SH:hydro_generation",
+     "name": "境内水电发电量",
+     "unit": "%",
+     "current": 0,
+     "coef": 616385216.5539908
+    },
+    {
+     "id": "600900.SH:depreciation_amortization",
+     "name": "折旧摊销",
+     "unit": "%",
+     "current": 0,
+     "coef": -124399796.27932197
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "FY2025",
+    "shown": [
+     {
+      "label": "境内水电行业毛利",
+      "value": "497.80 亿元",
+      "title": "收入 756.62 亿元 · 成本 258.82 亿元"
+     },
+     {
+      "label": "其他行业毛利",
+      "value": "32.56 亿元",
+      "title": "收入 103.23 亿元 · 成本 70.67 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "靠境内六座梯级水电站售电赚钱，收入几乎全部来自水电，毛利率{gross_margin}。",
+   "tracking": "先看季报电量与利润增速能否延续，{lens:ytd_yoy.net_profit_attributable}的累计同比是最直接的检验。",
+   "impliedValue": -0.5,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌境内水电发电量约 -0.5%，现在 0%",
+    "flip": "",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "600863.SH",
+   "name": "华能蒙电",
+   "grade": "合理",
+   "companyType": "leveraged_cyclical_utility",
+   "hasModel": false,
+   "variableUnits": [],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "电力毛利",
+      "value": "15.30 亿元",
+      "title": "收入 74.83 亿元 · 成本 59.53 亿元"
+     },
+     {
+      "label": "煤炭毛利",
+      "value": "6.06 亿元",
+      "title": "收入 9.63 亿元 · 成本 3.56 亿元"
+     },
+     {
+      "label": "热力毛利",
+      "value": "-0.75 亿元",
+      "title": "收入 2.30 亿元 · 成本 3.05 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "以火电与新能源发电的上网售电为主业，收入由上网电量与平均售电单价决定。",
+   "tracking": "跟踪量价成本三项驱动能否补齐，以及下半年利润与预测增速的差距是否收敛。",
+   "impliedValue": null,
+   "expected": {
+    "label": "估值合理",
+    "implied": "",
+    "flip": "",
+    "gap": "没有利润试算凭据，页首只写判断。"
+   }
+  },
+  {
+   "symbol": "601899.SH",
+   "name": "紫金矿业",
+   "grade": "偏低",
+   "companyType": "commodity_cycle",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "cmdty:SHFE.CU",
+     "name": "沪铜",
+     "unit": "元/吨",
+     "current": 110990,
+     "coef": 329334.20761421224
+    },
+    {
+     "id": "cmdty:SHFE.AU",
+     "name": "沪金",
+     "unit": "元/克",
+     "current": 907.02,
+     "coef": 31229831.67859145
+    },
+    {
+     "id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "current": 107060,
+     "coef": 21966.759784629146
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "其他主营业务毛利",
+      "value": "-376.80 亿元",
+      "title": "收入 824.31 亿元 · 成本 1,201.11 亿元"
+     }
+    ],
+    "costGaps": [
+     "贸易精炼等其他销售收入",
+     "冶炼产铜",
+     "冶炼产锌",
+     "矿山产银",
+     "矿山产锌",
+     "矿山产锂锂盐",
+     "矿山产锂锂精矿",
+     "冶炼产碳酸锂",
+     "铁精矿"
+    ],
+    "gapText": "贸易精炼等其他销售收入、冶炼产铜、冶炼产锌、矿山产银、矿山产锌、矿山产锂锂盐、矿山产锂锂精矿、冶炼产碳酸锂、铁精矿的分部成本暂缺，没有算毛利。"
+   },
+   "business": "公司靠自有矿山产铜与产金赚取主要利润，整体毛利率{gross_margin}，冶炼与贸易收入规模大而毛利薄。",
+   "tracking": "接下来盯季度产量、单位成本与金铜价格，看利润能否守住{lens:ytd_yoy.net_profit_attributable}的同比增势。",
+   "impliedValue": null,
+   "expected": {
+    "label": "估值偏低",
+    "implied": "",
+    "flip": "",
+    "gap": "利润试算凭据里没有「市场在赌的价格」，页首只写判断。"
+   }
+  },
+  {
+   "symbol": "300750.SZ",
+   "name": "宁德时代",
+   "grade": "合理",
+   "companyType": "generic",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "300750.SZ:power_battery_asp",
+     "name": "动力电池系统销售均价",
+     "unit": "%",
+     "current": 0,
+     "coef": 3005931582.113903
+    },
+    {
+     "id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "current": 107060,
+     "coef": -144642.3634858874
+    },
+    {
+     "id": "300750.SZ:ess_battery_asp",
+     "name": "储能电池系统销售均价",
+     "unit": "%",
+     "current": 0,
+     "coef": 833305995.9031149
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "动力电池系统毛利",
+      "value": "396.33 亿元",
+      "title": "收入 1,921.25 亿元 · 成本 1,524.92 亿元"
+     },
+     {
+      "label": "储能电池系统毛利",
+      "value": "127.60 亿元",
+      "title": "收入 532.61 亿元 · 成本 405.01 亿元"
+     },
+     {
+      "label": "电池材料及回收、矿产资源毛利",
+      "value": "50.87 亿元",
+      "title": "收入 188.11 亿元 · 成本 137.24 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "生意是靠{segment:product:动力电池系统.revenue}为主的电池系统销量与单位盈利赚钱，成本由原材料价格决定。",
+   "tracking": "盯碳酸锂价格、电池售价与储能出货，收入增速{lens:ytd_yoy.revenue}与毛利率走势决定判断是否成立。",
+   "impliedValue": 0.7,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌动力电池系统销售均价约 0.7%，现在 0%",
+    "flip": "",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "603799.SH",
+   "name": "华友钴业",
+   "grade": "偏低",
+   "companyType": "commodity_cycle",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "cmdty:SHFE.NI",
+     "name": "沪镍",
+     "unit": "元/吨",
+     "current": 115240,
+     "coef": 89306.27290183863
+    },
+    {
+     "id": "603799.SH:cathode_price",
+     "name": "正极材料售价",
+     "unit": "%",
+     "current": 0,
+     "coef": 141290644.29602054
+    },
+    {
+     "id": "cmdty:GFEX.LC",
+     "name": "碳酸锂",
+     "unit": "元/吨",
+     "current": 96320,
+     "coef": -25385.592285129307
+    },
+    {
+     "id": "603799.SH:cobalt_price",
+     "name": "钴产品售价",
+     "unit": "%",
+     "current": 0,
+     "coef": 42494613.59099247
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "镍产品毛利",
+      "value": "21.08 亿元",
+      "title": "收入 107.96 亿元 · 成本 86.88 亿元"
+     },
+     {
+      "label": "正极材料毛利",
+      "value": "18.77 亿元",
+      "title": "收入 122.45 亿元 · 成本 103.69 亿元"
+     },
+     {
+      "label": "贸易及其他毛利",
+      "value": "15.22 亿元",
+      "title": "收入 95.58 亿元 · 成本 80.36 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "收入靠镍产品、正极材料与钴产品，综合毛利率{gross_margin}。",
+   "tracking": "收入同比{lens:ytd_yoy.revenue}，重点是单季利润与毛利率能否同步修复。",
+   "impliedValue": 105441.0,
+   "expected": {
+    "label": "估值偏低",
+    "implied": "市场在赌沪镍约 105,441 元/吨，现在 115,240 元/吨",
+    "flip": "",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "600309.SH",
+   "name": "万华化学",
+   "grade": "合理",
+   "companyType": "commodity_cycle",
+   "hasModel": false,
+   "variableUnits": [],
+   "segments": {
+    "mode": "none",
+    "shown": [],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "靠聚氨酯、石化与精细化学品的规模化产销和一体化成本优势赚钱。",
+   "tracking": "跟踪价差、销量与现金流回报，验证盈利弹性与资本回报是否兑现。",
+   "impliedValue": null,
+   "expected": {
+    "label": "估值合理",
+    "implied": "",
+    "flip": "",
+    "gap": "没有利润试算凭据，页首只写判断。"
+   }
+  },
+  {
+   "symbol": "600585.SH",
+   "name": "海螺水泥",
+   "grade": "合理",
+   "companyType": "commodity_cycle",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "600585.SH:cement_42_5_price",
+     "name": "42.5级水泥售价",
+     "unit": "%",
+     "current": 0,
+     "coef": 305832666.60148966
+    },
+    {
+     "id": "600585.SH:fuel_power_cost",
+     "name": "燃料及动力（煤、电）",
+     "unit": "%",
+     "current": 0,
+     "coef": -136964288.90561554
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "42.5级水泥毛利",
+      "value": "43.57 亿元",
+      "title": "收入 198.87 亿元 · 成本 155.30 亿元"
+     },
+     {
+      "label": "32.5级水泥毛利",
+      "value": "9.63 亿元",
+      "title": "收入 30.63 亿元 · 成本 21.00 亿元"
+     },
+     {
+      "label": "骨料及机制砂毛利",
+      "value": "7.71 亿元",
+      "title": "收入 18.90 亿元 · 成本 11.19 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "靠自产水泥熟料销售赚钱，主力品种收入{segment:product:42.5级水泥.revenue}，骨料与海外贡献增量。",
+   "tracking": "下一步盯三季报吨售价与自产品毛利率；现价{price}已略高于中性情景。",
+   "impliedValue": 1.3,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌42.5级水泥售价约 1.3%，现在 0%",
+    "flip": "",
+    "gap": ""
+   }
+  },
+  {
+   "symbol": "601288.SH",
+   "name": "农业银行",
+   "grade": "偏高",
+   "companyType": "bank",
+   "hasModel": false,
+   "variableUnits": [],
+   "segments": {
+    "mode": "none",
+    "shown": [],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "以国有大型银行牌照吸存放贷，靠生息资产规模与净利息收益率赚取净利息收入，并叠加非息收入。",
+   "tracking": "跟踪息差与规模、盈利质量、单季动能、估值溢价与分红四条线，并给出证伪阈值与窗口。",
+   "impliedValue": null,
+   "expected": {
+    "label": "估值偏高",
+    "implied": "",
+    "flip": "",
+    "gap": "没有利润试算凭据，页首只写判断。"
+   }
+  },
+  {
+   "symbol": "600011.SH",
+   "name": "华能国际",
+   "grade": "合理",
+   "companyType": "leveraged_cyclical_utility",
+   "hasModel": true,
+   "variableUnits": [
+    {
+     "id": "600011.SH:on_grid_tariff",
+     "name": "境内上网结算电价",
+     "unit": "%",
+     "current": 0,
+     "coef": 1083438920.7118227
+    },
+    {
+     "id": "600011.SH:standard_coal_price",
+     "name": "境内除税发电耗用标煤单价",
+     "unit": "%",
+     "current": 0,
+     "coef": -397744006.97893614
+    }
+   ],
+   "segments": {
+    "mode": "gross",
+    "period": "2026H1",
+    "shown": [
+     {
+      "label": "电力热力收入毛利",
+      "value": "169.42 亿元",
+      "title": "收入 1,022.76 亿元 · 成本 853.34 亿元"
+     },
+     {
+      "label": "其他收入毛利",
+      "value": "11.61 亿元",
+      "title": "收入 37.91 亿元 · 成本 26.30 亿元"
+     },
+     {
+      "label": "租赁收入毛利",
+      "value": "5.01 亿元",
+      "title": "收入 5.31 亿元 · 成本 0.30 亿元"
+     }
+    ],
+    "costGaps": [],
+    "gapText": ""
+   },
+   "business": "公司靠境内燃煤、燃机、风电、光伏发电与供热的上网电量电价赚钱，{segment:product:电力热力收入.revenue}是收入主体。",
+   "tracking": "后续盯境内上网电价与标煤单价，以及{lens:single_quarters.2026Q2.net_profit_attributable}之后的单季归母净利能否止跌。",
+   "impliedValue": -0.3,
+   "expected": {
+    "label": "估值合理",
+    "implied": "市场在赌境内上网结算电价约 -0.3%，现在 0%",
+    "flip": "",
+    "gap": ""
+   }
+  }
+ ]
+}

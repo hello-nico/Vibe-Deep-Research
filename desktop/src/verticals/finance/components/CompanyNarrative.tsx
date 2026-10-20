@@ -1,11 +1,11 @@
-import { useId, useState, type ReactNode } from 'react';
+import { Fragment, useId, type ReactNode } from 'react';
 import { Tag } from './ui/Card';
 import { bandTickGroups } from '../lib/bandTicks';
-import { fieldIdLabel, showField, type DataPacket, type PacketField, type PacketThreshold } from '../lib/companyPacket';
+import { scenarioPriceNumber, type DataPacket } from '../lib/companyPacket';
 import {
-  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, epsAt, flowItems, impliedPe, numericValue, plainNumber, profitAt, quarterLabel,
-  resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, TRACKING_TEXT, trackingNote, trackingState, yiText, yuanText,
-  type QuarterBar, type SensitivityModel, type SliderValues,
+  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, epsAt, flowItems, impliedPe, plainNumber, profitAt, quarterLabel,
+  resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, yiText, yuanText,
+  type Expectation, type QuarterBar, type SensitivityModel, type SliderValues, type WatchItem,
 } from '../lib/companyNarrative';
 
 /** 回答句：句中 {占位} 由页面按字段或计算凭据填入；缺口显示灰色「暂缺」。 */
@@ -145,9 +145,10 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
   </div>;
 }
 
-export interface BandTier { name: string; price: number; text: string; /** 其他因素的取值，收进该行展开。 */ more?: string }
+export interface BandTier { name: string; /** 没有价的档（如亏损）为 null：只在下面的文字行里出现，不上区间带。 */ price: number | null; text: string; /** 其他因素的取值，收进该行展开。 */ more?: string }
 /** 估值：区间带。现价为品牌橙实心点，滑块调整后的中性价为空心点；下方一句图注。 */
-export function ValuationBand({ tiers, price, adjusted }: { tiers: BandTier[]; price: number | null; adjusted: number | null }) {
+export function ValuationBand({ tiers: all, price, adjusted }: { tiers: BandTier[]; price: number | null; adjusted: number | null }) {
+  const tiers = all.filter((item): item is BandTier & { price: number } => item.price != null);
   if (!tiers.length) return null;
   const points = [...tiers.map(item => item.price), ...(price != null ? [price] : []), ...(adjusted != null ? [adjusted] : [])];
   const low = Math.min(...points) * 0.92, high = Math.max(...points) * 1.08, span = high - low || 1;
@@ -157,12 +158,20 @@ export function ValuationBand({ tiers, price, adjusted }: { tiers: BandTier[]; p
     <div className="narrative-band" role="img" aria-label="三档目标价区间">
       <span className="narrative-band-range" style={{ left: at(Math.min(...tiers.map(item => item.price))), right: `${100 - ((Math.max(...tiers.map(item => item.price)) - low) / span) * 100}%` }} />
       {groups.map(group => <span key={group.map(item => item.name).join()} className="narrative-band-tick" style={{ left: at(group.reduce((sum, item) => sum + item.price, 0) / group.length) }}>
-        <em>{group.map(item => item.name).join(' · ')}</em><b>{group.map(item => plainNumber(item.price, 2)).join(' / ')}</b></span>)}
+        <em>{group.map(item => item.name).join(' · ')}</em><b>{group.map(item => scenarioPriceNumber(item.price)).join(' / ')}</b></span>)}
       {price != null && <span className="narrative-band-dot is-price" style={{ left: at(price) }} title={`现价 ${plainNumber(price, 2)} 元/股`} data-band-price="" />}
       {adjusted != null && <span className="narrative-band-dot is-adjusted" style={{ left: at(adjusted) }} title={`调整后的中性价 ${plainNumber(adjusted, 2)} 元/股`} data-band-adjusted="" />}
     </div>
     <p className="company-page-gap" data-band-caption="">橙点为现价{adjusted != null ? `；空心点为按上面拖动的价格调整后的中性价（${plainNumber(adjusted, 2)} 元/股）` : ''}。三档价由代码按「每股收益 × 倍数」计算，可查看计算凭据。</p>
-    <ul className="narrative-tiers">{tiers.map(item => <li key={item.name} data-tier={item.name}><span>{item.name}</span><p>{item.text}</p>{item.more && <details className="narrative-tier-more"><summary>其他因素取值</summary><p>{item.more}</p></details>}</li>)}</ul>
+    <ul className="narrative-tiers">{all.map(item => <li key={item.name} data-tier={item.name}><span>{item.name}</span><p>{item.text}</p>{item.more && <details className="narrative-tier-more"><summary>其他因素取值</summary><p>{item.more}</p></details>}</li>)}</ul>
+  </div>;
+}
+
+/** 估值节的三方预期：机构、模型、股价隐含各一行（一句话加一个数），下面一句分歧；灰字正文，不描边，不用橙色。 */
+export function ExpectationRows({ view }: { view: Expectation }) {
+  return <div className="narrative-expect" data-expectation="">
+    {view.rows.map(row => <p key={row.key} data-expect={row.key}>{row.pieces.map((piece, index) => piece.strong ? <strong key={index} className="narrative-slot">{piece.text}</strong> : <Fragment key={index}>{piece.text}</Fragment>)}</p>)}
+    {view.difference && <p className="narrative-expect-diff" data-expect-diff="">{view.difference}</p>}
   </div>;
 }
 
@@ -173,37 +182,14 @@ export function GradePills({ grade }: { grade: string }) {
   </div>;
 }
 
-export interface TrackItem {
-  id: string; text: string; fieldIds?: string[]; fieldId?: string; yoy?: boolean; field?: PacketField; threshold?: PacketThreshold | null; window?: string; falsifier?: string; more: { text: string; line: string }[];
-}
-function TrackCard({ item, now, renderBound }: { item: TrackItem; now?: Date; renderBound?: (fieldId: string) => ReactNode }) {
-  // 默认展开；卡头不可点，只有右侧箭头能收起。
-  const [open, setOpen] = useState(true);
-  const current = numericValue(item.field);
-  const state = trackingState({ current, threshold: item.threshold, window: item.window, now });
-  const level = TRACKING_TEXT.holds(item.threshold);
-  const title = item.fieldId ? `${fieldIdLabel(item.fieldId)}${item.yoy ? '同比' : ''}` : item.text;
-  const value = item.fieldId ? (item.field && (current != null || item.field.status === 'conflict') ? showField(item.field) : '暂缺') : '—';
-  // 正常不出状态；只在越线时在数值下说一句白话。
-  const note = trackingNote({ state, title, value, threshold: item.threshold, window: item.window });
-  return <article className="card narrative-track" data-pillar={item.id} data-track-state={state ?? undefined}>
-    <div className="narrative-track-head">
-      <span className="narrative-track-title"><b>{title}</b>
-        <button type="button" className="narrative-track-toggle" aria-expanded={open} aria-label={open ? '收起说明' : '展开说明'} title={open ? '收起说明' : '展开说明'} onClick={() => setOpen(previous => !previous)}>{open ? '▴' : '▾'}</button>
-      </span>
-      <span className="narrative-track-now"><strong className={value === '暂缺' ? 'is-gap' : undefined}>{value}</strong><small>{[level, item.window].filter(Boolean).join(' · ') || '—'}</small></span>
-      {note && <p className="narrative-track-note" data-track-note={state ?? undefined}>{note}</p>}
-    </div>
-    {open && <div className="narrative-track-more">
-      <p>支柱：{item.text}</p>
-      {item.falsifier && <p>不成立的条件：{item.falsifier}</p>}
-      {item.more.map(extra => <p key={extra.text}>不成立的条件：{extra.text}{extra.line ? ` · ${extra.line}` : ''}</p>)}
-      {renderBound && item.fieldIds?.length ? <div className="company-page-metrics">{item.fieldIds.map(renderBound)}</div> : null}
-    </div>}
-  </article>;
-}
-/** 跟踪：每个支柱一张卡，当前值、警戒线、观察窗口；状态由页面按当前值与阈值方向判断，点开看支柱与证伪条件。 */
-export function TrackingCards({ items, now, renderBound }: { items: TrackItem[]; now?: Date; renderBound?: (fieldId: string) => ReactNode }) {
+/** 接下来盯什么：每张卡一句话加一个数（价格或下一次报告日期），不带状态词。 */
+export function WatchCards({ items }: { items: WatchItem[] }) {
   if (!items.length) return null;
-  return <div className="narrative-track-grid" data-chart="tracking">{items.map(item => <TrackCard key={item.id} item={item} now={now} renderBound={renderBound} />)}</div>;
+  return <div className="narrative-track-grid" data-chart="watch">{items.map(item => <article key={item.id} className="card narrative-track" data-watch={item.id} title={item.hint}>
+    <div className="narrative-track-head">
+      <span className="narrative-track-title"><b>{item.title}</b></span>
+      {(item.value || item.sub) && <span className="narrative-track-now">{item.value && <strong>{item.value}</strong>}{item.sub && <small>{item.sub}</small>}</span>}
+      <p className="narrative-track-note">{item.note}</p>
+    </div>
+  </article>)}</div>;
 }

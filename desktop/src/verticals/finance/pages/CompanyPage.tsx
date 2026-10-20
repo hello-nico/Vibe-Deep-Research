@@ -4,11 +4,14 @@ import { Loader2 } from 'lucide-react';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
-import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, multipleText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
-import { COMPANY_TYPE_NAME, calcRefsIn, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
-import { AnswerSentence, FlowBar, GradePills, QuarterBars, SensitivityPanel, TrackingCards, ValuationBand, type BandTier, type DriverNote, type TrackItem } from '../components/CompanyNarrative';
+import { conflictValues, fieldIdLabel, otherPeriodText, pagePeriodText, sectionMeta, findField, forecastNote, formulaText, gapText, multipleText, scenarioPriceText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
+import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { AnswerSentence, ExpectationRows, FlowBar, GradePills, QuarterBars, SensitivityPanel, ValuationBand, WatchCards, type BandTier, type DriverNote } from '../components/CompanyNarrative';
+import { CompanyOpinion } from '../components/CompanyOpinion';
 import { companyPageProgress, companyPageStore, companyPageTaskActive, type CompanyPageData, type CompanyPageResearch, type CompanyPageServices, type CompanyPageState } from '../lib/companyPage';
 import { financialNumber } from '../lib/financialDisplay';
+import { chainPath, chainsOf, loadChainIndex, type ChainRef } from '../lib/chainPage';
+import { loadDriverSetByIndustry, type DriverSet } from '../lib/templateDrivers';
 import { currencyLabel } from '../lib/marketSymbol';
 import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
 import type { SnapshotSection } from '../assistant/snapshot';
@@ -68,13 +71,23 @@ function KeyNumbers({ packet, ids, peers = false }: { packet?: DataPacket; ids: 
     const recent = peers && id === 'pe';
     return <Metric key={id} label={recent ? '市盈率（近四季）' : fieldIdLabel(field.field_id ?? id)} value={showField(field)}
       title={[periodLabel(field.period), field.scope, recent ? '按近四季实际净利润算；利润试算处的市盈率按估算利润算，两者不同' : ''].filter(Boolean).join(' · ')}
-      tags={median != null ? <MetricTag>同业中位 {plainNumber(median, id === 'pe' ? 1 : 2)}</MetricTag> : undefined} />;
+      tags={<>{otherPeriodText(packet, field) && <MetricTag>{otherPeriodText(packet, field)}</MetricTag>}{median != null && <MetricTag>同业中位 {plainNumber(median, id === 'pe' ? 1 : 2)}</MetricTag>}</>} />;
+  })}</div>;
+}
+/** 生意一节的第一层关键数：各业务毛利（没有分部成本时是各业务收入），最多三项。 */
+function SegmentNumbers({ summary, packet }: { summary: SegmentSummary; packet?: DataPacket }) {
+  if (!summary.shown.length) return null;
+  // 有 page_period 时只在分部报告期与页面不同期时标（分部只到半年报）；旧 Backend 保持原样。
+  const tag = packet?.page_period ? otherPeriodText(packet, { period: summary.period }) : summary.period ? periodLabel(summary.period) : '';
+  return <div className="company-page-metrics" data-key-numbers="" data-segments={summary.mode}>{summary.shown.map(row => {
+    const line = segmentLine(row, summary.mode);
+    return <Metric key={row.name} label={line.label} value={line.value} title={line.title} tags={tag ? <MetricTag>{tag}</MetricTag> : undefined} />;
   })}</div>;
 }
 /** 节标题右侧的口径：第一个关键数的期间（年报、日期）。 */
 function metaOf(packet: DataPacket | undefined, ids: readonly string[]) {
-  const first = keyIdsOf(packet, ids).map(id => findField(packet, id)?.period).find(Boolean);
-  return periodLabel(first);
+  const first = keyIdsOf(packet, ids).map(id => findField(packet, id)).find(field => field?.period);
+  return sectionMeta(packet, first);
 }
 const unique = (items: readonly string[]) => [...new Set(items)];
 /** 回答句里已经嵌了的字段，第一层关键数不再重复。 */
@@ -105,12 +118,17 @@ function neutralMultiple(scenarios: ScenarioTableData | null) {
   return Number.isFinite(value) && value > 0 ? value : null;
 }
 function bandTiers(scenarios: ScenarioTableData | null, model: SensitivityModel | null): BandTier[] {
-  return (scenarios?.rows ?? []).flatMap(row => {
-    const price = Number(row.price);
-    if (!Number.isFinite(price)) return [];
+  return (scenarios?.rows ?? []).flatMap((row): BandTier[] => {
+    const price = row.price ? Number(row.price) : NaN;
+    if (!Number.isFinite(price)) {
+      if (row.price || !row.gapNote) return [];
+      // 没有价的档（如亏损）：不上区间带，下面的文字行写明原因，不整表丢。
+      const earnings = row.earnings == null ? '' : scenarios?.mode === 'total' ? `利润 ${yuanText(Number(row.earnings))}` : `每股收益 ${plainNumber(Number(row.earnings), 2)} 元/股`;
+      return [{ name: row.name, price: null, text: [earnings, multipleText(row.multiple), row.gapNote].filter(Boolean).join(' → ') }];
+    }
     const tier = model?.tiers.find(item => item.name === row.name);
     const multiple = multipleText(row.multiple);
-    const priceText = `${plainNumber(price, 2)} 元/股`;
+    const priceText = scenarioPriceText(row.price);
     const reason = row.reason ? `（${row.reason}）` : '';
     if (model && tier) {
       // 三档统一用主价格（模型第一个因素）讲；其他因素的取值收进该行展开，免得每行讲的价格不一样。
@@ -196,6 +214,32 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     }
     return () => controller.abort();
   }, [services, calcKey]);
+  // 预约披露日：A 股读 Backend 日历，读不到（含港股）时「接下来盯什么」退回法定截止日。
+  const [calendar, setCalendar] = useState<ReportCalendar | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    setCalendar(null);
+    if (!services.readCalendar) return () => controller.abort();
+    void services.readCalendar(symbol, controller.signal).then(value => { if (!controller.signal.aborted) setCalendar(value); });
+    return () => controller.abort();
+  }, [services, symbol]);
+  // 所属产业链：链定义读一次（会话内缓存），读不到就不显示入口，不影响页面其余部分。
+  const [chains, setChains] = useState<ChainRef[]>([]);
+  useEffect(() => {
+    let alive = true;
+    setChains([]);
+    void loadChainIndex().then(all => { if (alive) setChains(chainsOf(all, symbol)); }).catch(() => {});
+    return () => { alive = false; };
+  }, [symbol]);
+  // 所属行业的估值框架（驱动）：用于没有价格模型的公司列「盯什么」；读不到就只列下一次报告。
+  const industryCode = data.packet.value?.identity?.industry_code;
+  const [templateDrivers, setTemplateDrivers] = useState<DriverSet | null>(null);
+  useEffect(() => {
+    let alive = true;
+    setTemplateDrivers(null);
+    if (industryCode) void loadDriverSetByIndustry(industryCode).then(set => { if (alive) setTemplateDrivers(set); });
+    return () => { alive = false; };
+  }, [industryCode]);
   const model = useMemo(() => sensitivityRef && calcs[sensitivityRef] ? parseSensitivity(calcs[sensitivityRef]) : null, [sensitivityRef, calcs]);
   useEffect(() => { setSlid({}); }, [model]);
   const values = model ? { ...initialSliderValues(model), ...slid } : {};
@@ -215,6 +259,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   const change = changeLine(saved, { changedFrom: research.changedFrom, canRevert: research.canRevert });
   const tiers = bandTiers(scenarios, model);
   const verdict = verdictLine({ grade: saved?.valuation?.grade, model });
+  const expectation = expectations({ packet, scenarios, model, price, grade: saved?.valuation?.grade, verdict });
   const revert = async () => {
     if (!services.revertResearch) return;
     setReverting('busy');
@@ -223,17 +268,13 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   };
   // 研究文字里的 {…} 数据引用统一在这里解析成数值；解析不到写「（数据缺失）」。
   const fill = (text?: string) => fillSlots(text, packet, calcs, undefined, price);
-  const tracking: TrackItem[] = (saved?.pillars ?? []).map(pillar => {
+  const watch = watchItems({ model, packet, calendar, drivers: templateDrivers });
+  // 研究里原有的支柱与不成立的条件不再占第一层，收进「查看数据」。
+  const pillars = (saved?.pillars ?? []).map(pillar => {
     const matching = (saved?.falsifiers ?? []).filter(item => item.pillarId === pillar.id);
-    const lead = matching.find(item => item.fieldId) ?? matching[0];
-    // 同比类警戒线用年内累计同比镜头的值比较；取不到时不判状态。
-    const yoy = lead?.threshold?.kind === 'yoy_pct';
-    const yoyLens = yoy ? yoyField(packet, lead?.fieldId) : undefined;
     return {
-      id: pillar.id, text: fill(pillar.text), fieldIds: pillar.fieldIds ?? [], fieldId: lead?.fieldId, yoy,
-      field: yoy ? yoyLens : lead?.fieldId ? findField(packet, lead.fieldId) : undefined,
-      threshold: lead?.threshold, window: lead?.window, falsifier: lead?.text ? fill(lead.text) : lead?.text,
-      more: matching.filter(item => item !== lead).map(item => ({ text: fill(item.text), line: [thresholdText(item.threshold), item.window].filter(Boolean).join(' · ') })),
+      id: pillar.id, text: fill(pillar.text), fieldIds: unique([...(pillar.fieldIds ?? []), ...matching.flatMap(item => item.fieldId ? [item.fieldId] : [])]),
+      falsifiers: matching.map(item => [fill(item.text), thresholdText(item.threshold), item.window].filter(Boolean).join(' · ')),
     };
   });
   const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">数据暂时取不到</p> : null;
@@ -252,17 +293,21 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     </Panel>;
   };
   const hasKeys = (ids: readonly string[]) => ids.some(id => numericValue(findField(packet, id)) != null);
-  const moreOf = (id: 'business' | 'cash', ids: readonly string[], keys: readonly string[]) => {
+  const moreOf = (id: 'business' | 'cash', ids: readonly string[], keys: readonly string[], gap = '') => {
     const details = block(id)?.details;
     const onFirstLayer = new Set(keyIdsOf(packet, keys));
     const list = unique(ids).filter(fieldId => !onFirstLayer.has(fieldId));
-    return (details || list.length) ? <Detail>
+    return (details || list.length || gap) ? <Detail>
       {details && <p>{fill(details)}</p>}
+      {gap && <p className="company-page-gap" data-gap="segment-cost">{gap}</p>}
       <div className="company-page-metrics">{list.map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
     </Detail> : null;
   };
+  const segments = segmentGross(packet);
+  const segmentIds = [...segments.shown, ...segments.excluded].flatMap(row => row.cost != null ? [row.revenueId, row.costId] : [row.revenueId]);
   const businessAll = unique([...(block('business')?.fieldIds ?? []), ...DEFAULT_KEYS.business]);
-  const businessKeys = withoutSlots(businessAll, block('business')?.summary);
+  // 有分部数据时第一层只放各业务毛利；营业收入、毛利率等总量指标收进「查看数据」。
+  const businessKeys = segments.shown.length ? [] : withoutSlots(businessAll, block('business')?.summary);
   // 去向条已经画出经营现金流、资本开支、分红与剩余现金，第一层关键数不再重复这四项。
   const FLOW_KEYS = ['operating_cash_flow', 'capex_cash', 'dividend_paid', 'residual_cash'];
   const cashAll = unique([...(block('cash')?.fieldIds ?? []).filter(id => !FLOW_KEYS.includes(id)), ...DEFAULT_KEYS.cash]);
@@ -278,11 +323,11 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   // 整节无数据时不渲染；数据包还没到时先留骨架，保持位置。
   const loading = data.packet.loading || Boolean(data.packet.error);
   const showSection = {
-    business: loading || Boolean(block('business')?.summary) || hasKeys(businessKeys),
+    business: loading || Boolean(block('business')?.summary) || segments.shown.length > 0 || hasKeys(businessKeys),
     variables: loading || Boolean(variableAnswer) || Boolean(model) || bars.length > 0 || Boolean(formula),
     cash: loading || Boolean(block('cash')?.summary) || hasFlow || hasKeys(cashKeys),
     valuation: loading || Boolean(valuation?.summary) || tiers.length > 0 || hasKeys(DEFAULT_KEYS.valuation),
-    tracking: tracking.length > 0 || Boolean(saved?.sections?.tracking?.summary),
+    tracking: (Boolean(saved) && !gapOnly && watch.length > 0) || Boolean(saved?.sections?.tracking?.summary),
   };
   const snapshotSections = onSnapshot ? buildCompanySnapshotSections({
     name, symbol, typeName: saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : undefined,
@@ -294,14 +339,16 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     answers: { business: block('business')?.summary, variables: variableAnswer, cash: block('cash')?.summary, valuation: valuation?.summary, tracking: saved?.sections?.tracking?.summary },
     keys: { business: businessKeys, cash: cashKeys, valuation: DEFAULT_KEYS.valuation },
     formulaSentence, formula, quarterBars: bars, model, values, price, tiers, adjusted,
+    expectLines: saved && !gapOnly ? [...expectation.rows.map(row => row.pieces.map(piece => piece.text).join('')), ...(expectation.difference ? [expectation.difference] : [])] : [],
     impliedText: verdict.implied ? `${verdict.label}：${verdict.implied}${verdict.flip ? `，${verdict.flip}` : ''}` : undefined,
-    tracking, related: saved?.related ?? [],
+    watch, segments, related: saved?.related ?? [],
   }) : [];
   const snapshotKey = JSON.stringify(snapshotSections);
   useEffect(() => { onSnapshot?.(snapshotSections); }, [snapshotKey]); // eslint-disable-line react-hooks/exhaustive-deps
   return <article className="company-page" aria-label={`${name} 个股页`}>
     <section className="card company-page-hero">
-      <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p></div>
+      <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p>
+        {chains.length > 0 && <p className="company-page-code" data-chain-entry="">所属产业链：{chains.map((chain, index) => <span key={chain.chain_id}>{index ? '、' : ''}<Link to={chainPath(chain.chain_id)}>{chain.name}</Link></span>)}</p>}</div>
         <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">行情暂不可用</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
@@ -316,10 +363,12 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
           {change.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
           {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
         </p>}
+        <CompanyOpinion name={name} symbol={symbol} />
+        {pagePeriodText(packet) && <p className="company-page-period" data-page-period={packet?.page_period}>{pagePeriodText(packet)}</p>}
         {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
       </section>
     </section>
-    {showSection.business && section('business', block('business')?.summary, null, businessKeys, moreOf('business', [...businessAll, ...(block('business')?.fieldIds ?? [])], businessKeys), saved?.changes?.business, metaOf(packet, businessKeys))}
+    {showSection.business && section('business', block('business')?.summary, <SegmentNumbers summary={segments} packet={packet} />, businessKeys, moreOf('business', [...segmentIds, ...businessAll, ...(block('business')?.fieldIds ?? [])], businessKeys, segmentGapText(segments)), saved?.changes?.business, segments.period ? sectionMeta(packet, { period: segments.period }) : metaOf(packet, businessKeys))}
     {showSection.variables && section('variables', variableAnswer,
       model
         ? <SensitivityPanel model={model} values={values} onChange={(id, value) => setSlid(previous => ({ ...previous, [id]: value }))} onReset={resetSliders} price={price} drivers={notes} />
@@ -335,12 +384,14 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     {showSection.cash && section('cash', block('cash')?.summary, <FlowBar packet={packet} />, cashKeys, moreOf('cash', unique([...cashAll, ...(block('cash')?.fieldIds ?? [])]), cashKeys), saved?.changes?.cash, metaOf(packet, cashKeys))}
     {showSection.valuation && section('valuation', valuation?.summary,
       <>
+        {saved && !gapOnly && <ExpectationRows view={expectation} />}
         <ValuationBand tiers={tiers} price={price} adjusted={adjusted} />
         {saved?.valuation?.grade && !gapOnly && <GradePills grade={saved.valuation.grade} />}
       </>,
       DEFAULT_KEYS.valuation,
       <Detail>
         {verdict.gap && <p data-implied-gap="">{verdict.gap}</p>}
+        {saved && !gapOnly && expectation.details.map(line => <p key={line} data-expect-detail="">{line}</p>)}
         {valuation?.details && <p>{fill(valuation.details)}</p>}
         {saved?.valuation?.conditions && !gapOnly && <p data-valuation-conditions="">什么情况会改判断：{fill(saved.valuation.conditions)}</p>}
         <div className="company-page-metrics">{unique(['price', ...(valuation?.fieldIds ?? []), 'eps_ttm', 'eps_forecast', 'eps_forecast_next', 'forward_pe', ...DEFAULT_KEYS.valuation]).filter(fieldId => !keyIdsOf(packet, DEFAULT_KEYS.valuation).includes(fieldId)).map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
@@ -348,9 +399,14 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         {!gapOnly && <ScenarioTable rows={scenarioRef ? scenarios?.rows ?? null : null} mode={scenarios?.mode} />}
       </Detail>,
       saved?.changes?.valuation, metaOf(packet, DEFAULT_KEYS.valuation))}
-    {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <TrackingCards items={tracking} renderBound={fieldId => fieldId === 'price' ? null : <BoundField key={fieldId} packet={packet} id={fieldId} />} />, [],
-      (saved?.sections?.tracking?.details || saved?.catalysts?.length) ? <Detail>
+    {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <WatchCards items={watch} />, [],
+      (saved?.sections?.tracking?.details || pillars.length || saved?.catalysts?.length) ? <Detail>
         {saved?.sections?.tracking?.details && <p>{fill(saved.sections.tracking.details)}</p>}
+        {pillars.map(item => <div key={item.id} data-pillar={item.id}>
+          <p>支柱：{item.text}</p>
+          {item.falsifiers.map(line => <p key={line}>不成立的条件：{line}</p>)}
+          {item.fieldIds.length > 0 && <div className="company-page-metrics">{item.fieldIds.filter(fieldId => fieldId !== 'price').map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>}
+        </div>)}
         {saved?.catalysts?.map(item => <p key={`${item.date}${item.event}`}>{item.date} {fill(item.event)}</p>)}
       </Detail> : null,
       saved?.changes?.tracking)}

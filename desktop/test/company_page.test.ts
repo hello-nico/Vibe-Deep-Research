@@ -9,7 +9,7 @@ import { Window } from 'happy-dom';
 import { CompanyPageStore, companyPageStore, companyPageProgress, companyPageTaskOf, type CompanyPageTask } from '../src/verticals/finance/lib/companyPage.ts';
 import { companyPageFixture, fixtureData, fixturePacket, fixturePageResearch, fixtureResearch, fixtureScenario } from './fixtures/company_page.ts';
 
-const STEP_LABELS = ['取数', '读报告', '计算关键变量', '估值与论点', '保存到个股页', '整理结论'];
+const STEP_LABELS = ['收集资料', '读报告', '算价格对利润的影响', '估值与判断', '保存资料', '整理结论'];
 /** A host research-task record in the shape of the task doc R2. */
 function taskRecord(over: Record<string, unknown> = {}) {
   const status = (over.status as string) ?? 'running';
@@ -131,8 +131,8 @@ test('订阅中的任务自动回读完成结果；无订阅停止轮询，不�
 });
 test('五种记录状态对应的页面文案：进行中显示第几步，接续、失败、中止各一句，完成不显示', () => {
   const read = (over: Record<string, unknown>) => companyPageTaskOf(taskRecord(over) as never);
-  assert.equal(read({ status: 'running', current_step: 3 }).stage, '第 3 步，共 6 步 · 计算关键变量');
-  assert.equal(read({ status: 'running', current_step: 1 }).stage, '第 1 步，共 6 步 · 取数');
+  assert.equal(read({ status: 'running', current_step: 3 }).stage, '第 3 步，共 6 步 · 算价格对利润的影响');
+  assert.equal(read({ status: 'running', current_step: 1 }).stage, '第 1 步，共 6 步 · 收集资料');
   assert.equal(read({ status: 'interrupted' }).stage, '正在接着上次的进度继续');
   assert.equal(read({ status: 'failed', reason: '最新定期报告还没入库' }).stage, '最新定期报告还没入库');
   assert.equal(read({ status: 'failed' }).stage, '这次研究未完成，可以稍后重新研究');
@@ -216,8 +216,8 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.match(container.textContent!, /前瞻市盈率/);
   assert.match(container.querySelector('[data-pillar="spread"]')!.textContent!, /71\.00 亿元/);
   const card = container.querySelector('[data-pillar="spread"]')!.textContent!;
-  assert.match(card, /关键值 30 亿元/);
-  assert.match(card, /下一份定期报告/);
+  assert.match(card, /不成立的条件：价差收窄会推翻这条支柱。 · 30\.00 亿元 · 下一份定期报告/);
+  assert.ok(container.querySelector('[data-watch="next-report"]'), '盯的最后一张是下一次报告');
   assert.match(container.textContent!, /22.23/);
   assert.match(container.querySelector('[data-scenario="table"] thead')!.textContent!, /情景\s*每股收益\s*倍数\s*目标价/);
   assert.match(container.textContent!, /数量 ×（单价 − 单位成本）/);

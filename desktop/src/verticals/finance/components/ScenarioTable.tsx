@@ -11,7 +11,7 @@ export function ScenarioTable({ rows, mode = 'per_share', gap }: { rows: Scenari
         <th scope="row">{row.name}</th>
         <td>{row.earnings ? scenarioEarningsText(row.earnings, mode) : '—'}</td>
         <td>{multipleText(row.multiple) || '—'}</td>
-        <td>{scenarioPriceText(row.price)}</td>
+        <td>{row.price ? scenarioPriceText(row.price) : row.gapNote || '—'}</td>
       </tr>)}</tbody>
     </table>
   </div>;

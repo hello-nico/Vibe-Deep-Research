@@ -1,0 +1,128 @@
+{
+ "_note": "2026-10-20 真实回包（预期对比真实数据抽查）里云铝、华能蒙电、华友钴业的三档与机构预期字段，只保留页面用到的键。",
+ "cases": {
+  "yunlv": {
+   "mode": "per_share",
+   "scenarios": [
+    {
+     "name": "悲观",
+     "multiple": "7",
+     "price": null,
+     "earnings": "-0.824283",
+     "earnings_period": "TTM:2026H1",
+     "reason": "亏损，市盈率不适用",
+     "status": "gap"
+    },
+    {
+     "name": "中性",
+     "multiple": "10",
+     "price": "26.786130",
+     "earnings": "2.678613",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": "calculated"
+    },
+    {
+     "name": "乐观",
+     "multiple": "13",
+     "price": "23.529038",
+     "earnings": "1.809926",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": "calculated"
+    }
+   ],
+   "eps_forecast": {
+    "field_id": "eps_forecast",
+    "metric": "eps_forecast",
+    "value": "4.4500000000",
+    "unit": "元/股",
+    "period": "FY2026E",
+    "status": "sourced",
+    "institution_count": 3
+   }
+  },
+  "mengdian": {
+   "mode": "per_share",
+   "scenarios": [
+    {
+     "name": "悲观",
+     "multiple": "13.11",
+     "price": "3.454831",
+     "earnings": "0.2635263776770705213161428605",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": null
+    },
+    {
+     "name": "中性",
+     "multiple": "15.13",
+     "price": "5.189590",
+     "earnings": "0.343",
+     "earnings_period": "FY2026E",
+     "reason": null,
+     "status": null
+    },
+    {
+     "name": "乐观",
+     "multiple": "21.01",
+     "price": "7.206430",
+     "earnings": "0.343",
+     "earnings_period": "FY2026E",
+     "reason": null,
+     "status": null
+    }
+   ],
+   "eps_forecast": {
+    "field_id": "eps_forecast",
+    "metric": "eps_forecast",
+    "value": "0.343",
+    "unit": "元/股",
+    "period": "FY2026E",
+    "status": "sourced",
+    "institution_count": 1
+   }
+  },
+  "huayou": {
+   "mode": "per_share",
+   "scenarios": [
+    {
+     "name": "悲观",
+     "multiple": "8",
+     "price": "29.046304",
+     "earnings": "3.630788",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": "calculated"
+    },
+    {
+     "name": "中性",
+     "multiple": "11",
+     "price": "37.663989",
+     "earnings": "3.423999",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": "calculated"
+    },
+    {
+     "name": "乐观",
+     "multiple": "14",
+     "price": "60.718588",
+     "earnings": "4.337042",
+     "earnings_period": "TTM:2026H1",
+     "reason": null,
+     "status": "calculated"
+    }
+   ],
+   "eps_forecast": {
+    "field_id": "eps_forecast",
+    "metric": "eps_forecast",
+    "value": "4.7000000000",
+    "unit": "元/股",
+    "period": "FY2026E",
+    "status": "sourced",
+    "institution_count": 3
+   }
+  }
+ }
+}

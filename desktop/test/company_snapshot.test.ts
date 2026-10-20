@@ -115,6 +115,12 @@ test('快照与页面所见一致：每节的回答句和第一层关键数（�
     const period = (metric.getAttribute('title') ?? '').split(' · ')[0];
     if (period) assert.ok(sent.includes(squash(narrativeModule.periodLabel(period))), `${label} 缺期间 ${period}`);
   }
+  const watch = [...container.querySelectorAll('[data-watch]')];
+  assert.ok(watch.length >= 1, '盯的卡');
+  for (const card of watch) {
+    const title = card.querySelector('.narrative-track-title b')!.textContent!, value = card.querySelector('.narrative-track-now strong')!.textContent!, note = card.querySelector('.narrative-track-note')!.textContent!;
+    assert.ok(sent.includes(squash(`${title}：${value}`)) && sent.includes(squash(note)), `盯的卡不在快照里：${title}`);
+  }
   const flows = [...container.querySelectorAll('[data-chart="flow"] [data-flow]')];
   assert.ok(flows.length >= 4, '去向条各项');
   for (const flow of flows) {

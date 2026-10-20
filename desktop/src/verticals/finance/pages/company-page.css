@@ -4,6 +4,9 @@
 .company-page p, .company-page-detail > div { max-width: 72ch; }
 .company-page-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 24px; padding-bottom: 20px; }
 .company-page-code { margin-top: 2px; font-family: var(--workspace-mono-font); font-size: 11px; color: var(--text-3); }
+.company-page-code[data-chain-entry] { font-family: inherit; font-size: 12px; }
+.company-page-code[data-chain-entry] a { color: var(--text-2); }
+.company-page-code[data-chain-entry] a:hover { color: hsl(var(--foreground)); text-decoration: underline; }
 .company-page-label { color: var(--text-3); font-size: 12px; }
 .company-page-price { text-align: right; min-width: 130px; }
 .company-page-price > strong { display: block; font-size: 24px; font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -149,6 +152,7 @@
 .narrative-track-now > small { font-size: 12px; color: var(--text-3); }
 .narrative-track-more { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line-1); font-size: 12px; line-height: 1.7; color: var(--text-2); }
 .company-page-change .tag { flex: none; }
+.company-page-period { margin-top: 6px; font-size: 12px; color: var(--text-3); }
 .company-page-quote-time { display: block; font-size: 11px; color: var(--text-3); font-weight: 400; }
 @media (max-width: 760px) { .narrative-sensitivity-body { grid-template-columns: minmax(0, 1fr); } }
 .narrative-tier-more { grid-column: 2; margin-top: 4px; font-size: 12px; color: var(--text-3); }
@@ -157,3 +161,9 @@
 
 .company-page-verdict { margin-top: 8px; font-size: 15px; line-height: 1.7; }
 .company-page-verdict [data-verdict-implied], .company-page-verdict [data-verdict-flip] { font-variant-numeric: tabular-nums; }
+
+/* 估值节三方预期：灰字正文三行加一句分歧，不描边、不用橙色。 */
+.narrative-expect { display: grid; gap: 4px; margin-bottom: 14px; font-size: 13px; line-height: 1.7; color: var(--text-2); }
+.narrative-expect > p { margin: 0; }
+.narrative-expect .narrative-slot { color: hsl(var(--foreground)); }
+.narrative-expect-diff { padding-top: 6px; border-top: 1px solid var(--line-1); color: var(--text-3); }

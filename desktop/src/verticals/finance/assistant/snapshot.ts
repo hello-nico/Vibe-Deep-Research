@@ -106,7 +106,7 @@ export function formatCompanyFromSnapshot(
     row.section ? `  板块：${row.section}` : '',
     row.asOf ? `  观察日：${row.asOf}` : '',
     `  来源：${row.source?.trim() || '未标注'}`,
-    row.fetched_at ? `  取数时点：${row.fetched_at}` : '',
+    row.fetched_at ? `  数据时点：${row.fetched_at}` : '',
     row.boards != null ? `  连板：${row.boards} 板` : '',
     `  页面显示：现价 ${row.price ?? '—'}，涨跌幅 ${pct}，成交额 ${amount}${floatCap}`,
     row.industry ? `  行业：${row.industry}` : '',

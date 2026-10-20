@@ -2,6 +2,7 @@ import { aShareQualified, companySlug, researchRead } from './research';
 import type { ResearchSessions } from '../dsh/research-session';
 import { api } from './api';
 import { packetNeedsEnsure, scenarioTable, shanghaiDay, type DataPacket } from './companyPacket';
+import { parseReportCalendar } from './companyNarrative';
 import { companyPageTaskOf, type CompanyPageResearchRead, type CompanyPageServices, type ResearchTaskRecord } from './companyPage';
 
 const ensuredDay = new Map<string, string>();
@@ -87,6 +88,15 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
         return scenarioTable(await researchRead(`/research-results/result:${id}`, { signal }));
       } catch (error) {
         console.warn('[finance/company-page] scenario unavailable', error);
+        return null;
+      }
+    },
+    readCalendar: async (symbol, signal) => {
+      try {
+        const code = qualified(symbol);
+        return parseReportCalendar(await researchRead(`/market/report-calendar?symbols=${code}`, { signal }), code);
+      } catch (error) {
+        console.warn('[finance/company-page] report calendar unavailable', error);
         return null;
       }
     },

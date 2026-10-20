@@ -32,6 +32,10 @@ export interface DataPacket {
   symbol?: string;
   as_of: string;
   financial_period?: string;
+  /** 页面数字统一截至的报告期（2026Q3、2026H1、FY2025）；旧 Backend 没有。 */
+  page_period?: string;
+  /** 公司在行业公共层里的身份；`industry_code` 用来读所属行业的估值框架。 */
+  identity?: { symbol?: string; name?: string; industry_name?: string; industry_code?: string };
   fields: Record<string, PacketField>;
   industry_drivers?: {
     definition?: { formula?: { operation?: string } };
@@ -44,7 +48,9 @@ export interface DataPacket {
 export interface ScenarioRow {
   name: string;
   multiple: string;
+  /** 空串表示这一档没有价（如亏损）；原因写在 gapNote。 */
   price: string;
+  gapNote?: string;
   earnings?: string;
   period?: string;
   /** 倍数依据（行业与周期位置），可选。 */
@@ -134,7 +140,7 @@ export function thresholdText(threshold: PacketThreshold | null | undefined) {
     const sign = raw.startsWith('-') ? '-' : raw.startsWith('+') ? '+' : '±';
     return `同比 ${sign}${formatFactValue({ value: Math.abs(numeric), unit: '%' }).replace(/\s+/g, '')}`;
   }
-  return formatFactValue({ value: threshold.value, unit: threshold.unit });
+  return tightPercent(formatFactValue({ value: threshold.value, unit: threshold.unit }));
 }
 export function formulaText(packet: DataPacket) {
   const calculation = packet.industry_drivers?.calculation;
@@ -228,13 +234,18 @@ export function scenarioTable(result: unknown): ScenarioTableData | null {
     const row = item as { name?: unknown; multiple?: unknown; price?: unknown; earnings?: unknown; earnings_period?: unknown; reason?: unknown; multiple_reason?: unknown };
     const name = String(row.name ?? '').trim();
     const price = String(row.price ?? '').trim();
-    if (!name || !price) return [];
-    return [{ name, multiple: String(row.multiple ?? ''), price, earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period), reason: [row.reason, row.multiple_reason].find((value): value is string => typeof value === 'string' && value.trim() !== '') }];
+    if (!name) return [];
+    const loss = Number(row.earnings) < 0 || /亏损/.test(String(row.reason ?? ''));
+    return [{ name, multiple: String(row.multiple ?? ''), price, ...(price ? {} : { gapNote: loss ? '亏损，不给价' : '价格暂缺' }), earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period), reason: [row.reason, row.multiple_reason].find((value): value is string => typeof value === 'string' && value.trim() !== '') }];
   });
   return rows.length === 3 ? { mode: scenarioMode(extra?.mode), rows } : null;
 }
-export function scenarioPriceText(price: string) {
+export function scenarioPriceText(price: string | number) {
   return `${formatFactValue({ value: price, unit: '元/股' })}`;
+}
+/** 三档价的数字写法（不带单位）：与三档表同一规则，页面上同一个三档价只有一种写法。 */
+export function scenarioPriceNumber(price: string | number) {
+  return scenarioPriceText(price).replace(/\s*元\/股$/, '');
 }
 export function scenarioEarningsText(earnings: string | undefined, mode: ScenarioMode = 'per_share') {
   if (!earnings) return '';
@@ -250,11 +261,13 @@ export function multipleText(value: string | number | null | undefined): string 
 
 const SEASON: Record<string, string> = { H1: '半年报', Q1: '一季报', Q2: '二季度', Q3: '三季报', Q4: '四季度' };
 const YTD: Record<string, string> = { Q1: '一季度', Q2: '上半年', Q3: '前三季度', Q4: '全年' };
-/** 期间写法统一在这里：FY2025 → 2025 年报；2026H1 → 2026 半年报；Q1 / Q3 → 一季报 / 三季报；TTM:2026Q3 → 近四季（截至 2026 三季报）；日期 → 10 月 12 日；其余原样。 */
+/** 期间写法统一在这里：FY2025 → 2025 年报；FY2026E → 2026 年预测；2026H1 → 2026 半年报；Q1 / Q3 → 一季报 / 三季报；TTM:2026Q3 → 近四季（截至 2026 三季报）；日期 → 10 月 12 日；其余原样。 */
 export function periodLabel(period: string | null | undefined): string {
   const text = String(period ?? '').trim();
   const fy = /^FY(\d{4})$/i.exec(text);
   if (fy) return `${fy[1]} 年报`;
+  const forecast = /^FY(\d{4})E$/i.exec(text);
+  if (forecast) return `${forecast[1]} 年预测`;
   const ttm = /^TTM[:：]\s*(.+)$/i.exec(text);
   if (ttm) return `近四季（截至 ${periodLabel(ttm[1])}）`;
   const season = /^(\d{4})\s*(H1|Q[1-4])$/i.exec(text);
@@ -265,5 +278,35 @@ export function periodLabel(period: string | null | undefined): string {
   if (iso) return `${Number(iso[1])} 月 ${Number(iso[2])} 日`;
   return text;
 }
+/** 报告期写法：2026Q3 → 2026 年三季报；scheme 为分红这类按年度方案的数：FY2025 → 2025 年度方案。 */
+export function reportPeriodText(period: string | null | undefined, scheme = false): string {
+  const text = String(period ?? '').trim().replace(/^TTM[:：]\s*/i, '');
+  const fy = /^FY(\d{4})$/i.exec(text);
+  if (fy) return scheme ? `${fy[1]} 年度方案` : `${fy[1]} 年报`;
+  const season = /^(\d{4})\s*(?:YTD)?\s*(H1|Q[1-4])$/i.exec(text);
+  if (!season) return '';
+  const name = { H1: '半年报', Q1: '一季报', Q2: '二季报', Q3: '三季报', Q4: '四季报' }[season[2]!.toUpperCase() as 'H1' | 'Q1' | 'Q2' | 'Q3' | 'Q4'];
+  return `${season[1]} 年${name}`;
+}
+/** 统一成可比的报告期：去掉 TTM: 与 YTD，认不出（日期、空）返回空。 */
+const reportKey = (period: string | null | undefined) => {
+  const text = String(period ?? '').trim().replace(/^TTM[:：]\s*/i, '').replace(/YTD/i, '').toUpperCase();
+  return /^(FY\d{4}|\d{4}(H1|Q[1-4]))$/.test(text) ? text : '';
+};
+/** 与页面报告期（`page_period`）不同期的数字才返回它自己的期间小字；同期、市场时点、旧 Backend 没有 page_period 时为空。 */
+export function otherPeriodText(packet: DataPacket | undefined, field: { field_id?: string; metric?: string; period?: string | null } | undefined): string {
+  const page = reportKey(packet?.page_period), own = reportKey(field?.period);
+  if (!page || !own || page === own) return '';
+  return reportPeriodText(field!.period, /^dividend/.test(String(field?.field_id ?? field?.metric ?? '')));
+}
+/** 节标题右侧的口径：有 page_period 时，与页面同期的报告期不重复写，不同期写自己的期间，行情日期这类时点照写；旧 Backend 保持原写法。 */
+export function sectionMeta(packet: DataPacket | undefined, field: { field_id?: string; metric?: string; period?: string | null } | undefined): string {
+  if (!field?.period) return '';
+  if (!reportKey(packet?.page_period)) return periodLabel(field.period);
+  if (!reportKey(field.period)) return periodLabel(field.period);
+  return otherPeriodText(packet, field);
+}
+/** 页首灰字：数据截至哪份报告；没有 page_period 返回空。 */
+export const pagePeriodText = (packet: DataPacket | undefined) => reportKey(packet?.page_period) ? `数据截至 ${reportPeriodText(packet!.page_period)}` : '';
 /** 数字与百分号之间不留空格（23.35%）。 */
 export const tightPercent = (text: string) => text.replace(/(\d)\s+%/g, '$1%');

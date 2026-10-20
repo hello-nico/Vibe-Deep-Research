@@ -92,7 +92,8 @@ export function formatFactValue(item: Record<string, unknown>): string {
   const numeric = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim());
   if (!Number.isFinite(numeric)) return [raw == null ? '' : String(raw), unit].filter(Boolean).join(' ');
   if (unit === '元' && Math.abs(numeric) >= 100_000_000) return `${financialNumber(truncateDecimal(numeric / 100_000_000))} 亿元`;
-  return `${financialNumber(truncateDecimal(numeric))} ${unit}`.trim();
+  const text = `${financialNumber(truncateDecimal(numeric))} ${unit}`.trim();
+  return text.replace(/(\d)\s+%/g, '$1%');
 }
 
 export function factLabel(item: Record<string, unknown>): string {
