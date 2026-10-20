@@ -13,6 +13,7 @@ import {
   ASSISTANT_PLACEHOLDER,
   assistantSeatSnapshot,
   assistantSessionErrorMessage,
+  focusAssistantComposer,
   setAssistantSeat,
   subscribeAssistantSeat,
 } from "../../assistant/sessions.ts";
@@ -61,6 +62,7 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
   const bindKey = useRef("");
   const attachGen = useRef(0);
   const wasOpen = useRef(open);
+  const focusedThisOpen = useRef(false);
   const wantFresh = useRef(false);
   const composing = useRef(false);
   const chipsByBind = useRef(new Map<string, PageAssistantObject[]>());
@@ -317,6 +319,14 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
   // 面板标题已是这份文档名时，不再重复显示同名标签（标签仍随本轮发送）。
   const shownChips = chips.filter(item => !(item.kind === 'document' && item.label === page?.title));
   const ready = Boolean(sessionId) && !seat.busy;
+  useEffect(() => {
+    if (!open) {
+      focusedThisOpen.current = false;
+      return;
+    }
+    if (focusedThisOpen.current || !ready) return;
+    if (focusAssistantComposer()) focusedThisOpen.current = true;
+  }, [open, ready]);
   if (!binding) return null;
 
   return (

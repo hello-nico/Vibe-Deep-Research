@@ -97,6 +97,16 @@ export async function stageAssistantPageContext(input: { session_id: string; pag
 /** 问助手输入框的提示；一律以深查方式回答，不分模式。 */
 export const ASSISTANT_PLACEHOLDER = '问问这一页的内容，或让它帮你查';
 
+/** 用户刚打开面板时把光标放进产品输入框；找不到或未就绪时返回 false。不改 DSH 包。 */
+export function focusAssistantComposer(root: ParentNode = document): boolean {
+  const box = root.querySelector<HTMLElement>('textarea[aria-label="问助手输入"]')
+    ?? root.querySelector<HTMLElement>('[data-composer-seat] textarea, [data-slot="conversation.input.dock"] textarea');
+  if (!box) return false;
+  if ('disabled' in box && (box as HTMLTextAreaElement).disabled) return false;
+  box.focus();
+  return document.activeElement === box;
+}
+
 export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
   if (plugin === 'market') {
     return '问我今天的盘面：指数表现、市场情绪、资金流向。输入 @ 选一个指数或个股，可以问得更具体。';

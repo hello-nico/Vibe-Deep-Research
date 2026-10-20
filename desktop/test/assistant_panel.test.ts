@@ -1,7 +1,7 @@
 // 问助手面板简化：没有模式与模型菜单、一律深查；个股页两个按钮；动态卡「讨论」打开面板。
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { createElement as h, act } from 'react';
+import { createElement as h, act, useState } from 'react';
 import { Window } from 'happy-dom';
 import { createServer } from 'vite';
 import { createServer as httpServer } from 'node:http';
@@ -62,7 +62,7 @@ test('面板没有模式与模型菜单，一律以深查发送；早先的即�
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '行情', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
@@ -91,7 +91,7 @@ test('旧会话切换失败时沿用现有错误提示，面板不装作已就�
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '行情', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
@@ -144,7 +144,7 @@ test('没有页面动作的页面不显示按钮行', async () => {
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
+      modules.page.useAiPage({ key: 'feed:variables', title: '行情', context: '' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
@@ -182,10 +182,10 @@ test('问助手的上下文标签只属于当前页：切到别的页面再打�
     await act(async () => (container.querySelector('#cite') as HTMLButtonElement).click());
     assert.ok(tags().some(text => text.includes('长江电力关于控股股东增持股份结果的公告')), '资料页引用后面板里有标签');
     // 换到动态页：面板仍开着时沿用旧页面，再点“问助手”切到当前页。
-    pageKey = 'feed:variables'; title = '关键变量';
+    pageKey = 'feed:variables'; title = '行情';
     await render(Page, sessions);
     await act(async () => (container.querySelector('button.ai-chat-trigger') as HTMLButtonElement).click());
-    assert.equal(container.querySelector('h2')!.textContent, '关键变量');
+    assert.equal(container.querySelector('h2')!.textContent, '行情');
     assert.deepEqual(tags(), [], '动态页的问助手不带资料页的标签');
     // 回到资料页也不恢复：标签不跨页保留。
     pageKey = 'document:abc:1'; title = '长江电力公告';
@@ -193,4 +193,55 @@ test('问助手的上下文标签只属于当前页：切到别的页面再打�
     await act(async () => (container.querySelector('button.ai-chat-trigger') as HTMLButtonElement).click());
     assert.deepEqual(tags(), []);
   });
+});
+
+test('点问助手打开后输入框获得焦点；面板已开时切页不抢焦点', async () => {
+  await harness(async ({ win, container, modules, render }) => {
+    const sessions = {
+      ...panelStore(),
+      ensureAssistant: async () => ({ sessionId: 'assistant', mode: 'agent' }),
+      focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
+    };
+    let setPage: ((key: string, title: string) => void) | undefined;
+    function App() {
+      const [page, set] = useState({ key: 'feed:variables', title: '行情' });
+      setPage = (key, title) => set({ key, title });
+      modules.page.useAiPage({ key: page.key, title: page.title, context: '' });
+      return h('div', {},
+        h('button', { id: 'outside', type: 'button' }, '页内'),
+        h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('aside', {}, content) }));
+    }
+    await render(App, sessions);
+    await act(async () => (container.querySelector('button.ai-chat-trigger') as HTMLButtonElement).click());
+    const box = container.querySelector('textarea[aria-label="问助手输入"]') as HTMLTextAreaElement;
+    assert.equal(win.document.activeElement, box);
+    await act(async () => { (container.querySelector('#outside') as HTMLButtonElement).focus(); });
+    assert.equal(win.document.activeElement, container.querySelector('#outside'));
+    await act(async () => { setPage!('company-wiki:companies/000933-sz', '神火股份'); });
+    assert.equal(win.document.activeElement, container.querySelector('#outside'), '切页不抢焦点');
+  });
+});
+
+test('focusAssistantComposer 只聚焦已就绪的问助手输入框', async () => {
+  const { createServer } = await import('vite');
+  const { createServer: httpServer } = await import('node:http');
+  const { fileURLToPath } = await import('node:url');
+  const { Window } = await import('happy-dom');
+  const win = new Window();
+  const previous = { window: globalThis.window, document: globalThis.document };
+  Object.assign(globalThis, { window: win, document: win.document });
+  const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)),
+    server: { middlewareMode: true, hmr: { server: httpServer() }, watch: null }, appType: 'custom' });
+  try {
+    const sessions = await server.ssrLoadModule('/src/verticals/finance/assistant/sessions.ts');
+    win.document.body.innerHTML = '<textarea aria-label="问助手输入" disabled></textarea>';
+    assert.equal(sessions.focusAssistantComposer(win.document), false);
+    (win.document.querySelector('textarea') as HTMLTextAreaElement).disabled = false;
+    assert.equal(sessions.focusAssistantComposer(win.document), true);
+    assert.equal(win.document.activeElement, win.document.querySelector('textarea'));
+  } finally {
+    await server.close();
+    win.happyDOM.abort();
+    Object.assign(globalThis, previous);
+  }
 });
