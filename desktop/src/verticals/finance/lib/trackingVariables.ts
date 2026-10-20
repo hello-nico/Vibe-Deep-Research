@@ -125,8 +125,8 @@ export function cardPieces(card: VariableCard): SentencePiece[] {
 }
 /** 某家公司的影响：全年利润、占基数、中性价；动态卡展开后一家一行。 */
 export function companyPieces(company: VariableCardCompany): SentencePiece[] {
-  const pieces: SentencePiece[] = [{ text: `${shortName(company.name)}年化归母净利约 ` }, { text: impactText(company.impact), strong: true, tone: tone(company.impact) }];
-  if (company.pct_of_base != null) pieces.push({ text: `（占基数 ${percentValue(company.pct_of_base)}）` });
+  const pieces: SentencePiece[] = [{ text: `${shortName(company.name)}年化净利润约 ` }, { text: impactText(company.impact), strong: true, tone: tone(company.impact) }];
+  if (company.pct_of_base != null) pieces.push({ text: `（占对比期利润 ${percentValue(company.pct_of_base)}）` });
   if (company.neutral_price_delta != null) pieces.push({ text: '，中性价约 ' }, { text: yuanPerShareText(company.neutral_price_delta), strong: true, tone: tone(company.neutral_price_delta) });
   return pieces;
 }

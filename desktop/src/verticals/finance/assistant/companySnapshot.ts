@@ -7,7 +7,7 @@
  */
 import { fieldIdLabel, findField, showField, type DataPacket, type PacketField, type PacketThreshold } from '../lib/companyPacket';
 import {
-  contributions, epsAt, flowItems, impliedPe, keyIdsOf, peerMedian, periodLabel, plainNumber, profitAt, quarterLabel, fillSlots,
+  contributions, epsAt, flowItems, impliedPe, keyIdsOf, peerMedian, periodLabel, plainNumber, profitAt, quarterLabel, fillSlots, gradeLabel,
   ruleOfThumbText, sliderUnitText, TRACKING_TEXT, trackingNote, trackingState, yiText, yuanText,
   type QuarterBar, type SensitivityModel, type SliderValues,
 } from '../lib/companyNarrative';
@@ -34,7 +34,8 @@ export function keyNumberLines(packet: DataPacket | undefined, ids: readonly str
     if (!field) return [];
     const median = peers && (id === 'pe' || id === 'pb') ? peerMedian(packet, id) : null;
     const meta = [periodLabel(field.period), scopeOf(field), median != null ? `同业中位 ${plainNumber(median, id === 'pe' ? 1 : 2)}` : ''].filter(Boolean).join('；');
-    return [`- ${fieldIdLabel(field.field_id ?? id)}：${showField(field)}${meta ? `（${meta}）` : ''}`];
+    const label = peers && id === 'pe' ? '市盈率（近四季）' : fieldIdLabel(field.field_id ?? id);
+    return [`- ${label}：${showField(field)}${meta ? `（${meta}）` : ''}`];
   });
 }
 
@@ -50,7 +51,7 @@ export function flowLines(packet: DataPacket | undefined): string[] {
 }
 
 function quarterLines(bars: readonly QuarterBar[]): string[] {
-  return bars.map(bar => `- ${quarterLabel(bar.period)}（单季）：收入 ${bar.revenue == null ? '暂缺' : yuanText(bar.revenue)}，归母净利 ${bar.profit == null ? '暂缺' : yuanText(bar.profit)}`);
+  return bars.map(bar => `- ${quarterLabel(bar.period)}（单季）：收入 ${bar.revenue == null ? '暂缺' : yuanText(bar.revenue)}，净利润 ${bar.profit == null ? '暂缺' : yuanText(bar.profit)}`);
 }
 
 function sensitivityLines(model: SensitivityModel, values: SliderValues, price: number | null): string[] {
@@ -61,13 +62,13 @@ function sensitivityLines(model: SensitivityModel, values: SliderValues, price: 
   const moved = model.variables.some(item => (values[item.id] ?? item.current) !== item.current);
   const delta = profit - model.baseProfit;
   return [
-    ...(model.baseLabel ? [`基数：${model.baseLabel}，归母净利 ${yuanText(model.baseProfit)}`] : []),
+    ...(model.baseLabel ? [`对比期利润：${model.baseLabel}，净利润 ${yuanText(model.baseProfit)}`] : []),
     ...model.variables.map(item => {
       const now = values[item.id] ?? item.current;
       const rule = ruleOfThumbText(model, item);
       return `- ${item.name}：今天 ${sliderUnitText(item, item.current)}${now !== item.current ? `，滑块现在拖到 ${sliderUnitText(item, now)}` : ''}${item.anchor != null ? `，${item.anchorLabel} ${sliderUnitText(item, item.anchor)}` : `，${item.anchorLabel}暂缺`}${rule ? `；${rule}` : ''}`;
     }),
-    `${moved ? '按滑块当前取值' : '按今天价格'}，年化归母净利估算 ${yuanText(profit)}（${delta === 0 ? '与基数一致' : `相对基数 ${delta > 0 ? '+' : '-'}${yiText(Math.abs(delta))}`}），对应每股收益 ${plainNumber(eps, 2)} 元/股，${price != null ? `现价 ${plainNumber(price, 2)} 元对应市盈率` : '现价对应市盈率'} ${pe == null ? '暂缺' : `${plainNumber(pe, 1)} 倍`}`,
+    `${moved ? '按滑块当前取值' : '按今天价格'}，年化净利润估算 ${yuanText(profit)}（${delta === 0 ? '与对比期利润一致' : `比对比期 ${delta > 0 ? '+' : '-'}${yiText(Math.abs(delta))}`}），对应每股收益 ${plainNumber(eps, 2)} 元/股，按估算利润的市盈率 ${pe == null ? '暂缺' : `${plainNumber(pe, 1)} 倍`}`,
     ...parts.filter(item => item.variable.anchor != null && item.profit !== 0).map(item => `- ${item.variable.name}贡献 ${item.profit > 0 ? '+' : '-'}${yiText(Math.abs(item.profit))}`),
     ...(model.assumptions ? [`假设：${model.assumptions}`] : []),
   ];
@@ -105,7 +106,7 @@ export interface CompanySnapshotInput {
   keys: Record<'business' | 'cash' | 'valuation', readonly string[]>;
   formulaSentence?: string; formula?: string; quarterBars: readonly QuarterBar[];
   model?: SensitivityModel | null; values?: SliderValues; price?: number | null;
-  tiers: readonly { name: string; text: string }[]; adjusted?: number | null; impliedText?: string;
+  tiers: readonly { name: string; text: string; more?: string }[]; adjusted?: number | null; impliedText?: string;
   tracking: readonly SnapshotTrackItem[]; now?: Date;
   related: readonly { title: string }[];
 }
@@ -127,7 +128,7 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
       ? `行情：${plainNumber(quote.price, 2)}${quote.currencyLabel ? ` ${quote.currencyLabel}` : ''}${quote.change_pct != null ? `，${quote.change_pct > 0 ? '+' : ''}${plainNumber(quote.change_pct, 2)}%` : ''}${quote.fetched_at ? `（行情 ${periodLabel(quote.fetched_at)}）` : ''}`
       : '行情暂不可用。',
     input.gapNote ? `研究缺口：${input.gapNote}` : input.thesis ? `论点：${fillSentence(input.thesis, packet, calcs)}` : '尚无研究判断。',
-    !input.gapNote && input.grade ? `五档结论：${input.grade}` : '',
+    !input.gapNote && input.grade ? `五档结论：${gradeLabel(input.grade)}` : '',
     !input.gapNote && input.changeText ? input.changeText : '',
   ]));
   const narrative = (id: NarrativeId, extra: (string | undefined | false)[]) =>
@@ -158,8 +159,8 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
     const keys = ready ? keyNumberLines(packet, input.keys.valuation, true) : [];
     out.push(narrative('valuation', [
       input.tiers.length ? '三档情景：' : undefined,
-      ...input.tiers.map(tier => `- ${tier.name}：${tier.text}`),
-      input.adjusted != null ? `按关键变量节滑块调整后的中性价 ${plainNumber(input.adjusted, 2)} 元/股` : undefined,
+      ...input.tiers.map(tier => `- ${tier.name}：${tier.text}${tier.more ? `（其他因素：${tier.more}）` : ''}`),
+      input.adjusted != null ? `按页面上拖动的价格调整后的中性价 ${plainNumber(input.adjusted, 2)} 元/股` : undefined,
       input.impliedText,
       keys.length ? '关键数：' : undefined, ...keys,
     ]));

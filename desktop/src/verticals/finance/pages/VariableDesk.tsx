@@ -31,17 +31,17 @@ export function VariableDesk({ load = loadTrackingVariables }: { load?: Loader }
     });
     return () => controller.abort();
   }, [load, attempt]);
-  useAiPage({ key: "feed:variables", title: "关键变量", context: data
-    ? `关注公司的关键变量与价格变动。\n${data.cards.map(cardSentence).join("\n") || "最近 20 个交易日没有足以影响利润的价格变动"}` : "关键变量正在读取",
+  useAiPage({ key: "feed:variables", title: "行情", context: data
+    ? `关注公司研究里影响利润的价格变动。\n${data.cards.map(cardSentence).join("\n") || "最近 20 个交易日没有足以影响利润的价格变动"}` : "行情正在读取",
     suggestions: ["最近哪个价格变动对我关注的公司影响最大？"] });
   // 「讨论」打开问助手面板：卡片标题和第二行作为本轮引用，输入框预填问句；不新开深度对话。
   const discuss = useCallback((card: VariableCard) => {
     ask?.(cardQuestion(card), { title: cardTitle(card), text: `${cardTouch(card)}\n${cardSentence(card)}` }, cardQuestion(card));
   }, [ask]);
 
-  if (failed) return <p role="alert" className="variable-desk-note">关键变量暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>;
+  if (failed) return <p role="alert" className="variable-desk-note">行情暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>;
   if (data === undefined) return <div className="variable-desk" aria-busy="true" aria-label="正在加载"><div className="variable-desk-skeleton" /><div className="variable-desk-skeleton" /></div>;
-  if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们研究里的关键变量和价格变动。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
+  if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们研究里影响利润的价格变动。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
   return <div className="variable-desk">
     <Cards cards={data.cards} onDiscuss={discuss} />
   </div>;
@@ -80,8 +80,8 @@ function Cards({ cards, onDiscuss }: { cards: VariableCard[]; onDiscuss: (card: 
 export function Detail({ variable, company }: { variable: TrackedVariable; company: VariableCompany }) {
   const metrics: [string, string, string | undefined][] = [
     [`${company.name} · 每涨 ${withUnit(priceText(company.step), variable.unit)}`, impactText(company.profit_per_step), undefined],
-    [`较基数期均价 ${priceText(company.anchor)}`, impactText(company.impact_vs_anchor), toneClass(company.impact_vs_anchor)],
-    ["占基数利润", percentText(company.pct_of_base), toneClass(company.pct_of_base)],
+    [`较对比期均价 ${priceText(company.anchor)}`, impactText(company.impact_vs_anchor), toneClass(company.impact_vs_anchor)],
+    ["占对比期利润", percentText(company.pct_of_base), toneClass(company.pct_of_base)],
     ["中性价影响", yuanPerShareText(company.neutral_price_delta), toneClass(company.neutral_price_delta)],
   ];
   return <div className="variable-detail-grid" data-company={company.symbol}>

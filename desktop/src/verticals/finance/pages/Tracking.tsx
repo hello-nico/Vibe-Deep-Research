@@ -19,7 +19,7 @@ import "./tracking.css";
 
 /** 跟踪：交出去的事情的回执。「正在盯的」是研究里自动产生的关键变量，「研究」是每家公司研究到哪一步、结果如何。 */
 export function Tracking() {
-  useAiPage({ key: "tracking", title: "跟踪", context: "跟踪页：正在盯的关键变量，和关注公司的研究进度与结果", suggestions: ["最近哪些变量动得最大？"] });
+  useAiPage({ key: "tracking", title: "跟踪", context: "跟踪页：正在盯的价格，和关注公司的研究进度与结果", suggestions: ["最近哪些价格动得最大？"] });
   return <div>
     <PageHeader title="跟踪" />
     <div className="tracking">
@@ -73,9 +73,9 @@ function Watching() {
   }, [missing]);
   const aside = "研究里自动产生的价格和指标，有大的变动会在动态里提醒你";
   let body;
-  if (failed) body = <Note>正在盯的变量暂时读取不到。<Retry onClick={() => setAttempt(value => value + 1)} /></Note>;
+  if (failed) body = <Note>正在盯的价格暂时读取不到。<Retry onClick={() => setAttempt(value => value + 1)} /></Note>;
   else if (data === undefined) body = <Skeleton />;
-  else if (data === null || !data.variables.length) body = <Note>关注并研究公司后，研究里用到的关键变量会出现在这里。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></Note>;
+  else if (data === null || !data.variables.length) body = <Note>关注并研究公司后，研究里影响利润的价格会出现在这里。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></Note>;
   else {
     const rows = orderWatching(data.variables, data.cards);
     const shown = all ? rows : rows.slice(0, VISIBLE);
@@ -84,7 +84,7 @@ function Watching() {
       <div className="card tracking-card">{shown.map(variable => <WatchRow key={variable.var_id} variable={variable} data={data}
         expanded={open === variable.var_id} onToggle={() => setOpen(value => value === variable.var_id ? null : variable.var_id)} />)}
       {rows.length > shown.length && <button type="button" className="tracking-more" onClick={() => setAll(true)}>显示另外 {rows.length - shown.length} 项</button>}</div>
-      {data.coverage.unresearched.length > 0 && <p className="tracking-foot">还有 {data.coverage.unresearched.map(symbol => (names.has(symbol) ? shortName(names.get(symbol)!) : quoteNames[codeOf(symbol)]) ?? codeOf(symbol)).join("、")} 没有研究，变量要研究后才会出现。<Link to={data.coverage.unresearched.length === 1 ? watchPath(codeOf(data.coverage.unresearched[0]!)) : "/watch"}>去研究</Link></p>}
+      {data.coverage.unresearched.length > 0 && <p className="tracking-foot">还有 {data.coverage.unresearched.map(symbol => (names.has(symbol) ? shortName(names.get(symbol)!) : quoteNames[codeOf(symbol)]) ?? codeOf(symbol)).join("、")} 没有研究，研究后这里才会出现它们影响利润的价格。<Link to={data.coverage.unresearched.length === 1 ? watchPath(codeOf(data.coverage.unresearched[0]!)) : "/watch"}>去研究</Link></p>}
     </>;
   }
   return <section data-tracking="watching"><SectionLabel aside={aside}>正在盯的</SectionLabel>{body}</section>;
@@ -104,7 +104,7 @@ function WatchRow({ variable, data, expanded, onToggle }: { variable: TrackedVar
       <time>{plain ? "" : variable.last_date ?? ""}</time>
     </button>
     {expanded && <div className="tracking-detail">{plain
-      ? <p>{variable.reason ?? "暂时没有这个变量的行情"}</p>
+      ? <p>{variable.reason ?? "暂时没有这个价格的行情"}</p>
       : variable.companies.map(company => <Detail key={company.symbol} variable={variable} company={company} />)}</div>}
   </div>;
 }

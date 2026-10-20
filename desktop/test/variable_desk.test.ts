@@ -49,11 +49,11 @@ async function show(load: () => Promise<unknown>) {
 }
 
 test('卡片一句话写清哪个变量动了多少、对谁的利润和中性价影响多少；亿元四舍五入', () => {
-  assert.equal(lib.cardSentence(trackingFixture.cards[0]), '沪铝一天跌 445 元/吨（23,830 → 23,385，−1.87%），神火年化归母净利约 −3.68 亿元（占基数 5.3%），中性价约 −1.64 元。');
+  assert.equal(lib.cardSentence(trackingFixture.cards[0]), '沪铝一天跌 445 元/吨（23,830 → 23,385，−1.87%），神火年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元。');
   const edge = { ...trackingFixture.cards[0], companies: [{ ...trackingFixture.cards[0].companies[0], impact: '-368500000' }] };
   assert.match(lib.cardSentence(edge), /约 −3\.69 亿元/, '3.685 亿进位，不截断');
   const up = { ...trackingFixture.cards[0], rule: 'five_day', from: '23000', to: '23300', change: '300', change_pct: '0.0130', companies: [{ symbol: '000933.SZ', name: '神火股份', impact: '248000000', pct_of_base: '0.036', neutral_price_delta: null }] };
-  assert.equal(lib.cardSentence(up), '沪铝五天累计涨 300 元/吨（23,000 → 23,300，+1.30%），神火年化归母净利约 +2.48 亿元（占基数 3.6%）。');
+  assert.equal(lib.cardSentence(up), '沪铝五天累计涨 300 元/吨（23,000 → 23,300，+1.30%），神火年化净利润约 +2.48 亿元（占对比期利润 3.6%）。');
 });
 
 test('「讨论」问句是自然问题：不提页面，也不提系统机制', () => {
@@ -112,7 +112,7 @@ test('卡片：价格变动卡不描边，判断改变的提醒卡才描边且�
   assert.doesNotMatch(container.textContent!, /系数|出卡线|系数 × 变动/, '第一层不露内部机制');
   const toggle = [...card.querySelectorAll('button')].find(b => b.textContent === '展开')!;
   await React.act(async () => toggle.click());
-  assert.equal(card.querySelector('.variable-card-effects')!.textContent, '神火年化归母净利约 −3.68 亿元（占基数 5.3%），中性价约 −1.64 元');
+  assert.equal(card.querySelector('.variable-card-effects')!.textContent, '神火年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元');
   assert.ok(card.querySelector('.variable-card-effects b.is-down'), '沿用涨红跌绿配色');
   await React.act(async () => [...card.querySelectorAll('button')].find(b => b.textContent === '收起')!.click());
   assert.equal(card.querySelector('.variable-card-effects'), null);
@@ -162,9 +162,9 @@ test('请求走 Backend 读取通道：关注名单补后缀后请求 /tracking/
   } finally { globalThis.fetch = previous.fetch; }
 });
 
-test('动态页：「关键变量」是第一个分段且为默认；「资讯」保留，「市场」已移除', () => {
+test('动态页：「行情」是第一个分段且为默认；「资讯」保留，「市场」已移除', () => {
   const feed = readFileSync(new URL('../src/verticals/finance/pages/Feed.tsx', import.meta.url), 'utf8');
-  assert.match(feed, /\[\{ value: "variables", label: "关键变量" \}, \{ value: "intel", label: "资讯" \}\]/);
+  assert.match(feed, /\[\{ value: "variables", label: "行情" \}, \{ value: "intel", label: "资讯" \}\]/);
   assert.match(feed, /params\.get\("tab"\) === "intel" \? "intel" : "variables"/);
   assert.match(feed, /<Intel sub=\{params\.get\("sub"\)\} onSub=\{selectSub\} \/>/);
 });

@@ -49,7 +49,7 @@ test('问助手自有输入绑定会话；卸载忽略迟到绑定，不搬深�
       subscribeSessionList: () => () => {},
     };
     function Page() {
-      useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
+      useAiPage({ key: 'feed:variables', title: '行情', context: '' });
       return h(FinanceAiDock, { renderPanel: content => h('section', {}, content) });
     }
     const render = async () => { await act(async () => root.render(h(ResearchSessionContext.Provider, { value: sessions }, h(AiPageProvider, {}, h(Page))))); };
@@ -118,7 +118,7 @@ test('运行中发送按钮切换为停止，有草稿时提示结束后再发',
     const { AiPageProvider, useAiPage } = await server.ssrLoadModule('/src/core/ai/pageContext.tsx');
     const { ResearchSessionContext } = await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx');
     function Page() {
-      useAiPage({ key: 'feed:variables', title: '关键变量', context: '' });
+      useAiPage({ key: 'feed:variables', title: '行情', context: '' });
       return h(FinanceAiDock, { renderPanel: content => h('section', {}, content) });
     }
     await act(async () => root.render(h(ResearchSessionContext.Provider, { value: sessions }, h(AiPageProvider, {}, h(Page)))));

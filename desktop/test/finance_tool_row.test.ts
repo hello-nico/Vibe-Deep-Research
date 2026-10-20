@@ -58,7 +58,7 @@ test('tool row counts isolated cards and leaves passed content unmarked', () => 
 test('公司研究会话里的工具都有中文步骤名，不再落到「工具调用 · 英文名 · {}」', () => {
   const steps: Record<string, string> = {
     ensure_company_data: '取数', read_company_data_packet: '读取公司数据', save_company_page_research: '保存研究',
-    update_company_drivers: '更新关键变量', calculate_metrics: '计算', source_read_blocks: '读取文档原文',
+    update_company_drivers: '算价格对利润的影响', calculate_metrics: '计算', source_read_blocks: '读取文档原文',
   };
   for (const [name, label] of Object.entries(steps)) {
     assert.ok(FINANCE_TOOL_NAMES.includes(name), `${name} 使用产品工具行`);

@@ -1,4 +1,5 @@
 import { researchRead } from './research';
+import { gradeLabel } from './companyNarrative';
 
 /**
  * 公司研究的任务记录：宿主只读接口 `GET /finance-research-tasks`（任务记录与自动续跑 R2/R4）。
@@ -45,8 +46,13 @@ export async function companyResearchRunning(symbol: string, signal?: AbortSigna
 
 export const companyNameOf = (record: ResearchRecord) => (record.title || '').replace(/^公司研究\s*·\s*/, '') || record.symbol.split('.')[0]!;
 
+/** 研究步骤的显示名：主机记录里的原名有内部用语时，在界面上换成白话。 */
+const STEP_LABEL: Record<string, string> = { key_variables: '算价格对利润的影响' };
+const stepLabel = (step: { key: string; label: string }) => STEP_LABEL[step.key] ?? step.label;
+
 export const stepProgress = (record: ResearchRecord) => {
-  const label = record.steps[record.current_step - 1]?.label;
+  const step = record.steps[record.current_step - 1];
+  const label = step ? stepLabel(step) : undefined;
   return label ? `第 ${record.current_step} 步，共 ${record.steps.length} 步 · ${label}` : '正在研究';
 };
 
@@ -55,7 +61,7 @@ export function researchLine(record: ResearchRecord, grade?: string | null): str
   switch (record.status) {
     case 'running': return stepProgress(record);
     case 'interrupted': return '正在接着上次的进度继续';
-    case 'completed': return grade ? `完成，估值「${grade}」` : '完成';
+    case 'completed': return grade ? `完成，${gradeLabel(grade)}` : '完成';
     case 'failed': return record.reason || '这次研究没有完成，可以稍后重新研究';
     default: return '已中止';
   }
@@ -68,7 +74,7 @@ export function researchStepRows(record: ResearchRecord): { key: string; label: 
     const outputs = step.outputs ?? {};
     const note = step.key === 'read_report' && typeof outputs.title === 'string' ? outputs.title
       : step.key === 'key_variables' && Array.isArray(outputs.variables) ? outputs.variables.filter(item => typeof item === 'string').join('、') : '';
-    return { key: step.key, label: step.label, state: STEP_STATE[step.status] ?? '', status: step.status, note };
+    return { key: step.key, label: stepLabel(step), state: STEP_STATE[step.status] ?? '', status: step.status, note };
   });
 }
 

@@ -1,4 +1,4 @@
-import { scenarioEarningsText, scenarioPriceText, type ScenarioMode, type ScenarioRow } from '../lib/companyPacket';
+import { multipleText, scenarioEarningsText, scenarioPriceText, type ScenarioMode, type ScenarioRow } from '../lib/companyPacket';
 
 /** Three saved scenario prices. The page does not calculate them. */
 export function ScenarioTable({ rows, mode = 'per_share', gap }: { rows: ScenarioRow[] | null; mode?: ScenarioMode; gap?: string }) {
@@ -10,7 +10,7 @@ export function ScenarioTable({ rows, mode = 'per_share', gap }: { rows: Scenari
       <tbody>{rows.map(row => <tr key={row.name}>
         <th scope="row">{row.name}</th>
         <td>{row.earnings ? scenarioEarningsText(row.earnings, mode) : '—'}</td>
-        <td>{row.multiple ? `${row.multiple} 倍` : '—'}</td>
+        <td>{multipleText(row.multiple) || '—'}</td>
         <td>{scenarioPriceText(row.price)}</td>
       </tr>)}</tbody>
     </table>

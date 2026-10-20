@@ -4,8 +4,8 @@ import { Loader2 } from 'lucide-react';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
-import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
-import { COMPANY_TYPE_NAME, calcRefsIn, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, variableOf, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { conflictValues, fieldIdLabel, findField, forecastNote, formulaText, gapText, multipleText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
+import { COMPANY_TYPE_NAME, calcRefsIn, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, sliderUnitText, splitSentence, yoyField, yuanText, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, FlowBar, GradePills, QuarterBars, SensitivityPanel, TrackingCards, ValuationBand, type BandTier, type DriverNote, type TrackItem } from '../components/CompanyNarrative';
 import { companyPageProgress, companyPageStore, companyPageTaskActive, type CompanyPageData, type CompanyPageResearch, type CompanyPageServices, type CompanyPageState } from '../lib/companyPage';
 import { financialNumber } from '../lib/financialDisplay';
@@ -49,14 +49,14 @@ function FieldMetric({ label, field, note }: { label: string; field: PacketField
   </div>;
   if (field.value == null || field.value === '') return null;
   const ref = typeof field.ref === 'string' ? field.ref : undefined;
-  return <Metric label={label} title={[field.period, note].filter(Boolean).join(' · ')}
-    tags={<>{field.period && <MetricTag>{field.period}</MetricTag>}{note && <MetricTag>{note}</MetricTag>}{ref && <EvidenceLink reference={ref}>出处</EvidenceLink>}</>}
+  return <Metric label={label} title={[periodLabel(field.period), note].filter(Boolean).join(' · ')}
+    tags={<>{field.period && <MetricTag>{periodLabel(field.period)}</MetricTag>}{note && <MetricTag>{note}</MetricTag>}{ref && <EvidenceLink reference={ref}>出处</EvidenceLink>}</>}
     value={showField(field)} />;
 }
 function BoundField({ packet, id }: { packet?: DataPacket; id: string }) {
   const field = findField(packet, id);
   if (!field) return <p className="company-page-gap" data-gap="missing">暂时取不到{fieldIdLabel(id)}</p>;
-  return <FieldMetric label={fieldIdLabel(field.field_id ?? id)} field={field} note={forecastNote(field)} />;
+  return <FieldMetric label={id === 'price' ? '快照价格' : fieldIdLabel(field.field_id ?? id)} field={field} note={forecastNote(field)} />;
 }
 /** 第一层关键数：最多三个（选法 `keyIdsOf` 与问助手快照共用），期间与口径收进悬停。 */
 function KeyNumbers({ packet, ids, peers = false }: { packet?: DataPacket; ids: readonly string[]; peers?: boolean }) {
@@ -64,7 +64,10 @@ function KeyNumbers({ packet, ids, peers = false }: { packet?: DataPacket; ids: 
   if (!shown.length) return null;
   return <div className="company-page-metrics" data-key-numbers="">{shown.map(({ id, field }) => {
     const median = peers && (id === 'pe' || id === 'pb') ? peerMedian(packet, id) : null;
-    return <Metric key={id} label={fieldIdLabel(field.field_id ?? id)} value={showField(field)} title={[field.period, field.scope].filter(Boolean).join(' · ')}
+    // 估值一节的市盈率是近四季实际利润口径；与利润试算处「按估算利润的市盈率」不同，悬停里说明。
+    const recent = peers && id === 'pe';
+    return <Metric key={id} label={recent ? '市盈率（近四季）' : fieldIdLabel(field.field_id ?? id)} value={showField(field)}
+      title={[periodLabel(field.period), field.scope, recent ? '按近四季实际净利润算；利润试算处的市盈率按估算利润算，两者不同' : ''].filter(Boolean).join(' · ')}
       tags={median != null ? <MetricTag>同业中位 {plainNumber(median, id === 'pe' ? 1 : 2)}</MetricTag> : undefined} />;
   })}</div>;
 }
@@ -87,7 +90,7 @@ type DataState = { [K in keyof CompanyPageData]: { loading: boolean; value?: Com
 const initialData = (): DataState => ({ quote: { loading: true }, packet: { loading: true }, documents: { loading: true } });
 
 const QUESTIONS = {
-  business: '它靠什么赚钱', variables: '关键变量动一下，利润变多少', cash: '利润是不是真金白银',
+  business: '它靠什么赚钱', variables: '价格动一下，利润变多少', cash: '利润是不是真金白银',
   valuation: '现在的价格在赌什么', tracking: '接下来盯什么',
 } as const;
 const DEFAULT_KEYS = {
@@ -106,14 +109,16 @@ function bandTiers(scenarios: ScenarioTableData | null, model: SensitivityModel 
     const price = Number(row.price);
     if (!Number.isFinite(price)) return [];
     const tier = model?.tiers.find(item => item.name === row.name);
-    const multiple = row.multiple ? `${row.multiple} 倍` : '';
+    const multiple = multipleText(row.multiple);
     const priceText = `${plainNumber(price, 2)} 元/股`;
     const reason = row.reason ? `（${row.reason}）` : '';
     if (model && tier) {
-      const lead = [...model.variables].sort((a, b) => Math.abs(b.coef * ((tier.values[b.id] ?? b.current) - b.current)) - Math.abs(a.coef * ((tier.values[a.id] ?? a.current) - a.current)))[0];
+      // 三档统一用主价格（模型第一个因素）讲；其他因素的取值收进该行展开，免得每行讲的价格不一样。
+      const lead = model.variables[0];
+      const others = model.variables.slice(1).map(item => `${item.name} ${sliderUnitText(item, tier.values[item.id] ?? item.current)}`).join('；');
       const profit = tier.profit ?? profitAt(model, { ...initialSliderValues(model), ...tier.values });
       const variable = lead ? `${lead.name} ${sliderUnitText(lead, tier.values[lead.id] ?? lead.current)}` : '';
-      return [{ name: row.name, price, text: [variable, `利润 ${yuanText(profit)}`, `${multiple}${reason}`, priceText].filter(Boolean).join(' → ') }];
+      return [{ name: row.name, price, text: [variable, `利润 ${yuanText(profit)}`, `${multiple}${reason}`, priceText].filter(Boolean).join(' → '), more: others || undefined }];
     }
     const earnings = row.earnings == null ? '' : scenarios?.mode === 'total' ? `利润 ${yuanText(Number(row.earnings))}` : `每股收益 ${plainNumber(Number(row.earnings), 2)} 元/股`;
     return [{ name: row.name, price, text: [earnings, `${multiple}${reason}`, priceText].filter(Boolean).join(' → ') }];
@@ -209,8 +214,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   const gapOnly = Boolean(saved?.gapNote);
   const change = changeLine(saved, { changedFrom: research.changedFrom, canRevert: research.canRevert });
   const tiers = bandTiers(scenarios, model);
-  const implied = model?.implied;
-  const impliedVar = implied && model ? variableOf(model, implied.id) : undefined;
+  const verdict = verdictLine({ grade: saved?.valuation?.grade, model });
   const revert = async () => {
     if (!services.revertResearch) return;
     setReverting('busy');
@@ -218,7 +222,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     catch (error) { console.warn('[finance/company-page] revert failed', error); setReverting('failed'); }
   };
   // 研究文字里的 {…} 数据引用统一在这里解析成数值；解析不到写「（数据缺失）」。
-  const fill = (text?: string) => fillSlots(text, packet, calcs);
+  const fill = (text?: string) => fillSlots(text, packet, calcs, undefined, price);
   const tracking: TrackItem[] = (saved?.pillars ?? []).map(pillar => {
     const matching = (saved?.falsifiers ?? []).filter(item => item.pillarId === pillar.id);
     const lead = matching.find(item => item.fieldId) ?? matching[0];
@@ -234,11 +238,13 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   });
   const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">数据暂时取不到</p> : null;
   const block = (id: 'business' | 'cash' | 'valuation') => saved?.sections?.[id];
+  // 小节标题：「影响因素」一节用前两个因素名，其余是固定问句。
+  const titles = { ...QUESTIONS, variables: variablesQuestion(model?.variables.map(item => item.name)) };
   const section = (id: keyof typeof QUESTIONS, answer: string | undefined, chart: ReactNode, keys: readonly string[], more: ReactNode, change?: string, meta?: string) => {
     const keyNumbers = <KeyNumbers packet={packet} ids={keys} peers={id === 'valuation'} />;
-    return <Panel className="company-page-section" data-company-section={id} title={QUESTIONS[id]} meta={meta} key={id}>
-      {loadingBody(QUESTIONS[id]) ?? <>
-        {answer && <div data-change-hint={change || undefined} title={change}><AnswerSentence id={id} text={answer} packet={packet} calcs={calcs} /></div>}
+    return <Panel className="company-page-section" data-company-section={id} title={titles[id]} meta={meta} key={id}>
+      {loadingBody(titles[id]) ?? <>
+        {answer && <div data-change-hint={change || undefined} title={change}><AnswerSentence id={id} text={answer} packet={packet} calcs={calcs} livePrice={price} /></div>}
         {chart}
         {keyNumbers}
         {more}
@@ -284,11 +290,11 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     quoteLoading: data.quote.loading,
     thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, changeText: change?.text,
     packet, packetLoading: data.packet.loading, packetError: Boolean(data.packet.error), calcs,
-    show: showSection, titles: QUESTIONS,
+    show: showSection, titles,
     answers: { business: block('business')?.summary, variables: variableAnswer, cash: block('cash')?.summary, valuation: valuation?.summary, tracking: saved?.sections?.tracking?.summary },
     keys: { business: businessKeys, cash: cashKeys, valuation: DEFAULT_KEYS.valuation },
     formulaSentence, formula, quarterBars: bars, model, values, price, tiers, adjusted,
-    impliedText: implied && impliedVar ? `按中性倍数 ${plainNumber(implied.multiple ?? multiple ?? 0, 1)} 倍，现价相当于市场在赌${impliedVar.name}约 ${sliderUnitText(impliedVar, implied.value)}` : undefined,
+    impliedText: verdict.implied ? `${verdict.label}：${verdict.implied}${verdict.flip ? `，${verdict.flip}` : ''}` : undefined,
     tracking, related: saved?.related ?? [],
   }) : [];
   const snapshotKey = JSON.stringify(snapshotSections);
@@ -299,11 +305,15 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">行情暂不可用</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
-        {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} />}
-        {!gapOnly && (saved?.valuation?.grade || change) && <p className="company-page-change" data-change-line="">
-          {saved?.valuation?.grade && <Tag brand><span data-valuation-grade={saved.valuation.grade}>{saved.valuation.grade}</span></Tag>}
-          {change && <span data-change-hint={change.conversation ? '' : undefined} title={[conversationHint(change.conversation), change.detail].filter(Boolean).join('\n') || undefined}>{change.text}</span>}
-          {change?.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
+        {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} livePrice={price} />}
+        {!gapOnly && verdict.label && <p className="company-page-verdict" data-verdict="">
+          <Tag brand><span data-valuation-grade={saved?.valuation?.grade}>{verdict.label}</span></Tag>
+          {verdict.implied && <span data-verdict-implied="">：{verdict.implied}</span>}
+          {verdict.flip && <span data-verdict-flip="">，{verdict.flip}</span>}
+        </p>}
+        {!gapOnly && change && <p className="company-page-change" data-change-line="">
+          <span data-change-hint={change.conversation ? '' : undefined} title={[conversationHint(change.conversation), change.detail].filter(Boolean).join('\n') || undefined}>{change.text}</span>
+          {change.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
           {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
         </p>}
         {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
@@ -313,22 +323,24 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     {showSection.variables && section('variables', variableAnswer,
       model
         ? <SensitivityPanel model={model} values={values} onChange={(id, value) => setSlid(previous => ({ ...previous, [id]: value }))} onReset={resetSliders} price={price} drivers={notes} />
-        : <>{(formulaSentence || formula) && <div className="narrative-formula" data-formula="">{formulaSentence && <AnswerSentence id="profit_formula" text={formulaSentence} packet={packet} calcs={calcs} />}{formula && <span className="company-page-gap">{formula}</span>}</div>}<QuarterBars bars={bars} /></>,
+        : <>{(formulaSentence || formula) && <div className="narrative-formula" data-formula="">{formulaSentence && <AnswerSentence id="profit_formula" text={formulaSentence} packet={packet} calcs={calcs} livePrice={price} />}{formula && <span className="company-page-gap">{formula}</span>}</div>}<QuarterBars bars={bars} /></>,
       [],
-      (variableBlocks.some(item => item?.details) || variableIds.length || Object.keys(drivers).length) ? <Detail>
+      (variableBlocks.some(item => item?.details) || variableIds.length || Object.keys(drivers).length || model?.baseLabel || model?.assumptions) ? <Detail>
+        {model?.baseLabel && <p data-base-label="">对比期利润：{model.baseLabel}</p>}
+        {model?.assumptions && <p data-assumptions="">试算假设：{model.assumptions}</p>}
         {variableBlocks.map((item, index) => item?.details ? <p key={index}>{fill(item.details)}</p> : null)}
         <div className="company-page-metrics">{unique([...variableIds, ...Object.values(drivers).map(item => item.field_id ?? '')]).filter(Boolean).map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
       </Detail> : null,
-      saved?.changes?.variables ?? saved?.changes?.profit_formula, model?.baseLabel ? `基数：${model.baseLabel}` : undefined)}
+      saved?.changes?.variables ?? saved?.changes?.profit_formula)}
     {showSection.cash && section('cash', block('cash')?.summary, <FlowBar packet={packet} />, cashKeys, moreOf('cash', unique([...cashAll, ...(block('cash')?.fieldIds ?? [])]), cashKeys), saved?.changes?.cash, metaOf(packet, cashKeys))}
     {showSection.valuation && section('valuation', valuation?.summary,
       <>
         <ValuationBand tiers={tiers} price={price} adjusted={adjusted} />
         {saved?.valuation?.grade && !gapOnly && <GradePills grade={saved.valuation.grade} />}
-        {implied && impliedVar && <p className="narrative-implied" data-implied="">按中性倍数 <strong className="narrative-slot">{plainNumber(implied.multiple ?? multiple ?? 0, 1)} 倍</strong>，现价相当于市场在赌{impliedVar.name}约 <strong className="narrative-slot" title="线性反解，口径见假设">{sliderUnitText(impliedVar, implied.value)}</strong></p>}
       </>,
       DEFAULT_KEYS.valuation,
       <Detail>
+        {verdict.gap && <p data-implied-gap="">{verdict.gap}</p>}
         {valuation?.details && <p>{fill(valuation.details)}</p>}
         {saved?.valuation?.conditions && !gapOnly && <p data-valuation-conditions="">什么情况会改判断：{fill(saved.valuation.conditions)}</p>}
         <div className="company-page-metrics">{unique(['price', ...(valuation?.fieldIds ?? []), 'eps_ttm', 'eps_forecast', 'eps_forecast_next', 'forward_pe', ...DEFAULT_KEYS.valuation]).filter(fieldId => !keyIdsOf(packet, DEFAULT_KEYS.valuation).includes(fieldId)).map(fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />)}</div>
@@ -336,7 +348,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         {!gapOnly && <ScenarioTable rows={scenarioRef ? scenarios?.rows ?? null : null} mode={scenarios?.mode} />}
       </Detail>,
       saved?.changes?.valuation, metaOf(packet, DEFAULT_KEYS.valuation))}
-    {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <TrackingCards items={tracking} renderBound={fieldId => <BoundField key={fieldId} packet={packet} id={fieldId} />} />, [],
+    {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <TrackingCards items={tracking} renderBound={fieldId => fieldId === 'price' ? null : <BoundField key={fieldId} packet={packet} id={fieldId} />} />, [],
       (saved?.sections?.tracking?.details || saved?.catalysts?.length) ? <Detail>
         {saved?.sections?.tracking?.details && <p>{fill(saved.sections.tracking.details)}</p>}
         {saved?.catalysts?.map(item => <p key={`${item.date}${item.event}`}>{item.date} {fill(item.event)}</p>)}
@@ -346,8 +358,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <p className="company-page-gap">资料暂不可用</p> : <SourceTimeline content={data.documents.value} />}</Panel>
   </article>;
 }
-function Thesis({ research, state, packet, calcs }: { research: CompanyPageResearch | null; state: CompanyPageState; packet?: DataPacket; calcs: Record<string, unknown> }) {
-  if (research?.thesis) return <div title={research.changes?.thesis} data-change-hint={research.changes?.thesis || undefined}><AnswerSentence id="thesis" text={research.thesis} packet={packet} calcs={calcs} /></div>;
+function Thesis({ research, state, packet, calcs, livePrice }: { research: CompanyPageResearch | null; state: CompanyPageState; packet?: DataPacket; calcs: Record<string, unknown>; livePrice?: number | null }) {
+  if (research?.thesis) return <div title={research.changes?.thesis} data-change-hint={research.changes?.thesis || undefined}><AnswerSentence id="thesis" text={research.thesis} packet={packet} calcs={calcs} livePrice={livePrice} /></div>;
   if (!state.loaded) return <DataLoading label="已保存研究" />;
   if (state.error === '服务器拒绝了访问令牌，请在设置里检查') return <p className="company-page-conclusion is-muted">{state.error}</p>;
   if (state.error) return <p className="company-page-conclusion is-muted">研究暂不可用，数据仍可查看</p>;

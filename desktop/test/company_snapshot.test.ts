@@ -82,14 +82,14 @@ test('问助手读到的个股页：现金一节的回答句、资本开支后�
   assert.match(cash, /回答：经营现金流约为归母净利的2\.69 倍，资本开支后现金29\.60 亿元，分红暂缺取不到/);
   assert.match(cash, /- 经营现金流：67\.31 亿元（2025 年报）/);
   assert.match(cash, /- 资本开支：37\.71 亿元（2025 年报）/);
-  assert.match(cash, /- 现金分红：暂缺/);
-  assert.match(cash, /- 剩余（未扣分红）：29\.60 亿元（2025 年报）/);
+  assert.match(cash, /- 现金分红（按每股分红估算）：17\.23 亿元/);
+  assert.match(cash, /- 剩余现金（按每股分红估算）：12\.36 亿元（2025 年报）/);
   assert.match(cash, /- 股息率：4\.22 ?%（2025 年报；年度普通股含税方案每股分红 \/ 当前不复权收盘价；不是当期付款率）/);
-  assert.match(cash, /- 归母净利润：24\.93 亿元（2025 年报）/, '第一层关键数带期间');
+  assert.match(cash, /- 净利润：24\.93 亿元（2025 年报）/, '第一层关键数带期间');
   assert.match(cash, /- 每股分红：0\.22 元\/股（2025 年报；普通股含税利润分配方案，非当期付款）/);
   // 其他节与页首也在。
   assert.match(sent, /【\S+ 个股页】\n600863 · 高杠杆周期公用事业/);
-  for (const heading of ['【它靠什么赚钱】', '【关键变量动一下，利润变多少】', '【现在的价格在赌什么】', '【接下来盯什么】']) assert.ok(sent.includes(heading), heading);
+  for (const heading of ['【它靠什么赚钱】', '【价格动一下，利润变多少】', '【现在的价格在赌什么】', '【接下来盯什么】']) assert.ok(sent.includes(heading), heading);
   assert.match(sent, /行情：5\.21 人民币，\+1\.20%（行情 10 月 10 日）/);
   assert.match(sent, /毛利率只有23\.15 ?%，营业收入210\.50 亿元/);
   assert.match(sent, /三档情景：[\s\S]*悲观[\s\S]*中性[\s\S]*乐观/);

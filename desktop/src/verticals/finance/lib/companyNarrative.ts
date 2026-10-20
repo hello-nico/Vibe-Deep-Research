@@ -1,6 +1,7 @@
-import { fieldIdLabel, findField, showField, thresholdText, type DataPacket, type PacketField, type PacketThreshold } from './companyPacket';
+import { fieldIdLabel, findField, periodLabel, showField, thresholdText, tightPercent, type DataPacket, type PacketField, type PacketThreshold } from './companyPacket';
 import { formatFactValue } from './wikiFacts';
 import type { CompanyPageResearch } from './companyPage';
+export { periodLabel };
 
 /** T7.3 页面逻辑。页面只做四种运算：「base_profit + Σ 系数 × 变动」「÷ 股本」「× 凭据中的中性倍数」「现价 ÷ 每股收益」；其余数字都来自数据包字段或计算凭据。 */
 
@@ -38,8 +39,8 @@ export function splitSentence(text: string): SentencePart[] {
   return parts;
 }
 /** 把文字里的 {…} 数据引用替换成带单位的数值；解析不到写 gap（默认「（数据缺失）」），不漏出原始占位符。页面与问助手快照共用。 */
-export function fillSlots(text: string | undefined, packet: DataPacket | undefined, calcs: Record<string, unknown>, gap = '（数据缺失）'): string {
-  return splitSentence(text ?? '').map(part => part.kind === 'text' ? part.text : resolveSlot(part.token, packet, calcs)?.text ?? gap).join('');
+export function fillSlots(text: string | undefined, packet: DataPacket | undefined, calcs: Record<string, unknown>, gap = '（数据缺失）', livePrice?: number | null): string {
+  return splitSentence(text ?? '').map(part => part.kind === 'text' ? part.text : resolveSlot(part.token, packet, calcs, livePrice)?.text ?? gap).join('');
 }
 /** 句子里引用的计算凭据，页面按这些读回。 */
 export function calcRefsIn(text: string | undefined) {
@@ -68,7 +69,9 @@ function sourceNote(field: PacketField) {
 
 export interface ResolvedSlot { text: string; title: string }
 /** null 表示缺口：页面显示灰色「暂缺」。 */
-export function resolveSlot(token: string, packet: DataPacket | undefined, calcs: Record<string, unknown>): ResolvedSlot | null {
+export function resolveSlot(token: string, packet: DataPacket | undefined, calcs: Record<string, unknown>, livePrice?: number | null): ResolvedSlot | null {
+  // 页内凡写「现价」一律用页首同一实时价；数据包的快照价只在「查看数据」里出现。
+  if (token === 'price' && typeof livePrice === 'number' && Number.isFinite(livePrice)) return { text: `${plainNumber(livePrice, 2)} 元/股`, title: '现价（页首实时行情）' };
   const calc = parseCalcToken(token);
   if (calc) {
     const raw = calcs[calc.resultId];
@@ -78,7 +81,7 @@ export function resolveSlot(token: string, packet: DataPacket | undefined, calcs
   }
   const field = findField(packet, token);
   if (!field || (field.status !== 'verified' && field.status !== 'sourced') || field.value == null || field.value === '') return null;
-  const title = [fieldIdLabel(token), field.period, field.scope, sourceNote(field)].filter(Boolean).join(' · ');
+  const title = [fieldIdLabel(token), periodLabel(field.period), field.scope, sourceNote(field)].filter(Boolean).join(' · ');
   return { text: showField(field), title };
 }
 
@@ -129,10 +132,12 @@ export interface SensitivityVariable {
   coef: number; min: number; max: number; step: number; sourceLabel?: string;
 }
 export interface SensitivityTier { name: string; values: Record<string, number>; profit?: number; eps?: number }
+/** 主价格走到这个值，五档判断会变成 `grade`；`invalid` 为超出变量合理区间的数学根，不展示。 */
+export interface PriceFlip { id: string; value: number; grade?: string; invalid?: boolean }
 export interface SensitivityModel {
   model?: string; baseProfit: number; baseLabel?: string; profitAtCurrent?: number; shares: number; variables: SensitivityVariable[];
   ruleOfThumb: { id: string; delta: number; profitDelta: number }[];
-  tiers: SensitivityTier[]; implied?: { id: string; value: number; multiple?: number }; assumptions?: string;
+  tiers: SensitivityTier[]; implied?: { id: string; value: number; multiple?: number }; /** 主价格的跳档价（Backend `extra.flips`，没有就为空）。 */ flips: PriceFlip[]; assumptions?: string;
 }
 /** 读回的 sensitivity 凭据；形态不完整时返回 null，页面用单季柱图兜底。 */
 export function parseSensitivity(raw: unknown): SensitivityModel | null {
@@ -147,10 +152,10 @@ export function parseSensitivity(raw: unknown): SensitivityModel | null {
     const current = num(row?.current), coef = num(row?.coef_per_unit), min = num(range[0]), max = num(range[1]);
     if (!row || typeof row.var_id !== 'string' || current == null || coef == null || min == null || max == null || !(max > min)) continue;
     variables.push({
-      id: row.var_id, name: String(row.name ?? '').trim() || '关键变量', unit: String(row.unit ?? '').trim(),
+      id: row.var_id, name: String(row.name ?? '').trim() || '价格', unit: String(row.unit ?? '').trim(),
       current, coef, min, max, step: num(row.step) ?? (max - min) / 100,
       anchor: num(row.anchor) ?? num(record(row.anchor)?.value),
-      anchorLabel: typeof row.anchor_label === 'string' && row.anchor_label.trim() ? row.anchor_label.trim() : '基数期均价',
+      anchorLabel: typeof row.anchor_label === 'string' && row.anchor_label.trim() ? row.anchor_label.trim().replace(/基数期/g, '对比期') : '对比期均价',
       sourceLabel: typeof row.source_label === 'string' ? row.source_label : undefined,
     });
   }
@@ -174,12 +179,23 @@ export function parseSensitivity(raw: unknown): SensitivityModel | null {
     profitAtCurrent: num(extra.profit_at_current) ?? undefined, shares, variables, ruleOfThumb, tiers,
     implied: impliedRow && typeof impliedRow.var_id === 'string' && impliedValue != null
       ? { id: impliedRow.var_id, value: impliedValue, multiple: num(impliedRow.multiple) ?? undefined } : undefined,
+    flips: parseFlips(extra.flips),
     assumptions: typeof extra.assumptions === 'string' ? extra.assumptions : undefined,
   };
 }
+/** `extra.flips`：[{ var_id, value, grade?（or to_grade / result_grade）, invalid? / valid? }]；认不出的行丢掉。 */
+function parseFlips(raw: unknown): PriceFlip[] {
+  return (Array.isArray(raw) ? raw : []).flatMap(item => {
+    const row = record(item);
+    const value = num(row?.value);
+    if (!row || typeof row.var_id !== 'string' || value == null) return [];
+    const grade = [row.grade, row.to_grade, row.result_grade].find(entry => typeof entry === 'string' && entry.trim()) as string | undefined;
+    return [{ id: row.var_id, value, grade: grade?.trim(), invalid: row.invalid === true || row.valid === false }];
+  });
+}
 export type SliderValues = Record<string, number>;
 export const initialSliderValues = (model: SensitivityModel): SliderValues => Object.fromEntries(model.variables.map(item => [item.id, item.current]));
-/** 每个变量的利润贡献：系数 × (取值 − 基数期均价)；缺 anchor 的变量不可拖，贡献为 0 并由界面标出缺口。 */
+/** 每个变量的利润贡献：系数 × (取值 − 对比期均价)；缺 anchor 的变量不可拖，贡献为 0 并由界面标出缺口。 */
 export function contributions(model: SensitivityModel, values: SliderValues) {
   return model.variables.map(item => ({ variable: item, profit: item.anchor == null ? 0 : item.coef * ((values[item.id] ?? item.current) - item.anchor) }));
 }
@@ -199,7 +215,7 @@ export function ruleOfThumbText(model: SensitivityModel, variable: SensitivityVa
   const rule = model.ruleOfThumb.find(item => item.id === variable.id);
   if (!rule) return '';
   const sign = rule.profitDelta >= 0 ? '+' : '-';
-  return `每 ${rule.delta >= 0 ? '+' : '-'}${plainNumber(Math.abs(rule.delta))} ${variable.unit}，归母净利 ${sign}${yiText(Math.abs(rule.profitDelta))}`;
+  return `每 ${rule.delta >= 0 ? '+' : '-'}${plainNumber(Math.abs(rule.delta))} ${variable.unit}，净利润 ${sign}${yiText(Math.abs(rule.profitDelta))}`;
 }
 export function variableOf(model: SensitivityModel, id: string) {
   return model.variables.find(item => item.id === id);
@@ -226,17 +242,35 @@ export function quarterSeries(packet: DataPacket | undefined): QuarterBar[] {
 }
 export const quarterLabel = (period: string) => `${period.slice(0, 4)} 年第${'一二三四'[Number(period.slice(-1)) - 1]}季度`;
 
-export interface FlowItem { key: string; label: string; field?: PacketField; value: number | null }
+export interface FlowItem { key: string; label: string; field?: PacketField; value: number | null; estimated?: boolean }
 /** 去向条：经营现金流 → 资本开支 → 分红 → 剩余，已有项照画，缺项为空值。 */
 export function flowItems(packet: DataPacket | undefined): FlowItem[] {
   const spec: [string, string][] = [['operating_cash_flow', '经营现金流'], ['capex_cash', '资本开支'], ['dividend_paid', '现金分红'], ['residual_cash', '剩余现金']];
-  return spec.map(([key, label]) => {
+  const items: FlowItem[] = spec.map(([key, label]) => {
     // 剩余现金缺口时用「资本开支后现金」镜头（未扣分红）。
     const lens = key === 'residual_cash' && numericValue(packet?.fields?.[key]) == null ? findField(packet, 'lens:cash_after_capex.cash_after_capex') : undefined;
     const field = lens ?? packet?.fields?.[key];
     const value = field && (field.status === 'verified' || field.status === 'sourced') ? num(field.value) : null;
     return { key, label: lens && value != null ? '剩余（未扣分红）' : label, field, value: value != null && value >= 0 ? value : null };
   });
+  // 有每股分红但缺现金分红总额：用「每股分红 × 总股本」估算，标明估算；两者都缺才写暂缺。
+  const dividend = items.find(item => item.key === 'dividend_paid')!;
+  const perShare = numericValue(packet?.fields?.dividend_per_share);
+  const shares = numericValue(packet?.fields?.shares);
+  if (dividend.value == null && perShare != null && perShare > 0 && shares != null && shares > 0) {
+    dividend.value = perShare * shares;
+    dividend.label = '现金分红（按每股分红估算）';
+    dividend.field = packet?.fields?.dividend_per_share;
+    dividend.estimated = true;
+    // 分红有了数，剩余现金也按同一口径接着算，去向条首尾才对得上。
+    const operating = items[0]!.value, capex = items[1]!.value, residual = items[3]!;
+    if (operating != null && capex != null && (residual.field?.field_id !== 'residual_cash' || residual.value == null)) {
+      residual.value = Math.max(0, operating - capex - dividend.value);
+      residual.label = '剩余现金（按每股分红估算）';
+      residual.estimated = true;
+    }
+  }
+  return items;
 }
 
 // ---------------------------------------------------------------- 跟踪卡
@@ -319,7 +353,7 @@ export function keyIdsOf(packet: DataPacket | undefined, ids: readonly string[])
 
 export interface ConversationSource { at?: string; sessionId?: string; reason?: string }
 export interface ChangeLine { text: string; /** 多处变化时的明细，放悬停提示。 */ detail?: string; conversation?: ConversationSource; revertable: boolean }
-const SECTION_NAME: Record<string, string> = { thesis: '论点', business: '生意', profit_formula: '关键变量', variables: '关键变量', cash: '现金', valuation: '估值', tracking: '跟踪' };
+const SECTION_NAME: Record<string, string> = { thesis: '论点', business: '生意', profit_formula: '价格影响', variables: '价格影响', cash: '现金', valuation: '估值', tracking: '跟踪' };
 const dateOf = (value?: string) => (value ?? '').slice(0, 10);
 const shortDate = (value?: string) => dateOf(value).slice(5);
 /** 研究说明里的内部说法换成用户能懂的话。 */
@@ -360,21 +394,61 @@ export function conversationHint(conversation: ConversationSource | undefined) {
 
 const GRADE_NAMES = ['明显低估', '偏低', '合理', '偏高', '明显高估'] as const;
 export const GRADES = GRADE_NAMES;
+/** 五档判断一律写完整句：「估值偏高」，不只写半句「偏高」。研究里没有的档名原样显示。 */
+export function gradeLabel(grade: string | null | undefined): string {
+  const name = String(grade ?? '').trim();
+  return (GRADE_NAMES as readonly string[]).includes(name) ? `估值${name}` : name;
+}
+/** 估值之前的小节标题：用前两个影响因素名，取不到时写「价格」。 */
+export function variablesQuestion(names: readonly string[] | undefined): string {
+  const lead = (names ?? []).map(item => item.trim()).filter(Boolean).slice(0, 2);
+  return `${lead.length ? lead.join('、') : '价格'}动一下，利润变多少`;
+}
 export const COMPANY_TYPE_NAME: Record<string, string> = {
   generic: '通用', commodity_cycle: '商品周期', leveraged_cyclical_utility: '高杠杆周期公用事业', scarce_asset_rent: '稀缺资产收租', bank: '银行',
 };
-/** 期间文字：FY2025 → 2025 年报；日期 → 10 月 12 日；其余原样。 */
-export function periodLabel(period: string | null | undefined) {
-  const text = String(period ?? '').trim();
-  const fy = /^FY(\d{4})$/i.exec(text);
-  if (fy) return `${fy[1]} 年报`;
-  const iso = /^\d{4}-(\d{2})-(\d{2})/.exec(text);
-  if (iso) return `${Number(iso[1])} 月 ${Number(iso[2])} 日`;
-  return text;
-}
 /** 同业中位数（Backend 给出）；没有就不显示。 */
 export function peerMedian(packet: DataPacket | undefined, metric: 'pe' | 'pb') {
   const field = findField(packet, `lens:peer_comparison.${metric}`);
   const median = num(field?.median);
   return median != null && field?.status !== 'gap' ? median : null;
+}
+
+/** 同一句原话只出现一次：把引用同一句的因素名并到这句前面。 */
+export function groupQuotes(quotes: readonly { name: string; quote: string }[]): { quote: string; names: string[] }[] {
+  const groups: { quote: string; names: string[] }[] = [];
+  for (const item of quotes) {
+    const group = groups.find(entry => entry.quote === item.quote);
+    if (group) { if (!group.names.includes(item.name)) group.names.push(item.name); } else groups.push({ quote: item.quote, names: [item.name] });
+  }
+  return groups;
+}
+
+// ---------------------------------------------------------------- 页首：完整判断与市场在赌的价格
+
+/** 主价格距最近的有效跳档价不超过这个比例时，才在页首提一句跳档。 */
+export const FLIP_NEAR = 0.03;
+/** 页首用的价格写法：百分比类变量保留一位小数，四舍五入成零写 0，百分号紧跟数字。 */
+function headlinePrice(variable: SensitivityVariable, value: number) {
+  const digits = variable.step < 1 ? 2 : variable.unit.includes('%') ? 1 : 0;
+  const shown = plainNumber(value, digits);
+  const text = Number(shown.replace(/,/g, '')) === 0 ? '0' : shown;
+  return tightPercent(`${text} ${variable.unit}`.trim());
+}
+export interface VerdictLine { label: string; implied: string; flip: string; gap: string }
+/** 页首第二行：「估值偏高：市场在赌沪铝约 23,258 元/吨，现在 22,970 元/吨」。隐含价缺失时 implied 为空、gap 写原因（进「查看数据」）。 */
+export function verdictLine(args: { grade?: string | null; model?: SensitivityModel | null }): VerdictLine {
+  const label = gradeLabel(args.grade);
+  const model = args.model;
+  const implied = model?.implied;
+  const variable = model && implied ? variableOf(model, implied.id) : undefined;
+  if (!model || !implied || !variable) {
+    return { label, implied: '', flip: '', gap: model ? '利润试算凭据里没有「市场在赌的价格」，页首只写判断。' : '没有利润试算凭据，页首只写判断。' };
+  }
+  const text = `市场在赌${variable.name}约 ${headlinePrice(variable, implied.value)}，现在 ${headlinePrice(variable, variable.current)}`;
+  const near = model.flips.filter(item => item.id === variable.id && !item.invalid && variable.current !== 0)
+    .map(item => ({ item, distance: Math.abs(item.value - variable.current) / Math.abs(variable.current) }))
+    .filter(entry => entry.distance <= FLIP_NEAR).sort((a, b) => a.distance - b.distance)[0]?.item;
+  const flip = near ? `${near.value < variable.current ? '跌破' : '涨过'} ${headlinePrice(variable, near.value)}，判断${near.grade ? `变为${gradeLabel(near.grade)}` : '会改变'}` : '';
+  return { label, implied: text, flip, gap: '' };
 }

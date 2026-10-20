@@ -4,7 +4,7 @@ export interface ResultSource { title: string; endpoint?: string; parameters?: R
 const fields: Record<string, string> = {
   date_ms: '日期', period_end_ms: '报告期', report_date_ms: '披露日期',
   open_price: '开盘', high_price: '最高', low_price: '最低', close_price: '收盘', volume: '成交量（股）', turnover: '成交额（元）',
-  operating_income: '营业收入（元）', parent_holder_net_profit: '归母净利润（元）', act_cash_flow_net: '经营现金流净额（元）',
+  operating_income: '营业收入（元）', parent_holder_net_profit: '净利润（元）', act_cash_flow_net: '经营现金流净额（元）',
 };
 const cell = (key: string, value: unknown) => value == null ? '—' : key.endsWith('_ms') && typeof value === 'number'
   ? new Date(value).toLocaleDateString('zh-CN', { timeZone: 'Asia/Shanghai' }) : financialNumber(value).replaceAll('|', '\\|');

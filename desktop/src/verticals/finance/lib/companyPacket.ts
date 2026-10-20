@@ -54,17 +54,17 @@ export type ScenarioMode = 'per_share' | 'total';
 export interface ScenarioTableData { mode: ScenarioMode; rows: ScenarioRow[] }
 
 const LABELS: Record<string, string> = {
-  revenue: '营业收入', operating_cost: '营业成本', gross_margin: '毛利率', net_profit_attributable: '归母净利润',
+  revenue: '营业收入', operating_cost: '营业成本', gross_margin: '毛利率', net_profit_attributable: '净利润',
   operating_cash_flow: '经营现金流', capex_cash: '资本开支', dividend_paid: '现金分红',
   residual_cash: '剩余现金', shares: '总股本', dividend_per_share: '每股分红',
   price: '价格', pe: '市盈率', pb: '市净率', dividend_yield: '股息率',
-  roe: '净资产收益率', net_assets: '归母净资产', market_cap: '总市值',
+  roe: '净资产收益率', net_assets: '净资产', market_cap: '总市值',
   eps_ttm: '每股收益（TTM）', eps_forecast: '机构预测每股收益', eps_forecast_next: '次年每股收益', forward_pe: '前瞻市盈率',
   power_sales: '售电量', power_price: '电价', unit_cost: '单位成本', product_price: '产品单价',
-  net_profit_ex_nonrecurring: '扣非归母净利润', common_equity: '普通股归母权益', other_equity_tools: '其他权益工具',
-  ttm_profit: '滚动归母净利润（TTM）', peers: '同业', cash_conversion: '现金转化率', industry_formula: '行业利润公式',
+  net_profit_ex_nonrecurring: '扣非净利润', common_equity: '普通股权益', other_equity_tools: '其他权益工具',
+  ttm_profit: '滚动净利润（近四季）', peers: '同业', cash_conversion: '现金转化率', industry_formula: '行业利润公式',
   average_earning_assets: '生息资产平均余额', net_interest_margin: '净息差', credit_cost: '信贷成本',
-  single_quarter: '单季度数据', latest_net_profit_attributable: '最近披露归母净利润',
+  single_quarter: '单季度数据', latest_net_profit_attributable: '最近披露净利润',
   cash_after_capex: '资本开支后现金（未扣分红）',
 };
 /** Driver keys of the form <kind>:<name>, e.g. sales:<product>. The name is the Chinese product or segment. */
@@ -114,7 +114,7 @@ export function fieldIdLabel(id: string | undefined, fallback = UNKNOWN_FIELD_LA
   const [, kind, rest] = lens as unknown as [string, string, string];
   if (kind === 'peer_comparison') return `同业${fieldLabel(rest, '指标')}中位数`;
   if (kind === 'valuation_percentile') return `${fieldLabel(rest, '估值')}历史分位`;
-  if (kind === 'ytd_yoy') return `年内累计${fieldLabel(rest, '指标')}同比`;
+  if (kind === 'ytd_yoy') return `今年以来${fieldLabel(rest, '指标')}同比`;
   if (kind === 'single_quarters') {
     const quarter = /^(\d{4})(Q[1-4])\.(.+)$/.exec(rest);
     return quarter ? `${quarter[1]} 年${QUARTERS[quarter[2]!]}${fieldLabel(quarter[3], '指标')}（单季）` : fallback;
@@ -151,11 +151,11 @@ export function conflictValues(field: PacketField): { label: string; field: Pack
   const rows: { label: string; field: PacketField }[] = [];
   for (const item of field.provider_values ?? []) {
     if (item.value == null || item.value === '') continue;
-    rows.push({ label: [sourceLabel(item.provider), item.period].filter(Boolean).join(' · '), field: item });
+    rows.push({ label: [sourceLabel(item.provider), periodLabel(item.period)].filter(Boolean).join(' · '), field: item });
   }
   for (const comparison of field.report_comparisons ?? []) {
     if (comparison.consistent !== false || comparison.report?.value == null) continue;
-    rows.push({ label: ['定期报告', comparison.report.period].filter(Boolean).join(' · '), field: comparison.report });
+    rows.push({ label: ['定期报告', periodLabel(comparison.report.period)].filter(Boolean).join(' · '), field: comparison.report });
   }
   return rows;
 }
@@ -202,7 +202,7 @@ export function forecastNote(field: PacketField) {
   return field.institution_count < 3 ? `${note}，样本少` : note;
 }
 export function showField(field: PacketField | undefined) {
-  return formatFactValue((field ?? {}) as Record<string, unknown>);
+  return tightPercent(formatFactValue((field ?? {}) as Record<string, unknown>));
 }
 function scenarioMode(value: unknown): ScenarioMode {
   return value === 'total' ? 'total' : 'per_share';
@@ -240,3 +240,30 @@ export function scenarioEarningsText(earnings: string | undefined, mode: Scenari
   if (!earnings) return '';
   return formatFactValue({ value: earnings, unit: mode === 'total' ? '元' : '元/股' });
 }
+
+/** 倍数一律一位小数（Backend 给的是长小数字符串）；不是数字时返回空。 */
+export function multipleText(value: string | number | null | undefined): string {
+  const parsed = typeof value === 'number' ? value : Number(String(value ?? '').trim());
+  if (value == null || String(value).trim() === '' || !Number.isFinite(parsed)) return '';
+  return `${parsed.toLocaleString('zh-CN', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} 倍`;
+}
+
+const SEASON: Record<string, string> = { H1: '半年报', Q1: '一季报', Q2: '二季度', Q3: '三季报', Q4: '四季度' };
+const YTD: Record<string, string> = { Q1: '一季度', Q2: '上半年', Q3: '前三季度', Q4: '全年' };
+/** 期间写法统一在这里：FY2025 → 2025 年报；2026H1 → 2026 半年报；Q1 / Q3 → 一季报 / 三季报；TTM:2026Q3 → 近四季（截至 2026 三季报）；日期 → 10 月 12 日；其余原样。 */
+export function periodLabel(period: string | null | undefined): string {
+  const text = String(period ?? '').trim();
+  const fy = /^FY(\d{4})$/i.exec(text);
+  if (fy) return `${fy[1]} 年报`;
+  const ttm = /^TTM[:：]\s*(.+)$/i.exec(text);
+  if (ttm) return `近四季（截至 ${periodLabel(ttm[1])}）`;
+  const season = /^(\d{4})\s*(H1|Q[1-4])$/i.exec(text);
+  if (season) return `${season[1]} ${SEASON[season[2]!.toUpperCase()]}`;
+  const ytd = /^(\d{4})\s*YTD\s*(Q[1-4])$/i.exec(text);
+  if (ytd) return `${ytd[1]} 年${YTD[ytd[2]!.toUpperCase()]}`;
+  const iso = /^\d{4}-(\d{2})-(\d{2})/.exec(text);
+  if (iso) return `${Number(iso[1])} 月 ${Number(iso[2])} 日`;
+  return text;
+}
+/** 数字与百分号之间不留空格（23.35%）。 */
+export const tightPercent = (text: string) => text.replace(/(\d)\s+%/g, '$1%');

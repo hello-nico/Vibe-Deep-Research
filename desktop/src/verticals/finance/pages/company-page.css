@@ -50,12 +50,12 @@
 .metric-label .finance-citation:hover { color: hsl(var(--foreground)); }
 
 /* T7.3 叙事：句中数字、专用图、跟踪卡。只用令牌与公共卡片，不引入新颜色。 */
-.narrative-slot { font-weight: 600; font-family: var(--workspace-mono-font); font-variant-numeric: tabular-nums; font-size: 0.95em; }
+.narrative-slot { font-weight: 600; font-variant-numeric: tabular-nums; }
 .narrative-slot.is-gap { font-weight: 400; color: var(--text-4); cursor: help; }
 .narrative-slot[title], .company-page [data-change-hint] .narrative-slot { cursor: help; }
 .company-page-change { margin-top: 6px; font-size: 12px; color: var(--text-3); display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; }
 .company-page-grade strong { color: hsl(var(--foreground)); font-weight: 600; }
-.company-page-section .company-page-conclusion + .narrative-chart, .company-page-section .narrative-chart + .company-page-metrics, .company-page-section .narrative-chart + .narrative-implied { margin-top: 14px; }
+.company-page-section .company-page-conclusion + .narrative-chart, .company-page-section .narrative-chart + .company-page-metrics { margin-top: 14px; }
 .narrative-chart { display: grid; gap: 10px; min-width: 0; }
 .narrative-chart .company-page-gap { font-size: 12px; }
 .narrative-quarters { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; align-items: end; }
@@ -132,7 +132,6 @@
 .narrative-tiers li { display: grid; grid-template-columns: 40px 1fr; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid var(--line-1); }
 .narrative-tiers li > span { color: var(--text-3); }
 .narrative-tiers p { font-variant-numeric: tabular-nums; }
-.narrative-implied { font-size: 13px; color: var(--text-2); margin-top: 10px; }
 .narrative-grades { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 14px; }
 .company-page-section .company-page-metrics[data-key-numbers] { margin-top: 14px; }
 .narrative-track-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; align-items: stretch; }
@@ -152,3 +151,9 @@
 .company-page-change .tag { flex: none; }
 .company-page-quote-time { display: block; font-size: 11px; color: var(--text-3); font-weight: 400; }
 @media (max-width: 760px) { .narrative-sensitivity-body { grid-template-columns: minmax(0, 1fr); } }
+.narrative-tier-more { grid-column: 2; margin-top: 4px; font-size: 12px; color: var(--text-3); }
+.narrative-tier-more summary { cursor: pointer; }
+.narrative-tier-more p { margin: 4px 0 0; }
+
+.company-page-verdict { margin-top: 8px; font-size: 15px; line-height: 1.7; }
+.company-page-verdict [data-verdict-implied], .company-page-verdict [data-verdict-flip] { font-variant-numeric: tabular-nums; }

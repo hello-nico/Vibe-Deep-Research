@@ -1,17 +1,18 @@
 import { useId, useState, type ReactNode } from 'react';
 import { Tag } from './ui/Card';
+import { bandTickGroups } from '../lib/bandTicks';
 import { fieldIdLabel, showField, type DataPacket, type PacketField, type PacketThreshold } from '../lib/companyPacket';
 import {
-  GRADES, contributions, conversationHint, epsAt, flowItems, impliedPe, numericValue, plainNumber, profitAt, quarterLabel,
+  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, epsAt, flowItems, impliedPe, numericValue, plainNumber, profitAt, quarterLabel,
   resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, TRACKING_TEXT, trackingNote, trackingState, yiText, yuanText,
   type QuarterBar, type SensitivityModel, type SliderValues,
 } from '../lib/companyNarrative';
 
 /** 回答句：句中 {占位} 由页面按字段或计算凭据填入；缺口显示灰色「暂缺」。 */
-export function AnswerSentence({ text, packet, calcs, id }: { text: string; packet?: DataPacket; calcs: Record<string, unknown>; id: string }) {
+export function AnswerSentence({ text, packet, calcs, id, livePrice }: { text: string; packet?: DataPacket; calcs: Record<string, unknown>; id: string; livePrice?: number | null }) {
   return <p className="company-page-conclusion" data-company-summary={id}>{splitSentence(text).map((part, index) => {
     if (part.kind === 'text') return part.text;
-    const slot = resolveSlot(part.token, packet, calcs);
+    const slot = resolveSlot(part.token, packet, calcs, livePrice);
     return slot
       ? <strong key={index} className="narrative-slot" title={slot.title}>{slot.text}</strong>
       : <span key={index} className="narrative-slot is-gap" title="暂时取不到">暂缺</span>;
@@ -27,7 +28,7 @@ export function QuarterBars({ bars }: { bars: QuarterBar[] }) {
     <div className="narrative-quarters">{bars.map((bar, index) => <figure key={bar.period} className={index === bars.length - 1 ? 'is-current' : undefined}>
       <div className="narrative-quarter-bars">
         <span className="is-revenue" style={{ height: `${bar.revenue == null ? 0 : Math.max(4, (Math.abs(bar.revenue) / maxRevenue) * 100)}%` }} title={bar.revenue == null ? '营业收入暂缺' : `营业收入 ${yuanText(bar.revenue)}`} />
-        <span className="is-profit" style={{ height: `${bar.profit == null ? 0 : Math.max(4, (Math.abs(bar.profit) / maxProfit) * 100)}%` }} title={bar.profit == null ? '归母净利润暂缺' : `归母净利润 ${yuanText(bar.profit)}`} />
+        <span className="is-profit" style={{ height: `${bar.profit == null ? 0 : Math.max(4, (Math.abs(bar.profit) / maxProfit) * 100)}%` }} title={bar.profit == null ? '净利润暂缺' : `净利润 ${yuanText(bar.profit)}`} />
       </div>
       <figcaption><span>{quarterLabel(bar.period)}</span>
         <small>{bar.revenue == null ? '收入 暂缺' : `收入 ${yuanText(bar.revenue)}`}</small>
@@ -52,7 +53,7 @@ export function FlowBar({ packet }: { packet?: DataPacket }) {
         style={{ flexGrow: item.value! }} title={`${item.label} ${yuanText(item.value!)}`}>{item.label} {yuanText(item.value!)}</span>)}
     </div>}
     <p className="narrative-flow-note">
-      {operating!.value != null ? <span data-flow="operating_cash_flow">经营现金流 {yuanText(operating!.value)}（整条）</span> : <span data-flow="operating_cash_flow" className="is-gap">经营现金流 暂缺</span>}
+      {operating!.value != null ? <span data-flow="operating_cash_flow">经营现金流 {yuanText(operating!.value)}</span> : <span data-flow="operating_cash_flow" className="is-gap">经营现金流 暂缺</span>}
       {gaps.filter(item => item.key !== 'operating_cash_flow').map(item => <span key={item.key} data-flow={item.key} className="is-gap">{item.label} 暂缺</span>)}
     </p>
   </div>;
@@ -101,14 +102,14 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
   const gaps = model.variables.filter(item => item.anchor == null);
   return <div className="narrative-chart narrative-sensitivity" data-chart="sensitivity">
     <div className="narrative-formula" data-formula="">
-      <span>年化归母净利 ≈ 基数</span>
+      <span>年化净利润 ≈ 对比期利润</span>
       {model.variables.map(item => <span key={item.id} className="narrative-chip" title={ruleOfThumbText(model, item) || undefined}>
         + {item.name}{ruleOfThumbText(model, item) ? <small>{ruleOfThumbText(model, item)}</small> : null}
       </span>)}
     </div>
     {quotes.length > 0 && <div className="narrative-quote" data-company-says="">
       <b>公司自己说</b>
-      <span>{quotes.map(item => <span key={item.id}>{quotes.length > 1 ? `${item.name}：` : ''}「{item.quote}」</span>)}</span>
+      <span>{groupQuotes(quotes).map(group => <span key={group.quote}>{group.names.length > 1 || quotes.length > group.names.length ? `${group.names.join('、')}：` : ''}「{group.quote}」</span>)}</span>
     </div>}
     <div className="narrative-sensitivity-body">
       <div className="narrative-sliders">
@@ -120,55 +121,55 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
         })}
         <div className="narrative-slider-actions">
           <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>回到今天价格</button>
-          <button type="button" className="btn btn-sm" data-reset="anchor" disabled={gaps.length === model.variables.length} onClick={() => onReset('anchor')}>回到基数期均价</button>
+          <button type="button" className="btn btn-sm" data-reset="anchor" disabled={gaps.length === model.variables.length} onClick={() => onReset('anchor')}>回到对比期均价</button>
         </div>
       </div>
       <div className="narrative-result" data-result="">
         <div className="narrative-result-profit">
-          <span>年化归母净利（估算）</span>
+          <span>年化净利润（估算）</span>
           <strong data-profit="">{yuanText(profit)}</strong>
-          <small className={delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : undefined}>{delta === 0 ? '与基数一致' : `相对基数 ${delta > 0 ? '+' : '-'}${yiText(Math.abs(delta))}`}</small>
+          <small className={delta > 0 ? 'is-up' : delta < 0 ? 'is-down' : undefined}>{delta === 0 ? '与对比期利润一致' : `比对比期 ${delta > 0 ? '+' : '-'}${yiText(Math.abs(delta))}`}</small>
         </div>
         <ul className="narrative-contrib">{parts.map(item => <li key={item.variable.id}>
           <span>{item.variable.name}</span>
           <span className="narrative-contrib-track" aria-hidden="true"><span className={item.profit >= 0 ? 'is-up' : 'is-down'} style={{ width: `${(Math.abs(item.profit) / reach) * 50}%`, [item.profit >= 0 ? 'left' : 'right']: '50%' }} /></span>
-          {item.variable.anchor == null ? <strong className="is-gap" title="凭据缺基数期均价，不计入利润">暂缺</strong>
+          {item.variable.anchor == null ? <strong className="is-gap" title="缺对比期均价，不计入利润">暂缺</strong>
             : <strong className={item.profit > 0 ? 'is-up' : item.profit < 0 ? 'is-down' : undefined}>{item.profit === 0 ? '0' : `${item.profit > 0 ? '+' : '-'}${yiText(Math.abs(item.profit))}`}</strong>}
         </li>)}</ul>
         <div className="narrative-result-pair">
           <div><span>对应每股收益</span><strong data-eps="">{plainNumber(eps, 2)} 元/股</strong></div>
-          <div><span>{price != null ? `现价 ${plainNumber(price, 2)} 元对应市盈率` : '现价对应市盈率'}</span><strong data-pe="">{pe == null ? '暂缺' : `${plainNumber(pe, 1)} 倍`}</strong></div>
+          <div title="按上面估算的年化净利润和现价算出，随拖动变化；估值一节的市盈率用近四季实际净利润，所以两者不同。"><span>按估算利润的市盈率</span><strong data-pe="">{pe == null ? '暂缺' : `${plainNumber(pe, 1)} 倍`}</strong></div>
         </div>
-        {model.baseLabel && <p className="narrative-assumptions" title="基数是该期间的实际归母净利，零变动点为各变量在基数期间的均价">基数：{model.baseLabel}</p>}
-        {model.assumptions && <p className="narrative-assumptions">{model.assumptions}</p>}
       </div>
     </div>
   </div>;
 }
 
-export interface BandTier { name: string; price: number; text: string }
+export interface BandTier { name: string; price: number; text: string; /** 其他因素的取值，收进该行展开。 */ more?: string }
 /** 估值：区间带。现价为品牌橙实心点，滑块调整后的中性价为空心点；下方一句图注。 */
 export function ValuationBand({ tiers, price, adjusted }: { tiers: BandTier[]; price: number | null; adjusted: number | null }) {
   if (!tiers.length) return null;
   const points = [...tiers.map(item => item.price), ...(price != null ? [price] : []), ...(adjusted != null ? [adjusted] : [])];
   const low = Math.min(...points) * 0.92, high = Math.max(...points) * 1.08, span = high - low || 1;
   const at = (value: number) => `${((value - low) / span) * 100}%`;
+  const groups = bandTickGroups(tiers, span);
   return <div className="narrative-chart" data-chart="band">
     <div className="narrative-band" role="img" aria-label="三档目标价区间">
       <span className="narrative-band-range" style={{ left: at(Math.min(...tiers.map(item => item.price))), right: `${100 - ((Math.max(...tiers.map(item => item.price)) - low) / span) * 100}%` }} />
-      {tiers.map(item => <span key={item.name} className="narrative-band-tick" style={{ left: at(item.price) }}><em>{item.name}</em><b>{plainNumber(item.price, 2)}</b></span>)}
+      {groups.map(group => <span key={group.map(item => item.name).join()} className="narrative-band-tick" style={{ left: at(group.reduce((sum, item) => sum + item.price, 0) / group.length) }}>
+        <em>{group.map(item => item.name).join(' · ')}</em><b>{group.map(item => plainNumber(item.price, 2)).join(' / ')}</b></span>)}
       {price != null && <span className="narrative-band-dot is-price" style={{ left: at(price) }} title={`现价 ${plainNumber(price, 2)} 元/股`} data-band-price="" />}
       {adjusted != null && <span className="narrative-band-dot is-adjusted" style={{ left: at(adjusted) }} title={`调整后的中性价 ${plainNumber(adjusted, 2)} 元/股`} data-band-adjusted="" />}
     </div>
-    <p className="company-page-gap" data-band-caption="">橙点为现价{adjusted != null ? `；空心点为按关键变量节假设调整后的中性价（${plainNumber(adjusted, 2)} 元/股）` : ''}。三档价由代码按「每股收益 × 倍数」计算，可查看计算凭据。</p>
-    <ul className="narrative-tiers">{tiers.map(item => <li key={item.name} data-tier={item.name}><span>{item.name}</span><p>{item.text}</p></li>)}</ul>
+    <p className="company-page-gap" data-band-caption="">橙点为现价{adjusted != null ? `；空心点为按上面拖动的价格调整后的中性价（${plainNumber(adjusted, 2)} 元/股）` : ''}。三档价由代码按「每股收益 × 倍数」计算，可查看计算凭据。</p>
+    <ul className="narrative-tiers">{tiers.map(item => <li key={item.name} data-tier={item.name}><span>{item.name}</span><p>{item.text}</p>{item.more && <details className="narrative-tier-more"><summary>其他因素取值</summary><p>{item.more}</p></details>}</li>)}</ul>
   </div>;
 }
 
 /** 五档结论：五个档位并排，当前档用品牌橙浅底。 */
 export function GradePills({ grade }: { grade: string }) {
-  return <div className="narrative-grades" data-grade-pills={grade} role="img" aria-label={`五档结论：${grade}`}>
-    {GRADES.map(name => <Tag key={name} brand={name === grade}>{name}</Tag>)}
+  return <div className="narrative-grades" data-grade-pills={grade} role="img" aria-label={`五档结论：${gradeLabel(grade)}`}>
+    {GRADES.map(name => <Tag key={name} brand={name === grade}>{gradeLabel(name)}</Tag>)}
   </div>;
 }
 

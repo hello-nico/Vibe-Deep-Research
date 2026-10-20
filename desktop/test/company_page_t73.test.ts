@@ -115,7 +115,7 @@ test('敏感性：页面只做 基数 + Σ 系数 × 变动 与 ÷ 股本；神�
   assert.equal(model.variables.length, 3);
   const base = narrative.initialSliderValues(model);
   assert.deepEqual(base, { 'cmdty:SHFE.AL': 23465, 'cmdty:SHFE.AO': 3150, '000933.SZ:coal_price': 655 }, '滑块初始位置是今天');
-  // 零变动点是基数期均价 anchor：滑块在今天时的利润 = 基数 + Σ 系数 × (今天 − anchor)，与 Backend 给的 profit_at_current 一致。
+  // 零变动点是对比期均价 anchor：滑块在今天时的利润 = 基数 + Σ 系数 × (今天 − anchor)，与 Backend 给的 profit_at_current 一致。
   assert.equal(narrative.profitAt(model, base), 9238174000);
   assert.equal(narrative.profitAt(model, base), model.profitAtCurrent);
   const anchors = Object.fromEntries(model.variables.map((item: any) => [item.id, item.anchor]));
@@ -127,9 +127,9 @@ test('敏感性：页面只做 基数 + Σ 系数 × 变动 与 ÷ 股本；神�
   assert.equal(narrative.epsAt(model, 9562000000), 9562000000 / 2249004399);
   assert.equal(narrative.impliedPe(54.4, 0), null);
   assert.ok(Math.abs(narrative.impliedPe(54.4, 9562000000 / 2249004399) - 54.4 / (9562000000 / 2249004399)) < 1e-9);
-  assert.equal(model.variables[0].anchorLabel, '基数期均价');
-  assert.equal(narrative.ruleOfThumbText(model, model.variables[0]), '每 +1,000 元/吨，归母净利 +9.96 亿元');
-  assert.equal(narrative.ruleOfThumbText(model, model.variables[1]), '每 +100 元/吨，归母净利 -1.92 亿元');
+  assert.equal(model.variables[0].anchorLabel, '对比期均价');
+  assert.equal(narrative.ruleOfThumbText(model, model.variables[0]), '每 +1,000 元/吨，净利润 +9.96 亿元');
+  assert.equal(narrative.ruleOfThumbText(model, model.variables[1]), '每 +100 元/吨，净利润 -1.92 亿元');
   assert.deepEqual(model.tiers.map((tier: any) => tier.name), ['悲观', '中性', '乐观']);
   // 形态不完整：返回 null，页面用单季柱图兜底。
   assert.equal(narrative.parseSensitivity({ payload: { calculation: { extra: { base_profit: '1', shares: '0', variables: [] } } } }), null);
@@ -139,7 +139,7 @@ test('敏感性：页面只做 基数 + Σ 系数 × 变动 与 ÷ 股本；神�
   const gapModel = narrative.parseSensitivity({ payload: { calculation: { extra: { base_profit: '100', shares: '10', variables: [
     { var_id: 'a', name: 'A', unit: '元', current: '5', anchor: '4', coef_per_unit: '2', range: ['0', '10'], step: '1' },
     { var_id: 'b', name: 'B', unit: '元', current: '7', reference: '6', coef_per_unit: '3', range: ['0', '10'], step: '1' }] } } } });
-  assert.deepEqual(gapModel.variables.map((item: any) => [item.anchor, item.anchorLabel]), [[4, '基数期均价'], [null, '基数期均价']]);
+  assert.deepEqual(gapModel.variables.map((item: any) => [item.anchor, item.anchorLabel]), [[4, '对比期均价'], [null, '对比期均价']]);
   assert.equal(narrative.profitAt(gapModel, { a: 5, b: 9 }), 102, '缺 anchor 的变量不计入利润');
   assert.deepEqual(narrative.contributions(gapModel, { a: 5, b: 9 }).map((item: any) => item.profit), [2, 0]);
 });
@@ -201,7 +201,7 @@ test('判断变化行：无变化写某日更新：判断没变；对话来源�
   // 多处变化：第一层一句人话，各节明细进悬停；内部说法换成用户能懂的话。
   const many = changeLine({ researchedAt: '2026-10-14T08:00:00+00:00', changes: { valuation: '估值从偏低改为合理', variables: '改用沪铝、氧化铝、焦煤的行情目录变量，三档情景重算' } });
   assert.equal(many.text, '10-14 更新：2 处判断有变化');
-  assert.equal(many.detail, '估值：估值从偏低改为合理\n关键变量：改用沪铝、氧化铝、焦煤的价格数据，悲观、中性、乐观三种情况重算');
+  assert.equal(many.detail, '估值：估值从偏低改为合理\n价格影响：改用沪铝、氧化铝、焦煤的价格数据，悲观、中性、乐观三种情况重算');
   assert.doesNotMatch(many.text + many.detail, /口径|行情目录变量|三档情景/);
   assert.equal(changeLine({ researchedAt: '2026-10-14T08:00:00+00:00', changes: { valuation: '估值从偏低改为合理' } }).text, '10-14 更新：估值从偏低改为合理');
 });
@@ -215,13 +215,31 @@ test('单季柱图兜底数据与去向条按数据包取值', () => {
   assert.equal(quarterLabel('2026Q2'), '2026 年第二季度');
   assert.equal(narrative.compositionOf, undefined, '不读自拟的业务分部镜头');
   const flow = flowItems(huaneng.packet);
-  // 剩余现金缺口时用「资本开支后现金」镜头，并标明未扣分红。
-  assert.deepEqual(flow.map((item: any) => [item.key, item.value != null]), [['operating_cash_flow', true], ['capex_cash', true], ['dividend_paid', false], ['residual_cash', true]]);
-  assert.equal(flow[3].label, '剩余（未扣分红）');
-  assert.equal(flowItems({ ...huaneng.packet, lenses: {} })[3].value, null);
+  // D3：缺现金分红总额但有每股分红与总股本时，用「每股分红 × 总股本」估算并标明；剩余现金接着按同一口径算。
+  assert.deepEqual(flow.map((item: any) => [item.key, item.value != null]), [['operating_cash_flow', true], ['capex_cash', true], ['dividend_paid', true], ['residual_cash', true]]);
+  const perShare = Number(huaneng.packet.fields.dividend_per_share.value), shares = Number(huaneng.packet.fields.shares.value);
+  assert.equal(flow[2].estimated, true);
+  assert.match(flow[2].label, /按每股分红估算/);
+  assert.ok(Math.abs(flow[2].value - perShare * shares) < 1);
+  assert.equal(flow[3].estimated, true);
+  assert.ok(Math.abs(flow[3].value - Math.max(0, flow[0].value - flow[1].value - flow[2].value)) < 1);
+  // 两者缺一就不补：写暂缺，剩余现金退回「资本开支后现金」镜头并标明未扣分红。
+  const noShares = structuredClone(huaneng.packet); delete noShares.fields.shares;
+  const gapFlow = flowItems(noShares);
+  assert.equal(gapFlow[2].value, null);
+  assert.equal(gapFlow[2].estimated, undefined);
+  assert.equal(gapFlow[3].label, '剩余（未扣分红）');
+  const noDividend = structuredClone(huaneng.packet); delete noDividend.fields.dividend_per_share;
+  assert.equal(flowItems(noDividend)[2].value, null);
+  assert.equal(flowItems({ ...huaneng.packet, lenses: {}, fields: { ...noShares.fields } })[3].value, null);
   assert.deepEqual(narrative.GRADES, ['明显低估', '偏低', '合理', '偏高', '明显高估']);
   assert.equal(narrative.periodLabel('FY2025'), '2025 年报');
   assert.equal(narrative.periodLabel('2026-10-12'), '10 月 12 日');
+  // D4：各种期间写法统一。
+  for (const [raw, shown] of [['2026H1', '2026 半年报'], ['2026Q1', '2026 一季报'], ['2026Q3', '2026 三季报'], ['2026Q2', '2026 二季度'], ['TTM:2026Q3', '近四季（截至 2026 三季报）'], ['TTM:2026H1', '近四季（截至 2026 半年报）'],
+    ['2026YTDQ2', '2026 年上半年'], ['2026YTDQ3', '2026 年前三季度'], ['FY2025', '2025 年报'], ['', ''], ['2026上半年', '2026上半年'], [null, '']] as const) assert.equal(narrative.periodLabel(raw as any), shown, String(raw));
+  assert.equal(packetModule.tightPercent('23.35 % 与 114.53 %'), '23.35% 与 114.53%');
+  assert.equal(packetModule.showField({ value: '23.35', unit: '%' }), '23.35%');
   assert.equal(narrative.peerMedian(huaneng.packet, 'pe') != null, true);
 });
 
@@ -243,7 +261,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   await mount(fixture);
   assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(item => item.getAttribute('data-company-section')), ['thesis', 'business', 'variables', 'cash', 'valuation', 'tracking']);
   const titles = [...container.querySelectorAll('.company-page-section .panel-title')].slice(0, 5).map(item => item.textContent);
-  assert.deepEqual(titles, ['它靠什么赚钱', '关键变量动一下，利润变多少', '利润是不是真金白银', '现在的价格在赌什么', '接下来盯什么']);
+  assert.deepEqual(titles, ['它靠什么赚钱', '价格动一下，利润变多少', '利润是不是真金白银', '现在的价格在赌什么', '接下来盯什么']);
   // 页首：thesis、五档结论、判断变化行。
   const lead = section('thesis')!.textContent!;
   assert.match(lead, /量价成本差决定盈利/);
@@ -256,7 +274,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   const business = section('business')!;
   const slots = [...business.querySelectorAll('.narrative-slot')];
   assert.match(slots[0]!.textContent!, /23\.15/);
-  assert.match(slots[0]!.getAttribute('title')!, /毛利率 · FY2025 · .* · 来源/);
+  assert.match(slots[0]!.getAttribute('title')!, /毛利率 · 2025 年报 · .* · 来源/);
   assert.match(slots[1]!.textContent!, /210\.50 亿元/);
   const gap = business.querySelector('.narrative-slot.is-gap')!;
   assert.equal(gap.textContent, '暂缺');
@@ -267,7 +285,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
     const numbers = section(id)!.querySelectorAll('[data-key-numbers] .metric');
     assert.ok(numbers.length <= 3 && numbers.length >= 1, `${id} ${numbers.length}`);
   }
-  assert.deepEqual([...section('valuation')!.querySelectorAll('[data-key-numbers] .metric-label > span:first-child')].map(item => item.textContent), ['市盈率', '市净率', '股息率']);
+  assert.deepEqual([...section('valuation')!.querySelectorAll('[data-key-numbers] .metric-label > span:first-child')].map(item => item.textContent), ['市盈率（近四季）', '市净率', '股息率']);
   for (const id of ['business', 'variables', 'cash', 'valuation']) {
     const detail = section(id)!.querySelector('details.company-page-detail');
     if (detail) { assert.equal((detail as HTMLDetailsElement).open, false); assert.equal(detail.querySelector('summary')!.textContent, '查看数据'); }
@@ -276,20 +294,19 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   assert.ok(section('variables')!.querySelector('[data-chart="quarters"]'));
   assert.equal(section('variables')!.querySelector('input[type="range"]'), null);
   const flow = section('cash')!.querySelector('[data-chart="flow"]')!;
-  assert.match(flow.querySelector('[data-flow="dividend_paid"]')!.textContent!, /暂缺/);
-  assert.ok(flow.querySelector('[data-flow="dividend_paid"].is-gap'));
+  assert.match(flow.querySelector('.narrative-flowbar [data-flow="dividend_paid"]')!.textContent!, /现金分红（按每股分红估算）\s*17\.23 亿元/);
+  assert.equal(flow.querySelector('[data-flow="dividend_paid"].is-gap'), null, '有每股分红与总股本时不写暂缺');
   assert.ok(flow.querySelector('.narrative-flowbar [data-flow="capex_cash"]'), '去向条一条：资本开支段');
-  assert.match(flow.querySelector('.narrative-flowbar [data-flow="residual_cash"]')!.textContent!, /剩余（未扣分红）/);
-  assert.equal(flow.querySelector('.narrative-flowbar [data-flow="dividend_paid"]'), null, '缺项不画段');
+  assert.match(flow.querySelector('.narrative-flowbar [data-flow="residual_cash"]')!.textContent!, /剩余现金（按每股分红估算）/);
   assert.match(flow.querySelector('[data-flow="operating_cash_flow"]')!.textContent!, /经营现金流 67\.31 亿元/);
   // 没有业务分部数据：生意节只有回答句与关键数，没有构成条。
   assert.equal(section('business')!.querySelector('[data-chart]'), null);
   // 区间带图注与五档并排，当前档用品牌浅底。
   assert.match(section('valuation')!.querySelector('[data-band-caption]')!.textContent!, /橙点为现价/);
   const pills = section('valuation')!.querySelector('[data-grade-pills]')!;
-  assert.deepEqual([...pills.querySelectorAll('.tag')].map(item => item.textContent), ['明显低估', '偏低', '合理', '偏高', '明显高估']);
+  assert.deepEqual([...pills.querySelectorAll('.tag')].map(item => item.textContent), ['估值明显低估', '估值偏低', '估值合理', '估值偏高', '估值明显高估']);
   assert.equal(pills.querySelectorAll('.tone-brand').length, 1);
-  assert.equal(pills.querySelector('.tone-brand')!.textContent, '合理');
+  assert.equal(pills.querySelector('.tone-brand')!.textContent, '估值合理');
   // 节标题右侧写口径：年报与行情日期。
   assert.equal(section('business')!.querySelector('.panel-meta')!.textContent, '2025 年报');
   assert.match(section('valuation')!.querySelector('.panel-meta')!.textContent!, /\d+ 月 \d+ 日/);
@@ -300,7 +317,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   assert.ok(band.querySelector('[data-band-price]'));
   assert.equal(band.querySelector('[data-band-adjusted]'), null);
   assert.match(band.textContent!, /悲观[\s\S]*3\.45[\s\S]*中性[\s\S]*5\.19[\s\S]*乐观[\s\S]*7\.21/);
-  assert.match(band.querySelector('[data-tier="中性"]')!.textContent!, /每股收益 0\.34 元\/股 → 15\.13 倍 → 5\.19 元\/股/);
+  assert.match(band.querySelector('[data-tier="中性"]')!.textContent!, /每股收益 0\.34 元\/股 → 15\.1 倍 → 5\.19 元\/股/);
   // 页面不露内部键名，不再平铺指标墙。
   assert.doesNotMatch(container.textContent!, /field_id|source_ref|lens:|driver:|leveraged_cyclical|basisVersion|这项数据/);
   assert.equal(container.querySelectorAll('[data-company-section="business"] .metric').length >= 3, true);
@@ -317,12 +334,12 @@ test('跟踪卡：正常不出状态标签，越线才在数值下说一句白�
   assert.equal(container.querySelectorAll('[data-pillar] .status-pill').length, 0, '不再有状态标签');
   const p2 = container.querySelector('[data-pillar="p2"]')!.textContent!;
   assert.match(p2, /毛利率/);
-  assert.match(p2, /23\.15 %/);
+  assert.match(p2, /23\.15%/);
   assert.match(p2, /保持在 20% 以上 · FY2026年报/);
   assert.equal(container.querySelector('[data-pillar="p2"] [data-track-note]'), null, '正常时没有白话句');
   const p1 = container.querySelector('[data-pillar="p1"]')!.textContent!;
   assert.match(p1, /营业收入同比/);
-  assert.match(p1, /-5\.80 %/);
+  assert.match(p1, /-5\.80%/);
   assert.match(p1, /保持在 -5% 以上/);
   assert.equal(container.querySelector('[data-pillar="p1"] [data-track-note]')!.textContent, '营业收入同比降到 -5.8%，低于 -5%，这条判断可能不成立了');
   // 默认展开支柱与不成立的条件；卡头不可点，只有箭头收起 / 再展开。
@@ -400,19 +417,19 @@ test('神火关键变量：公式行、滑块按真实单位，滑轨标参考�
   assert.match(variables.querySelector('[data-company-summary]')!.textContent!, /铝价每涨一千，归母净利约增加\s*9\.96 亿元/);
   assert.equal(variables.querySelector('.narrative-slot')!.getAttribute('title'), '来源 计算凭据');
   const formula = variables.querySelector('[data-formula]')!.textContent!;
-  assert.match(formula, /年化归母净利 ≈ 基数/);
-  assert.match(formula, /沪铝[\s\S]*每 \+1,000 元\/吨，归母净利 \+9\.96 亿元/);
-  assert.match(formula, /氧化铝[\s\S]*每 \+100 元\/吨，归母净利 -1\.92 亿元/);
+  assert.match(formula, /年化净利润 ≈ 对比期利润/);
+  assert.match(formula, /沪铝[\s\S]*每 \+1,000 元\/吨，净利润 \+9\.96 亿元/);
+  assert.match(formula, /氧化铝[\s\S]*每 \+100 元\/吨，净利润 -1\.92 亿元/);
   const inputs = [...variables.querySelectorAll('input[type="range"]')] as HTMLInputElement[];
   assert.equal(inputs.length, 3);
   assert.deepEqual(inputs.map(input => [input.min, input.max, input.step, input.value]), [['20000', '28000', '50', '23465'], ['2500', '4500', '10', '3150'], ['450', '850', '5', '655']]);
   const al = variables.querySelector('[data-variable="cmdty:SHFE.AL"]')!;
-  // 样张：名称后小字写来源与今天价，右侧写取值与较基数期均价的差；滑轨下方标基数期均价；两端是范围。
+  // 样张：名称后小字写来源与今天价，右侧写取值与较对比期均价的差；滑轨下方标对比期均价；两端是范围。
   assert.match(al.querySelector('.narrative-slider-head')!.textContent!, /沪铝[\s\S]*今天 23,465 元\/吨/);
   assert.match(al.querySelector('.narrative-slider-value strong')!.textContent!, /23,465 元\/吨/);
-  assert.equal(al.querySelector('.narrative-slider-value small')!.textContent, '较基数期均价 -956');
+  assert.equal(al.querySelector('.narrative-slider-value small')!.textContent, '较对比期均价 -956');
   assert.ok(al.querySelector('.narrative-slider-value small.is-down'));
-  assert.match(al.querySelector('.narrative-anchor-label')!.textContent!, /▲ 基数期均价 24,421 元\/吨/);
+  assert.match(al.querySelector('.narrative-anchor-label')!.textContent!, /▲ 对比期均价 24,421 元\/吨/);
   assert.deepEqual([...al.querySelectorAll('.narrative-slider-foot span')].map(item => item.textContent), ['20,000 元/吨', '28,000 元/吨']);
   assert.ok(al.querySelector('[data-anchor]') && al.querySelector('[data-today]'));
   assert.notEqual(al.querySelector('[data-anchor]')!.getAttribute('style'), al.querySelector('[data-today]')!.getAttribute('style'));
@@ -420,13 +437,14 @@ test('神火关键变量：公式行、滑块按真实单位，滑轨标参考�
   const says = variables.querySelector('[data-company-says]')!;
   assert.match(says.textContent!, /公司自己说[\s\S]*「受电解铝、煤炭产品售价同比上涨/);
   assert.equal(al.querySelector('.narrative-quote'), null);
-  assert.deepEqual([...variables.querySelectorAll('.narrative-slider-actions button')].map(item => item.textContent), ['回到今天价格', '回到基数期均价']);
+  assert.deepEqual([...variables.querySelectorAll('.narrative-slider-actions button')].map(item => item.textContent), ['回到今天价格', '回到对比期均价']);
   const result = variables.querySelector('[data-result]')!.textContent!;
-  assert.match(result, /年化归母净利（估算）\s*92\.38 亿元/);
-  assert.match(result, /相对基数 -3\.24 亿元/);
-  assert.match(result, /基数：2026 上半年 × 2/);
-  assert.match(variables.querySelector('.narrative-result-pair')!.textContent!, /对应每股收益[\s\S]*现价 52\.67 元对应市盈率/);
-  assert.equal(variables.closest('[data-company-section]')!.querySelector('.panel-meta')!.textContent, '基数：2026 上半年 × 2');
+  assert.match(result, /年化净利润（估算）\s*92\.38 亿元/);
+  assert.match(result, /比对比期 -3\.24 亿元/);
+  assert.doesNotMatch(result, /基数：|假设|经营均价/, '基数与假设说明不在第一层');
+  assert.match(variables.closest('[data-company-section]')!.querySelector('details')!.textContent!, /对比期利润：2026 上半年 × 2/);
+  assert.match(variables.querySelector('.narrative-result-pair')!.textContent!, /对应每股收益[\s\S]*按估算利润的市盈率/);
+  assert.doesNotMatch(variables.closest('[data-company-section]')!.querySelector('.panel-meta')?.textContent ?? '', /基数/);
   assert.match(variables.querySelector('[data-eps]')!.textContent!, /4\.11 元\/股/);
   assert.match(variables.querySelector('[data-pe]')!.textContent!, /12\.8 倍/);
   const initial = [...variables.querySelectorAll('.narrative-contrib li')].map(item => item.textContent!);
@@ -444,7 +462,7 @@ test('拖动滑块：利润、贡献正负条、每股收益、现价对应市�
   const al = variables.querySelector('[data-variable="cmdty:SHFE.AL"] input')!;
   await slide(al, 25000);
   assert.match(variables.querySelector('[data-profit]')!.textContent!, /107\.67 亿元/);
-  assert.match(variables.querySelector('[data-result]')!.textContent!, /相对基数 \+12\.05 亿元/);
+  assert.match(variables.querySelector('[data-result]')!.textContent!, /比对比期 \+12\.05 亿元/);
   assert.match(variables.querySelector('[data-eps]')!.textContent!, /4\.79 元\/股/);
   assert.match(variables.querySelector('[data-pe]')!.textContent!, /11\.0 倍/);
   const contribution = [...variables.querySelectorAll('.narrative-contrib li')].map(item => item.textContent);
@@ -457,12 +475,12 @@ test('拖动滑块：利润、贡献正负条、每股收益、现价对应市�
   assert.match([...variables.querySelectorAll('.narrative-contrib li')][1]!.textContent!, /氧化铝-8\.06 亿元/);
   assert.ok(variables.querySelector('.narrative-contrib-track .is-down'));
   assert.match(variables.querySelector('[data-profit]')!.textContent!, /93\.27 亿元/);
-  // 回到基数期均价：利润回到基数，滑块在 anchor；回到今天价格：滑块回到今天，利润回到 profit_at_current。
+  // 回到对比期均价：利润回到基数，滑块在 anchor；回到今天价格：滑块回到今天，利润回到 profit_at_current。
   await React.act(async () => { (variables.querySelector('[data-reset="anchor"]') as HTMLElement).click(); });
   assert.match(variables.querySelector('[data-profit]')!.textContent!, /95\.62 亿元/);
-  assert.match(variables.querySelector('[data-result]')!.textContent!, /与基数一致/);
+  assert.match(variables.querySelector('[data-result]')!.textContent!, /与对比期利润一致/);
   assert.deepEqual([...variables.querySelectorAll('input[type="range"]')].map(input => (input as HTMLInputElement).value), ['24421', '3480', '690']);
-  assert.match(variables.querySelector('.narrative-slider-value small')!.textContent!, /与基数期均价持平/);
+  assert.match(variables.querySelector('.narrative-slider-value small')!.textContent!, /与对比期均价持平/);
   await React.act(async () => { (variables.querySelector('[data-reset="today"]') as HTMLElement).click(); });
   assert.match(variables.querySelector('[data-profit]')!.textContent!, /92\.38 亿元/);
   assert.deepEqual([...variables.querySelectorAll('input[type="range"]')].map(input => (input as HTMLInputElement).value), ['23465', '3150', '655']);
@@ -474,11 +492,23 @@ test('神火估值：每档变量取值 → 利润 → 倍数 → 目标价；�
   const valuation = section('valuation')!;
   const rows = [...valuation.querySelectorAll('[data-tier]')].map(item => item.textContent!);
   assert.equal(rows.length, 3);
-  assert.match(rows[0]!, /悲观.*沪铝 21,000 元\/吨 → 利润 62\.94 亿元 → 9 倍（周期低点利润配低倍数） → 25\.19 元\/股/);
-  assert.match(rows[1]!, /中性.*沪铝 23,500 元\/吨 → 利润 92\.73 亿元 → 12 倍（行业中枢倍数） → 49\.48 元\/股/);
-  assert.match(rows[2]!, /乐观.*利润 115\.59 亿元 → 14 倍.* → 71\.96 元\/股/);
+  assert.match(rows[0]!, /悲观.*沪铝 21,000 元\/吨 → 利润 62\.94 亿元 → 9\.0 倍（周期低点利润配低倍数） → 25\.19 元\/股/);
+  assert.match(rows[1]!, /中性.*沪铝 23,500 元\/吨 → 利润 92\.73 亿元 → 12\.0 倍（行业中枢倍数） → 49\.48 元\/股/);
+  assert.match(rows[2]!, /乐观.*利润 115\.59 亿元 → 14\.0 倍.* → 71\.96 元\/股/);
+  // D7：三档统一用主价格（第一个因素）讲，其他因素的取值收进该行展开。
+  assert.deepEqual(rows.map(text => /^(悲观|中性|乐观)(\S+) \d/.exec(text.replace(/\s+/g, ' '))?.[2] ?? text.slice(0, 20)), ['沪铝', '沪铝', '沪铝']);
+  const mores = [...valuation.querySelectorAll('[data-tier] details.narrative-tier-more')];
+  assert.equal(mores.length, 3);
+  assert.ok(mores.every(item => (item as HTMLDetailsElement).open === false && /氧化铝 [\d,]+ 元\/吨/.test(item.textContent!)));
+  assert.doesNotMatch(rows[2]!.replace(/其他因素取值.*$/, ''), /氧化铝 \d/, '乐观一行的主句不再改讲氧化铝');
   assert.equal(valuation.querySelector('[data-grade-pills]')!.getAttribute('data-grade-pills'), '合理');
-  assert.match(valuation.querySelector('[data-implied]')!.textContent!, /按中性倍数 12\.0 倍，现价相当于市场在赌沪铝约 24,100 元\/吨/);
+  // P2：估值节底部不再重复隐含价；页首第二行写完整判断 + 市场在赌的价格。
+  assert.equal(valuation.querySelector('[data-implied]'), null);
+  const verdict = container.querySelector('[data-verdict]')!;
+  assert.match(verdict.textContent!, /^估值合理：市场在赌沪铝约 24,100 元\/吨，现在 \d[\d,]* 元\/吨/);
+  assert.equal(verdict.querySelector('[data-valuation-grade]')!.getAttribute('data-valuation-grade'), '合理');
+  assert.ok(container.querySelector('[data-change-line]'), 'P3：判断变化行保留在判断之后');
+  assert.ok(verdict.compareDocumentPosition(container.querySelector('[data-change-line]')!) & 4, '判断变化行在这一行之后');
   assert.ok(valuation.querySelector('[data-band-price]'));
   assert.equal(valuation.querySelectorAll('[data-key-numbers] .metric').length <= 3, true);
 });
@@ -520,7 +550,7 @@ test('Backend 说没有上一版可恢复时不显示撤回', async () => {
   assert.ok(container.querySelector('[data-change-line]'));
 });
 
-test('凭据缺基数期均价：该变量不可拖、贡献显示暂缺、不计入利润，不退回今天价', async () => {
+test('凭据缺对比期均价：该变量不可拖、贡献显示暂缺、不计入利润，不退回今天价', async () => {
   const raw = structuredClone(shenhuo.sensitivityResult);
   const variables = raw.payload.calculation.extra.variables;
   delete variables[1].anchor;
@@ -530,7 +560,7 @@ test('凭据缺基数期均价：该变量不可拖、贡献显示暂缺、不�
   const ao = panel.querySelector('[data-variable="cmdty:SHFE.AO"]')!;
   assert.ok(ao.hasAttribute('data-anchor-gap'));
   assert.equal((ao.querySelector('input') as HTMLInputElement).disabled, true);
-  assert.match(ao.querySelector('.narrative-slider-value small')!.textContent!, /基数期均价暂缺，不可拖/);
+  assert.match(ao.querySelector('.narrative-slider-value small')!.textContent!, /对比期均价暂缺，不可拖/);
   assert.equal(ao.querySelector('[data-anchor]'), null);
   assert.equal(ao.querySelector('.narrative-anchor-label'), null);
   assert.equal(ao.querySelector('[data-today]') != null, true);
@@ -580,4 +610,69 @@ test('服务：readResult 读回计算凭据；撤回走 POST …/page-research/
   assert.equal(researchRoute('POST', '/wiki/companies/000933/page-research/revert'), false);
   assert.equal(researchRoute('POST', '/wiki/companies/000933.SZ/page-research'), false);
   assert.equal(researchRoute('POST', '/wiki/companies/../x/page-research/revert'), false);
+});
+
+test('W1 倍数一位小数；W2 五档写完整；W5 同一句原话只出现一次；小节标题用前两个因素名', () => {
+  const { multipleText } = packetModule;
+  assert.equal(multipleText('7.444441961824183787476269234'), '7.4 倍');
+  assert.equal(multipleText('17'), '17.0 倍');
+  assert.equal(multipleText(''), '');
+  assert.equal(multipleText('不是数字'), '');
+  const { gradeLabel, variablesQuestion } = narrative;
+  assert.deepEqual(['明显低估', '偏低', '合理', '偏高', '明显高估'].map(gradeLabel), ['估值明显低估', '估值偏低', '估值合理', '估值偏高', '估值明显高估']);
+  assert.equal(gradeLabel('未知档'), '未知档');
+  assert.equal(variablesQuestion(['铝价', '氧化铝', '电价']), '铝价、氧化铝动一下，利润变多少');
+  assert.equal(variablesQuestion([]), '价格动一下，利润变多少');
+  const said = '受电解铝、煤炭产品售价同比上涨';
+  assert.deepEqual(narrative.groupQuotes([{ name: '沪铝', quote: said }, { name: '氧化铝', quote: said }, { name: '电价', quote: '电价维持稳定' }, { name: '沪铝', quote: said }]),
+    [{ quote: said, names: ['沪铝', '氧化铝'] }, { quote: '电价维持稳定', names: ['电价'] }], '同一句只留一次，前面列出对应的因素名');
+});
+
+test('D1 页内「现价」只用页首实时价：快照价不出现在跟踪卡里，只在「查看数据」并标日期；句中 {price} 也用实时价', async () => {
+  await mount(shenhuoServices(), '000933', '神火股份');
+  const snapshot = packetModule.showField(huaneng.packet.fields.price);
+  const live = container.querySelector('.company-page-price strong')!.textContent!;
+  assert.ok(snapshot && !live.includes(snapshot), '前提：快照价与实时价不同');
+  assert.doesNotMatch(section('tracking')!.textContent!, new RegExp(snapshot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '跟踪卡里没有快照价');
+  const detail = section('valuation')!.querySelector('details.company-page-detail')!.textContent!;
+  assert.match(detail, /快照价格/);
+  assert.match(detail, /\d+ 月 \d+ 日/, '快照价标日期');
+  const { resolveSlot } = narrative;
+  assert.equal(resolveSlot('price', huaneng.packet, {}, 31.5)!.text, '31.50 元/股');
+  assert.equal(resolveSlot('price', huaneng.packet, {})!.text, snapshot);
+});
+
+test('P1/P4/P5 页首判断：有隐含价、缺隐含价、跳档价接近、跳档价较远', () => {
+  const { verdictLine, parseSensitivity } = narrative;
+  const variable = { id: 'cmdty:AL', name: '沪铝', unit: '元/吨', current: 22970, coef: 1, min: 18000, max: 28000, step: 10, anchor: 24000, anchorLabel: '对比期均价' };
+  const base = { baseProfit: 1, shares: 1, variables: [variable], ruleOfThumb: [], tiers: [], flips: [] };
+  // 有隐含价：完整判断 + 市场在赌的价格 + 现在的价格；没有跳档价就没有半句。
+  const withImplied = { ...base, implied: { id: 'cmdty:AL', value: 23258 } };
+  assert.deepEqual(verdictLine({ grade: '偏高', model: withImplied }), { label: '估值偏高', implied: '市场在赌沪铝约 23,258 元/吨，现在 22,970 元/吨', flip: '', gap: '' });
+  // 缺隐含价：只写完整判断，缺口原因进「查看数据」。
+  const lone = verdictLine({ grade: '偏高', model: base });
+  assert.equal(lone.label, '估值偏高');
+  assert.equal(lone.implied, '');
+  assert.match(lone.gap, /没有「市场在赌的价格」/);
+  assert.match(verdictLine({ grade: '偏高', model: null }).gap, /没有利润试算凭据/);
+  assert.equal(verdictLine({ grade: null, model: withImplied }).label, '');
+  // 百分比类变量：一位小数、百分号紧跟、四舍五入成零写 0（不出现「-0 %」）。
+  const pct = { ...base, variables: [{ ...variable, id: 'v', name: '境内水电发电量', unit: '%', current: 0, step: 1 }], implied: { id: 'v', value: -0.04 } };
+  assert.equal(verdictLine({ grade: '合理', model: pct }).implied, '市场在赌境内水电发电量约 0%，现在 0%');
+  assert.equal(verdictLine({ grade: '合理', model: { ...pct, implied: { id: 'v', value: -3.26 } } }).implied, '市场在赌境内水电发电量约 -3.3%，现在 0%');
+  // 跳档价在 3% 以内：句末加半句；跌破 / 涨过按相对现在价的方向。
+  const near = { ...withImplied, flips: [{ id: 'cmdty:AL', value: 22500, grade: '合理' }, { id: 'cmdty:AL', value: 26000, grade: '偏低' }] };
+  assert.equal(verdictLine({ grade: '偏高', model: near }).flip, '跌破 22,500 元/吨，判断变为估值合理');
+  const up = { ...withImplied, flips: [{ id: 'cmdty:AL', value: 23500, grade: '明显高估' }] };
+  assert.equal(verdictLine({ grade: '偏高', model: up }).flip, '涨过 23,500 元/吨，判断变为估值明显高估');
+  // 跳档价较远（>3%）、超出合理区间的无效根、别的变量的跳档价：都不显示。
+  const far = { ...withImplied, flips: [{ id: 'cmdty:AL', value: 21000, grade: '合理' }, { id: 'cmdty:AL', value: 22800, grade: '合理', invalid: true }, { id: 'other', value: 22900, grade: '合理' }] };
+  assert.equal(verdictLine({ grade: '偏高', model: far }).flip, '');
+  // 凭据里的 extra.flips 解析：认不出的行丢掉。
+  const parsed = parseSensitivity({ body: { payload: { calculation: { extra: { base_profit: 1, shares: 1,
+    variables: [{ var_id: 'cmdty:AL', name: '沪铝', unit: '元/吨', current: 22970, coef_per_unit: 1, range: [18000, 28000], step: 10 }],
+    implied: { var_id: 'cmdty:AL', value: 23258 },
+    flips: [{ var_id: 'cmdty:AL', value: 22500, to_grade: '合理' }, { var_id: 'cmdty:AL', value: 30055, grade: '偏低', valid: false }, { value: 1 }, 'x'] } } } } });
+  assert.deepEqual(parsed.flips, [{ id: 'cmdty:AL', value: 22500, grade: '合理', invalid: false }, { id: 'cmdty:AL', value: 30055, grade: '偏低', invalid: true }]);
+  assert.deepEqual(parseSensitivity({ body: { payload: { calculation: { extra: { base_profit: 1, shares: 1, variables: [{ var_id: 'a', name: 'a', unit: 'u', current: 1, coef_per_unit: 1, range: [0, 2] }] } } } } }).flips, []);
 });

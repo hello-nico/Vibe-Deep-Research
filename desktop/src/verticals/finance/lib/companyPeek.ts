@@ -8,7 +8,7 @@ export const PEEK_LABELS: Record<string, string> = {
   ps_ttm: "市销率 TTM",
   pcf_ttm: "市现率 TTM",
   revenue: "营业收入",
-  net_profit_attributable: "归母净利润",
+  net_profit_attributable: "净利润",
   net_profit: "净利润",
   roe: "净资产收益率",
 };

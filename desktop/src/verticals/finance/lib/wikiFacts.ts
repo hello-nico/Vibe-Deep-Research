@@ -2,7 +2,7 @@ import { financialNumber, sourceName } from './financialDisplay';
 const METRIC_LABELS: Record<string, string> = {
   revenue: '营业收入',
   net_profit: '净利润',
-  net_profit_attributable: '归母净利润',
+  net_profit_attributable: '净利润',
   profit_before_tax: '利润总额',
   operating_cash_flow: '经营活动现金流',
   total_assets: '总资产',

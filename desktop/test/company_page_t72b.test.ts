@@ -67,8 +67,8 @@ test('驱动键 sales:<产品> 显示为「<产品>销量」，银行字段与�
   assert.equal(fieldLabel('average_earning_assets'), '生息资产平均余额');
   assert.equal(fieldLabel('net_interest_margin'), '净息差');
   assert.equal(fieldLabel('credit_cost'), '信贷成本');
-  assert.equal(fieldLabel('common_equity'), '普通股归母权益');
-  assert.equal(fieldLabel('ttm_profit'), '滚动归母净利润（TTM）');
+  assert.equal(fieldLabel('common_equity'), '普通股权益');
+  assert.equal(fieldLabel('ttm_profit'), '滚动净利润（近四季）');
   assert.equal(fieldIdLabel('lens:peer_comparison.pe'), '同业市盈率中位数');
   assert.equal(fieldIdLabel('lens:peer_comparison.roe'), '同业净资产收益率中位数');
   assert.equal(fieldIdLabel('lens:single_quarters.2026Q2.revenue'), '2026 年第二季度营业收入（单季）');

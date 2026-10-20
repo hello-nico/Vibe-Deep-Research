@@ -86,7 +86,7 @@ test('研究记录：每家公司只取最新一条，按更新时间倒序，�
   const line = (over: Record<string, unknown>, grade?: string) => lib.researchLine(record('000933.SZ', '神火股份', over), grade);
   assert.equal(line({ current_step: 2 }), '第 2 步，共 6 步 · 读报告');
   assert.equal(line({ status: 'interrupted' }), '正在接着上次的进度继续');
-  assert.equal(line({ status: 'completed' }, '合理'), '完成，估值「合理」');
+  assert.equal(line({ status: 'completed' }, '合理'), '完成，估值合理');
   assert.equal(line({ status: 'completed' }), '完成');
   assert.equal(line({ status: 'failed', reason: '最新定期报告还没入库' }), '最新定期报告还没入库');
   assert.equal(line({ status: 'cancelled' }), '已中止');
@@ -169,13 +169,13 @@ test('研究：五种状态的一句话、进度条只给进行中的、完成�
   const rows = [...container.querySelectorAll('[data-research-row]')] as HTMLElement[];
   assert.deepEqual(rows.map(row => row.querySelector('b')!.textContent), ['神火股份', '云铝股份', '洛阳钼业', '北方稀土', '赣锋锂业']);
   assert.deepEqual(rows.map(row => row.querySelector('.tracking-text > span')!.textContent), [
-    '第 2 步，共 6 步 · 读报告', '完成，估值「合理」', '正在接着上次的进度继续', '最新定期报告还没入库', '已中止']);
+    '第 2 步，共 6 步 · 读报告', '完成，估值合理', '正在接着上次的进度继续', '最新定期报告还没入库', '已中止']);
   assert.equal(container.querySelectorAll('[role="progressbar"]').length, 1);
   assert.equal(rows[0]!.querySelector('[role="progressbar"] u')!.getAttribute('style'), 'width: 16.666666666666664%;');
   assert.equal(container.querySelector('[data-research-row="000933.SZ"] [data-tracking]'), null);
 });
 
-test('研究：点开显示六步；读报告附报告标题，关键变量附变量名，其余输出一概不显示；去个股页', async () => {
+test('研究：点开显示六步；读报告附报告标题，价格影响步附因素名，其余输出一概不显示；去个股页', async () => {
   const done = record('000933.SZ', '神火股份', { status: 'running', current_step: 4 });
   done.steps[0]!.outputs = { packet_as_of: '2026-10-14' };
   done.steps[1]!.outputs = { title: '2026 年半年度报告', document_id: 'doc-secret', parse_revision_id: 'rev-secret', parsed_content_sha256: 'sha-secret' };
@@ -184,7 +184,7 @@ test('研究：点开显示六步；读报告附报告标题，关键变量附�
   await render(h(page.Tracking));
   await React.act(async () => (container.querySelector('[data-research-row] button.tracking-row') as HTMLButtonElement).click());
   const steps = [...container.querySelectorAll('.tracking-steps li')];
-  assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['取数', '读报告2026 年半年度报告', '计算关键变量沪铝、氧化铝、电价', '估值与论点', '保存到个股页', '整理结论']);
+  assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['取数', '读报告2026 年半年度报告', '算价格对利润的影响沪铝、氧化铝、电价', '估值与论点', '保存到个股页', '整理结论']);
   assert.deepEqual(steps.map(li => li.querySelector('em')!.textContent), ['完成', '完成', '完成', '进行中', '等待', '等待']);
   assert.doesNotMatch(container.textContent!, /secret|packet_as_of|2026-10-14|document_id|sha|result:|session/i);
   assert.equal([...container.querySelectorAll('.tracking-detail a')].find(a => a.textContent === '去个股页')!.getAttribute('href'), '/watch/000933');
