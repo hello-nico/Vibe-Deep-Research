@@ -262,11 +262,11 @@ let bootId = randomUUID();
 let researchBootScan = Promise.resolve();
 
 const RESEARCH_STEPS = [
-  { key: 'fetch', label: '取数' },
+  { key: 'fetch', label: '收集资料' },
   { key: 'read_report', label: '读报告' },
-  { key: 'key_variables', label: '计算关键变量' },
-  { key: 'valuation', label: '估值与论点' },
-  { key: 'save', label: '保存到个股页' },
+  { key: 'key_variables', label: '算价格对利润的影响' },
+  { key: 'valuation', label: '估值与判断' },
+  { key: 'save', label: '保存资料' },
   { key: 'settle', label: '整理结论' },
 ];
 const RESEARCH_FAIL_REASON = '这次没完成，可以稍后重新研究';
@@ -732,12 +732,12 @@ export function readResearchTask(taskId) {
 
 function doneStepText(step) {
   const outputs = step.outputs || {};
-  if (step.key === 'fetch') return `取数（数据包 ${outputs.packet_as_of || ''}）`;
+  if (step.key === 'fetch') return `收集资料（数据包 ${outputs.packet_as_of || ''}）`;
   if (step.key === 'read_report') {
     return `读报告（${outputs.title ? `《${outputs.title}》` : ''}document_id=${outputs.document_id || ''}，parseRevisionId=${outputs.parse_revision_id || ''}，parsedContentSha256=${outputs.parsed_content_sha256 || ''}）`;
   }
   if (step.key === 'key_variables') {
-    return `计算关键变量（sensitivityRef=${outputs.sensitivity_ref || ''}，scenarioRef=${outputs.scenario_ref || ''}）`;
+    return `算价格对利润的影响（sensitivityRef=${outputs.sensitivity_ref || ''}，scenarioRef=${outputs.scenario_ref || ''}）`;
   }
   return step.label;
 }
@@ -754,7 +754,7 @@ export function researchHandoff(task) {
   const variablesSettled = ['done', 'skipped'].includes(view.steps.find(step => step.key === 'key_variables')?.status);
   const rest = variablesSettled ? '需要字段时用 read_company_data_packet 读同一天的数据包，直接用上面的凭据写六节并保存。'
     : (doneKeys.has('fetch') ? '需要字段时用 read_company_data_packet 读同一天的数据包；' : '') + '其余动作仍按原顺序。';
-  let text = `这是一次接续。已完成：${done.map(doneStepText).join('；') || '无'}。\n从「${next?.label || '估值与论点'}」继续：${avoid}${rest}`;
+  let text = `这是一次接续。已完成：${done.map(doneStepText).join('；') || '无'}。\n从「${next?.label || '估值与判断'}」继续：${avoid}${rest}`;
   if (view.trigger_note) text += `\n用户补充：${view.trigger_note}`;
   return text;
 }

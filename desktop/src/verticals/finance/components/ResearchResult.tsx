@@ -191,7 +191,7 @@ export function ResultCard({ payload, sourceKey, presentation = 'conversation' }
       }}>下载{table ? '数据' : '图表'}</button></div>
     </div>
     {downloadError && <p role="alert">{downloadError}</p>}
-    {payload.kind === 'market' && <label className="mb-3 flex flex-wrap items-center gap-3 text-sm">显示范围 <WorkspaceSelect aria-label="显示范围" value={String(range)} onChange={next => setRange(Number(next))} options={[{ value: "0", label: "全部已取数据" }, { value: "20", label: "最近20个交易日" }, { value: "60", label: "最近60个交易日" }]} /></label>}
+    {payload.kind === 'market' && <label className="mb-3 flex flex-wrap items-center gap-3 text-sm">显示范围 <WorkspaceSelect aria-label="显示范围" value={String(range)} onChange={next => setRange(Number(next))} options={[{ value: "0", label: "全部已有数据" }, { value: "20", label: "最近20个交易日" }, { value: "60", label: "最近60个交易日" }]} /></label>}
     {table ? <div className="mt-4 max-h-[60vh] overflow-auto"><table className="w-full whitespace-nowrap text-right text-sm tabular-nums"><thead><tr>{columns.map(column => <th className="p-2" key={column.key}>{column.label}{column.unit && `（${column.unit}）`}</th>)}</tr></thead><tbody>{rows.map(row => <tr className="border-t" key={row.trading_day ?? row.period}>{columns.map(column => <td className="p-2" key={column.key}>{financialNumber(row[column.key], column.unit === '股' ? 0 : column.unit ? 2 : undefined)}</td>)}</tr>)}</tbody></table></div> : payload.kind === 'market' && payload.chart === 'candlestick' && !payload.external_series_id
       ? <MarketChart rows={rows} title={payload.title} onReady={readyMarket} />
       : presentation === 'report' && payload.kind === 'financial'

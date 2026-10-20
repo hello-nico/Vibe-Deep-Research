@@ -1,0 +1,24 @@
+{
+  "source": "按《估值模板与行业公共层》T5 契约构造的夹具（Stock 接口合入前开发用）；链定义取自 docs/evals/申万行业估值框架_2026-10-20/chains.csv 的「煤—电—铝」",
+  "list": { "items": [{ "chain_id": "coal-power-aluminum", "name": "煤—电—铝" }, { "chain_id": "lithium-battery", "name": "锂电" }] },
+  "chain": {
+    "chain_id": "coal-power-aluminum", "name": "煤—电—铝",
+    "nodes": [
+      { "industry_code": "801950", "industry_name": "煤炭开采", "role": "upstream", "template_id": "commodity_pe", "companies": [] },
+      { "industry_code": "801160", "industry_name": "电力", "role": "midstream", "template_id": "infra_yield", "companies": ["600863.SH", "600011.SH", "600900.SH"] },
+      { "industry_code": "801050", "industry_name": "工业金属", "role": "downstream", "template_id": "commodity_pe", "companies": ["000933.SZ", "000807.SZ"] }
+    ],
+    "transmission": [
+      { "from": "煤炭开采", "to": "电力", "driver": "煤价", "text": "煤价进入火电燃料成本与铝厂自备电" },
+      { "from": "电力", "to": "工业金属", "driver": "电价", "text": "电价和电量进入电解铝成本" },
+      { "from": "工业金属", "to": "工业金属", "driver": "铝价", "text": "铝价决定冶炼利润" },
+      { "from": "工业金属", "to": "工业金属", "driver": "氧化铝", "text": "氧化铝价格进入电解铝原料成本" },
+      { "from": "煤炭开采", "to": "工业金属", "driver": "煤价", "text": "自备电厂的煤价直接进入铝厂成本" }
+    ]
+  },
+  "frameworks": {
+    "801950": { "industry_code": "801950", "industry_name": "煤炭开采", "template": { "id": "commodity_pe", "name": "商品周期市盈率", "method": "用煤价三档推出利润，再乘周期位置给的倍数" }, "drivers": [{ "id": "cmdty:DCE.JM", "name": "焦煤", "kind": "price", "source": "行情目录" }], "core_questions": ["煤价对利润的弹性有多大"], "chains": [{ "chain_id": "coal-power-aluminum", "name": "煤—电—铝", "role": "upstream" }], "companies": [] },
+    "801160": { "industry_code": "801160", "industry_name": "电力", "template": { "id": "infra_yield", "name": "基础设施收益率", "method": "看电量乘电价的现金回报和分红收益率" }, "drivers": [], "core_questions": [], "chains": [], "companies": ["600863.SH", "600011.SH", "600900.SH"] },
+    "801050": { "industry_code": "801050", "industry_name": "工业金属", "template": { "id": "commodity_pe", "name": "商品周期市盈率", "method": "用铝价、氧化铝价三档推出利润，再乘周期位置给的倍数" }, "drivers": [], "core_questions": [], "chains": [], "companies": ["000933.SZ", "000807.SZ"] }
+  }
+}

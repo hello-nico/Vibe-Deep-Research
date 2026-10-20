@@ -51,7 +51,7 @@ const TOOL_LABELS: Record<string, string> = {
   read_composition_skill: '读取写作方法',
   note_list: '列出研究记录',
   note_read: '读取研究记录',
-  ensure_company_data: '取数',
+  ensure_company_data: '收集资料',
   read_company_data_packet: '读取公司数据',
   save_company_page_research: '保存研究',
   update_company_drivers: '算价格对利润的影响',

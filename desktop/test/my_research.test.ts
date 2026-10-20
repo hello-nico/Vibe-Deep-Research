@@ -439,7 +439,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(layout, /label: "关注"/);
   assert.match(layout, /label: "资料"/);
   assert.doesNotMatch(layout, /GPU租金/);
-  assert.match(readFileSync(new URL("../src/verticals/finance/components/MemoryPanel.tsx", import.meta.url), "utf8"), /保存纠正/);
+  assert.match(readFileSync(new URL("../src/verticals/finance/components/AboutMe.tsx", import.meta.url), "utf8"), /记下/);
   const node = readFileSync(new URL("../src/verticals/finance/dsh/result-node.tsx", import.meta.url), "utf8");
   assert.match(node, /loadCandidate/);
   assert.match(node, /CandidateChoiceNeeded/);

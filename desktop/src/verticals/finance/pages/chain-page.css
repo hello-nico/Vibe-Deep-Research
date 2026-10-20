@@ -1,0 +1,59 @@
+/* 只用令牌与公共组件；这里只补布局。橙色只出现在区间条里的现价点（图表当前值），其余强调只用墨色深浅。 */
+.chain { display: flex; flex-direction: column; gap: 20px; }
+.chain-headline { margin: 0; font-size: 15px; line-height: 1.7; color: hsl(var(--foreground)); }
+.chain-note, .chain-gap { margin: 0; font-size: 12px; color: var(--text-3); }
+.chain-skeleton { height: 96px; border-radius: 16px; background: var(--fill-1); }
+.chain-nodes { list-style: none; margin: 0; padding: 0; display: flex; align-items: stretch; gap: 8px; flex-wrap: wrap; }
+.chain-node { flex: 1 1 200px; min-width: 180px; display: grid; align-content: start; gap: 6px; padding: 14px 16px; border: 1px solid var(--line-2); border-radius: 16px; background: hsl(var(--raised)); }
+.chain-node > b { font-size: 14px; font-weight: 600; }
+.chain-node > small { font-size: 12px; color: var(--text-3); }
+.chain-node > p { margin: 0; font-size: 13px; line-height: 1.6; color: var(--text-2); }
+.chain-arrow { display: grid; align-content: center; justify-items: center; gap: 2px; min-width: 48px; color: var(--text-3); }
+.chain-arrow > small { font-size: 11px; text-align: center; }
+.chain-drivers { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.chain-drivers > li { display: grid; grid-template-columns: 72px 1fr auto; gap: 12px; align-items: baseline; padding: 10px 0; font-size: 13px; line-height: 1.6; color: var(--text-2); }
+.chain-drivers > li + li { border-top: 1px solid var(--line-1); }
+.chain-drivers > li > b { color: hsl(var(--foreground)); font-weight: 600; }
+.chain-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.chain-companies { display: grid; }
+.chain-company { display: grid; grid-template-columns: minmax(120px, 1.1fr) 96px minmax(180px, 1.6fr) minmax(160px, 1.4fr); gap: 12px; align-items: center; padding: 12px 0; font-size: 13px; }
+.chain-company + .chain-company { border-top: 1px solid var(--line-1); }
+.chain-company-name { display: grid; gap: 2px; }
+.chain-company-name > a { font-weight: 600; color: hsl(var(--foreground)); }
+.chain-company-name > small { font-size: 12px; color: var(--text-3); }
+.chain-company-none { grid-column: 2 / -1; color: var(--text-3); }
+.chain-company-implied { color: var(--text-2); line-height: 1.5; }
+.chain-band { position: relative; display: block; height: 30px; }
+.chain-band-range { position: absolute; top: 8px; height: 6px; border-radius: 3px; background: var(--fill-3); }
+.chain-band-tick { position: absolute; top: 5px; width: 2px; height: 12px; margin-left: -1px; background: var(--text-4); }
+.chain-band-dot, .chain-cycle-dot { position: absolute; top: 5px; width: 12px; height: 12px; margin-left: -6px; border-radius: 50%; background: hsl(var(--brand)); }
+.chain-band > small { position: absolute; left: 0; top: 18px; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+.chain-cycle-line { margin: 0 0 10px; font-size: 14px; line-height: 1.7; }
+.chain-cycle-scale { position: relative; height: 40px; margin: 0 0 8px; }
+.chain-cycle-track { position: absolute; left: 0; right: 0; top: 8px; height: 6px; border-radius: 3px; background: var(--fill-3); }
+.chain-cycle-edge { position: absolute; top: 5px; width: 2px; height: 12px; margin-left: -1px; background: var(--text-4); }
+.chain-cycle-dot { top: 5px; }
+.chain-cycle-scale > span { position: absolute; top: 22px; transform: translateX(-50%); font-size: 11px; color: var(--text-3); }
+.chain-calc-slider { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; margin-bottom: 8px; font-size: 13px; }
+.chain-calc-slider > label { font-weight: 600; }
+.chain-calc-slider > input { width: 100%; margin: 0; accent-color: var(--text-2); cursor: pointer; }
+.chain-calc-slider > output { font-variant-numeric: tabular-nums; font-weight: 600; }
+.chain-calc-slider > small { grid-column: 1 / -1; font-size: 12px; color: var(--text-3); }
+.chain-calc-rows { display: grid; margin-bottom: 8px; }
+.chain-calc-row { display: grid; grid-template-columns: minmax(120px, 1.2fr) minmax(100px, 1fr) minmax(160px, 1.4fr); gap: 12px; align-items: center; padding: 10px 0; font-size: 13px; font-variant-numeric: tabular-nums; }
+.chain-calc-row + .chain-calc-row { border-top: 1px solid var(--line-1); }
+.chain-calc-head { font-size: 12px; color: var(--text-3); padding-top: 0; }
+.chain-calc-row small { font-size: 11px; color: var(--text-3); }
+.chain-calc-gap { grid-column: 2 / -1; }
+@media (max-width: 720px) {
+  .chain-calc-row { grid-template-columns: 1fr 1fr; }
+  .chain-calc-head > :last-child { display: none; }
+  .chain-calc-gap { grid-column: 1 / -1; }
+  .chain-nodes { flex-direction: column; }
+  .chain-arrow { transform: rotate(90deg); min-width: 0; min-height: 36px; }
+  .chain-drivers > li { grid-template-columns: 1fr; gap: 4px; }
+  .chain-chips { justify-content: flex-start; }
+  .chain-company { grid-template-columns: 1fr 1fr; }
+  .chain-company-none { grid-column: 1 / -1; }
+  .chain-company-band, .chain-company-implied { grid-column: 1 / -1; }
+}

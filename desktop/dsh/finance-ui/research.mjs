@@ -22,8 +22,11 @@ export function researchRoute(method, pathname) {
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports', '/wiki/pages/diff',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
     '/tracking/variables',
-    '/market/quotes', '/feed/announcements', '/feed/news',
+    '/market/quotes', '/market/report-calendar', '/feed/announcements', '/feed/news',
+    '/wiki/chains',
   ].includes(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/chains\/[A-Za-z0-9._-]+$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/industries\/[^/]+\/valuation-framework$/.test(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || TOPIC_BASIS.test(pathname) || TOPIC_SNAPSHOT.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
   if (method === 'POST' && DRAFT_ID_DISCARD.test(pathname)) return true;
@@ -43,7 +46,7 @@ export function researchRoute(method, pathname) {
   ].includes(pathname)) return true;
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
-  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet)$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet|quarter-reconciliation)$/.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/coverage\/ensure$/.test(pathname)) return true;
   if (method === 'POST' && COMPANY_REVERT.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/research-candidates\/[^/]+\/(dispose|adopt)$/.test(pathname)) return true;

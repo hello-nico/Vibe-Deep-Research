@@ -160,9 +160,9 @@ test('第 5 步未完成时续跑，交接说明只含 done 步', async (t) => {
   const text = starts[1].request.prompt[0].text;
   assert.match(text, /研究华能/);
   assert.match(text, /这是一次接续/);
-  assert.match(text, /取数（数据包 2026-10-14）/);
+  assert.match(text, /收集资料（数据包 2026-10-14）/);
   assert.match(text, /sensitivityRef=sens-1/);
-  assert.match(text, /从「估值与论点」继续/);
+  assert.match(text, /从「估值与判断」继续/);
   assert.match(text, /不要再调用 ensure_company_data 和 calculate_metrics/);
   assert.doesNotMatch(text, /doc-skipped|不应出现的报告/);
   assert.equal(readResearchTask(taskId).steps[3].attempts, 1);

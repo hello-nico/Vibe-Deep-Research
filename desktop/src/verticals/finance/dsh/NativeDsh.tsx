@@ -13,20 +13,20 @@ export interface SlotProps {
 export const FinanceSlots = React.createContext<SlotProps | null>(null);
 
 export { openModelSettings };
-// 记忆页带路由链接，进设置的「记忆」时才加载。
-const MemoryPanel = React.lazy(async () => ({ default: (await import("../components/MemoryPanel")).MemoryPanel }));
+// 关于我带路由链接，进设置时才加载。
+const AboutMe = React.lazy(async () => ({ default: (await import("../components/AboutMe")).AboutMe }));
 const ConnectionPanel = React.lazy(async () => ({ default: (await import("../components/ConnectionPanel")).ConnectionPanel }));
-const SETTINGS_SEGMENTS = [{ value: "model", label: "模型" }, { value: "connection", label: "连接" }, { value: "memory", label: "记忆" }] as const;
+const SETTINGS_SEGMENTS = [{ value: "about", label: "关于我" }, { value: "model", label: "模型" }, { value: "connection", label: "连接" }] as const;
 
 export function ModelSettings() {
-  const [tab, setTab] = React.useState<(typeof SETTINGS_SEGMENTS)[number]["value"]>("model");
+  const [tab, setTab] = React.useState<(typeof SETTINGS_SEGMENTS)[number]["value"]>("about");
   const researchSessions = React.useContext(ResearchSessionContext);
   return <div>
     <PageHeader title="设置" assistant={false} actions={<WorkspaceTabs aria-label="设置分段" value={tab} onChange={setTab} options={SETTINGS_SEGMENTS} />} />
     {tab === "connection"
       ? <React.Suspense fallback={<p role="status" className="text-sm text-muted-foreground">正在读取连接设置…</p>}><ConnectionPanel /></React.Suspense>
-      : tab === "memory"
-      ? <React.Suspense fallback={<p role="status" className="text-sm text-muted-foreground">正在读取记忆…</p>}><MemoryPanel onOpenSource={id => { void researchSessions?.openSession(id); }} /></React.Suspense>
+      : tab === "about"
+      ? <React.Suspense fallback={<p role="status" className="text-sm text-muted-foreground">正在读取…</p>}><AboutMe onOpenSource={id => { void researchSessions?.openSession(id); }} /></React.Suspense>
       : <GroupCard label="模型">
         <GroupRow title="模型与接入" description="对话、资讯翻译、要点提炼与研究任务共用设置中的模型，无需重复接入。">
           <button type="button" onClick={openModelSettings} className="btn btn-primary">打开模型设置</button>

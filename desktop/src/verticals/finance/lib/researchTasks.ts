@@ -47,7 +47,14 @@ export async function companyResearchRunning(symbol: string, signal?: AbortSigna
 export const companyNameOf = (record: ResearchRecord) => (record.title || '').replace(/^公司研究\s*·\s*/, '') || record.symbol.split('.')[0]!;
 
 /** 研究步骤的显示名：主机记录里的原名有内部用语时，在界面上换成白话。 */
-const STEP_LABEL: Record<string, string> = { key_variables: '算价格对利润的影响' };
+const STEP_LABEL: Record<string, string> = {
+  fetch: '收集资料',
+  read_report: '读报告',
+  key_variables: '算价格对利润的影响',
+  valuation: '估值与判断',
+  save: '保存资料',
+  settle: '整理结论',
+};
 const stepLabel = (step: { key: string; label: string }) => STEP_LABEL[step.key] ?? step.label;
 
 export const stepProgress = (record: ResearchRecord) => {

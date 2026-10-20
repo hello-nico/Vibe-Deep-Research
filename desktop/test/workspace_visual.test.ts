@@ -230,7 +230,7 @@ test("资料、设置与动态页共用分段切换；跟踪页首只有标题",
   const reports = read("verticals/finance/pages/UploadedReports.tsx");
   assert.match(reports, /WorkspaceTabs/);
   assert.match(reports, /label: '记录'/);
-  assert.match(read("verticals/finance/dsh/NativeDsh.tsx"), /label: "记忆"/);
+  assert.match(read("verticals/finance/dsh/NativeDsh.tsx"), /label: "关于我"/);
   const tracking = read("verticals/finance/pages/Tracking.tsx");
   assert.match(tracking, /<PageHeader title="跟踪" \/>/);
   assert.doesNotMatch(tracking, /WorkspaceTabs/);

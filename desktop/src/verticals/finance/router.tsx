@@ -25,6 +25,7 @@ export const router = createBrowserRouter([
       { path: "/insights/*", element: <Navigate to="/tracking" replace /> },
       { path: "/watch", lazy: async () => ({ Component: (await import("@/pages/Watch")).Watch }) },
       { path: "/watch/:symbol", lazy: async () => ({ Component: (await import("@/pages/CompanyWiki")).CompanyWiki }) },
+      { path: "/chains/:chainId", lazy: async () => ({ Component: (await import("@/pages/ChainPage")).Chain }) },
       { path: "/my-reports", lazy: async () => ({ Component: (await import("@/pages/UploadedReports")).UploadedReports }) },
       { path: "/my-reports/read/:id", lazy: async () => ({ Component: (await import("@/pages/ReportReader")).ReportReader }) },
       { path: "/evidence", lazy: async () => ({ Component: (await import("@/pages/EvidenceDeepLink")).EvidenceDeepLink }) },

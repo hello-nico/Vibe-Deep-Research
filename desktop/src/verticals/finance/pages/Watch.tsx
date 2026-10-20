@@ -1,11 +1,12 @@
 import { Fragment, useContext, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChartCandlestick, LayoutGrid, List, Plus, RefreshCw, TrendingUp, X } from "lucide-react";
+import { ChartCandlestick, GitBranch, LayoutGrid, List, Plus, RefreshCw, TrendingUp, X } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
 import { WorkspaceSearch } from "../components/ui/WorkspaceSearch";
 import { useConfirm } from "../components/ui/ConfirmDialog";
+import { WorkspaceTabs } from "../components/ui/WorkspaceTabs";
 import { SectionLabel, Sparkline, StatusPill, TableWrap } from "../components/ui/Card";
 import { ObjectCard } from "../components/ui/ObjectCard";
 import { StatusDot, type StatusTone } from "../components/ui/StatusDot";
@@ -16,6 +17,7 @@ import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/r
 import { aShareQualified, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, wikiPages, type CompanyPageSummary, type WikiItem } from "../lib/research";
 import { marketOfSymbol } from "../lib/marketSymbol";
 import { watchPath } from "../lib/routes";
+import { chainPath, chainStages, chainWatchedCount, loadChainIndex, type Chain } from "../lib/chainPage";
 import { companyPageProgress, companyPageTaskActive, type CompanyPageServices, type CompanyPageState } from "../lib/companyPage";
 import { createCompanyPageServices } from "../lib/companyPageServices";
 import { useCloseSeries } from "../lib/closeSeries";
@@ -28,6 +30,7 @@ import { financialNumber } from "../lib/financialDisplay";
 import type { Quote } from "../lib/api";
 import { cn } from "@/lib/utils";
 import { CompanyPageServicesContext, useCompanyPageState } from "./CompanyPage";
+import { FirstOpen } from "./FirstOpen";
 import "./company-page.css";
 
 const VIEW_KEY = "vr-company-roster-view";
@@ -123,6 +126,11 @@ function SupportedItem(props: Omit<ItemProps, "state"> & { services: CompanyPage
 }
 const Item = (props: Omit<ItemProps, "state"> & { services: CompanyPageServices }) => props.row.supported ? <SupportedItem {...props} /> : <ItemView {...props} />;
 
+const KIND_OPTIONS = [{ value: "stocks" as const, label: "个股" }, { value: "chains" as const, label: "产业链" }];
+function KindTabs({ value, onChange }: { value: "stocks" | "chains"; onChange: (value: "stocks" | "chains") => void }) {
+  return <div className="mb-4"><WorkspaceTabs value={value} onChange={onChange} options={KIND_OPTIONS} aria-label="关注对象" /></div>;
+}
+
 /** 关注：自选与研究名单合并后的一张表，加卡片视图；进入即个股页。 */
 export function Watch() {
   const sessions = useResearchSessions();
@@ -132,8 +140,15 @@ export function Watch() {
   const location = useLocation();
   const [params, setParams] = useSearchParams();
   const query = params.get("q") || "";
+  const kind = params.get("kind") === "chains" ? "chains" : "stocks";
+  const setKind = (value: "stocks" | "chains") => {
+    const next = new URLSearchParams(params);
+    if (value === "chains") next.set("kind", "chains"); else next.delete("kind");
+    setParams(next, { replace: true });
+  };
   const [revision, setRevision] = useState(0);
   const [pages, setPages] = useState<WikiItem[]>([]);
+  const [chains, setChains] = useState<Chain[] | undefined>(undefined);
   const [view, setView] = useState<"grid" | "list">(() => prefGet(VIEW_KEY) === "grid" ? "grid" : "list");
   const [live, setLive] = useState(() => prefGet(LIVE_KEY) === "on");
   const [adding, setAdding] = useState(false);
@@ -151,6 +166,11 @@ export function Watch() {
     void wikiPages("companies", controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => {});
     return () => controller.abort();
   }, [revision]);
+  useEffect(() => {
+    const controller = new AbortController();
+    void loadChainIndex().then(value => { if (!controller.signal.aborted) setChains(value); }).catch(() => { if (!controller.signal.aborted) setChains([]); });
+    return () => controller.abort();
+  }, []);
   useEffect(() => {
     const top = Number(sessionStorage.getItem(overviewKey) || 0);
     const timer = requestAnimationFrame(() => document.getElementById("workspace-main")?.scrollTo(0, top));
@@ -198,12 +218,33 @@ export function Watch() {
   };
   const pageKey = "watch:list";
   useAiPage({ key: pageKey, title: "关注", context: buildDirectorySnapshot({ heading: `关注 ${visible.length} 家公司。`, items: visible.map(row => ({ title: row.name, id: companySlug(row.symbol) || row.symbol })), loading }), suggestions: ["关注的公司里哪些最值得先看？"] });
+  // 第一次打开：加入关注与研究名单后进入个股页，研究由个股页自己开始。
+  const startFirst = async (symbol: string) => {
+    await addWatch(symbol); await addToRoster(symbol);
+    navigate(watchPath(symbol), { state: { from: `${location.pathname}${location.search}` } });
+  };
+  if (kind === "chains") {
+    return <div>
+      <PageHeader title="关注" />
+      <KindTabs value="chains" onChange={setKind} />
+      {chains === undefined ? <p className="text-sm text-[var(--text-3)]">正在读取产业链…</p>
+        : !chains.length ? <p className="text-sm text-[var(--text-2)]">暂时没有产业链。</p>
+        : <div className="object-grid">{chains.map(chain => {
+          const n = chainWatchedCount(chain, watched);
+          return <ObjectCard key={chain.chain_id} icon={GitBranch} tone="chain" name={chain.name}
+            text={chainStages(chain)} foot={`链上已关注 ${n} 家`} to={chainPath(chain.chain_id)} openLabel="打开产业链页" />;
+        })}</div>}
+      <Disclaimer />
+    </div>;
+  }
+  if (!rows.length && !needle) return <div><PageHeader title="关注" /><KindTabs value="stocks" onChange={setKind} /><FirstOpen pages={pages} onStart={startFirst} /><Disclaimer /></div>;
   const stamp = updatedAt ? `行情时点 ${new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}` : "";
   const liveNote = error ? error : polling ? "自动刷新 · 间隔 3 秒" : live && symbols.length ? (isTradingHours(symbols) ? "已暂停（页面未激活）" : "当前关注市场均为非交易时段") : "";
   return <div>
     <PageHeader title="关注"
       search={<WorkspaceSearch aria-label="搜索关注" placeholder="搜索名称或代码" value={query} onChange={value => { const next = new URLSearchParams(params); if (value) next.set("q", value); else next.delete("q"); setParams(next, { replace: true }); }} />}
       actions={<button type="button" className="btn btn-primary" aria-expanded={adding} onClick={() => setAdding(value => !value)}><Plus />添加关注</button>} />
+    <KindTabs value="stocks" onChange={setKind} />
     {adding && <div className="card mb-6 p-4">
       <div className="flex items-center gap-2">
         <textarea value={input} onChange={event => setInput(event.target.value)} rows={1} aria-label="添加关注" placeholder="600519  AAPL  00700.HK"
