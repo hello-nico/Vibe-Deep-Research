@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FileText, Newspaper, RefreshCw, Loader2, AlertCircle, Star } from "lucide-react";
 import { WorkspaceTabs } from "@/components/ui/WorkspaceTabs";
@@ -9,6 +9,9 @@ import { Disclaimer } from "@/components/ui/Disclaimer";
 import { api, feedCachedAt } from "@/lib/api";
 import { loadWatch } from "@/lib/watchlist";
 import { feedPageContext, type FeedRow } from '@/lib/feedPageContext';
+import { factorNote, loadFactorModel } from "@/lib/feedFactor";
+import { aShareQualified } from "@/lib/research";
+import type { SensitivityModel } from "@/lib/companyNarrative";
 
 // 页内分段：关注公司的公开新闻与公告，均经 Backend 公共接口读取。
 const TABS = [
@@ -59,6 +62,18 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
   const { data, err, loading, refreshing, staleNote, refresh: rerun } =
     useArchiveThenRefresh<FeedRow[]>(force => load(force), [kind, codes.join(",")], { refreshOnEnter: false });
   const rows = data ?? [];
+  // 每条标题下的因素一句：按该公司已存的利润试算变量匹配；没有研究或没命中就不写。
+  const [models, setModels] = useState<Record<string, SensitivityModel | null>>({});
+  const codesKey = [...new Set(rows.map(row => row.code))].sort().join(",");
+  useEffect(() => {
+    let alive = true;
+    for (const code of codesKey.split(",").filter(Boolean)) {
+      const symbol = aShareQualified(code);
+      if (!symbol) continue;
+      void loadFactorModel(symbol).then(model => { if (alive) setModels(previous => previous[code] === model ? previous : { ...previous, [code]: model }); });
+    }
+    return () => { alive = false; };
+  }, [codesKey]);
   const feedPage = feedPageContext({ kind, rows, watchCount: codes.length, loading, refreshing, err, staleNote, depNote });
   useAiPage(feedPage);
   useAiPageObjects(feedPage.key, feedPage.objects);
@@ -113,14 +128,20 @@ function WatchlistFeed({ kind }: { kind: "filings" | "news" }) {
         <p className="py-8 text-center text-sm text-muted-foreground/60">{depNote ? '暂未取得可显示的资料，请稍后重试。' : `关注列表里的个股近期暂无${kind === "filings" ? "公告" : "新闻"}。`}</p>
       ) : (
         <div className="space-y-2">
-          {rows.map((r, i) => (
-            <div key={i} className="group flex items-baseline gap-3 border-b border-border/30 pb-2 text-sm last:border-0">
-              <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground/70">{(r.when || "").slice(kind === "filings" ? 0 : 5, kind === "filings" ? 10 : 16)}</span>
-              <span className="w-16 shrink-0 truncate text-xs text-[var(--text-2)]" title={r.code}>{r.name}</span>
-              {kind === "filings" && r.meta && <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block">{r.meta}</span>}
-              {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:underline">{r.title}</a> : <span className="flex-1">{r.title}</span>}
-            </div>
-          ))}
+          {rows.map((r, i) => {
+            const factor = factorNote(models[r.code], r.title);
+            return (
+              <div key={i} className="border-b border-border/30 pb-2 text-sm last:border-0">
+                <div className="group flex items-baseline gap-3">
+                  <span className="w-20 shrink-0 font-mono text-xs text-muted-foreground/70">{(r.when || "").slice(kind === "filings" ? 0 : 5, kind === "filings" ? 10 : 16)}</span>
+                  <span className="w-16 shrink-0 truncate text-xs text-[var(--text-2)]" title={r.code}>{r.name}</span>
+                  {kind === "filings" && r.meta && <span className="hidden w-20 shrink-0 truncate text-xs text-muted-foreground sm:block">{r.meta}</span>}
+                  {r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="flex-1 hover:underline">{r.title}</a> : <span className="flex-1">{r.title}</span>}
+                </div>
+                {factor && <p className="mt-1 pl-[calc(5rem+0.75rem+4rem+0.75rem)] text-xs text-muted-foreground" data-feed-factor="">{factor}</p>}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
