@@ -750,7 +750,7 @@ export function researchHandoff(task) {
   const bans = [];
   if (doneKeys.has('fetch')) bans.push('ensure_company_data');
   if (doneKeys.has('key_variables')) bans.push('calculate_metrics');
-  const avoid = bans.length ? `不要再调用 ${bans.join(' 和 ')}；` : '';
+  const avoid = bans.length ? `本次不调用 ${bans.join(' 和 ')}；` : '';
   const variablesSettled = ['done', 'skipped'].includes(view.steps.find(step => step.key === 'key_variables')?.status);
   const rest = variablesSettled ? '需要字段时用 read_company_data_packet 读同一天的数据包，直接用上面的凭据写六节并保存。'
     : (doneKeys.has('fetch') ? '需要字段时用 read_company_data_packet 读同一天的数据包；' : '') + '其余动作仍按原顺序。';

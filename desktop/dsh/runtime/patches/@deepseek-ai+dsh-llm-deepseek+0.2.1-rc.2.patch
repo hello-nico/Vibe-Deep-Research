@@ -1,5 +1,5 @@
 diff --git a/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js b/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
-index 2d51e52..ca158f5 100644
+index 2d51e52..094f9dd 100644
 --- a/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
 +++ b/node_modules/@deepseek-ai/dsh-llm-deepseek/lib/index.js
 @@ -590,7 +590,7 @@ var DeepSeekFilesError = class extends LlmError {
@@ -23,3 +23,62 @@ index 2d51e52..ca158f5 100644
  	else if (status === 429 || type === "rate_limit_error") code = "RATE_LIMIT";
  	else if (isContextWindowExceededError(detail)) code = "CONTEXT_WINDOW_EXCEEDED";
  	else if (status === 400 || status === 413 || type === "invalid_request_error") code = "INVALID_REQUEST";
+@@ -1911,6 +1912,50 @@ function deltaChunk(block, raw) {
+ 	}
+ 	return malformed(`unsupported delta ${String(delta.type)} for ${content.type}`);
+ }
++// Only discard closing delimiters after a complete, independently valid JSON value.
++function repairTrailingToolArguments(content) {
++	try {
++		JSON.parse(content.arguments);
++		return;
++	} catch (_invalidToolJson) {}
++	const input = content.arguments;
++	const start = input.search(/[^\x20\t\r\n]/u);
++	if (start < 0) return;
++	let end;
++	if (input[start] === "{" || input[start] === "[" || input[start] === '"') {
++		const stack = [];
++		let quoted = false;
++		let escaped = false;
++		for (let index = start; index < input.length; index++) {
++			const char = input[index];
++			if (quoted) {
++				if (escaped) escaped = false;
++				else if (char === "\\") escaped = true;
++				else if (char === '"') {
++					quoted = false;
++					if (stack.length === 0) { end = index + 1; break; }
++				}
++			} else if (char === '"') quoted = true;
++			else if (char === "{" || char === "[") stack.push(char === "{" ? "}" : "]");
++			else if (char === "}" || char === "]") {
++				if (stack.pop() !== char) return;
++				if (stack.length === 0) { end = index + 1; break; }
++			}
++		}
++	} else {
++		const token = /^(?:true|false|null|-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?)/u.exec(input.slice(start));
++		if (token) end = start + token[0].length;
++	}
++	if (end === void 0) return;
++	const suffix = input.slice(end);
++	if (!/^[\x20\t\r\n}\]]+$/u.test(suffix) || !/[}\]]/u.test(suffix)) return;
++	const prefix = input.slice(0, end);
++	try {
++		JSON.parse(prefix);
++	} catch (_invalidPrefix) { return; }
++	content.arguments = prefix;
++	console.warn("llm-deepseek: tool_arguments_trailing_closers_repaired", { removedCharacters: suffix.length });
++}
+ function stopReason(raw) {
+ 	switch (raw) {
+ 		case "end_turn":
+@@ -1980,6 +2025,7 @@ async function* translate(events, model) {
+ 			} else {
+ 				block.closed = true;
+ 				if (block.content.type === "tool-call" && block.json.length > 0) block.content.arguments = block.json;
++				if (block.content.type === "tool-call") repairTrailingToolArguments(block.content);
+ 				yield {
+ 					type: "block-end",
+ 					index: block.index,

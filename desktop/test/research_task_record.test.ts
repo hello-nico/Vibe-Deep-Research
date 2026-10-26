@@ -163,7 +163,9 @@ test('第 5 步未完成时续跑，交接说明只含 done 步', async (t) => {
   assert.match(text, /收集资料（数据包 2026-10-14）/);
   assert.match(text, /sensitivityRef=sens-1/);
   assert.match(text, /从「估值与判断」继续/);
-  assert.match(text, /不要再调用 ensure_company_data 和 calculate_metrics/);
+  assert.match(text, /本次不调用 ensure_company_data 和 calculate_metrics/);
+  // 接续说明是宿主指令，不能命中后台整理判断「用户在提偏好」的关键词，否则会被记成用户说过的话。
+  assert.doesNotMatch(text, /(记住|不要再|以后请|纠正|不是这个意思|偏好)/);
   assert.doesNotMatch(text, /doc-skipped|不应出现的报告/);
   assert.equal(readResearchTask(taskId).steps[3].attempts, 1);
 });
