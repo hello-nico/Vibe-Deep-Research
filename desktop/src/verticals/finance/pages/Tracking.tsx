@@ -8,7 +8,7 @@ import { useAiPage } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import { api } from "../lib/api";
 import {
-  loadTrackingVariables, orderWatching, shortName, variableLine, type TrackedVariable, type TrackingVariables,
+  lastCloseLabel, loadTrackingVariables, orderWatching, shortName, variableLine, type TrackedVariable, type TrackingVariables,
 } from "../lib/trackingVariables";
 import {
   companyNameOf, latestPerCompany, loadResearchTasks, readValuationGrade, researchActive, researchLine, researchStepRows, stepProgress,
@@ -104,7 +104,7 @@ function WatchRow({ variable, data, expanded, onToggle }: { variable: TrackedVar
         <b>{variable.name}</b>
         <span>{variableLine(variable, data.cards)}{variable.companies.length ? ` · ${variable.companies.map(company => shortName(company.name)).join("、")}` : ""}</span>
       </span>
-      <time>{plain ? "" : variable.last_date ?? ""}</time>
+      <time dateTime={plain ? undefined : variable.last_date ?? undefined}>{plain ? "" : lastCloseLabel(variable)}</time>
     </button>
     {expanded && <div className="tracking-detail">{plain
       ? <p>{variable.reason ?? "暂时没有这个价格的行情"}</p>
@@ -204,7 +204,7 @@ function Research() {
           <span className="tracking-step-name">{step.label}{step.note && <small>{step.note}</small>}</span>
           <em>{step.state}</em>
         </li>)}</ol>
-        <Link className="btn btn-sm" to={watchPath(codeOf(record.symbol))}>去个股页</Link>
+        <Link className="btn btn-sm" to={watchPath(codeOf(record.symbol))}>看这家公司</Link>
       </div>}
     </div>;
   })}</div>;

@@ -27,6 +27,6 @@ export function resolveFirstOpenInput(input: string, pages: readonly WikiItem[])
   if (hit.length > 1) return { hint: "有多家公司匹配，请输入 6 位代码" };
   const code = normalizeMarketSymbol(text);
   if (!code) return { hint: "没认出这家公司，请输入 6 位 A 股代码" };
-  if (marketOfSymbol(code) !== "CN") return { hint: "港股、美股暂不支持个股页，请输入 A 股公司" };
+  if (marketOfSymbol(code) !== "CN") return { hint: "港股、美股暂不支持研究，请输入 A 股公司" };
   return { symbol: code, name: code };
 }

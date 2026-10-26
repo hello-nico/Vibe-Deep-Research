@@ -88,7 +88,7 @@ test('问助手读到的个股页：现金一节的回答句、资本开支后�
   assert.match(cash, /- 净利润：24\.93 亿元（2025 年报）/, '第一层关键数带期间');
   assert.match(cash, /- 每股分红：0\.22 元\/股（2025 年报；普通股含税利润分配方案，非当期付款）/);
   // 其他节与页首也在。
-  assert.match(sent, /【\S+ 个股页】\n600863 · 高杠杆周期公用事业/);
+  assert.match(sent, /【\S+ 公司研究】\n600863 · 高杠杆周期公用事业/);
   for (const heading of ['【它靠什么赚钱】', '【价格动一下，利润变多少】', '【现在的价格在赌什么】', '【接下来盯什么】']) assert.ok(sent.includes(heading), heading);
   assert.match(sent, /行情：5\.21 人民币，\+1\.20%（行情 10 月 10 日）/);
   assert.match(sent, /毛利率只有23\.15 ?%，营业收入210\.50 亿元/);

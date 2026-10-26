@@ -164,12 +164,21 @@ export function cardTouchPieces(card: VariableCard): SentencePiece[] {
   return effect ? [{ text: `${base} · ` }, { text: effect.slice(3), tone: color }] : [{ text: base }];
 }
 
+/** 跟踪页「正在盯的」右侧：最后收盘日 M-DD + 收盘价（无单位）。无行情行空白。 */
+export function lastCloseLabel(variable: TrackedVariable): string {
+  if (variable.status !== 'ok') return '';
+  const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(variable.last_date ?? '');
+  if (!match) return '';
+  const when = `${Number(match[1])}-${match[2]}`;
+  const price = priceText(variable.latest);
+  return price === '—' ? `${when} 收盘` : `${when} 收盘 ${price}`;
+}
 /** 跟踪页「正在盯的」一行的最新情况：最近 20 个交易日有卡片就写那一次，没有写平静。 */
 export function variableLine(variable: TrackedVariable, cards: readonly VariableCard[]): string {
   if (variable.status === 'no_data') return '没有公开行情，跟着财报更新';
   if (variable.status === 'gap') return '暂时取不到行情';
   const card = cards.filter(item => item.var_id === variable.var_id).sort((a, b) => b.date.localeCompare(a.date))[0];
-  return card ? `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}，已提醒` : '本周没有大的波动';
+  return card ? `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}，已提醒` : '近一个月没有大到需要提醒的变动';
 }
 /** 有卡片的变量排前，其余保持原顺序（no_data 本来就在最后）。 */
 export function orderWatching(variables: readonly TrackedVariable[], cards: readonly VariableCard[]): TrackedVariable[] {

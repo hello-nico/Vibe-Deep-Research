@@ -1,0 +1,118 @@
+{
+ "symbol": "603799.SH",
+ "period": "2026Q3",
+ "previous_period": "2026Q2",
+ "actual": "802634951.410000",
+ "previous": "1010127191.090000",
+ "change": "-207492239.680000",
+ "reported_on": "2026-10-24",
+ "provider": "sina",
+ "status": "ok",
+ "variables": [],
+ "unexplained": [],
+ "price_total": null,
+ "items": [
+  {
+   "metric": "gross_profit",
+   "name": "毛利变化",
+   "previous": "5550686622.660000",
+   "current": "4246765579.150000",
+   "change": "-1303921043.510000",
+   "impact": "-1303921043.510000",
+   "provider": "sina"
+  },
+  {
+   "metric": "minority_interest",
+   "name": "少数股东损益",
+   "previous": "1005272280.890000",
+   "current": "208804700.540000",
+   "change": "-796467580.350000",
+   "impact": "796467580.350000",
+   "provider": "sina"
+  },
+  {
+   "metric": "asset_impairment",
+   "name": "资产减值",
+   "previous": "-305474991.790000",
+   "current": "-988466493.170000",
+   "change": "-682991501.380000",
+   "impact": "-682991501.380000",
+   "provider": "sina"
+  },
+  {
+   "metric": "income_tax",
+   "name": "所得税",
+   "previous": "589129729.320000",
+   "current": "-6307374.440000",
+   "change": "-595437103.760000",
+   "impact": "595437103.760000",
+   "provider": "sina"
+  },
+  {
+   "metric": "fair_value_change",
+   "name": "公允价值变动",
+   "previous": "-256189912.420000",
+   "current": "-4426178.140000",
+   "change": "251763734.280000",
+   "impact": "251763734.280000",
+   "provider": "sina"
+  },
+  {
+   "metric": "credit_impairment",
+   "name": "信用减值",
+   "previous": "-229686660.860000",
+   "current": "-83348709.420000",
+   "change": "146337951.440000",
+   "impact": "146337951.440000",
+   "provider": "sina"
+  },
+  {
+   "metric": "investment_income",
+   "name": "投资收益",
+   "previous": "-11142776.790000",
+   "current": "59389825.570000",
+   "change": "70532602.360000",
+   "impact": "70532602.360000",
+   "provider": "sina"
+  },
+  {
+   "metric": "finance_expense",
+   "name": "财务费用",
+   "previous": "881265150.980000",
+   "current": "913207924.540000",
+   "change": "31942773.560000",
+   "impact": "-31942773.560000",
+   "provider": "sina"
+  },
+  {
+   "metric": "rd_expense",
+   "name": "研发费用",
+   "previous": "545747155.740000",
+   "current": "573660788.770000",
+   "change": "27913633.030000",
+   "impact": "-27913633.030000",
+   "provider": "sina"
+  },
+  {
+   "metric": "admin_expense",
+   "name": "管理费用",
+   "previous": "621977843.350000",
+   "current": "633502272.270000",
+   "change": "11524428.920000",
+   "impact": "-11524428.920000",
+   "provider": "sina"
+  },
+  {
+   "metric": "selling_expense",
+   "name": "销售费用",
+   "previous": "21938278.820000",
+   "current": "23877222.580000",
+   "change": "1938943.760000",
+   "impact": "-1938943.760000",
+   "provider": "sina"
+  }
+ ],
+ "item_gaps": [],
+ "items_total": "-199693351.970000",
+ "rest": "-7798887.710000"
+}

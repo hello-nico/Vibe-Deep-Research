@@ -75,7 +75,7 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
       <article className="variable-card" data-flip-card={flip.symbol} data-flip-kind={flip.kind}>
         <p className="variable-card-title">{flip.text}</p>
         <div className="variable-card-foot"><span />
-          <span className="variable-card-actions"><Link className="btn btn-sm" to={watchPath(codeOf(flip.symbol))}>看个股页 · {flip.company}</Link></span></div>
+          <span className="variable-card-actions"><Link className="btn btn-sm" to={watchPath(codeOf(flip.symbol))}>看{flip.company}</Link></span></div>
       </article>
     </Card>)}</div>}
     <ReconCards cards={recon} />
@@ -98,7 +98,7 @@ function ReconCards({ cards }: { cards: ReconCard[] }) {
         <div className="variable-card-foot"><span>新季报</span>
           <span className="variable-card-actions">
             {card.details.length > 0 && <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => setOpen(previous => { const next = new Set(previous); if (!next.delete(card.symbol)) next.add(card.symbol); return next; })}>{expanded ? "收起" : "展开"}</button>}
-            <Link className="btn btn-sm" to={watchPath(codeOf(card.symbol))}>看个股页 · {card.company}</Link>
+            <Link className="btn btn-sm" to={watchPath(codeOf(card.symbol))}>看{card.company}</Link>
           </span>
         </div>
       </article>
@@ -125,7 +125,7 @@ function Cards({ cards, onDiscuss }: { cards: VariableCard[]; onDiscuss: (card: 
           <span>{dayLabel(card.date)}</span>
           <span className="variable-card-actions">
             <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => toggle(key)}>{expanded ? "收起" : "展开"}</button>
-            {card.companies.map(company => <Link key={company.symbol} className="btn btn-sm" to={watchPath(codeOf(company.symbol))}>看个股页{card.companies.length > 1 ? ` · ${shortName(company.name)}` : ""}</Link>)}
+            {card.companies.map(company => <Link key={company.symbol} className="btn btn-sm" to={watchPath(codeOf(company.symbol))}>看{shortName(company.name)}</Link>)}
             <button type="button" className="btn btn-sm" onClick={() => onDiscuss(card)}>讨论</button>
           </span>
         </div>

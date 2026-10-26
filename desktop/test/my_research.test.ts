@@ -414,7 +414,7 @@ test("记录失败不能挡住工作台；议题工作区按 ID 读 Backend 全�
   assert.match(company, /object-grid/);
   assert.match(company, /<ObjectCard/);
   assert.doesNotMatch(company, /DashboardPanel/);
-  assert.match(company, /打开个股页/);
+  assert.match(company, /openLabel="打开"/);
   assert.doesNotMatch(company, /setJoinOpen|加入研究<\//);
   assert.doesNotMatch(company, /setSlug\(row\.hasWiki \? row\.slug : row\.slug\)/);
   assert.doesNotMatch(company, /打开六阶段研究|research\/legacy/);

@@ -86,17 +86,17 @@ export function CompanyWiki() {
   useAiPage({ key: pageKey, title,
     context: sectionsReady
       ? clipSectionedSnapshot(sectionsRef.current, { keep: ['thesis'] }).body
-      : buildDirectorySnapshot({ heading: `${title} 个股页：数据正在加载。`, items: [{ title, id: slug }], loading: false }),
+      : buildDirectorySnapshot({ heading: `${title}：数据正在加载。`, items: [{ title, id: slug }], loading: false }),
     // 发送时再按用户正在看的那一节取舍；总长超过上限才会用到。
     snapshotForSend: () => sectionsRef.current.length
       ? clipSectionedSnapshot(sectionsRef.current, { focus: viewedCompanySection(), keep: ['thesis'] }).body
-      : `${title} 个股页：数据正在加载，页面上还没有可读的内容。`,
+      : `${title}：数据正在加载，页面上还没有可读的内容。`,
     suggestions: ['这家公司的利润最取决于什么？'],
     actions: [
       { id: 'research', label: '重新研究', disabled: researching || !page.loaded || Boolean(page.error), run: () => void store.restart() },
       { id: 'revert', label: '撤回上次更新', disabled: !page.canRevert || !services.revertResearch, run: () => void revert() },
     ] });
-  const openTask = (sessionId: string) => sessions.openTaskProcess({ sessionId, title: '个股页研究', kind: 'research',
+  const openTask = (sessionId: string) => sessions.openTaskProcess({ sessionId, title: '公司研究', kind: 'research',
     ...(page.task?.sessionId === sessionId && page.task.settlementFailed ? { settlementFailed: true } : {}) });
   const actions = [
     { id: 'research', label: '重新研究', icon: <RefreshCw size={14} />, disabled: researching || !page.loaded || Boolean(page.error), onSelect: () => void companyPageStore(services, symbol, title).restart() },

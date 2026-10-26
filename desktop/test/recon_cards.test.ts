@@ -201,3 +201,63 @@ test('loadReconCards 逐家到达就交出当前已有的卡，不等最慢的�
   await pending;
   assert.deepEqual(late, []);
 });
+
+// ------------------------------------------------------------------ 卡片主体全部来自利润表（毛利变化、费用、减值、投资收益、公允价值变动、税、少数股东），其他 = 环比 − 合计；价格单列不相加
+// 华友、紫金、神火 2026Q3 的真实拆分（Stock 对 2026-10-26 新浪利润表的输出）。
+
+const huayou = JSON.parse(readFileSync(new URL('./fixtures/quarter_recon_huayou.json', import.meta.url), 'utf8'));
+const zijinItems = JSON.parse(readFileSync(new URL('./fixtures/quarter_recon_zijin_items.json', import.meta.url), 'utf8'));
+const shenhuoItems = JSON.parse(readFileSync(new URL('./fixtures/quarter_recon_shenhuo_items.json', import.meta.url), 'utf8'));
+const NOW_OCT26 = new Date('2026-10-26T04:00:00Z');
+const YI = 1e8;
+
+test('华友式：首句先说利润表里最大的一项（毛利变化），税与少数股东损益不做首句；展开逐项，合计加其他等于环比', () => {
+  const [card] = lib.reconCards([{ ...huayou, symbol: '603799.SH', reported_on: '2026-10-24' }], { '603799.SH': '华友' }, NOW_OCT26);
+  assert.equal(card.headline, '华友三季报：单季净利润 8.03 亿元，比上季少 2.07 亿元');
+  assert.equal(card.explain, '最大的一项是毛利变化，影响 -13.04 亿元；其他（税金及附加、其他收益、营业外等）-0.08 亿元');
+  const text = card.details.join('\n');
+  assert.match(text, /毛利变化：本季 .+亿元，上季 .+亿元，对净利润的影响 -13\.04 亿元/);
+  assert.match(text, /资产减值：本季 -9\.88 亿元，上季 -3\.05 亿元，对净利润的影响 -6\.83 亿元/);
+  assert.match(text, /公允价值变动：.*对净利润的影响 \+2\.52 亿元/);
+  assert.match(text, /少数股东损益：本季 \+2\.09 亿元，上季 \+10\.05 亿元，对净利润的影响 \+7\.96 亿元/);
+  assert.ok(text.indexOf('毛利变化') < text.indexOf('资产减值') && text.indexOf('资产减值') < text.indexOf('销售费用'), '按影响大小排');
+  assert.match(text, /其他（税金及附加、其他收益、营业外等）：-0\.08 亿元；以上各项加起来等于比上季的变化/);
+  assert.match(card.details.at(-1), /价格影响与减值可能部分重叠，没有去重/);
+  assert.doesNotMatch(JSON.stringify(card), /归母|买入|卖出|建议|undefined|NaN|null/);
+});
+
+test('三家真实回包：已列科目合计加其他等于环比（亿元两位小数内），华友、紫金的其他很小', () => {
+  for (const item of [huayou, zijinItems, shenhuoItems]) {
+    const sum = item.items.reduce((total: number, line: any) => total + Number(line.impact), 0);
+    assert.ok(Math.abs(sum + Number(item.rest) - Number(item.change)) < 1, item.symbol);
+    assert.ok(Math.abs(Number(item.items_total) - sum) < 1, item.symbol);
+  }
+  assert.ok(Math.abs(Number(huayou.rest)) < 0.5 * YI && Math.abs(Number(zijinItems.rest)) < 2 * YI);
+  const [zijin] = lib.reconCards([{ ...zijinItems, reported_on: '2026-10-24' }], { '601899.SH': '紫金' }, NOW_OCT26);
+  assert.match(zijin.explain, /^最大的一项是公允价值变动，影响 \+20\.98 亿元；其他/);
+  assert.match(zijin.details.join('\n'), /毛利变化：.*对净利润的影响 -18\.67 亿元/);
+  assert.match(zijin.details.join('\n'), /公允价值变动：.*对净利润的影响 \+20\.98 亿元/);
+});
+
+test('神火式有科目缺口：资产减值、公允价值变动单季算不出就如实说明、归在其他里，不当零', () => {
+  const [card] = lib.reconCards([shenhuoItems], names, NOW_OCT26);
+  assert.match(card.explain, /^最大的一项是毛利变化，影响 \+2\.76 亿元；其他/);
+  assert.ok(card.details.some((line: string) => line === '资产减值、公允价值变动的单季数据暂缺，没有单列，归在其他里'));
+  assert.ok(!card.details.some((line: string) => line.startsWith('资产减值：')));
+});
+
+test('价格不参与加总：有价格模型时单独一行「研究模型估计…仅供参考」，没有价格模型不出', () => {
+  const priced = { ...huayou, symbol: '603799.SH', reported_on: '2026-10-24', price_total: '-92000000',
+    variables: [{ var_id: 'cmdty:CU', name: '沪铜', unit: '元/吨', previous_mean: '80000', mean: '78000', move: '-2000', contribution: '-92000000' }], unexplained: [] };
+  const [card] = lib.reconCards([priced], { '603799.SH': '华友' }, NOW_OCT26);
+  assert.equal(card.explain, '最大的一项是毛利变化，影响 -13.04 亿元；其他（税金及附加、其他收益、营业外等）-0.08 亿元', '首句不含价格');
+  assert.ok(card.details.some((line: string) => line === '研究模型估计：价格变化影响约 -0.92 亿元（税后年化系数折季），仅供参考，不与上面各项相加'));
+  const [none] = lib.reconCards([{ ...huayou, symbol: '603799.SH', reported_on: '2026-10-24' }], { '603799.SH': '华友' }, NOW_OCT26);
+  assert.ok(!none.details.some((line: string) => line.includes('研究模型估计')));
+});
+
+test('没有科目时对账卡与以前一致：价格半句、没有价格只写差额', () => {
+  const [card] = lib.reconCards([shenhuo], names, NOW);
+  assert.equal(card.explain, '沪铝、氧化铝变化约带来 -1.05 亿元，其余 +3.19 亿元来自量和成本等，报告未单独披露');
+  assert.ok(!card.details.some((line: string) => line.includes('其他（税金及附加')));
+});

@@ -116,9 +116,10 @@ test('正在盯的：有卡片的排前并写那一次；没有的写平静；�
   const rows = [...container.querySelectorAll('[data-tracking="watching"] [data-variable-row]')] as HTMLElement[];
   assert.deepEqual(rows.map(row => row.dataset.variableRow), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO', '000933.SZ:coal_price']);
   assert.match(rows[0]!.textContent!, /沪铝10 月 8 日 跌 445 元\/吨，已提醒 · 神火/);
-  assert.match(rows[1]!.textContent!, /本周没有大的波动 · 神火/);
+  assert.match(rows[1]!.textContent!, /近一个月没有大到需要提醒的变动 · 神火/);
   assert.match(rows[2]!.textContent!, /没有公开行情，跟着财报更新 · 神火/);
-  assert.match(rows[0]!.textContent!, /2026-10-12$/, '右侧灰字是最新数据日期');
+  assert.match(rows[0]!.querySelector('time')!.textContent!, /^10-12 收盘 23,465$/);
+  assert.equal(rows[0]!.querySelector('time')!.getAttribute('datetime'), '2026-10-12');
   assert.equal(rows[0]!.querySelector('.tracking-detail'), null);
   await React.act(async () => (rows[0]!.querySelector('button.tracking-row') as HTMLButtonElement).click());
   assert.match(rows[0]!.querySelector('.tracking-detail')!.textContent!, /神火股份 · 每涨 1,000 元\/吨\+8\.27 亿元/);
@@ -188,7 +189,7 @@ test('研究：点开显示六步；读报告附报告标题，价格影响步�
   assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['收集资料', '读报告2026 年半年度报告', '算价格对利润的影响沪铝、氧化铝、电价', '估值与判断', '保存资料', '整理结论']);
   assert.deepEqual(steps.map(li => li.querySelector('em')!.textContent), ['完成', '完成', '完成', '进行中', '等待', '等待']);
   assert.doesNotMatch(container.textContent!, /secret|packet_as_of|2026-10-14|document_id|sha|result:|session/i);
-  assert.equal([...container.querySelectorAll('.tracking-detail a')].find(a => a.textContent === '去个股页')!.getAttribute('href'), '/watch/000933');
+  assert.equal([...container.querySelectorAll('.tracking-detail a')].find(a => a.textContent === '看这家公司')!.getAttribute('href'), '/watch/000933');
 });
 
 test('研究：没有任何记录时一句引导加「去关注」；读取失败一句话加重试', async () => {

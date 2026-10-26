@@ -451,7 +451,7 @@ test('「…」菜单：重新研究走 startResearch，进行中禁用；整理
   await openMenu();
   assert.deepEqual(menu().slice(0, 2).map(item => item.textContent), ['重新研究', '查看研究过程']);
   await React.act(async () => menu()[1]!.click());
-  assert.deepEqual(opened, [{ sessionId: 'done-session', title: '个股页研究', kind: 'research', settlementFailed: true }]);
+  assert.deepEqual(opened, [{ sessionId: 'done-session', title: '公司研究', kind: 'research', settlementFailed: true }]);
   await openMenu();
   await React.act(async () => menu()[0]!.click());
   assert.equal(fixture.starts.length, 1);
@@ -464,7 +464,7 @@ test('研究过程面板：知识整理未完成不显示给用户；不显示�
   const panel = await server.ssrLoadModule('/src/verticals/finance/components/TaskProcessPanel.tsx');
   const sessions = { subscribeSessionList: () => () => {}, taskRunning: () => false };
   const show = async (task: Record<string, unknown>) => React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
-    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 'done-session', title: '个股页研究', kind: 'research', ...task }, onClose: () => {} }))));
+    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 'done-session', title: '公司研究', kind: 'research', ...task }, onClose: () => {} }))));
   await show({ settlementFailed: true });
   assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成|本次没有需要展示/);
   await show({});
@@ -472,7 +472,7 @@ test('研究过程面板：知识整理未完成不显示给用户；不显示�
   assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成/);
   const running = { subscribeSessionList: () => () => {}, taskRunning: () => true };
   await React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: running },
-    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 's', title: '个股页研究', kind: 'research', resultRef: undefined }, onClose: () => {} }))));
+    React.createElement(panel.TaskProcessPanel, { task: { sessionId: 's', title: '公司研究', kind: 'research', resultRef: undefined }, onClose: () => {} }))));
   const footer = container.querySelector('footer')!;
   assert.match(footer.className, /justify-end/);
   assert.equal(footer.lastElementChild?.textContent, '中止', '中止在右下角');

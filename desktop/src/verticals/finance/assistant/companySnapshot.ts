@@ -117,7 +117,7 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
   const note = input.packetLoading ? '数据正在加载，页面上这一节还没有数字。' : input.packetError ? '数据暂时取不到，页面上这一节没有数字。' : undefined;
   const out: SnapshotSection[] = [];
   const quote = input.quote;
-  out.push(part('thesis', `${input.name} 个股页`, [
+  out.push(part('thesis', `${input.name} 公司研究`, [
     `${input.name === input.symbol ? input.symbol : `${input.name}（${input.symbol}）`}${input.typeName ? ` · ${input.typeName}` : ''}`,
     input.quoteLoading ? '行情正在加载。' : quote?.price != null
       ? `行情：${plainNumber(quote.price, 2)}${quote.currencyLabel ? ` ${quote.currencyLabel}` : ''}${quote.change_pct != null ? `，${quote.change_pct > 0 ? '+' : ''}${plainNumber(quote.change_pct, 2)}%` : ''}${quote.fetched_at ? `（行情 ${periodLabel(quote.fetched_at)}）` : ''}`

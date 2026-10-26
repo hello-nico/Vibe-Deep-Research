@@ -345,7 +345,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   }) : [];
   const snapshotKey = JSON.stringify(snapshotSections);
   useEffect(() => { onSnapshot?.(snapshotSections); }, [snapshotKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  return <article className="company-page" aria-label={`${name} 个股页`}>
+  return <article className="company-page" aria-label={name}>
     <section className="card company-page-hero">
       <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p>
         {chains.length > 0 && <p className="company-page-code" data-chain-entry="">所属产业链：{chains.map((chain, index) => <span key={chain.chain_id}>{index ? '、' : ''}<Link to={chainPath(chain.chain_id)}>{chain.name}</Link></span>)}</p>}</div>

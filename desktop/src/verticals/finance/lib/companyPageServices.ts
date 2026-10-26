@@ -117,7 +117,7 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
     readResearch: async symbol => {
       const { research, stale, basisVersion, researchVersion, canRevert, changedFrom } = await researchRead<Omit<CompanyPageResearchRead, 'task'>>(`/wiki/companies/${qualified(symbol)}/page-research`);
       if (typeof basisVersion !== 'string' || !basisVersion || typeof stale !== 'boolean' || !(research === null || research && typeof research === 'object')) {
-        throw new Error('个股页研究读取失败');
+        throw new Error('研究读取失败');
       }
       const task = await latestTask(qualified(symbol));
       return { research, stale, basisVersion, task,
@@ -130,7 +130,7 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
       if (!slug) throw new Error('公司研究暂只支持 A 股');
       // The research task starts after today's ensure; if the page already started it, this waits for the same job.
       try { await ensureOnce(code, shanghaiDay()); } catch (error) { console.warn('[finance/company-page] ensure before research failed', error); }
-      const result = await sessions.start(`按个股页研究流程研究 ${name}（${symbol}），保存最新个股页研究。`, { symbol, name }, {
+      const result = await sessions.start(`按公司研究流程研究 ${name}（${symbol}），保存最新研究。`, { symbol, name }, {
         navigate: false, task: { kind: 'research', slug, symbol: code, title: `公司研究 · ${name}` },
       });
       return { sessionId: result.sessionId, status: 'researching', stage: '正在研究' };

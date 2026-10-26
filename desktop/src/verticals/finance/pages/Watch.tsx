@@ -90,10 +90,10 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: It
     return <ObjectCard icon={TrendingUp} tone="stock" name={row.name} code={row.symbol}
       keyValue={quote?.price != null ? <><div className="font-semibold">{financialNumber(quote.price)}</div><div className={cn("text-xs", tone(quote.change_pct))}>{pct(quote.change_pct)}</div></> : <span className="text-[var(--text-4)]">—</span>}
       text={judgment}
-      emptyText={status ? <StatusPill tone={status.tone === "run" ? "run" : "wait"}>{status.label}</StatusPill> : row.supported ? "首次打开个股页时开始研究" : "港股、美股暂不支持个股页"}
+      emptyText={status ? <StatusPill tone={status.tone === "run" ? "run" : "wait"}>{status.label}</StatusPill> : row.supported ? "第一次打开时开始研究" : "港股、美股暂不支持研究"}
       data={<div className="h-7">{series && <Sparkline values={series} label={`${row.name} 近 60 日走势`} />}</div>}
       foot={[industry, asOf ? `资料截至 ${asOf}` : ""].filter(Boolean).join(" · ")}
-      onOpen={row.supported ? onOpen : undefined} openLabel="打开个股页" menu={menu} />;
+      onOpen={row.supported ? onOpen : undefined} openLabel="打开" menu={menu} />;
   }
   return <>
     <tr className={cn("watch-row", row.supported && "cursor-pointer", chartOpen && "is-open")} onClick={event => { if (row.supported && !(event.target as HTMLElement).closest("button, a, [role=menu]")) onOpen(); }}>
@@ -205,7 +205,7 @@ export function Watch() {
         if (marketOfSymbol(code) === "CN" && !roster.includes(code)) await addToRoster(code);
       }
       const skipped = fresh.filter(code => marketOfSymbol(code) !== "CN").length;
-      setHint(`已关注 ${fresh.length + patch.length} 只${skipped ? `；其中 ${skipped} 只港股或美股暂不支持个股页` : ""}`);
+      setHint(`已关注 ${fresh.length + patch.length} 只${skipped ? `；其中 ${skipped} 只港股或美股暂不支持研究` : ""}`);
       setInput(""); setRevision(value => value + 1);
     } catch (reason) { setHint(`没保存上：${reason instanceof Error ? reason.message : String(reason)}`); setRevision(value => value + 1); }
   };
@@ -262,7 +262,7 @@ export function Watch() {
       <span role="tablist" aria-label="关注视图" className="segmented">{([["list", List, "表格"], ["grid", LayoutGrid, "卡片"]] as const).map(([id, Icon, label]) => <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} onClick={() => setView2(id)}><Icon size={14} /></button>)}</span>
     </span>}>{needle ? `匹配 ${visible.length} / ${rows.length}` : `共 ${rows.length} 家`}</SectionLabel>
     {!visible.length ? <div className="card px-6 py-14 text-center">
-      <p className="text-sm text-[var(--text-2)]">{rows.length ? "没有匹配的公司" : "还没有关注的公司。添加后会出现在这里，进入个股页即可开始研究。"}</p>
+      <p className="text-sm text-[var(--text-2)]">{rows.length ? "没有匹配的公司" : "还没有关注的公司。添加后会出现在这里，点开公司即可开始研究。"}</p>
       {!rows.length && <button type="button" className="btn btn-primary mt-4" onClick={() => setAdding(true)}><Plus />添加关注</button>}
     </div> : view === "grid"
       ? <div className="object-grid">{visible.map(row => <Item key={row.symbol} row={row} view={view} services={services} chartOpen={false} onOpen={() => open(row)} onChart={() => {}} onRemove={() => void remove(row)} />)}</div>

@@ -8,10 +8,13 @@ import { qualifiedWatch, shortName, toNumber, type TrackingVariables } from './t
 export interface ReconVariable {
   var_id: string; name?: string | null; unit?: string | null; previous_mean: string; mean: string; move: string; contribution: string;
 }
+/** 利润表单季科目：本季与上季（元，费用类为正数、减值亏损为负数），`impact` 是这一项变化对净利润的影响（费用多了记负，亏损加重记负）。 */
+export interface ReconItem { metric: string; name: string; previous: string; current: string; change: string; impact: string }
 export interface Reconciliation {
   symbol: string; status: 'ok' | 'gap'; reason?: string;
   period?: string; previous_period?: string; actual?: string; previous?: string; change?: string; reported_on?: string | null;
   variables?: ReconVariable[]; unexplained?: string[]; price_total?: string | null; rest?: string | null;
+  items?: ReconItem[]; item_gaps?: string[]; items_total?: string | null;
 }
 export interface ReconCard {
   symbol: string; company: string; period: string;
@@ -29,6 +32,15 @@ export const reconLabel = (period: string) => LABEL[Number(period.slice(-1))] ??
 const signedYi = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${yiText(Math.abs(value))}`;
 const dayDiff = (iso: string, now: Date) => Math.floor((now.getTime() - Date.parse(`${iso}T00:00:00+08:00`)) / 86400000);
 
+/** 所得税与少数股东损益是税前利润变化的机械结果，只在展开里列出，不做首句结论。 */
+const MECHANICAL = new Set(['income_tax', 'minority_interest']);
+/** 利润表科目里影响最大的一项做结论，后半句交代其他。 */
+function itemsExplain(lines: { metric: string; name: string; impact: number }[], rest: number) {
+  const top = lines.filter(line => !MECHANICAL.has(line.metric)).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))[0];
+  const lead = top ? `最大的一项是${top.name}，影响 ${signedYi(top.impact)}；` : '';
+  return `${lead}其他（税金及附加、其他收益、营业外等）${signedYi(rest)}`;
+}
+
 /** 只看披露日：最近 RECON_DAYS 天内披露的季报就出卡，研究是否已经用上这份季报不影响；缺口、日期不明、超过天数的不出。 */
 export function reconCards(items: readonly Reconciliation[], names: Record<string, string>, now = new Date()): ReconCard[] {
   return items.flatMap(item => {
@@ -40,9 +52,12 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
     const headline = `${company}${reconLabel(item.period)}：单季净利润 ${yiText(actual)}，比上季${change >= 0 ? '多' : '少'} ${yiText(Math.abs(change))}`;
     const price = toNumber(item.price_total), rest = toNumber(item.rest);
     const variables = item.variables ?? [];
-    const explain = price != null && rest != null && variables.length
-      ? `${variables.map(variable => variable.name).filter(Boolean).join('、')}变化约带来 ${signedYi(price)}，其余 ${signedYi(rest)}来自量和成本等，报告未单独披露` : undefined;
-    const details = [
+    const lines = (item.items ?? []).flatMap(line => { const impact = toNumber(line.impact); return impact == null ? [] : [{ ...line, impact }]; });
+    const priceName = `${variables.map(variable => variable.name).filter(Boolean).join('、')}变化`;
+    const explain = lines.length && rest != null ? itemsExplain(lines, rest)
+      : price != null && rest != null && variables.length
+        ? `${priceName}约带来 ${signedYi(price)}，其余 ${signedYi(rest)}来自量和成本等，报告未单独披露` : undefined;
+    const priceDetails = [
       ...variables.map(variable => {
         const now = toNumber(variable.mean), before = toNumber(variable.previous_mean), part = toNumber(variable.contribution);
         const digits = (value: number) => plainNumber(value, Number.isInteger(value) ? 0 : 2);
@@ -51,6 +66,16 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
       ...(item.unexplained?.length ? [`没有算进价格部分：${item.unexplained.join('、')}（没有可读的价格或行情不足）`] : []),
       ...(variables.length ? ['价格部分 = 年化系数 × (本季均价 − 上季均价) ÷ 4，只解释环比变化，不代表准确度'] : []),
     ];
+    const details = lines.length ? [
+      ...lines.map(line => {
+        const now = toNumber(line.current), before = toNumber(line.previous);
+        return `${line.name}：本季 ${now == null ? '暂缺' : signedYi(now)}，上季 ${before == null ? '暂缺' : signedYi(before)}，对净利润的影响 ${signedYi(line.impact)}`;
+      }),
+      ...(item.item_gaps?.length ? [`${item.item_gaps.join('、')}的单季数据暂缺，没有单列，归在其他里`] : []),
+      `其他（税金及附加、其他收益、营业外等）：${rest == null ? '暂缺' : signedYi(rest)}；以上各项加起来等于比上季的变化`,
+      ...(price != null && variables.length ? [`研究模型估计：价格变化影响约 ${signedYi(price)}（税后年化系数折季），仅供参考，不与上面各项相加`, ...priceDetails] : []),
+      '价格影响与减值可能部分重叠，没有去重；科目取自利润表，单季 = 累计值相减',
+    ] : priceDetails;
     return [{ symbol: item.symbol, company, period: item.period, headline, explain, details }];
   });
 }

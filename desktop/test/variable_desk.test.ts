@@ -90,7 +90,9 @@ test('卡片标题写事情本身，第二行写碰到哪些关注公司和方�
 test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有写平静，没有行情与取不到各一句', () => {
   const [al, ao, coal] = trackingFixture.variables;
   assert.equal(lib.variableLine(al, trackingFixture.cards), '10 月 8 日 跌 445 元/吨，已提醒');
-  assert.equal(lib.variableLine(ao, []), '本周没有大的波动');
+  assert.equal(lib.variableLine(ao, []), '近一个月没有大到需要提醒的变动');
+  assert.equal(lib.lastCloseLabel(al), '10-12 收盘 23,465');
+  assert.equal(lib.lastCloseLabel(coal), '');
   assert.equal(lib.variableLine(coal, trackingFixture.cards), '没有公开行情，跟着财报更新');
   assert.equal(lib.variableLine({ ...ao, status: 'gap' }, []), '暂时取不到行情');
   assert.deepEqual(lib.orderWatching([coal, ao, al], trackingFixture.cards).map((v: any) => v.var_id), ['cmdty:SHFE.AL', '000933.SZ:coal_price', 'cmdty:SHFE.AO']);

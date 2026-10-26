@@ -24,6 +24,7 @@ export const BANNED_WORDS: Record<string, string> = {
   归母: "净利润",
   年内累计: "今年以来",
   取数: "收集资料",
+  个股页: "看这家公司 / 打开 / 公司研究",
 };
 
 export function visibleStrings(source: string, fileName = "x.tsx"): { text: string; line: number }[] {
@@ -70,6 +71,7 @@ test("门禁能拦住：字符串、模板文字、JSX 文本与属性里的禁�
   assert.deepEqual(bannedHits(fresh).map(item => item.word).sort(), ["基数", "整条", "归母", "年内累计"].sort());
   assert.deepEqual(bannedHits(`// 基数 整条 归母 年内累计\nconst ok = '对比期利润、净利润、今年以来';`), []);
   assert.deepEqual(bannedHits(`// 关键变量\n/** 警戒线 */\nimport x from './关键变量';\nconst ok = '价格';`), []);
+  assert.deepEqual(bannedHits(`const a = '打开个股页';`).map(item => item.word), ["个股页"]);
 });
 
 test("百分号紧跟数字：字段、阈值、滑块和「每 ±n%」都经 tightPercent，字面量不含「数字 + 空格 + %」", () => {
