@@ -13,8 +13,6 @@ test("旧入口按 N3 对照表重定向，/evidence 与新地址不动", () => 
   assert.equal(legacyRedirect("/research", "?company=600519"), "/watch/600519");
   assert.equal(legacyRedirect("/research", "?company=%21%21"), "/watch");
   assert.equal(legacyRedirect("/daily-review"), "/feed");
-  assert.equal(legacyRedirect("/intel"), "/feed?tab=intel");
-  assert.equal(legacyRedirect("/intel/filings"), "/feed?tab=intel&sub=filings");
   assert.equal(legacyRedirect("/my-research"), "/insights");
   assert.equal(legacyRedirect("/my-research", "?tab=tasks&draft=d1"), "/insights?tab=tasks&draft=d1");
   assert.equal(legacyRedirect("/my-research/topics/abc123def456"), "/insights/topics/abc123def456");
@@ -28,7 +26,7 @@ test("旧入口按 N3 对照表重定向，/evidence 与新地址不动", () => 
 
 test("路由表为旧入口挂重定向，议题与证据深链不失效", () => {
   const source = readFileSync(new URL("../src/verticals/finance/router.tsx", import.meta.url), "utf8");
-  for (const path of ["/sectors", "/sectors/*", "/signals", "/signals/*", "/watchlist", "/research", "/daily-review", "/intel", "/intel/:tab", "/my-research", "/my-research/topics/:topicHex", "/my-research/*"])
+  for (const path of ["/sectors", "/sectors/*", "/signals", "/signals/*", "/watchlist", "/research", "/daily-review", "/my-research", "/my-research/topics/:topicHex", "/my-research/*"])
     assert.match(source, new RegExp(`path: "${path.replace(/[/*:]/g, "\\$&")}", element: <LegacyRedirect />`), path);
   assert.match(source, /path: "\/evidence", lazy/);
   assert.match(source, /path: "\/insights\/topics\/:topicHex", lazy/);

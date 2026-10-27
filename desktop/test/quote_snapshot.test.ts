@@ -92,7 +92,7 @@ test("新闻与公告请求的 limit 不超过 Backend 上限 50", async t => {
   assert.equal(seen.length, 2);
   for (const url of seen) assert.ok(Number(new URL(url, "http://x").searchParams.get("limit")) <= 50);
   assert.match(seen[1], /920001\.BJ/);
-  assert.ok(Number(/MAX_ROWS = (\d+)/.exec(readFileSync("src/verticals/finance/pages/Intel.tsx", "utf8"))?.[1]) <= 50);
+  assert.ok(Number(/MAX_FILINGS = (\d+)/.exec(readFileSync("src/verticals/finance/lib/feedStream.ts", "utf8"))?.[1]) <= 50);
 });
 
 test("资讯缓存：30 分钟内命中不再请求，过期重取，force 绕过并覆盖，失败不缓存", async t => {

@@ -1,7 +1,7 @@
 import { fromMarkdown } from 'mdast-util-from-markdown';
 import type { Nodes } from 'mdast';
 import type { ConversationNodeDefinition } from '@deepseek-ai/dsh-client-ui-conversation/client';
-import type { CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection.ts';
+import type { ChainSuggestion, CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection.ts';
 
 export interface VibeValue { value: number | string; unit: string; period: string; source_title: string }
 export interface VibeElementCheck {
@@ -9,7 +9,7 @@ export interface VibeElementCheck {
   values?: Record<string, VibeValue>;
 }
 export interface VibeBlockCheck { index: number; ok: boolean; elements: VibeElementCheck[] }
-export type VibeSuggest = { type: 'question'; items: QuestionSuggestion[] } | { type: 'company'; items: CompanySuggestion[] } | { type: 'indicator'; items: IndicatorSuggestion[] };
+export type VibeSuggest = { type: 'question'; items: QuestionSuggestion[] } | { type: 'company'; items: CompanySuggestion[] } | { type: 'indicator'; items: IndicatorSuggestion[] } | { type: 'chain'; items: ChainSuggestion[] };
 export interface UnfencedSuggestion { start: number; end: number; status: 'ok' | 'dropped'; reason?: string }
 export interface VibeCheck { turn: number; blocks: VibeBlockCheck[]; suggest?: VibeSuggest; unfencedSuggestions?: UnfencedSuggestion[] }
 export interface VibeNode { component: string; path: string; attrs: Record<string, string>; text: string; children: VibeNode[] }
@@ -164,9 +164,10 @@ export function readVibeCheck(value: unknown): VibeCheck | undefined {
   }
   if (value.suggest !== undefined) {
     const s = value.suggest;
-    if (!record(s) || !['question', 'company', 'indicator'].includes(String(s.type)) || !Array.isArray(s.items)) return;
+    if (!record(s) || !['question', 'company', 'indicator', 'chain'].includes(String(s.type)) || !Array.isArray(s.items)) return;
     if (!s.items.every(item => record(item) && (s.type === 'question' ? typeof item.text === 'string'
       : s.type === 'indicator' ? typeof item.name === 'string' && typeof item.reason === 'string' && record(item.tracking_item) && typeof item.tracking_item.tracking_key === 'string'
+      : s.type === 'chain' ? typeof item.public_chain_id === 'string' && typeof item.name === 'string' && typeof item.reason === 'string'
       : typeof item.symbol === 'string' && typeof item.reason === 'string'))) return;
   }
   if (value.unfencedSuggestions !== undefined) {

@@ -25,7 +25,6 @@ before(async () => {
     factor: await server.ssrLoadModule('/src/verticals/finance/lib/feedFactor.ts'),
     narrative: await server.ssrLoadModule('/src/verticals/finance/lib/companyNarrative.ts'),
     api: await server.ssrLoadModule('/src/verticals/finance/lib/api.ts'),
-    intel: await server.ssrLoadModule('/src/verticals/finance/pages/Intel.tsx'),
     page: await server.ssrLoadModule('/src/core/ai/pageContext.tsx'),
     watch: await server.ssrLoadModule('/src/verticals/finance/lib/watchlist.ts'),
     router: await server.ssrLoadModule('react-router-dom'),
@@ -52,82 +51,3 @@ test('Jev 驱动句：碰到X：对利润偏正面 / 偏负面 / 影响不明；
 });
 
 const h = React.createElement;
-const rows = (symbol: string, items: Record<string, unknown>[]) => items.map((item, index) => ({ symbol, source: '证券时报', published_at: `2026-10-19T0${index}:00:00+00:00`, url: `https://example.test/${symbol}/${index}`, ...item }));
-async function open(sub: 'news' | 'filings', fetchImpl: (url: string) => Response | Promise<Response>) {
-  globalThis.fetch = (async (input: unknown) => fetchImpl(String(input))) as typeof fetch;
-  modules.api.clearFeedCache();
-  modules.factor.clearFactorModels();
-  modules.watch.replaceWatchCache(['000933', '600900']);
-  await React.act(async () => root.render(null));
-  await React.act(async () => root.render(h(modules.router.MemoryRouter, null, h(modules.page.AiPageProvider, {}, h(modules.intel.Intel, { sub })))));
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
-}
-const researchRoutes = (url: string) => {
-  if (url.includes('/market/quotes')) return Response.json({ quotes: [], missing: [] });
-  if (url.includes('000933.SZ/page-research')) return Response.json({ research: { sensitivity: { resultRef: RESULT } } });
-  if (url.includes('600900.SH/page-research')) return Response.json({ research: null });
-  if (url.includes(`/research-results/${RESULT}`)) return Response.json(shenhuo.sensitivityResult);
-  return Response.json({ items: [] });
-};
-
-test('资讯页：Backend 给了 Jev 的驱动与方向就写那一句（价格模型保留数值半句）；改写合并显示“另有 N 篇相似报道，已合并为这一条”，新进展加标记；没给的退回关键词句', async () => {
-  const items = [
-    ...rows('000933.SZ', [
-      { title: '沪铝价格回落，神火股份电解铝利润收窄', factor: { driver: '沪铝', direction: 'negative', p: 0.97 }, also: 2 },
-      { title: '神火股份：三季报净利润同比增长114.54%', follow_up: true },
-      { title: '氧化铝价格大幅回落', },
-    ]),
-    ...rows('600900.SH', [{ title: '长江电力：前三季度发电量同比降4.28%', factor: { driver: '发电量', direction: 'negative', p: 0.9 } }]),
-  ];
-  await open('news', url => url.includes('/feed/news') ? Response.json({ items, filtered: 3 }) : researchRoutes(url));
-  const notes = [...container.querySelectorAll('[data-feed-factor]')].map(node => node.textContent);
-  assert.deepEqual(notes.sort(), ['碰到发电量：对利润偏负面', '碰到氧化铝：每 +100 元/吨，净利润 -1.92 亿元', '碰到沪铝：对利润偏负面；每 +1,000 元/吨，净利润 +9.96 亿元'].sort());
-  const also = container.querySelector('[data-feed-also]')!;
-  assert.equal(also.textContent, '另有 2 篇相似报道，已合并为这一条');
-  assert.equal(also.getAttribute('title'), '另有 2 篇相似报道，已合并为这一条');
-  assert.equal(container.querySelectorAll('[data-feed-also]').length, 1);
-  assert.equal(container.querySelector('[data-feed-followup]')!.textContent, '新进展');
-  assert.equal(container.querySelectorAll('[data-feed-followup]').length, 1);
-  assert.doesNotMatch(container.textContent!, /利好|利空|买入|卖出|过滤|已过滤/);
-});
-
-test('资讯标题行不写正在加载', async () => {
-  await open('news', url => url.includes('/feed/news') ? Response.json({ items: [] }) : researchRoutes(url));
-  assert.doesNotMatch(container.textContent!, /共 0 条新闻（近期）正在加载/);
-});
-
-test('公告：默认不含 Jev 判为例行的，出现“查看全部（另有 N 条例行）”；点开后带 all=1 重取，例行的加“例行”标记，按钮改成“只看重要的”', async () => {
-  const urls: string[] = [];
-  const important = rows('000933.SZ', [{ title: '神火股份：2026年第三季度报告', document_id: null }]);
-  const routine = rows('000933.SZ', [{ title: '神火股份：独立董事关于第八届董事会会议的意见', document_id: null, routine: true, published_at: '2026-10-18T00:00:00+00:00' }]);
-  await open('filings', url => {
-    if (url.includes('/feed/announcements')) {
-      urls.push(url);
-      return url.includes('all=1') ? Response.json({ items: [...important, ...routine], filtered: 1, hidden: 1 }) : Response.json({ items: important, filtered: 1, hidden: 1 });
-    }
-    return researchRoutes(url);
-  });
-  const button = () => container.querySelector('[data-show-all]') as HTMLButtonElement;
-  assert.equal(button().textContent, '查看全部（另有 1 条例行）');
-  assert.match(container.textContent!, /第三季度报告/);
-  assert.doesNotMatch(container.textContent!, /独立董事关于第八届董事会/);
-  assert.equal(container.querySelector('[data-feed-routine]'), null);
-  assert.ok(!urls.some(url => url.includes('all=1')));
-  await React.act(async () => button().click());
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
-  assert.ok(urls.some(url => url.includes('all=1')), '点了才带 all=1');
-  assert.match(container.textContent!, /独立董事关于第八届董事会/);
-  assert.equal(container.querySelectorAll('[data-feed-routine]').length, 1);
-  assert.equal(button().textContent, '只看重要的');
-  await React.act(async () => button().click());
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
-  assert.doesNotMatch(container.textContent!, /独立董事关于第八届董事会/);
-});
-
-test('公告没有被隐藏的（或 Backend 没开 Jev）：不出现“查看全部”，页面和以前一样', async () => {
-  await open('filings', url => url.includes('/feed/announcements')
-    ? Response.json({ items: rows('000933.SZ', [{ title: '神火股份：2026年第三季度报告', document_id: null }]), filtered: 0 })
-    : researchRoutes(url));
-  assert.equal(container.querySelector('[data-show-all]'), null);
-  assert.match(container.textContent!, /第三季度报告/);
-});

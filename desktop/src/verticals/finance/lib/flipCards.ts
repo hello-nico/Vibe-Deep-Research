@@ -50,8 +50,36 @@ export function flipCards({ data, models, grades }: FlipInput): FlipCard[] {
   return [...out.filter(card => card.kind === 'crossed'), ...out.filter(card => card.kind === 'near')];
 }
 
+/** 跟踪页走势图上的跳档线：每个价格取一条（已越过的优先，否则离现价最近的）；value 是价格，text 是线旁的一句。 */
+export interface FlipLine { varId: string; value: number; text: string }
+export function flipLines({ data, models, grades }: FlipInput): FlipLine[] {
+  const out = new Map<string, FlipLine>();
+  for (const variable of data.variables) {
+    const live = toNumber(variable.latest);
+    if (variable.status !== 'ok' || live == null || out.has(variable.var_id)) continue;
+    for (const company of variable.companies) {
+      const model = models[company.result_ref];
+      const primary = model?.variables[0];
+      if (!model || !primary || primary.id !== variable.var_id) continue;
+      const flips = model.flips.filter(item => item.id === primary.id && !item.invalid);
+      const from = primary.current;
+      const pick = flips.filter(item => (item.value - from) * (item.value - live) <= 0 && item.value !== from)
+        .sort((a, b) => Math.abs(b.value - from) - Math.abs(a.value - from))[0]
+        ?? [...flips].sort((a, b) => Math.abs(a.value - live) - Math.abs(b.value - live))[0];
+      if (!pick) continue;
+      const old = grades[company.symbol]?.trim() || undefined;
+      const to = pick.grade ?? flipGrade(pick, primary, old);
+      const name = shortName(company.name);
+      const verdict = !to ? '估值判断会改变' : old ? `估值从${old}变为${to}` : `估值变为${to}`;
+      out.set(variable.var_id, { varId: variable.var_id, value: pick.value, text: `${pick.value < from ? '跌破' : '涨过'} ${sliderUnitText(primary, pick.value)}：${name}${verdict}` });
+      break;
+    }
+  }
+  return [...out.values()];
+}
+
 /** 读各家公司已存的敏感性凭据与估值档；任何一项读不到就当没有，不出卡也不报错。 */
-export async function loadFlipCards(data: TrackingVariables, signal?: AbortSignal): Promise<FlipCard[]> {
+async function loadFlipInput(data: TrackingVariables, signal?: AbortSignal): Promise<FlipInput> {
   const companies = data.variables.filter(item => item.status === 'ok').flatMap(item => item.companies);
   const refs = [...new Set(companies.map(company => company.result_ref).filter(ref => /^result:[0-9a-f]{32}$/i.test(ref)))];
   const symbols = [...new Set(companies.map(company => company.symbol))];
@@ -59,5 +87,7 @@ export async function loadFlipCards(data: TrackingVariables, signal?: AbortSigna
     Promise.all(refs.map(async ref => [ref, parseSensitivity(await researchRead(`/research-results/${ref}`, { signal }).catch(() => null))] as const)),
     Promise.all(symbols.map(async symbol => [symbol, await readValuationGrade(symbol, signal)] as const)),
   ]);
-  return flipCards({ data, models: Object.fromEntries(models), grades: Object.fromEntries(grades) });
+  return { data, models: Object.fromEntries(models), grades: Object.fromEntries(grades) };
 }
+export async function loadFlipCards(data: TrackingVariables, signal?: AbortSignal): Promise<FlipCard[]> { return flipCards(await loadFlipInput(data, signal)); }
+export async function loadFlipLines(data: TrackingVariables, signal?: AbortSignal): Promise<FlipLine[]> { return flipLines(await loadFlipInput(data, signal)); }

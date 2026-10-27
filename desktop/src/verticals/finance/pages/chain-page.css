@@ -16,12 +16,22 @@
 .chain-drivers > li > b { color: hsl(var(--foreground)); font-weight: 600; }
 .chain-chips { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
 .chain-companies { display: grid; }
-.chain-company { display: grid; grid-template-columns: minmax(120px, 1.1fr) 96px minmax(180px, 1.6fr) minmax(160px, 1.4fr); gap: 12px; align-items: center; padding: 12px 0; font-size: 13px; }
+.chain-company { display: grid; grid-template-columns: minmax(120px, 1.1fr) 96px minmax(180px, 1.6fr) minmax(160px, 1.4fr) auto; gap: 12px; align-items: center; padding: 12px 0; font-size: 13px; }
 .chain-company + .chain-company { border-top: 1px solid var(--line-1); }
 .chain-company-name { display: grid; gap: 2px; }
 .chain-company-name > a { font-weight: 600; color: hsl(var(--foreground)); }
 .chain-company-name > small { font-size: 12px; color: var(--text-3); }
-.chain-company-none { grid-column: 2 / -1; color: var(--text-3); }
+.chain-company-none { grid-column: 2 / -2; color: var(--text-3); }
+.chain-company-act { grid-column: -2 / -1; justify-self: end; }
+.chain-notice { margin-bottom: 12px; }
+.chain-stage + .chain-stage { margin-top: 20px; }
+.chain-stage-name { margin: 0 0 4px; font-size: 12px; color: var(--text-3); }
+.chain-candidates { margin-top: 6px; font-size: 13px; }
+.chain-candidates > summary { cursor: pointer; color: var(--text-2); font-size: 12px; }
+.chain-candidates > summary:hover { color: hsl(var(--foreground)); }
+.chain-candidate-list { list-style: none; margin: 8px 0 0; padding: 0; display: grid; }
+.chain-candidate-list > li { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+.chain-candidate-list > li + li { border-top: 1px solid var(--line-1); }
 .chain-company-implied { color: var(--text-2); line-height: 1.5; }
 .chain-band { position: relative; display: block; height: 30px; }
 .chain-band-range { position: absolute; top: 8px; height: 6px; border-radius: 3px; background: var(--fill-3); }
@@ -53,7 +63,8 @@
   .chain-arrow { transform: rotate(90deg); min-width: 0; min-height: 36px; }
   .chain-drivers > li { grid-template-columns: 1fr; gap: 4px; }
   .chain-chips { justify-content: flex-start; }
-  .chain-company { grid-template-columns: 1fr 1fr; }
+  .chain-company { grid-template-columns: 1fr auto; }
   .chain-company-none { grid-column: 1 / -1; }
+  .chain-company-act { grid-column: auto; grid-row: 1; grid-column: 2; }
   .chain-company-band, .chain-company-implied { grid-column: 1 / -1; }
 }

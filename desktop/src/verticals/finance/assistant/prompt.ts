@@ -228,7 +228,6 @@ function capBoundReads(bound: string[]): string[] {
 export async function bindAssistantPrompt(input: {
   prompt: string;
   title: string;
-  mode: 'ask' | 'agent';
   pageSnapshot?: string;
   objects: AssistantObjectRef[];
   companyQuotes?: CompanySnapshotQuote[];
@@ -262,7 +261,6 @@ export async function bindAssistantPrompt(input: {
           ? `本轮引用：${input.objects.map(o => o.label).join('、')}`
           : '',
       `当前页面：${input.title}`,
-      `模式：${input.mode === 'agent' ? 'Agent（可按需检索补充）' : 'Ask（即答：只用上述上下文）'}`,
     ]),
   ].filter(Boolean).join('\n\n');
 }

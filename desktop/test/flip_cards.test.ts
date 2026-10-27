@@ -104,47 +104,55 @@ async function render(element: React.ReactElement) {
 test('动态「行情」：跳档提醒置顶、不描边，平时不出现；读取失败不影响其余卡片', async () => {
   const loadFlips = async (data: any) => flipLib.flipCards({ data, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: { '000933.SZ': '合理' } });
   const withJudgment = dataAt(22000); withJudgment.cards[0].judgment_changed = true;
-  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips }));
-  const first = container.querySelector('.variable-desk-cards')!;
-  assert.equal(first.getAttribute('data-flip-cards'), '', '提醒在最上面');
+  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips, loadFilings: async () => ({ rows: [], hidden: 0 }) }));
+  const first = container.querySelector('[data-stream-card]')!;
+  assert.equal(first.getAttribute('data-stream-type'), '判断变化', '判断变化卡置顶');
+  assert.ok(first.hasAttribute('data-flip-card'));
   assert.equal(first.querySelector('.variable-card-title')!.textContent, '沪铝跌破 22,500 元/吨，神火估值从合理变为偏高');
+  assert.match(first.querySelector('.variable-card-touch')!.textContent!, /^涉及：神火 · 估值档位 · /);
+  assert.match(first.querySelector('.variable-card-foot')!.textContent!, /^判断变化/);
   assert.equal(container.querySelectorAll('.card-alert').length, 0, '提醒卡不用品牌橙描边');
-  assert.equal(first.querySelector('[data-flip-card="000933.SZ"]')!.closest('.card')!.className.trim(), 'card', '样式与普通动态卡一致');
-  assert.doesNotMatch(first.querySelector('[data-flip-card]')!.textContent!, /已越过|接近/, '卡脚不再有“接近 / 越过”标签，句子本身已说明');
+  assert.equal(first.closest('.card')!.className.trim(), 'card', '样式与普通动态卡一致');
+  assert.doesNotMatch(first.querySelector('.variable-card-title')!.textContent!, /已越过|接近/, '卡上不再有“接近 / 越过”标签，句子本身已说明');
   assert.equal(first.querySelector('a')!.getAttribute('href'), '/watch/000933');
+  assert.ok([...first.querySelectorAll('button')].some(button => button.textContent === '讨论'), '判断变化卡也能讨论');
   assert.doesNotMatch(first.textContent!, /买入|卖出|建议|机会|减仓|加仓/);
-  // 远离：不出提醒块，判断改变的描边照旧。
-  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips: async () => [] }));
-  assert.equal(container.querySelector('[data-flip-cards]'), null);
+  // 远离：不出提醒卡。
+  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) }));
+  assert.equal(container.querySelector('[data-flip-card]'), null);
   assert.equal(container.querySelectorAll('.card-alert').length, 0);
-  await render(h(desk.VariableDesk, { load: async () => dataAt(25000), loadFlips: async () => { throw new Error('boom'); } }));
-  assert.equal(container.querySelector('[data-flip-cards]'), null);
+  await render(h(desk.VariableDesk, { load: async () => dataAt(25000), loadFlips: async () => { throw new Error("boom"); }, loadFilings: async () => ({ rows: [], hidden: 0 }) }));
+  assert.equal(container.querySelector('[data-flip-card]'), null);
   assert.ok(container.querySelector('[data-variable-card]'), '原有价格变动卡照常');
 });
 
-test('跟踪页「研究」：对应公司那行同步一句；没有提醒的公司那行不变；价格模型读不到不报错', async () => {
+test('跟踪页走势：展开后跳档线旁写一句；没有跳档价的价格不写；价格模型读不到不报错', async () => {
   const live = dataAt(22000);
   const calc = { body: { payload: { calculation: { extra: { base_profit: 1, shares: 1, flips: NEUTRAL_PLUS,
     variables: [{ var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: 23465, coef_per_unit: 827213.78, range: [18000, 28000], step: 10 }] } } } } };
-  const records = ['000933.SZ', '000807.SZ'].map((symbol, index) => ({ task_id: `task:${symbol}`, kind: 'company_research', symbol, slug: `companies/${symbol.slice(0, 6)}`, title: `公司研究 · ${index ? '云铝股份' : '神火股份'}`,
-    status: 'completed', current_step: 6, steps: [], sessions: ['s1'], host_boot_id: 'b', trigger_note: null, reason: null, created_at: '2026-10-14T01:00:00Z', updated_at: `2026-10-14T0${3 - index}:00:00Z`, finished_at: null }));
   let calcOk = true;
   globalThis.fetch = (async (url: string) => {
     const path = String(url);
-    if (path.startsWith('/finance-research-tasks')) return Response.json({ items: records });
     if (path.includes('/page-research')) return Response.json({ research: { valuation: { grade: '合理' } }, stale: false, basisVersion: 'v' });
-    if (path.startsWith('/finance-research/tracking/variables')) return Response.json(live);
+    if (path.startsWith('/finance-research/tracking/items')) return Response.json({ as_of: live.as_of, muted: [], items: live.variables.filter((item: any) => item.series).map((item: any) => ({ id: `price:${item.var_id}`, kind: 'price', var_id: item.var_id, name: item.name, unit: item.unit, source: 'research',
+      started_at: '2026-09-15', series: item.var_id === 'cmdty:SHFE.AL' ? item.series.slice(0, -1).concat([[item.last_date, '22000']]) : item.series, status: 'ok', cards: [], flips: [], companies: item.companies, muted_at: null })) });
     if (path.startsWith('/finance-research/research-results/')) return calcOk ? Response.json(calc) : Response.json({ detail: 'x' }, { status: 404 });
     if (path.includes('client') || path.includes('watch')) return Response.json({ symbols: ['000933', '000807'] });
     return Response.json({ detail: 'unused' }, { status: 404 });
   }) as typeof fetch;
   await render(h(tracking.Tracking));
-  const rows = (symbol: string) => container.querySelector(`[data-research-row="${symbol}"]`)!;
-  assert.equal(rows('000933.SZ').querySelector('[data-flip-line]')!.textContent, '沪铝跌破 22,500 元/吨，神火估值从合理变为偏高');
-  assert.equal(rows('000807.SZ').querySelector('[data-flip-line]'), null, '云铝没有提醒，那行不变');
-  assert.match(rows('000933.SZ').querySelector('.tracking-text > span')!.textContent!, /完成，估值合理/, '原来的研究一句话仍在');
+  const row = (id: string) => container.querySelector(`[data-variable-row="${id}"]`)!;
+  const open = async (id: string) => React.act(async () => (row(id).querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.equal(container.querySelector('[data-flip-line]'), null, '默认折叠，跳档线在展开里');
+  await open('cmdty:SHFE.AL');
+  assert.equal(row('cmdty:SHFE.AL').querySelector('[data-flip-line]')!.textContent, '跌破 22,500 元/吨：神火估值从合理变为偏高');
+  assert.equal(row('cmdty:SHFE.AL').querySelectorAll('.tracking-trend-flip').length, 1, '虚线一条');
+  await open('cmdty:SHFE.AO');
+  assert.equal(row('cmdty:SHFE.AO').querySelector('[data-flip-line]'), null, '氧化铝没有跳档价，不写也不画线');
+  assert.equal(row('cmdty:SHFE.AO').querySelectorAll('.tracking-trend-flip').length, 0);
   calcOk = false;
   await render(h(tracking.Tracking));
+  await open('cmdty:SHFE.AL');
   assert.equal(container.querySelector('[data-flip-line]'), null);
-  assert.ok(container.querySelector('[data-research-row="000933.SZ"]'));
+  assert.ok(row('cmdty:SHFE.AL').querySelector('[data-trend] svg'), '走势仍画');
 });

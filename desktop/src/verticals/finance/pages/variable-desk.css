@@ -17,3 +17,8 @@
 .variable-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
 .variable-detail-grid + .variable-detail-grid { margin-top: 16px; }
 .variable-stale { grid-column: 1 / -1; font-size: 12px; color: hsl(var(--warn)); }
+
+.variable-card-result { margin: 6px 0 0; font-size: 14px; }
+.variable-card-result.is-strong { font-weight: 600; }
+.variable-card-pin { font-weight: 600; }
+.variable-card-note { margin: 0; font-size: 12px; color: var(--text-3); }

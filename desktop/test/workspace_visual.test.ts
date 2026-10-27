@@ -29,13 +29,9 @@ test("外壳：六个两字入口、图标栏放在外框上，页首无面包�
   const header = read("verticals/finance/components/ui/PageHeader.tsx");
   assert.match(header, /<h1 className="workspace-title">/);
   assert.match(header, /<AssistantSlot \/>/);
-  const intel = read("verticals/finance/pages/Intel.tsx");
-  for (const key of ["news", "filings"]) assert.ok(intel.includes(`key: "${key}"`));
-  for (const key of ["investment-news", "events"]) assert.ok(!intel.includes(`key: "${key}"`), key);
-  assert.doesNotMatch(intel, /label: "Investment News"/);
   const feed = read("verticals/finance/pages/Feed.tsx");
-  assert.match(feed, /label: "资讯"/);
-  assert.doesNotMatch(feed, /label: "市场"|DailyReview/);
+  assert.match(feed, /STREAM_FILTERS/);
+  assert.doesNotMatch(feed, /label: "资讯"|label: "行情"|label: "市场"|DailyReview/);
 });
 test("会话运行态用产品主色和「研究中」，不沿用 DeepSeek 蓝与求索文案", () => {
   const dsh = read("verticals/finance/dsh/native-dsh.css");
@@ -224,7 +220,6 @@ test("资料共用对象卡；关注用表格加个股卡；页面不再引用�
 
 test("资料、设置与动态页共用分段切换；跟踪页首只有标题", () => {
   const tabs = read("verticals/finance/components/ui/WorkspaceTabs.tsx");
-  const intel = read("verticals/finance/pages/Intel.tsx");
   assert.match(tabs, /className="segmented"/);
   assert.match(read("verticals/finance/components/ui/ui.css"), /\.segmented > button\[aria-selected="true"\][^}]*background: var\(--fill-2\)/);
   const reports = read("verticals/finance/pages/UploadedReports.tsx");
@@ -234,10 +229,7 @@ test("资料、设置与动态页共用分段切换；跟踪页首只有标题",
   const tracking = read("verticals/finance/pages/Tracking.tsx");
   assert.match(tracking, /<PageHeader title="跟踪" \/>/);
   assert.doesNotMatch(tracking, /WorkspaceTabs/);
-  assert.match(intel, /WorkspaceTabs/);
-  assert.match(intel, /aria-label="资讯栏目"/);
-  assert.doesNotMatch(intel, /NAV_GROUPS/);
-  assert.doesNotMatch(intel, /investment-news<\/span>|集成/);
+  assert.match(read("verticals/finance/pages/Feed.tsx"), /aria-label="按类型筛选"/);
 });
 
 test("状态点与状态胶囊的 info 不用蓝色，墨灰表示提示（链接蓝不受影响）", () => {

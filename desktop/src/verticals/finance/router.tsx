@@ -38,8 +38,6 @@ export const router = createBrowserRouter([
       { path: "/watchlist", element: <LegacyRedirect /> },
       { path: "/research", element: <LegacyRedirect /> },
       { path: "/daily-review", element: <LegacyRedirect /> },
-      { path: "/intel", element: <LegacyRedirect /> },
-      { path: "/intel/:tab", element: <LegacyRedirect /> },
       { path: "/my-research", element: <LegacyRedirect /> },
       { path: "/my-research/topics/:topicHex", element: <LegacyRedirect /> },
       { path: "/my-research/*", element: <LegacyRedirect /> },

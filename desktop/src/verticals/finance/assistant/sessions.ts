@@ -127,6 +127,12 @@ export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
     }
     return '输入 @ 选一个产业，比较供需、产业链和值得核实的问题。';
   }
+  if (plugin === 'deep_research') {
+    if (pageKey.startsWith('company-wiki:companies/')) {
+      return '问经营、财务或估值都可以。输入 @ 选另一家公司可以做对比。';
+    }
+    return '输入 @ 选一家公司，问它做什么、财务或估值怎么看。';
+  }
   if (plugin === 'company_wiki') {
     if (pageKey.startsWith('company-wiki:companies/')) {
       return '问经营、财务或估值都可以。输入 @ 选另一家公司可以做对比。';

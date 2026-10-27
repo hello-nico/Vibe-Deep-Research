@@ -129,9 +129,6 @@ export function FinanceAiDock({ renderPanel, showTrigger = true, triggerHost = n
       });
       if (attachGen.current !== gen) return;
       if (sessions.getSidePanel()?.kind !== 'assistant') return;
-      // 早先的即答会话也按深查继续；切换没成功就沿用现有错误提示。
-      if (result.mode === "ask") await sessions.switchAssistantMode(result.sessionId, "agent", expected);
-      if (attachGen.current !== gen) return;
       bindKey.current = expected;
       setAssistantSeat({ seated: false, sessionId: result.sessionId, mode: "agent", pageKey: expected, busy: false });
       setSessionId(result.sessionId);

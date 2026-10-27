@@ -48,7 +48,7 @@ test('三方都有：机构每股收益、模型中性价与档位、股价隐�
   assert.deepEqual(view.rows.map((row: any) => row.key), ['institution', 'model', 'market']);
   assert.equal(text(view.rows[0]), '机构预期：2026 年每股收益 4.12 元（4 家）');
   assert.equal(text(view.rows[1]), '模型：中性价 49.48 元/股，估值偏高');
-  assert.equal(text(view.rows[2]), '股价隐含：市场在赌沪铝约 24,100 元/吨，现在 23,465 元/吨');
+  assert.equal(text(view.rows[2]), '股价隐含：按现在的股价，大致对应 沪铝约 24,100 元/吨（研究时 23,465 元/吨）');
   assert.deepEqual(view.rows.map((row: any) => row.pieces.filter((piece: any) => piece.strong).length), [1, 1, 0], '前两行各一个加粗的数');
   // 同口径每股收益：机构 4.12、模型中性 3.90、股价隐含 39.3 ÷ 12 = 3.275。
   assert.equal(view.difference, '股价隐含与另外两方分歧最大：每股收益 3.28 元，比机构预期（4.12 元）低 20.5%，比模型中性（3.90 元）低 16.0%');
@@ -68,7 +68,7 @@ test('机构少于 3 家写“样本少”；机构缺失写“暂无机构预�
   assert.equal(none.difference, '模型中性每股收益 3.90 元，比股价隐含（3.28 元）高 19.1%');
   assert.match(none.details[0], /没有可用的研报一致预期/);
   const gap = narrative.expectations({ packet: packetWith(field(null)), scenarios: null, model: null, price: null, grade: null, verdict: narrative.verdictLine({ grade: null, model: null }) });
-  assert.deepEqual(gap.rows.map(text), ['暂无机构预期', '模型：暂无三档价', '股价隐含：暂无市场在赌的价格']);
+  assert.deepEqual(gap.rows.map(text), ['暂无机构预期', '模型：暂无三档价', '股价隐含：暂无大致对应的价格']);
   assert.equal(gap.difference, '');
   assert.match(gap.details[2], /没有利润试算凭据|缺现价/);
   // 非正的每股收益（亏损）不参与比较。
@@ -120,7 +120,7 @@ test('个股页（神火真实凭据）：估值节区间带上方出现三行�
   packet.fields.eps_forecast_next = { ...packet.fields.eps_forecast_next, value: '4.20', period: 'FY2027E' };
   await open(SERVICES(packet));
   const lines = [...valuation().querySelectorAll('[data-expect]')].map(node => node.textContent);
-  assert.deepEqual(lines, ['机构预期：2026 年每股收益 4.12 元（4 家）', '模型：中性价 49.47 元/股，估值偏高', '股价隐含：市场在赌沪铝约 24,100 元/吨，现在 23,465 元/吨']);
+  assert.deepEqual(lines, ['机构预期：2026 年每股收益 4.12 元（4 家）', '模型：中性价 49.47 元/股，估值偏高', '股价隐含：按现在的股价，大致对应 沪铝约 24,100 元/吨（研究时 23,465 元/吨）']);
   assert.match(valuation().querySelector('[data-expect-diff]')!.textContent!, /^.+分歧最大：每股收益 [\d.]+ 元，比.+（[\d.]+ 元）(高|低) [\d.]+%，比.+（[\d.]+ 元）(高|低) [\d.]+%$|^三方的每股收益相差不到 5%$/);
   // 位置：三行在区间带之前。
   const order = [...valuation().querySelectorAll('[data-expectation], [data-chart="band"]')].map(node => node.hasAttribute('data-expectation') ? 'rows' : 'band');
@@ -148,7 +148,7 @@ test('个股页：机构预期缺失的公司写“暂无机构预期”，其�
   const lines = [...valuation().querySelectorAll('[data-expect]')].map(node => node.textContent);
   assert.equal(lines[0], '暂无机构预期');
   assert.match(lines[1]!, /^模型：中性价 49\.47 元\/股/);
-  assert.match(lines[2]!, /^股价隐含：市场在赌沪铝/);
+  assert.match(lines[2]!, /^股价隐含：按现在的股价，大致对应 沪铝/);
 });
 
 // ---- 真实回包修正（云铝、华能蒙电、华友钴业的真实形状）
@@ -163,10 +163,10 @@ const verdictOf = (implied: string) => ({ implied, gap: '' }) as any;
 test('X1 股价隐含行写“暂无”时，差异句也不纳入股价隐含（华能蒙电）；只剩一方不写差异句', () => {
   const { table, packet } = caseOf('mengdian');
   const view = narrative.expectations({ packet, scenarios: table, price: 4.9, grade: '合理', verdict: verdictOf('') });
-  assert.equal(text(view.rows[2]), '股价隐含：暂无市场在赌的价格');
+  assert.equal(text(view.rows[2]), '股价隐含：暂无大致对应的价格');
   assert.doesNotMatch(view.difference, /股价隐含|三方/);
   assert.equal(view.difference, '机构预期与模型中性的每股收益相差不到 5%');
-  assert.match(view.details[2], /暂无市场在赌的价格/);
+  assert.match(view.details[2], /暂无大致对应的价格/);
   const alone = narrative.expectations({ packet: { as_of: '2026-10-20', fields: {} } as any, scenarios: table, price: 4.9, verdict: verdictOf('') });
   assert.equal(alone.difference, '', '机构也缺：只剩模型一方，不写差异句');
   // 行有隐含价时内容不变：仍纳入。

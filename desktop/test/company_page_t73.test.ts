@@ -189,7 +189,7 @@ test('判断变化行：无变化写某日更新：判断没变；对话来源�
   assert.equal(changeLine(huaneng.research.research).revertable, false);
   const talked = changeLine({ researchedAt: '2026-10-12T08:00:00+00:00', changes: { valuation: '铝价下调到二万一后重算中性价' },
     sensitivity: { drivers: [{ var_id: 'cmdty:SHFE.AL', origin: 'conversation', sessionId: 'session-abc', confirmedAt: '2026-10-12T07:55:00+00:00' }] } });
-  assert.equal(talked.text, '10-12 更新：铝价下调到二万一后重算中性价');
+  assert.equal(talked.text, '因 10-12 对话调整：铝价下调到二万一后重算中性价');
   assert.equal(talked.revertable, true);
   assert.equal(conversationHint(talked.conversation), '来自对话确认 · 2026-10-12 · 会话 session-abc');
   // 研究读口顶层的 changedFrom / canRevert 优先：没有对话变量时也能撤回，悬停带原因。
@@ -636,7 +636,7 @@ test('神火估值：每档变量取值 → 利润 → 倍数 → 目标价；�
   // P2：估值节底部不再重复隐含价；页首第二行写完整判断 + 市场在赌的价格。
   assert.equal(valuation.querySelector('[data-implied]'), null);
   const verdict = container.querySelector('[data-verdict]')!;
-  assert.match(verdict.textContent!, /^估值合理：市场在赌沪铝约 24,100 元\/吨，现在 \d[\d,]* 元\/吨/);
+  assert.match(verdict.textContent!, /^估值合理：按现在的股价，大致对应 沪铝约 24,100 元\/吨（研究时 \d[\d,]* 元\/吨）/);
   assert.equal(verdict.querySelector('[data-valuation-grade]')!.getAttribute('data-valuation-grade'), '合理');
   assert.ok(container.querySelector('[data-change-line]'), 'P3：判断变化行保留在判断之后');
   assert.ok(verdict.compareDocumentPosition(container.querySelector('[data-change-line]')!) & 4, '判断变化行在这一行之后');
@@ -655,11 +655,11 @@ test('对话写回：变化处悬停显示来源对话与时间；撤回调用 r
   fixture.services.readResearch = async symbol => { reads += 1; return original(symbol); };
   await mount(fixture, '000933', '神火股份');
   const line = container.querySelector('[data-change-line]')!;
-  assert.match(line.textContent!, /10-12 更新：铝价下调后重算中性价/);
+  assert.match(line.textContent!, /因 10-12 对话调整：铝价下调后重算中性价/);
   assert.equal(line.querySelector('[data-change-hint]')!.getAttribute('title'), '来自对话确认 · 2026-10-12 · 会话 session-7f3a · 用户讨论：铝价跌到 21000 时的影响');
   const origin = section('variables')!.querySelector('[data-variable="cmdty:SHFE.AO"] .narrative-origin')!;
   assert.equal(origin.getAttribute('title'), '来自对话确认 · 2026-10-12 · 会话 session-7f3a');
-  assert.match(origin.textContent!, /对话确认 · 2026-10-12/);
+  assert.match(origin.textContent!, /^来自 10-12 的对话$/);
   assert.equal(section('variables')!.querySelector('[data-variable="cmdty:SHFE.AL"] .narrative-origin'), null);
   const before = reads;
   failing = true;
@@ -779,18 +779,18 @@ test('P1/P4/P5 页首判断：有隐含价、缺隐含价、跳档价接近、�
   const base = { baseProfit: 1, shares: 1, variables: [variable], ruleOfThumb: [], tiers: [], flips: [] };
   // 有隐含价：完整判断 + 市场在赌的价格 + 现在的价格；没有跳档价就没有半句。
   const withImplied = { ...base, implied: { id: 'cmdty:AL', value: 23258 } };
-  assert.deepEqual(verdictLine({ grade: '偏高', model: withImplied }), { label: '估值偏高', implied: '市场在赌沪铝约 23,258 元/吨，现在 22,970 元/吨', flip: '', gap: '' });
+  assert.deepEqual(verdictLine({ grade: '偏高', model: withImplied }), { label: '估值偏高', implied: '按现在的股价，大致对应 沪铝约 23,258 元/吨（研究时 22,970 元/吨）', flip: '', gap: '' });
   // 缺隐含价：只写完整判断，缺口原因进「查看数据」。
   const lone = verdictLine({ grade: '偏高', model: base });
   assert.equal(lone.label, '估值偏高');
   assert.equal(lone.implied, '');
-  assert.match(lone.gap, /没有「市场在赌的价格」/);
+  assert.match(lone.gap, /没有大致对应的价格/);
   assert.match(verdictLine({ grade: '偏高', model: null }).gap, /没有利润试算凭据/);
   assert.equal(verdictLine({ grade: null, model: withImplied }).label, '');
   // 百分比类变量：一位小数、百分号紧跟、四舍五入成零写 0（不出现「-0 %」）。
   const pct = { ...base, variables: [{ ...variable, id: 'v', name: '境内水电发电量', unit: '%', current: 0, step: 1 }], implied: { id: 'v', value: -0.04 } };
-  assert.equal(verdictLine({ grade: '合理', model: pct }).implied, '市场在赌境内水电发电量与对比期持平');
-  assert.equal(verdictLine({ grade: '合理', model: { ...pct, implied: { id: 'v', value: -3.26 } } }).implied, '市场在赌境内水电发电量比对比期低约 3.3%');
+  assert.equal(verdictLine({ grade: '合理', model: pct }).implied, '按现在的股价，大致对应境内水电发电量与对比期持平');
+  assert.equal(verdictLine({ grade: '合理', model: { ...pct, implied: { id: 'v', value: -3.26 } } }).implied, '按现在的股价，大致对应境内水电发电量比对比期低约 3.3%');
   // 跳档价在 3% 以内：句末加半句；跌破 / 涨过按相对现在价的方向。
   const near = { ...withImplied, flips: [{ id: 'cmdty:AL', value: 22500, grade: '合理' }, { id: 'cmdty:AL', value: 26000, grade: '偏低' }] };
   assert.equal(verdictLine({ grade: '偏高', model: near }).flip, '跌破 22,500 元/吨，判断变为估值合理');

@@ -63,6 +63,17 @@ test('宁德式：条件变量没算进去，只写差额并说明；农行式�
   assert.deepEqual([b.explain, b.details], [undefined, []]);
 });
 
+test('披露前走势：个股与板块涨跌写在展开末行；有财报后机构预测再加一句；不写好于差于预期', () => {
+  const item = { ...nongxing, pre_disclosure: { start: '2026-07-28', end: '2026-10-17', days: 60, stock_change: '0.123', industry_name: '工业金属', industry_change: '-0.045', gap: null },
+    forecast: { pre_report: false, basis_note: '三季报后 1 家机构', period: 'FY2026E', value: '4.302' } };
+  const [card] = lib.reconCards([item], names, NOW);
+  assert.match(card.details.join('\n'), /披露前约 60 个交易日，农业银行股价涨 12\.3%，同期工业金属跌 4\.5%；业绩变化可能已部分反映在股价里/);
+  assert.match(card.details.join('\n'), /三季报后 1 家机构：2026 年预测每股 4\.30 元/);
+  assert.doesNotMatch(card.details.join('\n'), /好于|差于|预期/);
+  const [plain] = lib.reconCards([{ ...nongxing, pre_disclosure: { stock_change: null, gap: '个股日线暂时取不到' } }], names, NOW);
+  assert.doesNotMatch(plain.details.join('\n'), /披露前约 60/);
+});
+
 test('只看披露日：最近 14 天内披露就出卡；缺口、日期不明、读不到名字都不报错', () => {
   const at = (day: string) => lib.reconCards([{ ...nongxing, reported_on: day }], names, NOW).length;
   assert.equal(at('2026-10-20'), 1);
@@ -78,32 +89,33 @@ const sessions = { start: async () => ({ sessionId: 's', status: 'started' }) };
 async function show(loadRecon: () => Promise<unknown[]>, loadFlips: () => Promise<unknown[]> = async () => []) {
   await React.act(async () => root.render(null));
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null, React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
-    React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, { load: async () => structuredClone(trackingFixture), loadFlips, loadRecon }))))));
+    React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, { load: async () => structuredClone(trackingFixture), loadFlips, loadRecon, loadFilings: async () => ({ rows: [], hidden: 0 }) }))))));
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
   await React.act(async () => {});
 }
 
-test('动态「行情」：对账卡排在跳档提醒之后、价格变动卡之前，不描边；展开看逐项；没有新季报时整块不出现；读取失败不影响其余', async () => {
+test('动态流：判断变化置顶，财报按披露日排在价格卡之前，不描边；展开看逐项；没有新季报时整块不出现；读取失败不影响其余', async () => {
   const cards = lib.reconCards([shenhuo, nongxing], names, NOW);
   const flip = { symbol: '000933.SZ', company: '神火', kind: 'near', text: '沪铝距 22,500 元/吨 只差 0.9%，越过后神火估值会从合理变为偏高' };
   await show(async () => cards, async () => [flip]);
-  const blocks = [...container.querySelectorAll('.variable-desk-cards')].map(block => block.getAttribute('data-flip-cards') !== null ? 'flip' : block.getAttribute('data-recon-cards') !== null ? 'recon' : 'price');
-  assert.deepEqual(blocks, ['flip', 'recon', 'price']);
-  const recon = container.querySelector('[data-recon-cards]')!;
+  const types = [...container.querySelectorAll('[data-stream-card]')].map(card => card.getAttribute('data-stream-type'));
+  assert.deepEqual(types, ['判断变化', '财报', '财报', '价格']);
+  const recon = container;
   assert.equal(recon.querySelectorAll('.card-alert').length, 0, '对账卡不抢描边');
   assert.equal(recon.querySelectorAll('[data-recon-card]').length, 2);
   assert.equal(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-title')!.textContent, '神火三季报：单季净利润 27.05 亿元，比上季多 2.14 亿元');
-  assert.match(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-touch')!.textContent!, /报告未单独披露/);
-  assert.equal(recon.querySelector('[data-recon-card="601288.SH"] .variable-card-touch'), null);
-  assert.equal(recon.querySelector('[data-recon-card="601288.SH"] button'), null, '没有明细就没有展开');
+  assert.match(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-touch')!.textContent!, /^涉及：神火 · 利润 · .*报告未单独披露/);
+  assert.match(recon.querySelector('[data-recon-card="601288.SH"] .variable-card-touch')!.textContent!, /^涉及：.*· 利润 · /, '没有价格模型也有涉及一行');
+  assert.equal([...recon.querySelectorAll('[data-recon-card="601288.SH"] button')].some(button => button.textContent === '展开'), false, '没有明细就没有展开');
+  assert.ok([...recon.querySelectorAll('[data-recon-card="000933.SZ"] button')].some(button => button.textContent === '讨论'), '对账卡有讨论');
   assert.equal(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-effects'), null);
-  await React.act(async () => (recon.querySelector('[data-recon-card="000933.SZ"] button') as HTMLButtonElement).click());
+  await React.act(async () => ([...recon.querySelectorAll('[data-recon-card="000933.SZ"] button')].find(button => button.textContent === '展开') as HTMLButtonElement).click());
   assert.match(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-effects')!.textContent!, /沪铝：本季均价/);
   assert.equal(recon.querySelector('[data-recon-card="000933.SZ"] a')!.getAttribute('href'), '/watch/000933');
   await show(async () => []);
-  assert.equal(container.querySelector('[data-recon-cards]'), null);
+  assert.equal(container.querySelector('[data-recon-card]'), null);
   await show(async () => { throw new Error('boom'); });
-  assert.equal(container.querySelector('[data-recon-cards]'), null);
+  assert.equal(container.querySelector('[data-recon-card]'), null);
   assert.ok(container.querySelector('[data-variable-card]'), '价格变动卡照常');
 });
 

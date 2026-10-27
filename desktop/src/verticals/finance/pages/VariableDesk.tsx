@@ -1,15 +1,19 @@
-import { Fragment, useCallback, useEffect, useState } from "react";
+import { Fragment, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, Metric } from "../components/ui/Card";
 import { useAiPage, useAiQuestion } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import {
-  cardQuestion, cardSentence, cardTitle, cardTitlePieces, cardTouch, cardTouchPieces, companyPieces, dayLabel, impactText, loadTrackingVariables, percentText, priceText,
-  shortName, tone, withUnit, yuanPerShareText,
-  type TrackedVariable, type TrackingVariables, type VariableCard, type VariableCompany,
+  impactText, loadTrackingVariables, percentText, priceText,
+  tone, withUnit, yuanPerShareText,
+  type TrackedVariable, type TrackingVariables, type VariableCompany,
 } from "../lib/trackingVariables";
 import { loadFlipCards, type FlipCard } from "../lib/flipCards";
 import { loadReconCards, type ReconCard } from "../lib/quarterRecon";
+import { loadReconResults } from "../lib/reconResult";
+import { loadResearchEvents, revertWriteback } from "../lib/researchEvents";
+import { ResearchSessionContext } from "../dsh/research-session";
+import { filingStreams, flipStream, writebackStream, loadFilingRows, priceStream, reconStream, streamDayText, streamOf, type FilingRow, type StreamCard, type StreamFilter } from "../lib/feedStream";
 import "./variable-desk.css";
 
 type Loader = (signal?: AbortSignal) => Promise<TrackingVariables | null>;
@@ -42,13 +46,19 @@ export function useReconCards(data: TrackingVariables | null | undefined, loadRe
   return cards;
 }
 
-export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFlipCards, loadRecon = loadReconCards }: { load?: Loader; loadFlips?: typeof loadFlipCards; loadRecon?: typeof loadReconCards }) {
+export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFlipCards, loadRecon = loadReconCards, loadFilings = loadFilingRows, loadResults = loadReconResults, loadEvents = loadResearchEvents, filter = "全部" }: { load?: Loader; loadFlips?: typeof loadFlipCards; loadRecon?: typeof loadReconCards; loadFilings?: typeof loadFilingRows; loadResults?: typeof loadReconResults; loadEvents?: typeof loadResearchEvents; filter?: StreamFilter }) {
   const { ask } = useAiQuestion();
   const [data, setData] = useState<TrackingVariables | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const flips = useFlipCards(data, loadFlips);
   const recon = useReconCards(data, loadRecon);
+  const results = useReconResults(recon, loadResults);
+  const [showAll, setShowAll] = useState(false);
+  const [eventsKey, setEventsKey] = useState(0);
+  const events = useWritebackEvents(loadEvents, eventsKey);
+  const sessions = useContext(ResearchSessionContext);
+  const filings = useFilingRows(loadFilings, showAll);
   useEffect(() => {
     const controller = new AbortController();
     setData(undefined); setFailed(false);
@@ -59,79 +69,112 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
     });
     return () => controller.abort();
   }, [load, attempt]);
-  useAiPage({ key: "feed:variables", title: "行情", context: data
-    ? `关注公司研究里影响利润的价格变动。\n${data.cards.map(cardSentence).join("\n") || "最近 20 个交易日没有足以影响利润的价格变动"}` : "行情正在读取",
-    suggestions: ["最近哪个价格变动对我关注的公司影响最大？"] });
+  const all = useMemo(() => data ? [
+    ...flips.map(flip => flipStream(flip, data.as_of)),
+    ...recon.map(card => reconStream(card, results[card.symbol])),
+    ...data.cards.map(priceStream),
+    ...events.map(writebackStream),
+    ...filingStreams(filings.rows, filter === "全部"),
+  ] : [], [data, flips, recon, results, filings.rows, events, filter]);
+  const stream = useMemo(() => streamOf(all, filter), [all, filter]);
+  useAiPage({ key: "feed:variables", title: "动态", context: data
+    ? `关注公司的动态，按时间倒序。\n${streamOf(all, "全部").slice(0, 30).map(card => `${card.type}：${card.title.map(piece => piece.text).join("")}（${card.involved.map(piece => piece.text).join("")}）`).join("\n") || "最近没有动态"}` : "动态正在读取",
+    suggestions: ["最近哪条动态对我关注的公司影响最大？"] });
   // 「讨论」打开问助手面板：卡片标题和第二行作为本轮引用，输入框预填问句；不新开深度对话。
-  const discuss = useCallback((card: VariableCard) => {
-    ask?.(cardQuestion(card), { title: cardTitle(card), text: `${cardTouch(card)}\n${cardSentence(card)}` }, cardQuestion(card));
+  const discuss = useCallback((card: StreamCard) => {
+    ask?.(card.discuss.question, { title: card.discuss.title, text: card.discuss.text }, card.discuss.question);
   }, [ask]);
 
-  if (failed) return <p role="alert" className="variable-desk-note">行情暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>;
+  if (failed) return <p role="alert" className="variable-desk-note">动态暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>;
   if (data === undefined) return <div className="variable-desk" aria-busy="true" aria-label="正在加载"><div className="variable-desk-skeleton" /><div className="variable-desk-skeleton" /></div>;
-  if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们研究里影响利润的价格变动。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
-  return <div className="variable-desk">
-    {flips.length > 0 && <div className="variable-desk-cards" data-flip-cards="">{flips.map(flip => <Card key={flip.symbol}>
-      <article className="variable-card" data-flip-card={flip.symbol} data-flip-kind={flip.kind}>
-        <p className="variable-card-title">{flip.text}</p>
-        <div className="variable-card-foot"><span />
-          <span className="variable-card-actions"><Link className="btn btn-sm" to={watchPath(codeOf(flip.symbol))}>看{flip.company}</Link></span></div>
-      </article>
-    </Card>)}</div>}
-    <ReconCards cards={recon} />
-    <Cards cards={data.cards} onDiscuss={discuss} />
+  if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们的财报、价格变动和公告。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
+  return <div className="variable-desk" data-feed-stream="">
+    {filter === "公告" && (filings.hidden > 0 || showAll) && <button type="button" className="btn btn-sm variable-desk-routine" data-show-all="" aria-pressed={showAll} onClick={() => setShowAll(value => !value)}>{showAll ? "只看重要的" : `查看全部（另有 ${filings.hidden} 条例行）`}</button>}
+    {stream.length === 0
+      ? <p className="variable-desk-empty">{filter === "全部" ? "最近没有需要看的动态" : `最近没有${filter}类的动态`}</p>
+      : <div className="variable-desk-cards">{stream.map(card => <StreamItem key={card.key} card={card} onDiscuss={discuss} onOpenSession={sessions ? id => void sessions.openSession(id).catch(() => {}) : undefined} onRevert={async item => { await revertWriteback(item); setEventsKey(value => value + 1); }} />)}</div>}
   </div>;
 }
 
-function ReconCards({ cards }: { cards: ReconCard[] }) {
-  const [open, setOpen] = useState<Set<string>>(() => new Set());
-  if (!cards.length) return null;
-  return <div className="variable-desk-cards" data-recon-cards="">{cards.map(card => {
-    const expanded = open.has(card.symbol);
-    return <Card key={card.symbol}>
-      <article className="variable-card" data-recon-card={card.symbol}>
-        <div>
-          <h4 className="variable-card-title">{card.headline}</h4>
-          {card.explain && <p className="variable-card-touch">{card.explain}</p>}
-        </div>
-        {expanded && <div className="variable-card-effects">{card.details.map(line => <p key={line}>{line}</p>)}</div>}
-        <div className="variable-card-foot"><span>新季报</span>
-          <span className="variable-card-actions">
-            {card.details.length > 0 && <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => setOpen(previous => { const next = new Set(previous); if (!next.delete(card.symbol)) next.add(card.symbol); return next; })}>{expanded ? "收起" : "展开"}</button>}
-            <Link className="btn btn-sm" to={watchPath(codeOf(card.symbol))}>看{card.company}</Link>
-          </span>
-        </div>
-      </article>
-    </Card>;
-  })}</div>;
+const RESULT_POLL_MS = 15_000;
+/** 财报卡的重研结论；有研究在进行时每 15 秒刷新进度，失败当没有。 */
+function useReconResults(recon: ReconCard[], loadResults: typeof loadReconResults) {
+  const [results, setResults] = useState<Awaited<ReturnType<typeof loadReconResults>>>({});
+  const key = recon.map(card => `${card.symbol}:${card.period}`).join(",");
+  useEffect(() => {
+    const controller = new AbortController();
+    let timer: number | undefined;
+    const run = () => loadResults(recon, controller.signal).then(value => {
+      if (controller.signal.aborted) return;
+      setResults(value);
+      if (Object.values(value).some(item => item && !item.changed && item.text.startsWith("正在"))) timer = window.setTimeout(() => { void run(); }, RESULT_POLL_MS);
+    }, error => { if (!controller.signal.aborted) console.warn("[finance/recon-results] unavailable", error); });
+    void run();
+    return () => { controller.abort(); window.clearTimeout(timer); };
+  }, [key, loadResults]); // eslint-disable-line react-hooks/exhaustive-deps
+  return results;
 }
 
-function Cards({ cards, onDiscuss }: { cards: VariableCard[]; onDiscuss: (card: VariableCard) => void }) {
-  const [open, setOpen] = useState<Set<string>>(() => new Set());
-  const toggle = (key: string) => setOpen(previous => { const next = new Set(previous); if (!next.delete(key)) next.add(key); return next; });
-  if (cards.length === 0) return <p className="variable-desk-empty">最近 20 个交易日没有足以影响利润的价格变动</p>;
-  return <div className="variable-desk-cards">{cards.map(card => {
-    const key = `${card.date}:${card.var_id}`;
-    const expanded = open.has(key);
-    return <Card key={key}>
-      <article className="variable-card" data-variable-card={card.var_id}>
-        <div>
-          <h4 className="variable-card-title">{toneSpans(cardTitlePieces(card))}</h4>
-          <p className="variable-card-touch">{toneSpans(cardTouchPieces(card))}</p>
-        </div>
-        {expanded && <div className="variable-card-effects">{card.companies.map(company => <p key={company.symbol}>{companyPieces(company).map((piece, i) => piece.strong
-          ? <b key={i} className={piece.tone ? `is-${piece.tone}` : undefined}>{piece.text}</b> : <Fragment key={i}>{piece.text}</Fragment>)}</p>)}</div>}
-        <div className="variable-card-foot">
-          <span>{dayLabel(card.date)}</span>
-          <span className="variable-card-actions">
-            <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => toggle(key)}>{expanded ? "收起" : "展开"}</button>
-            {card.companies.map(company => <Link key={company.symbol} className="btn btn-sm" to={watchPath(codeOf(company.symbol))}>看{shortName(company.name)}</Link>)}
-            <button type="button" className="btn btn-sm" onClick={() => onDiscuss(card)}>讨论</button>
-          </span>
-        </div>
-      </article>
-    </Card>;
-  })}</div>;
+/** 对话里调整的记录；失败当没有，不影响其余卡片。`key` 变化时重读（撤回之后）。 */
+function useWritebackEvents(loadEvents: typeof loadResearchEvents, key: number) {
+  const [events, setEvents] = useState<Awaited<ReturnType<typeof loadResearchEvents>>>([]);
+  useEffect(() => {
+    const controller = new AbortController();
+    loadEvents(controller.signal).then(value => { if (!controller.signal.aborted) setEvents(value); }, error => { if (!controller.signal.aborted) console.warn("[finance/research-events] unavailable", error); });
+    return () => controller.abort();
+  }, [loadEvents, key]);
+  return events;
+}
+
+/** 取得关注公司的公告；失败当没有，不影响其余卡片。 */
+function useFilingRows(loadFilings: typeof loadFilingRows, showAll: boolean) {
+  const [state, setState] = useState<{ rows: FilingRow[]; hidden: number }>({ rows: [], hidden: 0 });
+  useEffect(() => {
+    const controller = new AbortController();
+    loadFilings(showAll, controller.signal).then(value => { if (!controller.signal.aborted) setState(value); }, error => { if (!controller.signal.aborted) console.warn("[finance/filings] unavailable", error); });
+    return () => controller.abort();
+  }, [loadFilings, showAll]);
+  return state;
+}
+
+const DATA_ATTR: Record<string, string> = { 价格: "data-variable-card", 财报: "data-recon-card", 判断变化: "data-flip-card", 公告: "data-filing-card", 对话: "data-writeback-card" };
+export function StreamItem({ card, onDiscuss, onOpenSession, onRevert }: { card: StreamCard; onDiscuss: (card: StreamCard) => void; onOpenSession?: (sessionId: string) => void; onRevert?: (event: NonNullable<StreamCard["revert"]>["event"]) => Promise<void> }) {
+  const [expanded, setExpanded] = useState(false);
+  const [reverting, setReverting] = useState<"idle" | "busy" | "failed">("idle");
+  const revert = async () => {
+    if (!card.revert || !onRevert) return;
+    setReverting("busy");
+    try { await onRevert(card.revert.event); setReverting("idle"); } catch (error) { console.warn("[finance/stream] revert failed", error); setReverting("failed"); }
+  };
+  const expandable = card.details.length > 0 || !!card.url || !!card.extra?.length;
+  const marker = { [DATA_ATTR[card.type]!]: card.companies[0]?.symbol ?? "", "data-stream-card": card.key, "data-stream-type": card.type };
+  return <Card>
+    <article className="variable-card" {...marker}>
+      <div>
+        <h4 className="variable-card-title">{toneSpans(card.title)}</h4>
+        <p className="variable-card-touch">{toneSpans(card.involved)}</p>
+        {card.result && <p className={`variable-card-result${card.result.strong ? " is-strong" : ""}`} data-recon-result="">{card.result.text}</p>}
+      </div>
+      {expanded && <div className="variable-card-effects">
+        {card.details.map((line, index) => <p key={index}>{line.map((piece, i) => piece.strong
+          ? <b key={i} className={piece.tone ? `is-${piece.tone}` : undefined}>{piece.text}</b> : <Fragment key={i}>{piece.text}</Fragment>)}</p>)}
+        {card.url && <p><a href={card.url} target="_blank" rel="noreferrer">打开公告原文</a></p>}
+        {card.extra?.map((item, index) => <p key={index}>{item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</p>)}
+      </div>}
+      {reverting === "failed" && <p className="variable-card-note" role="status">撤回没有成功，请稍后重试</p>}
+      <div className="variable-card-foot">
+        <span>{card.pinned && card.type !== "判断变化" && <b className="variable-card-pin">判断变化 · </b>}{card.type}{streamDayText(card) ? ` · ${streamDayText(card)}` : ""}{card.extra?.length ? ` · 另有 ${card.extra.length} 份公告` : ""}</span>
+        <span className="variable-card-actions">
+          {expandable && <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "收起" : "展开"}</button>}
+          {card.companies.map(company => <Link key={company.symbol} className="btn btn-sm" to={watchPath(codeOf(company.symbol))}>看{company.name}</Link>)}
+          {card.session && onOpenSession && <button type="button" className="btn btn-sm" onClick={() => onOpenSession(card.session!)}>打开对话</button>}
+          {card.revert?.state === "available" && onRevert && <button type="button" className="btn btn-sm" disabled={reverting === "busy"} onClick={() => void revert()}>{reverting === "busy" ? "正在撤回" : "撤回"}</button>}
+          {card.revert?.state === "newer" && <span className="variable-card-note">已有更新的版本</span>}
+          <button type="button" className="btn btn-sm" onClick={() => onDiscuss(card)}>讨论</button>
+        </span>
+      </div>
+    </article>
+  </Card>;
 }
 
 /** 一个变量下各家公司的影响明细（跟踪页展开用）。 */

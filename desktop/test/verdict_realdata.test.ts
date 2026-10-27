@@ -54,27 +54,27 @@ test('R1 11 家页首：每家有判断，有隐含值的有数；百分比变�
     const percent = row.variableUnits[0]?.unit.includes('%');
     if (row.impliedValue != null) assert.match(verdict.implied, /\d/, row.symbol);
     if (percent) {
-      assert.doesNotMatch(verdict.implied, /现在|约 -/, `${row.symbol}：${verdict.implied}`);
-      assert.match(verdict.implied, /^市场在赌.+比对比期(高|低)约 \d+\.\d%$/, row.symbol);
-    } else if (row.impliedValue != null) assert.match(verdict.implied, /现在 [\d,.]+ \S+$/, row.symbol);
+      assert.doesNotMatch(verdict.implied, /现在 0%|约 -/, `${row.symbol}：${verdict.implied}`);
+      assert.match(verdict.implied, /^按现在的股价，大致对应.+比对比期(高|低)约 \d+\.\d%$/, row.symbol);
+    } else if (row.impliedValue != null) assert.match(verdict.implied, /（研究时 [\d,.]+ \S+）$/, row.symbol);
   }
   const text = (symbol: string) => narrative.verdictLine({ grade: '合理', model: modelOf(rows.find(row => row.symbol === symbol)!) }).implied;
-  assert.equal(text('600900.SH'), '市场在赌境内水电发电量比对比期低约 0.5%');
-  assert.equal(text('300750.SZ'), '市场在赌动力电池系统销售均价比对比期高约 0.7%');
+  assert.equal(text('600900.SH'), '按现在的股价，大致对应境内水电发电量比对比期低约 0.5%');
+  assert.equal(text('300750.SZ'), '按现在的股价，大致对应动力电池系统销售均价比对比期高约 0.7%');
   assert.equal(text('600011.SH'), rows.find(row => row.symbol === '600011.SH')!.hasModel ? text('600011.SH') : '');
   assert.match(text('600011.SH'), /比对比期低约 0\.3%/);
   assert.match(text('600585.SH'), /比对比期高约 1\.3%/);
-  assert.equal(text('000933.SZ'), '市场在赌沪铝约 22,117 元/吨，现在 22,970 元/吨', '价格类写法不变');
+  assert.equal(text('000933.SZ'), '按现在的股价，大致对应 沪铝约 22,117 元/吨（研究时 22,970 元/吨）', '价格类写法不变');
 });
 
 test('R1 百分比变量的隐含值：持平、四舍五入一位、跳档半句写“再升/降 y%”并按百分点判接近', () => {
   const row = rows.find(item => item.symbol === '600900.SH')!;
   const at = (value: number, flips: unknown[] = [], grade = '偏高') => narrative.verdictLine({ grade, model: modelOf({ ...row, impliedValue: value } as Row, flips) });
-  assert.equal(at(0).implied, '市场在赌境内水电发电量与对比期持平');
-  assert.equal(at(0.04).implied, '市场在赌境内水电发电量与对比期持平');
-  assert.equal(at(-0.049).implied, '市场在赌境内水电发电量与对比期持平', '|x| < 0.05 持平');
-  assert.equal(at(-0.06).implied, '市场在赌境内水电发电量比对比期低约 0.1%');
-  assert.equal(at(12.34).implied, '市场在赌境内水电发电量比对比期高约 12.3%');
+  assert.equal(at(0).implied, '按现在的股价，大致对应境内水电发电量与对比期持平');
+  assert.equal(at(0.04).implied, '按现在的股价，大致对应境内水电发电量与对比期持平');
+  assert.equal(at(-0.049).implied, '按现在的股价，大致对应境内水电发电量与对比期持平', '|x| < 0.05 持平');
+  assert.equal(at(-0.06).implied, '按现在的股价，大致对应境内水电发电量比对比期低约 0.1%');
+  assert.equal(at(12.34).implied, '按现在的股价，大致对应境内水电发电量比对比期高约 12.3%');
   const id = row.variableUnits[0]!.id;
   const up = { id, value: 2, boundary: 'neutral_plus_10_pct' }, down = { id, value: -1.5, boundary: 'neutral_minus_10_pct' };
   assert.equal(at(0, [up]).flip, '境内水电发电量再升 2.0%，判断变为估值合理', '系数为正：升则利润变大，往低档走');
@@ -173,12 +173,12 @@ test('S3 隐含值越界：有 within_range 为假时写“按现价，市场隐
   assert.deepEqual([below.implied.withinRange, below.implied.range], [false, [88000, 133000]]);
   assert.equal(verdict({ ...base, value: '72000', within_range: false, range: ['88000', '133000'] }), '按现价，市场隐含的沪铜约 72,000 元/吨，低于近年区间');
   assert.equal(verdict({ ...base, value: '150000', within_range: false, range: ['88000', '133000'] }), '按现价，市场隐含的沪铜约 150,000 元/吨，高于近年区间');
-  assert.equal(verdict({ ...base, value: '99000', within_range: true, range: ['88000', '133000'] }), '市场在赌沪铜约 99,000 元/吨，现在 110,990 元/吨');
-  assert.equal(verdict({ ...base, value: '99000' }), '市场在赌沪铜约 99,000 元/吨，现在 110,990 元/吨', '老凭据没有字段：保持现状');
+  assert.equal(verdict({ ...base, value: '99000', within_range: true, range: ['88000', '133000'] }), '按现在的股价，大致对应 沪铜约 99,000 元/吨（研究时 110,990 元/吨）');
+  assert.equal(verdict({ ...base, value: '99000' }), '按现在的股价，大致对应 沪铜约 99,000 元/吨（研究时 110,990 元/吨）', '老凭据没有字段：保持现状');
   assert.equal(verdict({ ...base, value: '72000', within_range: false }), '按现价，市场隐含的沪铜约 72,000 元/吨，超出近年区间', '没有区间只说超出');
   assert.equal(verdict({ ...base, value: '28.5', within_range: false, range: ['-20', '20'] }, '%', 0), '按现价，市场隐含的沪铜比对比期高约 28.5%，高于近年区间');
   // 系数为零：value 为空，仍只写判断并说明原因。
   const gap = narrative.verdictLine({ grade: '偏低', model: extra({ var_id: 'cmdty:SHFE.CU', value: null, within_range: false, reason: '主变量系数为零，无法反解' }) });
   assert.equal(gap.implied, '');
-  assert.match(gap.gap, /没有「市场在赌的价格」/);
+  assert.match(gap.gap, /没有大致对应的价格/);
 });

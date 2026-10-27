@@ -41,6 +41,8 @@ export interface CompanyPageTask {
   sessionId: string; status: CompanyResearchStatus; stage: string; startedAt?: string;
   /** The research was saved but the knowledge settlement after it did not finish; only the process panel says so. */
   settlementFailed?: boolean;
+  /** 记录里的当前步与总步数，关注页的「研究中 · 3/6」用。 */
+  step?: { current: number; total: number };
 }
 /** The research-task record served by the host (task doc R2); only what the page reads. */
 export interface ResearchTaskRecord {
@@ -60,7 +62,8 @@ export function companyPageTaskOf(record: ResearchTaskRecord): CompanyPageTask {
     : status === 'failed' ? record.reason || '这次研究未完成，可以稍后重新研究'
     : status === 'cancelled' ? '研究已中止' : '';
   const settlementFailed = status === 'completed' && record.steps[record.steps.length - 1]?.status === 'skipped';
-  return { sessionId: record.sessions[record.sessions.length - 1] ?? '', status, stage, startedAt: record.created_at, ...(settlementFailed ? { settlementFailed } : {}) };
+  const step = record.steps.length ? { current: record.current_step, total: record.steps.length } : undefined;
+  return { sessionId: record.sessions[record.sessions.length - 1] ?? '', status, stage, startedAt: record.created_at, ...(step ? { step } : {}), ...(settlementFailed ? { settlementFailed } : {}) };
 }
 /** A running task always holds back a new start; any other unsuccessful state only for a day, so older ones (incl. pre-T7 Wiki research) do not. */
 export const COMPANY_PAGE_RETRY_MS = 24 * 60 * 60 * 1000;
@@ -159,7 +162,8 @@ export class CompanyPageStore {
       const task = value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
       this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
       const key = value.basisVersion;
-      if (this.opened && (!value.research || value.stale) && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
+      // 只有从未研究过才自动开始；研究已存在但过期时由页首「重新研究」按钮触发。
+      if (this.opened && !value.research && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
         this.attempted.add(key);
         await this.begin();
       }
@@ -207,4 +211,23 @@ export function companyPageProgress(state: CompanyPageState): string | null {
   if (task.stage) return task.stage;
   return task.status === 'researching' ? '正在研究' : task.status === 'interrupted' ? '正在接着上次的进度继续'
     : task.status === 'cancelled' ? '研究已中止' : '这次研究未完成';
+}
+
+/** 关注页列表「研究」列：一行文字，进行中带进度，需要时带「重新研究」。 */
+export interface ResearchCell { text: string; progress?: { done: number; total: number }; rerun: boolean }
+const dayOf = (iso?: string) => { const date = new Date(iso ?? ''); return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, '0')}`; };
+export function researchCell(state: CompanyPageState): ResearchCell | null {
+  if (!state.loaded) return null;
+  const task = state.task;
+  if (companyPageTaskActive(task)) {
+    const step = task?.step;
+    const lead = task?.status === 'interrupted' ? '接着上次继续' : '研究中';
+    return { text: step ? `${lead} · ${step.current}/${step.total}` : task?.stage || lead, ...(step ? { progress: { done: Math.max(0, step.current - 1), total: step.total } } : {}), rerun: false };
+  }
+  if (!state.research) return state.error ? null : { text: '未研究', rerun: true };
+  const day = dayOf(state.research.researchedAt);
+  const grade = state.research.valuation?.grade;
+  const done = [day && `${day} 研究`, grade && `估值${grade}`].filter(Boolean).join(' · ') || '已研究';
+  if (companyPageProgress(state)) return { text: '上次没有完成', rerun: true };
+  return { text: state.stale ? `${done} · 有新资料` : done, rerun: state.stale };
 }

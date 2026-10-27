@@ -3,7 +3,7 @@ import { Tag } from './ui/Card';
 import { bandTickGroups } from '../lib/bandTicks';
 import { scenarioPriceNumber, type DataPacket } from '../lib/companyPacket';
 import {
-  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, epsAt, flowItems, impliedPe, plainNumber, profitAt, quarterLabel,
+  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, conversationOrigin, epsAt, flowItems, impliedPe, plainNumber, profitAt, quarterLabel,
   resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, yiText, yuanText,
   type Expectation, type QuarterBar, type SensitivityModel, type SliderValues, type WatchItem,
 } from '../lib/companyNarrative';
@@ -89,8 +89,8 @@ function Slider({ variable, value, onChange, origin }: {
 
 export interface DriverNote { quote?: string; origin?: 'report' | 'conversation'; sessionId?: string; confirmedAt?: string }
 /** 关键变量：公式行 + 公司自述 + 敏感性滑块；右侧利润、贡献正负条、每股收益与现价对应市盈率。 */
-export function SensitivityPanel({ model, values, onChange, onReset, price, drivers }: {
-  model: SensitivityModel; values: SliderValues; onChange: (id: string, value: number) => void; onReset: (target: 'today' | 'anchor') => void; price: number | null; drivers: Record<string, DriverNote>;
+export function SensitivityPanel({ model, values, onChange, onReset, price, drivers, onOpenSession }: {
+  model: SensitivityModel; values: SliderValues; onChange: (id: string, value: number) => void; onReset: (target: 'today' | 'anchor') => void; price: number | null; drivers: Record<string, DriverNote>; /** 点「来自 M-DD 的对话」回到那段对话。 */ onOpenSession?: (sessionId: string) => void;
 }) {
   const parts = contributions(model, values);
   const profit = profitAt(model, values);
@@ -117,7 +117,9 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
           const note = drivers[item.id];
           const hint = note?.origin === 'conversation' ? conversationHint({ at: note.confirmedAt, sessionId: note.sessionId }) : '';
           return <Slider key={item.id} variable={item} value={values[item.id] ?? item.current} onChange={value => onChange(item.id, value)}
-            origin={hint ? <span className="narrative-origin" data-change-hint title={hint}>对话确认{note?.confirmedAt ? ` · ${note.confirmedAt.slice(0, 10)}` : ''}</span> : undefined} />;
+            origin={hint ? (note?.sessionId && onOpenSession
+              ? <button type="button" className="narrative-origin company-page-link" data-change-hint data-origin-session={note.sessionId} title={hint} onClick={() => onOpenSession(note.sessionId!)}>{conversationOrigin(note.confirmedAt)}</button>
+              : <span className="narrative-origin" data-change-hint title={hint}>{conversationOrigin(note?.confirmedAt)}</span>) : undefined} />;
         })}
         <div className="narrative-slider-actions">
           <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>回到今天价格</button>

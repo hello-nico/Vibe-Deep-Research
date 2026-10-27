@@ -24,9 +24,6 @@ export function legacyRedirect(pathname: string, search = ''): string | null {
     return company ? watchPathOfCompany(company) : '/watch';
   }
   if (path === '/daily-review') return '/feed';
-  if (path === '/intel') return '/feed?tab=intel';
-  const intel = /^\/intel\/([^/]+)$/.exec(path);
-  if (intel) return `/feed?tab=intel&sub=${intel[1]}`;
   if (path === '/my-research') return `/insights${search}`;
   const topic = /^\/my-research\/topics\/([^/]+)$/.exec(path);
   if (topic) return `/insights/topics/${topic[1]}${search}`;

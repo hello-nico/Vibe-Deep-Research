@@ -1,6 +1,6 @@
 import { researchRead, aShareQualified } from './research';
 import { localService } from './localService';
-import { plainNumber, yiText } from './companyNarrative';
+import { plainNumber, yiText, type LivePrice } from './companyNarrative';
 
 /**
  * 「关键变量」页的数据：Backend `GET /api/v1/tracking/variables`（T12a R1/R2）。
@@ -17,10 +17,11 @@ export interface VariableCompany {
   pct_of_base?: string | null; neutral_price_delta?: string | null;
   kind: 'operating' | 'revaluation'; stale?: boolean;
 }
+export interface IntradayQuote { price?: string | null; as_of?: string | null; source?: string | null; stale?: boolean; session?: string | null; gap?: string | null }
 export interface TrackedVariable {
   var_id: string; name: string; unit?: string | null; tier: VariableTier; source?: string | null; frequency?: string | null;
   last_date?: string | null; latest?: string | null; previous?: string | null; change_1d?: string | null;
-  series?: string[][] | null; status: VariableStatus; reason?: string | null; companies: VariableCompany[];
+  series?: string[][] | null; intraday?: IntradayQuote | null; status: VariableStatus; reason?: string | null; companies: VariableCompany[];
 }
 export interface VariableCardCompany { symbol: string; name: string; impact: string; pct_of_base?: string | null; neutral_price_delta?: string | null }
 export interface VariableCard {
@@ -148,9 +149,9 @@ export function cardTitlePieces(card: VariableCard): SentencePiece[] {
 export function cardTitle(card: VariableCard): string {
   return cardTitlePieces(card).map(piece => piece.text).join('');
 }
-/** 第二行：碰到哪些关注公司、对利润的方向；各家不一致时只说方向不同。 */
+/** 第二行：涉及哪些关注公司与哪个价格、对利润的方向；各家不一致时只说方向不同。 */
 export function cardTouch(card: VariableCard): string {
-  return `关注中：${card.companies.map(company => shortName(company.name)).join('、')}${touchEffect(card)}`;
+  return `涉及：${card.companies.map(company => shortName(company.name)).join('、')} · ${card.name}${touchEffect(card)}`;
 }
 const touchEffect = (card: VariableCard) => {
   const directions = new Set(card.companies.map(company => tone(company.impact)).filter(Boolean));
@@ -195,3 +196,30 @@ export function cardQuestion(card: VariableCard): string {
 const EXCHANGES: [RegExp, string][] = [[/\bSHFE\b/g, '上期所'], [/\bDCE\b/g, '大商所'], [/\bZCE\b/g, '郑商所'], [/\bGFEX\b/g, '广期所'], [/\bINE\b/g, '上期能源']];
 /** 行情目录原文里的交易所代码换成中文，其余原样显示。 */
 export const sourceText = (source: string | null | undefined) => EXCHANGES.reduce((text, [pattern, name]) => text.replace(pattern, name), source ?? '');
+
+// ---------------------------------------------------------------- 页首「现在」的最新价
+
+const monthDay = (date: string) => { const match = /^\d{4}-(\d{2})-(\d{2})/.exec(date); return match ? `${Number(match[1])}-${match[2]}` : ''; };
+/** 变量最新价：有盘中报价（非日收盘兜底）用盘中，否则最近收盘；都没有返回 null。 */
+export function livePriceOf(variable: TrackedVariable | undefined): LivePrice | null {
+  if (!variable || variable.status !== 'ok') return null;
+  const quote = variable.intraday;
+  const intraday = toNumber(quote?.price);
+  if (quote && intraday != null && quote.source !== 'daily_close' && quote.as_of) {
+    const time = /T(\d{2}:\d{2})/.exec(quote.as_of)?.[1];
+    const day = monthDay(quote.as_of);
+    return { value: intraday, when: `${[day, time].filter(Boolean).join(' ')} 盘中`.trim() };
+  }
+  const close = toNumber(variable.latest);
+  const day = monthDay(variable.last_date ?? '');
+  return close == null || !day ? null : { value: close, when: `${day} 收盘` };
+}
+/** 读某家公司的跟踪接口，取出指定变量的最新价；读不到或没有该变量返回 null（只读 GET）。 */
+export async function loadLivePrice(symbol: string, varId: string, read: <T>(route: string, signal?: AbortSignal) => Promise<T> = (route, signal) => researchRead(route, { signal }), signal?: AbortSignal): Promise<LivePrice | null> {
+  const qualified = /^\d{6}\.(SH|SZ|BJ)$/i.test(symbol) ? symbol.toUpperCase() : aShareQualified(symbol);
+  if (!qualified) return null;
+  try {
+    const data = await read<TrackingVariables>(`/tracking/variables?symbols=${qualified}`, signal);
+    return livePriceOf(data?.variables?.find(item => item.var_id === varId));
+  } catch { return null; }
+}

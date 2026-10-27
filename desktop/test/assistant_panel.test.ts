@@ -51,14 +51,13 @@ const setValue = (win: Window, box: HTMLTextAreaElement, value: string) => act(a
 });
 const button = (container: HTMLElement, text: string) => [...container.querySelectorAll('button')].find(node => node.textContent === text) as HTMLButtonElement | undefined;
 
-test('面板没有模式与模型菜单，一律以深查发送；早先的即答会话按深查继续', async () => {
+test('面板没有模式与模型菜单，一律以深查发送', async () => {
   await harness(async ({ win, container, modules, render }) => {
-    const ensured: any[] = [], started: any[] = [], switched: any[] = [];
+    const ensured: any[] = [], started: any[] = [];
     const sessions = {
       ...panelStore(),
-      ensureAssistant: async (input: any) => { ensured.push(input); return { sessionId: 'assistant', mode: 'ask' }; },
+      ensureAssistant: async (input: any) => { ensured.push(input); return { sessionId: 'assistant', mode: 'agent' }; },
       startAssistant: async (input: any) => { started.push(input); return { sessionId: 'assistant', status: 'started', mode: 'agent' }; },
-      switchAssistantMode: async (...args: any[]) => { switched.push(args); },
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
@@ -68,7 +67,6 @@ test('面板没有模式与模型菜单，一律以深查发送；早先的即�
     await render(Page, sessions);
     await act(async () => container.querySelector('button')!.click());
     assert.equal(ensured[0].mode, 'agent');
-    assert.deepEqual(switched, [['assistant', 'agent', 'company_wiki:feed-variables']], '旧的即答会话切到深查，只切一次');
     assert.equal(container.querySelector('[aria-label="问助手模式"]'), null);
     assert.equal(container.querySelector('[aria-label="问助手模型"]'), null);
     assert.doesNotMatch(container.textContent!, /Ask|Agent/);
@@ -81,24 +79,30 @@ test('面板没有模式与模型菜单，一律以深查发送；早先的即�
   });
 });
 
-test('旧会话切换失败时沿用现有错误提示，面板不装作已就绪', async () => {
-  let switches = 0;
-  await harness(async ({ container, modules, render }) => {
+test('个股页打开面板时以 deep_research 绑定当前公司，发送也带同一对象', async () => {
+  await harness(async ({ win, container, modules, render }) => {
+    const ensured: any[] = [], started: any[] = [];
     const sessions = {
       ...panelStore(),
-      ensureAssistant: async () => ({ sessionId: 'assistant', mode: 'ask' }),
-      switchAssistantMode: async () => { switches++; throw new Error('boom'); },
+      ensureAssistant: async (input: any) => { ensured.push(input); return { sessionId: 'assistant', status: 'started', mode: 'agent' }; },
+      startAssistant: async (input: any) => { started.push(input); return { sessionId: 'assistant', status: 'started', mode: 'agent' }; },
       focusAssistantSession: () => () => {}, sessionState: () => null, trajectory: () => null, subscribeSessionList: () => () => {},
     };
     function Page() {
-      modules.page.useAiPage({ key: 'feed:variables', title: '行情', context: '' });
+      modules.page.useAiPage({ key: 'company-wiki:companies/000933-sz', title: '神火股份', context: '净利润 12.3 亿元' });
       return h(modules.dock.FinanceAiDock, { renderPanel: (content: any) => h('section', {}, content) });
     }
     await render(Page, sessions);
     await act(async () => container.querySelector('button')!.click());
-    assert.equal(switches, 1, '失败后不自动重试');
-    assert.doesNotMatch(container.textContent!, /正在准备/, '显示错误提示而不是一直等待');
-    assert.equal((container.querySelector('textarea[aria-label="问助手输入"]') as HTMLTextAreaElement).disabled, true, '没就绪前不能发');
+    assert.equal(ensured[0].plugin, 'deep_research');
+    assert.equal(ensured[0].target, 'companies/000933-sz');
+    const box = container.querySelector('textarea[aria-label="问助手输入"]') as HTMLTextAreaElement;
+    await setValue(win, box, '它靠什么赚钱');
+    await act(async () => button(container, '发送')!.click());
+    assert.equal(started[0].plugin, 'deep_research');
+    assert.equal(started[0].target, 'companies/000933-sz');
+    assert.equal(started[0].prompt, '它靠什么赚钱', '快照走 pageSnapshot，不拼进用户问题');
+    assert.match(started[0].pageSnapshot, /净利润 12.3 亿元/);
   });
 });
 

@@ -181,6 +181,7 @@
     transition: background-color .15s, color .15s;
   }
   .workspace-nav-link svg { width: 18px; height: 18px; }
+  .workspace-nav-link .workspace-nav-dot { position: absolute; top: 6px; right: 14px; }
   .workspace-nav-link:hover { background: var(--fill-1); color: hsl(var(--foreground)); }
   .workspace-nav-link[aria-current="page"] { background: var(--fill-2); color: hsl(var(--foreground)); font-weight: 600; }
   .workspace-nav-badge { position: absolute; top: 4px; right: 6px; min-width: 14px; height: 14px; padding: 0 4px; border-radius: 999px; background: hsl(var(--brand)); color: #fff; font-size: 10px; line-height: 14px; text-align: center; }
@@ -336,6 +337,11 @@
   .data-table .col-action, .watch-table .watch-col-action { width: 1%; white-space: nowrap; text-align: right; }
   .data-table tbody tr, .watch-row { transition: background-color .15s; }
   .data-table tbody tr:hover, .watch-row:hover, .watch-row.is-open, .watch-row.is-pending { background: var(--fill-1); }
+  .watch-research { white-space: nowrap; font-size: 13px; color: var(--text-2); }
+  .watch-research-line { display: inline-flex; align-items: center; gap: 8px; }
+  .watch-research-line .is-run { color: hsl(var(--brand)); }
+  .watch-research-bar { display: block; width: 64px; height: 4px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
+  .watch-research-bar u { display: block; height: 100%; background: hsl(var(--brand)); }
   .row-actions { display: inline-flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .15s; }
   tr:hover .row-actions, tr:focus-within .row-actions, .row-actions:focus-within { opacity: 1; }
   @media (hover: none) { .row-actions { opacity: 1; } }

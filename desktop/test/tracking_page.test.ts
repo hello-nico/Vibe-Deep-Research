@@ -11,7 +11,7 @@ import { Window } from 'happy-dom';
 const trackingFixture = JSON.parse(readFileSync(new URL('./fixtures/tracking_variables.json', import.meta.url), 'utf8'));
 
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>, container: HTMLElement;
-let page: Record<string, any>, lib: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>, sessionModule: Record<string, any>, native: Record<string, any>, reports: Record<string, any>;
+let page: Record<string, any>, lib: Record<string, any>, lib2: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>, sessionModule: Record<string, any>, native: Record<string, any>, reports: Record<string, any>;
 const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
 before(async () => {
   win = new Window();
@@ -22,6 +22,7 @@ before(async () => {
     ssr: { noExternal: ['react-router-dom', 'react-router'], resolve: { conditions: ['module-sync', 'node', 'import', 'development'] } } });
   page = await server.ssrLoadModule('/src/verticals/finance/pages/Tracking.tsx');
   lib = await server.ssrLoadModule('/src/verticals/finance/lib/researchTasks.ts');
+  lib2 = await server.ssrLoadModule('/src/verticals/finance/lib/trackingItems.ts');
   native = await server.ssrLoadModule('/src/verticals/finance/dsh/NativeDsh.tsx');
   reports = await server.ssrLoadModule('/src/verticals/finance/pages/UploadedReports.tsx');
   sessionModule = await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx');
@@ -45,16 +46,50 @@ function record(symbol: string, name: string, over: Record<string, unknown> = {}
     sessions: ['s1'], host_boot_id: 'boot', trigger_note: null, reason: null, created_at: '2026-10-14T01:00:00Z', updated_at: '2026-10-14T02:00:00Z', finished_at: null, ...over };
 }
 
-function mockFetch(options: { records?: unknown[] | 'fail'; variables?: unknown; grades?: Record<string, string | null>; topics?: unknown[] | 'fail' }) {
+const catalog: string[][] = [['cmdty:SHFE.AL', '沪铝', '元/吨'], ['cmdty:SHFE.AO', '氧化铝', '元/吨'], ['cmdty:DCE.JM', '焦煤', '元/吨'], ['cmdty:DCE.J', '焦炭', '元/吨'], ['cmdty:SHFE.CU', '沪铜', '元/吨'], ['macro:DXY', '美元指数', '指数点']];
+/** 把变量夹具（A 线真实响应）改写成清单接口的形状：价格项带序列、提醒与公司；没有行情的变量清单里没有。 */
+function itemsOf(extra: unknown[] = [], over: Record<string, unknown> = {}) {
+  const data = trackingFixture;
+  const prices = data.variables.filter((item: any) => item.status === 'ok').map((item: any) => ({
+    id: `price:${item.var_id}`, kind: 'price', var_id: item.var_id, name: item.name, unit: item.unit, source: 'research', started_at: '2026-09-15', started_at_index: 0,
+    series: item.series, status: 'ok', cards: data.cards.filter((card: any) => card.var_id === item.var_id), flips: [], companies: item.companies, muted_at: null }));
+  return { as_of: data.as_of, items: [...prices, ...extra], muted: [], ...over };
+}
+const observation = (over: Record<string, unknown> = {}) => ({ id: 'obs:topic:abc:nickel', kind: 'observation', name: '华友：镍环节还算不算利润支柱', hypothesis: '镍价下行时利润支柱可能转移', source: 'research', started_at: '2026-10-20', muted_at: null,
+  signals: [{ id: 's1', date: '2026-10-21', text: '印尼镍产量上调', kind: '削弱', by: 'jev' }, { id: 's2', date: '2026-10-24', text: '镍价跌破成本线', kind: '削弱', by: 'jev' }, { id: 's3', date: '2026-10-25', text: '公司披露钴业务扩产', kind: '无关', by: 'jev' }], ...over });
+function mockFetch(options: { reports?: unknown; catalogFail?: boolean; items?: any; itemsFail?: boolean; postFail?: boolean; records?: unknown[] | 'fail'; variables?: unknown; grades?: Record<string, string | null>; previous?: Record<string, string | null>; topics?: unknown[] | 'fail' }) {
   const requested: string[] = [];
-  globalThis.fetch = (async (url: string) => {
+  globalThis.fetch = (async (url: string, init?: RequestInit) => {
     const path = String(url);
-    requested.push(path);
+    const method = (init?.method ?? 'GET').toUpperCase();
+    requested.push(method === 'GET' ? path : `${method} ${path} ${init?.body ?? ''}`.trim());
+    if (path.startsWith('/finance-research/tracking/catalog')) return options.catalogFail ? Response.json({ detail: 'x' }, { status: 503 }) : Response.json({ items: catalog.map(([id, name, unit]) => ({ id, name, unit, exchange: 'X' })) });
+    if (path.startsWith('/finance-research/tracking/next-reports')) return options.reports === 'fail' ? Response.json({ detail: 'x' }, { status: 503 }) : Response.json({ items: options.reports ?? [] });
+    if (path.startsWith('/finance-research/tracking/items')) {
+      const store = options.items ?? (options.items = itemsOf());
+      if (method === 'GET') return options.itemsFail ? Response.json({ detail: 'x' }, { status: 503 }) : Response.json(store);
+      if (options.postFail) return Response.json({ detail: { message: '该价格已在跟踪清单中' } }, { status: 422 });
+      const body = JSON.parse(String(init?.body));
+      if (method === 'POST') {
+        const meta = catalog.find(row => row[0] === body.var_id)!;
+        const created = { id: `price:${body.var_id}`, kind: 'price', var_id: body.var_id, name: meta[1], unit: meta[2], source: 'user', started_at: '2026-10-26', started_at_index: 0, series: null, status: 'gap', reason: '行情取数失败', cards: [], flips: [], companies: [], muted_at: null };
+        store.items.push(created);
+        return Response.json(created);
+      }
+      const route = decodeURIComponent(path.split('/finance-research/tracking/items/')[1]!.split('?')[0]!);
+      const [id, signalId] = route.split('/signals/');
+      const hit = [...store.items, ...store.muted].find((item: any) => item.id === id);
+      if (signalId) { const signal = hit.signals.find((item: any) => item.id === signalId); signal.kind = body.kind; signal.by = 'user'; return Response.json(signal); }
+      hit.muted_at = body.muted ? '2026-10-26T01:00:00Z' : null;
+      store.items = store.items.filter((item: any) => item !== hit); store.muted = store.muted.filter((item: any) => item !== hit);
+      (body.muted ? store.muted : store.items).push(hit);
+      return Response.json(hit);
+    }
     if (path.startsWith('/finance-research-tasks')) return options.records === 'fail' ? Response.json({}, { status: 503 }) : Response.json({ items: options.records ?? [] });
     if (path.includes('/page-research')) {
       const symbol = /companies\/([^/]+)\//.exec(path)![1]!;
       const grade = options.grades?.[symbol];
-      return Response.json({ research: grade ? { valuation: { grade } } : null, stale: false, basisVersion: 'v' });
+      return Response.json({ research: grade ? { valuation: { grade }, researchedAt: '2026-10-26T01:30:00Z' } : null, stale: false, basisVersion: 'v', previousGrade: options.previous?.[symbol] ?? null });
     }
     if (path.startsWith('/finance-research/wiki/research-topics?pool=active')) return options.topics === 'fail' ? Response.json({}, { status: 503 }) : Response.json({ items: options.topics ?? [], next_offset: null });
     if (path.startsWith('/finance-research/tracking/variables')) return Response.json(options.variables ?? trackingFixture);
@@ -100,107 +135,190 @@ test('研究记录读不到、状态不认识时抛错，不当作没有记录',
   await assert.rejects(lib.loadResearchTasks());
 });
 
-test('跟踪页：页首只有标题；两块组名在卡片外', async () => {
+test('跟踪页：页首只有标题；组名在卡片外，没有「研究」区', async () => {
   mockFetch({ records: [record('000933.SZ', '神火股份')] });
   await render(h(page.Tracking));
   assert.equal(text('h1'), '跟踪');
   assert.equal(container.querySelector('.page-head-sub'), null);
-  assert.deepEqual([...container.querySelectorAll('.section-label')].map(label => label.firstElementChild!.textContent), ['正在盯的', '研究']);
+  assert.deepEqual([...container.querySelectorAll('.section-label')].map(label => label.firstElementChild!.textContent), ['正在盯的']);
   assert.ok([...container.querySelectorAll('.section-label')].every(label => !label.closest('.card')), '组名在卡片外');
-  assert.match(text('.section-label:nth-of-type(1)') || container.textContent!, /研究里自动产生的价格和指标/);
+  assert.match(text('.section-label:nth-of-type(1)') || container.textContent!, /研究里自动产生的价格/);
+  assert.equal(container.querySelector('[data-tracking="research"]'), null);
+  assert.doesNotMatch(container.textContent!, /研究进度/);
 });
 
-test('正在盯的：有卡片的排前并写那一次；没有的写平静；没有行情的写跟着财报；点开看各公司影响', async () => {
-  mockFetch({ records: [] });
+test('正在盯的：有提醒的排前并写那一次；点开看走势、开始盯的位置和各公司影响；各行独立展开', async () => {
+  mockFetch({});
   await render(h(page.Tracking));
   const rows = [...container.querySelectorAll('[data-tracking="watching"] [data-variable-row]')] as HTMLElement[];
-  assert.deepEqual(rows.map(row => row.dataset.variableRow), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO', '000933.SZ:coal_price']);
+  assert.deepEqual(rows.map(row => row.dataset.variableRow), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO']);
   assert.match(rows[0]!.textContent!, /沪铝10 月 8 日 跌 445 元\/吨，已提醒 · 神火/);
   assert.match(rows[1]!.textContent!, /近一个月没有大到需要提醒的变动 · 神火/);
-  assert.match(rows[2]!.textContent!, /没有公开行情，跟着财报更新 · 神火/);
-  assert.match(rows[0]!.querySelector('time')!.textContent!, /^10-12 收盘 23,465$/);
-  assert.equal(rows[0]!.querySelector('time')!.getAttribute('datetime'), '2026-10-12');
-  assert.equal(rows[0]!.querySelector('.tracking-detail'), null);
+  assert.equal(rows[0]!.querySelector('.tracking-price')!.textContent, '23,465−5', '一行里只有最新价与涨跌（从序列末尾取）');
+  assert.ok(rows.every(row => row.querySelector('.tracking-detail') === null && row.querySelector('button.tracking-row')!.getAttribute('aria-expanded') === 'false'), '默认全部折叠');
+  assert.equal(container.querySelector('[data-trend]'), null, '走势在展开里');
+  assert.ok(rows.every(row => !row.querySelector('.tracking-tag')), '研究带出的不标「我添加的」');
   await React.act(async () => (rows[0]!.querySelector('button.tracking-row') as HTMLButtonElement).click());
   assert.match(rows[0]!.querySelector('.tracking-detail')!.textContent!, /神火股份 · 每涨 1,000 元\/吨\+8\.27 亿元/);
-  await React.act(async () => (rows[2]!.querySelector('button.tracking-row') as HTMLButtonElement).click());
-  assert.match(rows[2]!.querySelector('.tracking-detail')!.textContent!, /无公开日行情，靠财报与对话更新/);
-  assert.equal(rows[0]!.querySelector('.tracking-detail'), null, '一次只展开一行');
-  const foot = text('.tracking-foot');
-  assert.match(foot, /紫金矿业.*没有研究/, '取得到名字就显示简称');
-  assert.doesNotMatch(foot, /601899/);
-  assert.equal(container.querySelector('.tracking-foot a')!.textContent, '去研究');
-  assert.equal(container.querySelector('.tracking-foot a')!.getAttribute('href'), '/watch/601899', '只有一家：直达该公司个股页');
-  assert.doesNotMatch(container.textContent!, /系数|凭据|数据版本|编号/);
+  const trend = rows[0]!.querySelector('[data-trend] svg')!;
+  assert.equal(trend.getAttribute('aria-label'), '沪铝 2026-08-10 至 2026-10-12 收盘走势，最新 23,465');
+  assert.equal(trend.querySelector('polyline')!.getAttribute('points')!.split(' ').length, 40);
+  assert.equal(trend.querySelectorAll('.tracking-trend-alert').length, 1, '提醒过的 10-08 一个空心点');
+  assert.equal(trend.querySelectorAll('.tracking-trend-now').length, 1);
+  assert.equal(trend.querySelectorAll('.tracking-trend-start').length, 1, '开始盯的位置一根竖线');
+  assert.match(rows[0]!.querySelector('.tracking-trend-text')!.textContent!, /08-10 至 10-12 收盘 · 09-15 开始盯/);
+  await React.act(async () => (rows[1]!.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.ok(rows[0]!.querySelector('.tracking-detail'), '各行独立展开，不互相收起');
+  await React.act(async () => (rows[0]!.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.equal(rows[0]!.querySelector('.tracking-detail'), null, '再点收起');
+  assert.doesNotMatch(container.textContent!, /系数|凭据|数据版本|编号|undefined/);
 });
 
-test('没研究的公司有多家：「去研究」跳到关注列表', async () => {
-  const variables = { ...trackingFixture, coverage: { ...trackingFixture.coverage, unresearched: ['601899.SH', '600519.SH'] } };
-  mockFetch({ records: [], variables });
+test('开始盯的日子在走势之后（今天刚加、还没有新收盘）时不画开始线，也不写「开始盯」', async () => {
+  const items = itemsOf(); for (const item of items.items) item.started_at = '2026-10-26';
+  mockFetch({ items });
   await render(h(page.Tracking));
-  const link = container.querySelector('.tracking-foot a')!;
-  assert.equal(link.textContent, '去研究');
-  assert.equal(link.getAttribute('href'), '/watch');
+  await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AL"] button.tracking-row') as HTMLButtonElement).click());
+  assert.equal(container.querySelectorAll('.tracking-trend-start').length, 0);
+  assert.doesNotMatch(text('.tracking-trend-text'), /开始盯/);
 });
 
 test('正在盯的：多于 6 条时其余收进「显示另外 N 项」', async () => {
-  const [al, ao, coal] = trackingFixture.variables;
-  const many = Array.from({ length: 9 }, (_, i) => ({ ...(i % 2 ? ao : al), var_id: `v${i}`, name: `变量${i}` }));
-  mockFetch({ records: [], variables: { ...trackingFixture, variables: [...many, coal], cards: [] } });
+  const [al, ao] = itemsOf().items;
+  const many = Array.from({ length: 9 }, (_, i) => ({ ...(i % 2 ? ao : al), id: `price:v${i}`, var_id: `v${i}`, name: `变量${i}`, cards: [] }));
+  mockFetch({ items: { as_of: '2026-10-26', items: many, muted: [] } });
   await render(h(page.Tracking));
   assert.equal(container.querySelectorAll('[data-tracking="watching"] [data-variable-row]').length, 6);
   const more = container.querySelector('.tracking-more') as HTMLButtonElement;
-  assert.equal(more.textContent, '显示另外 4 项');
+  assert.equal(more.textContent, '显示另外 3 项');
   await React.act(async () => more.click());
-  assert.equal(container.querySelectorAll('[data-tracking="watching"] [data-variable-row]').length, 10);
+  assert.equal(container.querySelectorAll('[data-tracking="watching"] [data-variable-row]').length, 9);
   assert.equal(container.querySelector('.tracking-more'), null);
 });
 
-test('研究：五种状态的一句话、进度条只给进行中的、完成时带估值五档', async () => {
-  mockFetch({
-    records: [
-      record('000933.SZ', '神火股份', { updated_at: '2026-10-14T05:00:00Z', current_step: 2 }),
-      record('000807.SZ', '云铝股份', { updated_at: '2026-10-14T04:00:00Z', status: 'completed', current_step: 6 }),
-      record('603993.SH', '洛阳钼业', { updated_at: '2026-10-14T03:00:00Z', status: 'interrupted', current_step: 3 }),
-      record('600111.SH', '北方稀土', { updated_at: '2026-10-14T02:00:00Z', status: 'failed', reason: '最新定期报告还没入库' }),
-      record('002460.SZ', '赣锋锂业', { updated_at: '2026-10-14T01:00:00Z', status: 'cancelled' }),
-    ],
-    grades: { '000807.SZ': '合理' },
-  });
+test('清单读不到：一句话加重试；没有任何项：一句引导，仍可添加', async () => {
+  mockFetch({ itemsFail: true });
   await render(h(page.Tracking));
-  const rows = [...container.querySelectorAll('[data-research-row]')] as HTMLElement[];
-  assert.deepEqual(rows.map(row => row.querySelector('b')!.textContent), ['神火股份', '云铝股份', '洛阳钼业', '北方稀土', '赣锋锂业']);
-  assert.deepEqual(rows.map(row => row.querySelector('.tracking-text > span')!.textContent), [
-    '第 2 步，共 6 步 · 读报告', '完成，估值合理', '正在接着上次的进度继续', '最新定期报告还没入库', '已中止']);
-  assert.equal(container.querySelectorAll('[role="progressbar"]').length, 1);
-  assert.equal(rows[0]!.querySelector('[role="progressbar"] u')!.getAttribute('style'), 'width: 16.666666666666664%;');
-  assert.equal(container.querySelector('[data-research-row="000933.SZ"] [data-tracking]'), null);
+  assert.match(container.querySelector('[data-tracking="watching"]')!.textContent!, /正在盯的内容暂时读取不到/);
+  mockFetch({ items: { as_of: '2026-10-26', items: [], muted: [] } });
+  await render(h(page.Tracking));
+  assert.match(container.textContent!, /关注并研究公司后/);
+  assert.ok([...container.querySelectorAll('button')].some(button => button.textContent === '添加要盯的'));
 });
 
-test('研究：点开显示六步；读报告附报告标题，价格影响步附因素名，其余输出一概不显示；去个股页', async () => {
-  const done = record('000933.SZ', '神火股份', { status: 'running', current_step: 4 });
-  done.steps[0]!.outputs = { packet_as_of: '2026-10-14' };
-  done.steps[1]!.outputs = { title: '2026 年半年度报告', document_id: 'doc-secret', parse_revision_id: 'rev-secret', parsed_content_sha256: 'sha-secret' };
-  done.steps[2]!.outputs = { variables: ['沪铝', '氧化铝', '电价'], sensitivity_ref: 'result:secret', scenario_ref: 'result:secret2' };
-  mockFetch({ records: [done] });
+test('观察项：一行写名称、为什么重要和倾向；展开看时间轴与信号列表；信号类型可改', async () => {
+  const requested = mockFetch({ items: itemsOf([observation()]) });
   await render(h(page.Tracking));
-  await React.act(async () => (container.querySelector('[data-research-row] button.tracking-row') as HTMLButtonElement).click());
-  const steps = [...container.querySelectorAll('.tracking-steps li')];
-  assert.deepEqual(steps.map(li => li.children[1]!.textContent), ['收集资料', '读报告2026 年半年度报告', '算价格对利润的影响沪铝、氧化铝、电价', '估值与判断', '保存资料', '整理结论']);
-  assert.deepEqual(steps.map(li => li.querySelector('em')!.textContent), ['完成', '完成', '完成', '进行中', '等待', '等待']);
-  assert.doesNotMatch(container.textContent!, /secret|packet_as_of|2026-10-14|document_id|sha|result:|session/i);
-  assert.equal([...container.querySelectorAll('.tracking-detail a')].find(a => a.textContent === '看这家公司')!.getAttribute('href'), '/watch/000933');
+  const row = container.querySelector('[data-observing-row]') as HTMLElement;
+  assert.ok(row);
+  assert.equal(row.querySelector('b')!.textContent, '华友：镍环节还算不算利润支柱');
+  assert.match(row.textContent!, /镍价下行时利润支柱可能转移/);
+  assert.equal(row.querySelector('.tracking-tilt')!.textContent, '3 条消息里 2 条不利于这个判断');
+  assert.equal(row.querySelector('.tracking-detail'), null);
+  assert.deepEqual([...container.querySelectorAll('[data-tracking="watching"] .tracking-item')].map(item => item.getAttribute('data-item-id')).slice(-1), ['obs:topic:abc:nickel'], '观察项排在价格后面');
+  await React.act(async () => (row.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.match(text('.tracking-legend'), /▲ 支持　▼ 不利　○ 无关/);
+  const timeline = row.querySelector('.tracking-timeline')!;
+  assert.equal(timeline.querySelectorAll('polygon.is-weak').length, 2);
+  assert.equal(timeline.querySelectorAll('circle.is-none').length, 1);
+  const signals = [...row.querySelectorAll('[data-signal]')];
+  assert.deepEqual(signals.map(li => [li.querySelector('time')!.textContent, (li.querySelector('select') as HTMLSelectElement).selectedOptions[0]!.textContent, li.querySelector('span')!.textContent]), [
+    ['10-21', '不利于这个判断', '印尼镍产量上调'], ['10-24', '不利于这个判断', '镍价跌破成本线'], ['10-25', '无关', '公司披露钴业务扩产']]);
+  assert.deepEqual([...signals[0]!.querySelectorAll('option')].map(option => option.textContent), ['支持这个判断', '不利于这个判断', '无关', '还没判断']);
+  assert.doesNotMatch(container.textContent!, /加强|削弱|偏削弱|偏加强|方向不明/, '界面不出现倾向词');
+  const select = signals[2]!.querySelector('select') as HTMLSelectElement;
+  select.value = '加强'; // 选项的值仍是 Backend 的取值，显示的是「支持这个判断」
+  await React.act(async () => { select.dispatchEvent(new win.Event('change', { bubbles: true }) as unknown as Event); });
+  assert.ok(requested.some(entry => entry === 'PATCH /finance-research/tracking/items/obs%3Atopic%3Aabc%3Anickel/signals/s3 {"kind":"加强"}'));
+  assert.equal(text('[data-summary]'), '3 条消息里 1 条支持、2 条不利');
 });
 
-test('研究：没有任何记录时一句引导加「去关注」；读取失败一句话加重试', async () => {
-  mockFetch({ records: [] });
+test('观察项汇总：两种都有、只有一种、都没有；时间轴居中', async () => {
+  const sum = lib2.summaryOf;
+  const sig = (kind: string) => ({ id: kind, date: '2026-10-21', text: 'x', kind });
+  assert.equal(sum([]), '还没有相关消息');
+  assert.equal(sum([sig('加强'), sig('加强'), sig('削弱'), sig('无关')]), '4 条消息里 2 条支持、1 条不利');
+  assert.equal(sum([sig('削弱'), sig('削弱'), sig('无关')]), '3 条消息里 2 条不利于这个判断');
+  assert.equal(sum([sig('加强'), sig('待定')]), '2 条消息里 1 条支持这个判断');
+  assert.equal(sum([sig('无关'), sig('待定')]), '还没有相关消息', '支持和不利都没有');
+  assert.deepEqual(lib2.timelineOf([{ ...sig('加强'), date: '2026-10-21' }]).map((dot: any) => dot.x), [210], '只有一个日期居中');
+});
+
+test('不再盯与恢复：悬停的胶囊停掉一项，列表底部「已不再盯 · N 项」里可恢复；失败写一句话', async () => {
+  const requested = mockFetch({});
   await render(h(page.Tracking));
-  const block = container.querySelector('[data-tracking="research"]')!;
-  assert.match(block.textContent!, /关注公司后，研究进度和结果会出现在这里/);
-  assert.equal(block.querySelector('a')!.getAttribute('href'), '/watch');
-  mockFetch({ records: 'fail' });
+  assert.equal(container.querySelector('.tracking-row .tracking-mute, .tracking-line .tracking-mute'), null, '行上没有按钮，触屏也能点：按钮在展开区');
+  await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AO"] button.tracking-row') as HTMLButtonElement).click());
+  const mute = container.querySelector('[data-variable-row="cmdty:SHFE.AO"] .tracking-detail .tracking-mute') as HTMLButtonElement;
+  assert.equal(mute.getAttribute('aria-label'), '不再盯 氧化铝');
+  await React.act(async () => mute.click());
+  assert.ok(requested.includes('PATCH /finance-research/tracking/items/price%3Acmdty%3ASHFE.AO {"muted":true}'));
+  assert.equal(container.querySelector('[data-variable-row="cmdty:SHFE.AO"]'), null);
+  assert.equal(text('[data-tracking-muted] > .tracking-more'), '已不再盯 · 1 项');
+  await React.act(async () => (container.querySelector('[data-tracking-muted] > .tracking-more') as HTMLButtonElement).click());
+  assert.equal(text('[data-muted-row]'), '氧化铝恢复');
+  await React.act(async () => ([...container.querySelectorAll('[data-muted-row] button')].find(button => button.textContent === '恢复') as HTMLButtonElement).click());
+  assert.ok(requested.includes('PATCH /finance-research/tracking/items/price%3Acmdty%3ASHFE.AO {"muted":false}'));
+  assert.ok(container.querySelector('[data-variable-row="cmdty:SHFE.AO"]'));
+  assert.equal(container.querySelector('[data-tracking-muted]'), null, '没有不再盯的就不出现');
+  // 失败：整页清单不动，写一句话。
+  const store = itemsOf();
+  mockFetch({ items: store });
   await render(h(page.Tracking));
-  assert.match(container.querySelector('[data-tracking="research"]')!.textContent!, /研究进度暂时读取不到/);
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: string, init?: RequestInit) => init?.method === 'PATCH' ? Response.json({ detail: 'x' }, { status: 503 }) : original(url, init)) as typeof fetch;
+  await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AO"] button.tracking-row') as HTMLButtonElement).click());
+  await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AO"] .tracking-mute') as HTMLButtonElement).click());
+  assert.match(text('[role="alert"]'), /没有停下/);
+  assert.ok(container.querySelector('[data-variable-row="cmdty:SHFE.AO"]'));
+});
+
+test('添加要盯的：搜价格目录，点一个就加入并标「我添加的」；已在清单里的不再出现；失败写一句话', async () => {
+  const requested = mockFetch({});
+  await render(h(page.Tracking));
+  assert.equal(container.querySelector('[data-tracking-add]'), null, '默认不展开');
+  const open = () => React.act(async () => ([...container.querySelectorAll('button')].find(button => button.textContent === '添加要盯的') as HTMLButtonElement).click());
+  await open();
+  const options = () => [...container.querySelectorAll('[data-tracking-add] .tracking-add-options button')].map(button => button.textContent);
+  assert.ok(options().includes('焦煤') && options().includes('沪铜'));
+  assert.ok(!options().includes('沪铝') && !options().includes('氧化铝'), '已在清单里的不再出现');
+  const input = container.querySelector('.tracking-add-input') as HTMLInputElement;
+  await React.act(async () => { (Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set as (v: string) => void).call(input, '焦'); input.dispatchEvent(new win.Event('input', { bubbles: true }) as unknown as Event); });
+  assert.deepEqual(options(), ['焦煤', '焦炭']);
+  await React.act(async () => (container.querySelector('[data-tracking-add] .tracking-add-options button') as HTMLButtonElement).click());
+  assert.ok(requested.includes('POST /finance-research/tracking/items {"var_id":"cmdty:DCE.JM"}'));
+  assert.equal(container.querySelector('[data-tracking-add]'), null, '加完收起');
+  const added = container.querySelector('[data-variable-row="cmdty:DCE.JM"]') as HTMLElement;
+  assert.equal(added.querySelector('.tracking-tag')!.textContent, '我添加的');
+  // 暂时取不到行情：展开写原因，不画图。
+  await React.act(async () => (added.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.match(added.querySelector('.tracking-detail')!.textContent!, /行情取数失败/);
+  assert.equal(added.querySelector('[data-trend]'), null);
+  // 加不上。
+  mockFetch({ postFail: true });
+  await render(h(page.Tracking));
+  await open();
+  await React.act(async () => (container.querySelector('[data-tracking-add] .tracking-add-options button') as HTMLButtonElement).click());
+  assert.match(text('[role="alert"]'), /没有加上/);
+});
+
+test('展开状态按行记在本机：展开后重开页面仍展开，收起后不再展开', async () => {
+  const store = new Map<string, string>();
+  const original = Object.getOwnPropertyDescriptor(globalThis, 'localStorage');
+  Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: { getItem: (key: string) => store.get(key) ?? null, setItem: (key: string, value: string) => void store.set(key, value), removeItem: (key: string) => void store.delete(key) } });
+  try {
+    mockFetch({});
+    await render(h(page.Tracking));
+    await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AL"] button.tracking-row') as HTMLButtonElement).click());
+    assert.deepEqual(JSON.parse(store.get('finance.trackingOpen')!), ['price:cmdty:SHFE.AL']);
+    await render(h(page.Tracking));
+    assert.ok(container.querySelector('[data-variable-row="cmdty:SHFE.AL"] .tracking-detail'));
+    assert.equal(container.querySelector('[data-variable-row="cmdty:SHFE.AO"] .tracking-detail'), null);
+    await React.act(async () => (container.querySelector('[data-variable-row="cmdty:SHFE.AL"] button.tracking-row') as HTMLButtonElement).click());
+    assert.deepEqual(JSON.parse(store.get('finance.trackingOpen')!), []);
+  } finally {
+    if (original) Object.defineProperty(globalThis, 'localStorage', original); else delete (globalThis as Record<string, unknown>).localStorage;
+  }
 });
 
 test('/insights 重定向到 /tracking，议题页路由保留；导航第三项是「跟踪」', () => {
@@ -298,27 +416,44 @@ test('跟踪页状态点提示不被卡片裁切、不压住标题：卡片不 o
   assert.match(css, /\.tracking-row \.status-dot-tip \{ left: 12px; bottom: calc\(100% \+ 4px\);/);
 });
 
-test('正在观察：读议题里已保存的跟踪项，一行「指标 · 为什么重要 · 下一个来源」；没有、读取失败、格式不全都不出现，不改价格变量组', async () => {
-  const item = (key: string, over: Record<string, unknown> = {}) => ({ tracking_key: key, hypothesis: '铝价与氧化铝的价差决定电解铝利润', observables: ['沪铝减 1.93 倍氧化铝的价差', '氧化铝价格'], next_source: '下一份定期报告', ...over });
-  mockFetch({ records: [], topics: [{ topic_id: 'topic:a', tracking_items: [item('al-spread'), item('broken', { hypothesis: '' })] }, { topic_id: 'topic:b', tracking_items: [item('coal', { hypothesis: '煤价决定火电成本', observables: ['动力煤价'], next_source: '' })] }, { topic_id: 'topic:c' }] });
-  await render(React.createElement(page.Tracking));
-  const group = container.querySelector('[data-tracking="observing"]')!;
-  assert.ok(group);
-  assert.match(group.querySelector('.tracking-section-label, [class*="label"]')?.textContent ?? group.textContent!, /正在观察/);
-  const rows = [...group.querySelectorAll('[data-observing-row]')];
-  assert.deepEqual(rows.map(row => row.getAttribute('data-observing-row')), ['al-spread', 'coal'], '格式不全的丢掉');
-  assert.equal(rows[0]!.querySelector('b')!.textContent, '沪铝减 1.93 倍氧化铝的价差、氧化铝价格');
-  assert.equal(rows[0]!.querySelector('span span')!.textContent, '铝价与氧化铝的价差决定电解铝利润 · 下一个来源：下一份定期报告');
-  assert.equal(rows[1]!.querySelector('span span')!.textContent, '煤价决定火电成本', '没有来源就不写来源');
-  assert.ok(container.querySelector('[data-tracking="watching"]') && container.querySelector('[data-tracking="research"]'), '其余两组照常');
-  assert.doesNotMatch(group.textContent!, /Topic|tracking|indicator|topic:|undefined/);
-  // 顺序：正在盯的 → 正在观察 → 研究。
-  assert.deepEqual([...container.querySelectorAll('[data-tracking]')].map(node => node.getAttribute('data-tracking')), ['watching', 'observing', 'research']);
-  mockFetch({ records: [], topics: [] });
-  await render(React.createElement(page.Tracking));
-  assert.equal(container.querySelector('[data-tracking="observing"]'), null);
-  mockFetch({ records: [], topics: 'fail' });
-  await render(React.createElement(page.Tracking));
-  assert.equal(container.querySelector('[data-tracking="observing"]'), null);
-  assert.ok(container.querySelector('[data-tracking="watching"]'));
+test('下次报告要验什么：每家一行「要看：…」与「报告 · 日期」，不折叠没有按钮；预约日未公布写待公布；脚注一句', async () => {
+  const reports = [
+    { symbol: '000807.SZ', name: '云铝股份', report: '三季报', date: '2026-10-30', date_note: '', checks: ['沪铝', '电力成本', '单季归母净利'], researched_at: '2026-10-20' },
+    { symbol: '601288.SH', name: '农业银行', report: '年报', date: null, date_note: '预约日待公布', checks: ['净息差', '不良率', '净资产收益率', '股息率'] },
+    { symbol: '000933.SZ', name: '神火股份', report: '三季报', date: '2026-10-31', checks: [] },
+  ];
+  const requested = mockFetch({ reports });
+  await render(h(page.Tracking));
+  const group = container.querySelector('[data-tracking="next-reports"]')!;
+  assert.equal(group.querySelector('.section-label')!.firstElementChild!.textContent, '下次报告要验什么 · 3 家');
+  const rows = [...group.querySelectorAll('[data-report-row]')];
+  assert.deepEqual(rows.map(row => [row.querySelector('b')!.textContent, row.querySelector('.tracking-text > span')?.textContent ?? '', row.querySelector('time')!.textContent]), [
+    ['云铝', '要看：沪铝、电力成本、单季归母净利', '三季报 · 10-30'],
+    ['农业银行', '要看：净息差、不良率、净资产收益率、股息率', '年报 · 预约日待公布'],
+    ['神火', '', '三季报 · 10-31']]);
+  assert.equal(group.querySelector('button'), null, '无按钮');
+  assert.ok(requested.some(entry => /tracking\/next-reports\?symbols=000933\.SZ,601899\.SH$/.test(entry)));
+  const order = [...container.querySelectorAll('[data-tracking]')].map(node => node.getAttribute('data-tracking'));
+  assert.deepEqual(order, ['watching', 'next-reports'], '在「正在盯的」之后');
+  assert.ok(container.querySelector('[data-tracking="watching"]')!.compareDocumentPosition(group) & 4 || container.querySelector('[data-tracking="watching"]')!.contains(group));
+  assert.match(container.textContent!, /没有公开行情的因素按报告检查。/);
+  assert.doesNotMatch(container.textContent!, /暂无数据源/);
+});
+
+test('下次报告：没有或读不到时整组不出现，其余照常', async () => {
+  mockFetch({ reports: [] });
+  await render(h(page.Tracking));
+  assert.equal(container.querySelector('[data-tracking="next-reports"]'), null);
+  mockFetch({ reports: 'fail' });
+  await render(h(page.Tracking));
+  assert.equal(container.querySelector('[data-tracking="next-reports"]'), null);
+  assert.ok(container.querySelector('[data-variable-row]'));
+});
+
+test('价格目录读接口：读不到写一句话加重试', async () => {
+  mockFetch({ catalogFail: true });
+  await render(h(page.Tracking));
+  await React.act(async () => ([...container.querySelectorAll('button')].find(button => button.textContent === '添加要盯的') as HTMLButtonElement).click());
+  assert.match(text('[data-tracking-add]'), /价格目录暂时读取不到/);
+  assert.ok([...container.querySelectorAll('[data-tracking-add] button')].some(button => button.textContent === '重试'));
 });

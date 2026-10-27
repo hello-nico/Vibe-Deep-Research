@@ -1,16 +1,19 @@
-import { createContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
-import { Link } from 'react-router-dom';
+import { createContext, useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
 import { conflictValues, fieldIdLabel, otherPeriodText, pagePeriodText, sectionMeta, findField, forecastNote, formulaText, gapText, multipleText, scenarioPriceText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
-import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, epsAt, initialSliderValues, keyIdsOf, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { loadLivePrice } from '../lib/trackingVariables';
+import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, conversationOrigin, epsAt, initialSliderValues, keyIdsOf, newMaterialText, nextReport, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type LivePrice, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, ExpectationRows, FlowBar, GradePills, QuarterBars, SensitivityPanel, ValuationBand, WatchCards, type BandTier, type DriverNote } from '../components/CompanyNarrative';
 import { CompanyOpinion } from '../components/CompanyOpinion';
+import { ConversationFactors } from '../components/ConversationFactors';
+import { ResearchSessionContext } from '../dsh/research-session';
 import { companyPageProgress, companyPageStore, companyPageTaskActive, type CompanyPageData, type CompanyPageResearch, type CompanyPageServices, type CompanyPageState } from '../lib/companyPage';
 import { financialNumber } from '../lib/financialDisplay';
-import { chainPath, chainsOf, loadChainIndex, type ChainRef } from '../lib/chainPage';
+import { chainPath, createUserChain, defaultChainServices, loadRecommendations, type ChainRecommendation, type ChainServices } from '../lib/chainPage';
 import { loadDriverSetByIndustry, type DriverSet } from '../lib/templateDrivers';
 import { currencyLabel } from '../lib/marketSymbol';
 import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
@@ -159,7 +162,33 @@ export function viewedCompanySection(root: ParentNode = document, viewportHeight
 }
 
 /** `onSnapshot`：页面每次有可见变化就交出一份分节快照，由外层登记给问助手（页面内容只在这里知道）。 */
-export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: string; name: string; services: CompanyPageServices; onSnapshot?: (sections: SnapshotSection[]) => void }) {
+/** 推荐所在链：读推荐接口，不再按申万行业自动挂。已建的进入你的那条链，未建的点一下建好再进入；读不到整段不出现。 */
+function ChainRecommendations({ symbol, services }: { symbol: string; services: ChainServices }) {
+  const navigate = useNavigate();
+  const [items, setItems] = useState<ChainRecommendation[]>([]);
+  const [busy, setBusy] = useState('');
+  const [error, setError] = useState('');
+  useEffect(() => {
+    const controller = new AbortController();
+    setItems([]); setError('');
+    void loadRecommendations(symbol, services, controller.signal).then(value => { if (!controller.signal.aborted) setItems(value); });
+    return () => controller.abort();
+  }, [symbol, services]);
+  if (!items.length) return null;
+  const build = async (item: ChainRecommendation) => {
+    if (busy) return;
+    setBusy(item.publicChainId); setError('');
+    try { navigate(chainPath(await createUserChain(item.publicChainId, services))); }
+    catch { setError('这条产业链没建成，请稍后再试。'); }
+    finally { setBusy(''); }
+  };
+  return <p className="company-page-code" data-chain-entry="">推荐所在链：{items.map((item, index) => <span key={item.publicChainId}>{index ? '、' : ''}
+    {item.built && item.userChainId ? <Link to={chainPath(item.userChainId)}>{item.name}</Link>
+      : <>{item.name}<button type="button" className="btn btn-text btn-sm" disabled={Boolean(busy)} onClick={() => void build(item)}>{busy === item.publicChainId ? '正在建…' : '建这条产业链'}</button></>}</span>)}
+    {error && <span role="alert" data-chain-error=""> {error}</span>}</p>;
+}
+
+export function CompanyPage({ symbol, name, services, onSnapshot, chainServices = defaultChainServices }: { symbol: string; name: string; services: CompanyPageServices; onSnapshot?: (sections: SnapshotSection[]) => void; chainServices?: ChainServices }) {
   const research = useCompanyPageState(services, symbol, name, true);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
@@ -167,6 +196,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   const [calcs, setCalcs] = useState<Record<string, unknown>>({});
   const [slid, setSlid] = useState<SliderValues>({});
   const [reverting, setReverting] = useState<'idle' | 'busy' | 'failed'>('idle');
+  const researchSessions = useContext(ResearchSessionContext);
+  const openSession = researchSessions ? (sessionId: string) => { void researchSessions.openSession(sessionId).catch(() => {}); } : undefined;
   useEffect(() => {
     const controller = new AbortController();
     setData(initialData());
@@ -223,14 +254,6 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     void services.readCalendar(symbol, controller.signal).then(value => { if (!controller.signal.aborted) setCalendar(value); });
     return () => controller.abort();
   }, [services, symbol]);
-  // 所属产业链：链定义读一次（会话内缓存），读不到就不显示入口，不影响页面其余部分。
-  const [chains, setChains] = useState<ChainRef[]>([]);
-  useEffect(() => {
-    let alive = true;
-    setChains([]);
-    void loadChainIndex().then(all => { if (alive) setChains(chainsOf(all, symbol)); }).catch(() => {});
-    return () => { alive = false; };
-  }, [symbol]);
   // 所属行业的估值框架（驱动）：用于没有价格模型的公司列「盯什么」；读不到就只列下一次报告。
   const industryCode = data.packet.value?.identity?.industry_code;
   const [templateDrivers, setTemplateDrivers] = useState<DriverSet | null>(null);
@@ -242,6 +265,16 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   }, [industryCode]);
   const model = useMemo(() => sensitivityRef && calcs[sensitivityRef] ? parseSensitivity(calcs[sensitivityRef]) : null, [sensitivityRef, calcs]);
   useEffect(() => { setSlid({}); }, [model]);
+  // 页首「现在」用变量最新价，取不到页首退回研究时的默认值并写「研究时」。
+  const [live, setLive] = useState<LivePrice | null>(null);
+  const impliedId = model?.implied?.id;
+  useEffect(() => {
+    setLive(null);
+    if (!impliedId) return;
+    const controller = new AbortController();
+    void loadLivePrice(symbol, impliedId, undefined, controller.signal).then(value => { if (!controller.signal.aborted) setLive(value); });
+    return () => controller.abort();
+  }, [symbol, impliedId]);
   const values = model ? { ...initialSliderValues(model), ...slid } : {};
   const resetSliders = (target: 'today' | 'anchor') => {
     if (!model) return;
@@ -258,7 +291,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   const gapOnly = Boolean(saved?.gapNote);
   const change = changeLine(saved, { changedFrom: research.changedFrom, canRevert: research.canRevert });
   const tiers = bandTiers(scenarios, model);
-  const verdict = verdictLine({ grade: saved?.valuation?.grade, model });
+  const verdict = verdictLine({ grade: saved?.valuation?.grade, model, live });
   const expectation = expectations({ packet, scenarios, model, price, grade: saved?.valuation?.grade, verdict });
   const revert = async () => {
     if (!services.revertResearch) return;
@@ -348,7 +381,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
   return <article className="company-page" aria-label={name}>
     <section className="card company-page-hero">
       <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p>
-        {chains.length > 0 && <p className="company-page-code" data-chain-entry="">所属产业链：{chains.map((chain, index) => <span key={chain.chain_id}>{index ? '、' : ''}<Link to={chainPath(chain.chain_id)}>{chain.name}</Link></span>)}</p>}</div>
+        <ChainRecommendations symbol={symbol} services={chainServices} /></div>
         <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">行情暂不可用</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
@@ -360,18 +393,24 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         </p>}
         {!gapOnly && change && <p className="company-page-change" data-change-line="">
           <span data-change-hint={change.conversation ? '' : undefined} title={[conversationHint(change.conversation), change.detail].filter(Boolean).join('\n') || undefined}>{change.text}</span>
+          {change.conversation?.sessionId && openSession && <button type="button" className="company-page-link" data-open-conversation="" onClick={() => openSession(change.conversation!.sessionId!)}>打开对话</button>}
           {change.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
           {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
         </p>}
+        {!gapOnly && change?.conversation && saved?.changes?.thesis && <p className="company-page-origin" data-origin="thesis">论点：{conversationOrigin(change.conversation.at)}</p>}
         <CompanyOpinion name={name} symbol={symbol} />
         {pagePeriodText(packet) && <p className="company-page-period" data-page-period={packet?.page_period}>{pagePeriodText(packet)}</p>}
+        {saved && research.stale && !research.error && <p className="company-page-stale" data-stale-line="">
+          {newMaterialText(nextReport(packet, new Date(), calendar))}
+          <button type="button" className="company-page-link" disabled={companyPageTaskActive(research.task)} onClick={() => void store.restart()}>重新研究</button>
+        </p>}
         {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
       </section>
     </section>
     {showSection.business && section('business', block('business')?.summary, <SegmentNumbers summary={segments} packet={packet} />, businessKeys, moreOf('business', [...segmentIds, ...businessAll, ...(block('business')?.fieldIds ?? [])], businessKeys, segmentGapText(segments)), saved?.changes?.business, segments.period ? sectionMeta(packet, { period: segments.period }) : metaOf(packet, businessKeys))}
     {showSection.variables && section('variables', variableAnswer,
       model
-        ? <SensitivityPanel model={model} values={values} onChange={(id, value) => setSlid(previous => ({ ...previous, [id]: value }))} onReset={resetSliders} price={price} drivers={notes} />
+        ? <SensitivityPanel model={model} values={values} onChange={(id, value) => setSlid(previous => ({ ...previous, [id]: value }))} onReset={resetSliders} price={price} drivers={notes} onOpenSession={openSession} />
         : <>{(formulaSentence || formula) && <div className="narrative-formula" data-formula="">{formulaSentence && <AnswerSentence id="profit_formula" text={formulaSentence} packet={packet} calcs={calcs} livePrice={price} />}{formula && <span className="company-page-gap">{formula}</span>}</div>}<QuarterBars bars={bars} /></>,
       [],
       (variableBlocks.some(item => item?.details) || variableIds.length || Object.keys(drivers).length || model?.baseLabel || model?.assumptions) ? <Detail>
@@ -402,6 +441,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
     {showSection.tracking && section('tracking', saved?.sections?.tracking?.summary, <WatchCards items={watch} />, [],
       (saved?.sections?.tracking?.details || pillars.length || saved?.catalysts?.length) ? <Detail>
         {saved?.sections?.tracking?.details && <p>{fill(saved.sections.tracking.details)}</p>}
+        {change?.conversation && saved?.changes?.tracking && pillars.length > 0 && <p className="company-page-origin" data-origin="pillars">支柱与不成立的条件：{conversationOrigin(change.conversation.at)}</p>}
         {pillars.map(item => <div key={item.id} data-pillar={item.id}>
           <p>支柱：{item.text}</p>
           {item.falsifiers.map(line => <p key={line}>不成立的条件：{line}</p>)}
@@ -410,6 +450,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot }: { symbol: st
         {saved?.catalysts?.map(item => <p key={`${item.date}${item.event}`}>{item.date} {fill(item.event)}</p>)}
       </Detail> : null,
       saved?.changes?.tracking)}
+    {!gapOnly && saved && <ConversationFactors symbol={symbol} researching={companyPageTaskActive(research.task)} onResearch={() => void store.restart()} />}
     <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无已确认的研究关联</p>}</Panel>
     <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <p className="company-page-gap">资料暂不可用</p> : <SourceTimeline content={data.documents.value} />}</Panel>
   </article>;

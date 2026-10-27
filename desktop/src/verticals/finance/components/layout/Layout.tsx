@@ -12,6 +12,7 @@ import { useDarkMode } from "@/hooks/useDarkMode";
 import { NativeDshHost } from "../../dsh/NativeDsh";
 import { TaskNotices } from "../ui/TaskNotices";
 import { WikiDrawer } from '../WikiDrawer';
+import { FeedDot } from "./FeedDot";
 
 /** 六个两字入口：按用户与 Agent 的关系收敛（对话 / 动态 / 跟踪 / 关注 / 资料 / 设置）。 */
 const NAV = [
@@ -47,6 +48,7 @@ export function Layout() {
               const active = match(pathname);
               return <Link key={to} to={to} aria-label={label} aria-current={active ? "page" : undefined} className="workspace-nav-link relative">
                 <Icon aria-hidden="true" /><span>{label}</span>
+                {to === "/feed" && <FeedDot pathname={pathname} />}
               </Link>;
             })}
           </nav>

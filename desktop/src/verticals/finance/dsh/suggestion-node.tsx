@@ -12,7 +12,9 @@ import {
   startSuggestedIndicator,
 } from './suggestion-actions';
 import { loadObserving } from '../lib/observing';
-import type { CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection';
+import { chainPath, createUserChain, defaultChainServices } from '../lib/chainPage';
+import { researchRead } from '../lib/research';
+import type { ChainSuggestion, CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection';
 import type { VibeSuggest } from './vibe';
 
 type Props = Pick<ChatNodeViewProps<'finance-suggestion'>, 'node' | 'inputActions' | 'useInput' | 'useSession'>;
@@ -87,9 +89,39 @@ function IndicatorItem({ item }: { item: IndicatorSuggestion }) {
   </li>;
 }
 
+/** 建这条产业链：点一下以已关注公司为底建链并进入；已建的显示「查看」（含重新打开的对话）。 */
+function ChainItem({ item }: { item: ChainSuggestion }) {
+  const [chainId, setChainId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  useEffect(() => {
+    let live = true;
+    researchRead<{ items?: { id: string; public_chain_id: string }[] }>('/wiki/user-chains').then(
+      value => { const found = value.items?.find(row => row.public_chain_id === item.public_chain_id); if (live && found) setChainId(found.id); }, () => undefined);
+    return () => { live = false; };
+  }, [item.public_chain_id]);
+  // 对话面板不一定在路由树里，沿用对象跳转事件进入链页。
+  const open = (id: string) => window.dispatchEvent(new CustomEvent('finance-object-navigate', { detail: chainPath(id) }));
+  const run = async () => {
+    if (busy) return;
+    if (chainId) { open(chainId); return; }
+    setBusy(true); setError('');
+    try { const id = await createUserChain(item.public_chain_id, defaultChainServices); setChainId(id); open(id); }
+    catch (cause) { setError(userFacingRuntimeError(cause, '没能建成这条产业链')); }
+    finally { setBusy(false); }
+  };
+  return <li>
+    <button type="button" className="finance-suggest-row" aria-label={`${chainId ? '查看' : '建'}产业链 ${item.name}`} title={item.reason} disabled={busy} onClick={() => void run()}>
+      <span className="finance-suggest-text">{item.name}<small className="finance-suggest-why" data-chain-why="">{item.reason}</small></span>
+      <span className="finance-suggest-status">{busy ? '正在建…' : chainId ? '查看' : '建这条产业链'}</span>
+    </button>
+    {error && <p role="alert" className="mt-2 text-xs text-muted-foreground" data-chain-error="">{error}</p>}
+  </li>;
+}
+
 export function Suggest({ data, actions }: { data: VibeSuggest; actions?: SuggestActions }) {
   if (!data.items.length) return null;
-  const title = data.type === 'question' ? '相关问题' : data.type === 'indicator' ? '开始观察' : '相关公司';
+  const title = data.type === 'question' ? '相关问题' : data.type === 'indicator' ? '开始观察' : data.type === 'chain' ? '产业链' : '相关公司';
   return <section className="finance-suggest" aria-label={title}>
     <p className="finance-suggest-title">{title}</p>
     <ul>
@@ -102,6 +134,9 @@ export function Suggest({ data, actions }: { data: VibeSuggest; actions?: Sugges
       {data.type === 'indicator' && data.items.map(item => actions
         ? <IndicatorItem key={item.tracking_item.tracking_key} item={item} />
         : <li key={item.tracking_item.tracking_key} className="finance-suggest-row"><span className="finance-suggest-text" title={item.reason}>{item.name} · {item.reason}</span></li>)}
+      {data.type === 'chain' && data.items.map(item => actions
+        ? <ChainItem key={item.public_chain_id} item={item} />
+        : <li key={item.public_chain_id} className="finance-suggest-row"><span className="finance-suggest-text" title={item.reason}>{item.name} · {item.reason}</span></li>)}
     </ul>
   </section>;
 }

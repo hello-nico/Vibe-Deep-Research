@@ -3,8 +3,8 @@
 /* 状态点的悬停提示：卡片不裁切；提示以整行为定位，落在这一行的正上方，不压住本行标题。
    状态点自身改成 19px 可悬停区（只画中间 7px），免得提示的定位基准落到点上。 */
 .tracking-card { overflow: visible; }
-.tracking-item:first-child > .tracking-row { border-top-left-radius: 15px; border-top-right-radius: 15px; }
-.tracking-item:last-child > .tracking-row:last-child, .tracking-more { border-bottom-left-radius: 15px; border-bottom-right-radius: 15px; }
+.tracking-item:first-child .tracking-row { border-top-left-radius: 15px; border-top-right-radius: 15px; }
+.tracking-item:last-child .tracking-row:last-child, .tracking-more { border-bottom-left-radius: 15px; border-bottom-right-radius: 15px; }
 .tracking-row { position: relative; }
 .tracking-row .status-dot { position: static; box-sizing: content-box; padding: 6px; margin: -6px; background-clip: content-box; }
 .tracking-row .status-dot::before { display: none; }
@@ -18,6 +18,18 @@
 .tracking-text b { font-size: 14px; font-weight: 600; }
 .tracking-text > span { font-size: 13px; color: var(--text-2); }
 .tracking-text > span.tracking-flip { color: hsl(var(--foreground)); font-weight: 600; }
+.tracking-price { display: flex; flex: none; align-items: baseline; gap: 10px; font-size: 12px; font-variant-numeric: tabular-nums; }
+.tracking-price b { font-size: 15px; font-weight: 500; }
+.tracking-chevron { flex: none; color: var(--text-3); transition: transform .15s; }
+.tracking-row[aria-expanded="true"] .tracking-chevron { transform: rotate(180deg); }
+.tracking-trend { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; max-width: 100%; }
+.tracking-trend svg { max-width: 100%; flex: none; }
+.tracking-trend-line { fill: none; stroke: var(--text-2); stroke-width: 1.6; }
+.tracking-trend-flip { stroke: hsl(var(--foreground)); stroke-width: 1; stroke-dasharray: 4 4; }
+.tracking-trend-alert { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 1.5; }
+.tracking-trend-now { fill: hsl(var(--brand)); }
+.tracking-trend-text { display: flex; flex: 1 1 240px; min-width: 0; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-3); }
+.tracking-trend-text b { font-weight: 500; color: hsl(var(--foreground)); }
 .tracking-row time { flex: none; max-width: 7.5em; text-align: right; white-space: normal; line-height: 1.35; font-size: 12px; color: var(--text-3); }
 .tracking-bar { display: block; height: 3px; margin-top: 6px; border-radius: 2px; background: var(--fill-2); overflow: hidden; }
 .tracking-bar u { display: block; height: 100%; background: hsl(var(--brand)); }
@@ -37,3 +49,36 @@
 .tracking .variable-detail-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; width: 100%; }
 .tracking .is-up { color: hsl(var(--up)); }
 .tracking .is-down { color: hsl(var(--down)); }
+.tracking-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.tracking-head .btn { display: inline-flex; align-items: center; gap: 4px; }
+.tracking-add { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; margin-bottom: 12px; font-size: 13px; }
+.tracking-add label { font-weight: 600; }
+.tracking-add-input { height: 32px; padding: 0 14px; border: 1px solid var(--line-2); border-radius: 999px; background: transparent; font: inherit; color: inherit; }
+.tracking-add-input:focus { outline: none; border-color: var(--line-3); }
+.tracking-add-options { display: flex; flex-wrap: wrap; gap: 8px; }
+.tracking-add-options .btn { display: inline-flex; align-items: center; gap: 4px; }
+.tracking-line { display: flex; align-items: center; }
+.tracking-line > .tracking-row { flex: 1; width: auto; min-width: 0; }
+.tracking-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.tracking-name b { font-size: 14px; font-weight: 600; }
+.tracking-tag { font-style: normal; font-size: 12px; padding: 1px 8px; border-radius: 6px; background: var(--fill-1); color: var(--text-2); }
+.tracking-tilt { flex: none; font-size: 13px; color: var(--text-2); }
+.tracking-legend { margin: 0; font-size: 12px; color: var(--text-3); }
+.tracking-trend-start { stroke: var(--text-3); stroke-width: 1; stroke-dasharray: 1 3; }
+.tracking-timeline { max-width: 100%; }
+.tracking-timeline-axis { stroke: var(--line-2); stroke-width: 1.5; }
+.tracking-timeline .is-strong { fill: hsl(var(--up)); }
+.tracking-timeline .is-weak { fill: hsl(var(--down)); }
+.tracking-timeline .is-none { fill: hsl(var(--background)); stroke: var(--text-3); stroke-width: 1.5; }
+.tracking-timeline .is-pending { fill: none; stroke: var(--text-3); stroke-width: 1.5; stroke-dasharray: 3 2; }
+.tracking-signals { display: flex; flex-direction: column; gap: 6px; width: 100%; margin: 0; padding: 0; list-style: none; }
+.tracking-signals li { display: flex; align-items: center; gap: 10px; font-size: 13px; line-height: 1.6; }
+.tracking-signals time { flex: 0 0 44px; max-width: none; text-align: left; color: var(--text-3); }
+.tracking-signal-kind { flex: none; height: 24px; border: 0; border-radius: 999px; padding: 0 8px; background: var(--fill-2); color: inherit; font: inherit; font-size: 12px; cursor: pointer; }
+.tracking-muted { margin-top: 8px; }
+.tracking-muted .tracking-more { border-top: 0; padding-left: 4px; border-radius: 8px; width: auto; }
+.tracking-muted-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px; font-size: 13px; color: var(--text-2); }
+.tracking-reports { margin-top: 12px; }
+.tracking-report { display: flex; align-items: center; gap: 12px; padding: 14px 20px; }
+.tracking-report .tracking-text { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
+.tracking-report time { flex: none; max-width: none; font-size: 14px; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }

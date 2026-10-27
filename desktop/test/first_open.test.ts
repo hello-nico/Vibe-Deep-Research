@@ -10,14 +10,16 @@ import { Window } from 'happy-dom';
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>, container: HTMLElement;
 let watchPage: Record<string, any>, firstOpen: Record<string, any>, lib: Record<string, any>, watchlist: Record<string, any>, roster: Record<string, any>, chainLib: Record<string, any>;
 const chainFixture = {
-  chain_id: 'coal-power-aluminum', name: '煤—电—铝',
-  nodes: [
+  id: 'uchain:0123456789ab', public_chain_id: 'coal-power-aluminium', name: '煤—电—铝', version: 2, has_previous: false,
+  stages: [
     { industry_code: 'a', industry_name: '煤炭开采', companies: [] },
-    { industry_code: 'b', industry_name: '电力', companies: ['600900.SH'] },
-    { industry_code: 'c', industry_name: '工业金属', companies: ['000933.SZ', '000807.SZ'] },
+    { industry_code: 'b', industry_name: '电力', companies: [] },
+    { industry_code: 'c', industry_name: '工业金属', companies: ['000933.SZ'] },
   ],
-  transmission: [],
+  drivers: [], transmission: [],
 };
+let userChains: unknown[] = [chainFixture];
+let chainsDown = false;
 let sessionModule: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>;
 const previous = { window: globalThis.window, document: globalThis.document, sessionStorage: globalThis.sessionStorage, localStorage: globalThis.localStorage, requestAnimationFrame: globalThis.requestAnimationFrame, cancelAnimationFrame: globalThis.cancelAnimationFrame, fetch: globalThis.fetch, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
 const calls: string[] = [];
@@ -32,9 +34,10 @@ before(async () => {
     fetch: async (url: string | URL | Request, init?: { method?: string; body?: string }) => {
       const path = typeof url === 'string' ? url : url instanceof URL ? url.href : (url as Request).url ?? String(url);
       calls.push(`${init?.method ?? 'GET'} ${path} ${init?.body ?? ''}`.trim());
+      if (chainsDown && path.includes('/wiki/user-chains')) return new Response('{}', { status: 500 });
       const body = path.includes('/wiki/pages') ? { items: pages, total: pages.length }
-        : /\/wiki\/chains\/[^/?]+/.test(path) ? chainFixture
-        : path.includes('/wiki/chains') ? { items: [{ chain_id: chainFixture.chain_id, name: chainFixture.name }] }
+        : /\/wiki\/user-chains\/[^/?]+/.test(path) ? chainFixture
+        : path.includes('/wiki/user-chains') ? { items: userChains.map(() => ({ id: chainFixture.id })) }
         : path.includes('client/') ? { symbols: ['000933'], added: true } : {};
       return new Response(JSON.stringify(body), { status: 200, headers: { 'Content-Type': 'application/json' } });
     } });
@@ -60,7 +63,6 @@ after(async () => { await React.act(async () => root?.unmount()); await server?.
 let at = '';
 const Where = () => { at = router.useLocation().pathname; return null; };
 async function showWatch(path = '/watch') {
-  chainLib.resetChainIndex();
   const sessions = { start: async () => ({ sessionId: 's', status: 'started' }), subscribeSessionList: () => () => {} };
   const services = { readResearch: async () => ({ stale: false, basisVersion: 'v1' }), subscribeResearch: () => () => {}, startResearch: async () => ({ sessionId: 's', status: 'researching', stage: '正在研究' }) };
   const { CompanyPageServicesContext } = await server.ssrLoadModule('/src/verticals/finance/pages/CompanyPage.tsx');
@@ -128,7 +130,7 @@ test('已有关注时不出现空态，照常显示列表', async () => {
   assert.ok(container.querySelector('[aria-label="关注对象"]'), '个股 / 产业链分段');
 });
 
-test('空态只在个股分段；产业链分段列出全部链，点进链页', async () => {
+test('空态只在个股分段；产业链分段列出用户自己的链，点进链页', async () => {
   watchlist.replaceWatchCache(['000933']);
   await showWatch('/watch?kind=chains');
   assert.equal(container.querySelector('[aria-label="第一次打开"]'), null);
@@ -136,7 +138,7 @@ test('空态只在个股分段；产业链分段列出全部链，点进链页',
   assert.match(container.textContent ?? '', /煤—电—铝/);
   assert.match(container.textContent ?? '', /煤炭开采 → 电力 → 工业金属/);
   assert.match(container.textContent ?? '', /链上已关注 1 家/);
-  const link = container.querySelector('a[href="/chains/coal-power-aluminum"]');
+  const link = container.querySelector('a[href="/chains/uchain%3A0123456789ab"]');
   assert.ok(link, '进入链页');
 });
 
@@ -144,5 +146,22 @@ test('关注为空时切到产业链仍能看见链，空态不出现', async ()
   watchlist.replaceWatchCache([]);
   await showWatch('/watch?kind=chains');
   assert.equal(container.querySelector('[aria-label="第一次打开"]'), null);
+  assert.match(container.textContent ?? '', /煤—电—铝/);
+});
+
+test('产业链分段只列用户链：没有时一句话说怎么建，不展示预置链；读不到一句话加重试', async () => {
+  watchlist.replaceWatchCache(['000933']);
+  userChains = [];
+  await showWatch('/watch?kind=chains');
+  assert.match(container.querySelector('[data-chains-empty]')?.textContent ?? '', /还没有产业链。打开一家公司，点「建这条产业链」，或在对话里让助手推荐。/);
+  assert.equal(container.querySelectorAll('.object-grid a').length, 0);
+  assert.equal(calls.some(call => /\/wiki\/chains(?!\w)/.test(call)), false, '不再读预置链');
+  userChains = [chainFixture]; chainsDown = true;
+  await showWatch('/watch?kind=chains');
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
+  assert.match(container.querySelector('[role=alert]')?.textContent ?? '', /产业链暂时读取不到。重试/);
+  chainsDown = false;
+  await React.act(async () => { (container.querySelector('[role=alert] button') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });
   assert.match(container.textContent ?? '', /煤—电—铝/);
 });

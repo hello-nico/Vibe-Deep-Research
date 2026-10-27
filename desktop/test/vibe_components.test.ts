@@ -375,6 +375,60 @@ test('开始观察：显示「开始观察：指标」与为什么重要；点�
   assert.ok(done.disabled && done.textContent!.includes('已在观察'), '已保存的跟踪项重载后仍显示已在观察');
 });
 
+test('建产业链推荐：显示链名与一句理由；点一下以已关注公司为底建链并进入；已建的显示「查看」；失败一句灰字；历史事件只读', async () => {
+  const text = '```vibe\n<suggest type="chain"><chain id="coal-power-aluminium" name="煤—电—铝">神火和云铝同吃铝价</chain></suggest>\n```';
+  const suggest = { type: 'chain', items: [{ public_chain_id: 'coal-power-aluminium', name: '煤—电—铝', reason: '神火和云铝同吃铝价' }] };
+  const event = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'suggest', status: 'ok' }] }], suggest };
+  assert.deepEqual(readVibeCheck(event), event);
+  assert.equal(readVibeCheck({ ...event, suggest: { type: 'chain', items: [{ name: '煤—电—铝', reason: 'x' }] } }), undefined, '缺公共链编号的推荐丢弃');
+  let built = false, fail = true;
+  const posts: unknown[] = [];
+  const went: string[] = [];
+  const listen = (event: Event) => went.push((event as CustomEvent).detail);
+  const nodeCustomEvent = globalThis.CustomEvent;
+  globalThis.CustomEvent = win.CustomEvent as unknown as typeof CustomEvent;
+  win.addEventListener('finance-object-navigate', listen);
+  globalThis.fetch = async (input, init) => {
+    const url = String(input), method = init?.method || 'GET';
+    if (method === 'GET' && url.endsWith('/wiki/user-chains')) return Response.json({ items: built ? [{ id: 'uchain:0123456789ab', public_chain_id: 'coal-power-aluminium' }] : [] });
+    if (method === 'POST' && url.endsWith('/wiki/user-chains')) {
+      posts.push(JSON.parse(String(init!.body)));
+      if (fail) return Response.json({ detail: 'x' }, { status: 500 });
+      built = true; return Response.json({ id: 'uchain:0123456789ab', created: true });
+    }
+    return Response.json({ symbols: ['000933'] });
+  };
+  try {
+    await mount(text, event);
+    const row = container.querySelector('[aria-label="建产业链 煤—电—铝"]') as HTMLElement;
+    assert.ok(row);
+    assert.match(row.textContent!, /煤—电—铝神火和云铝同吃铝价建这条产业链/);
+    assert.equal(container.querySelector('.finance-suggest-title')!.textContent, '产业链');
+    await click('建产业链 煤—电—铝');
+    assert.ok(container.querySelector('[data-chain-error]'), '失败一句灰字');
+    assert.deepEqual(went, []);
+    fail = false;
+    await click('建产业链 煤—电—铝');
+    assert.deepEqual(went, ['/chains/uchain%3A0123456789ab']);
+    assert.equal(posts.length, 2);
+    assert.equal((posts[1] as any).public_chain_id, 'coal-power-aluminium');
+    assert.doesNotMatch(container.textContent!, /public_chain|suggest|undefined/);
+    // 重新打开对话：已建的显示「查看」，点一下只进入、不再建。
+    await React.act(async () => root.render(null));
+    await mount(text, event);
+    await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
+    const done = container.querySelector('[aria-label="查看产业链 煤—电—铝"]') as HTMLButtonElement;
+    assert.ok(done && done.textContent!.endsWith('查看'));
+    went.length = 0;
+    await click('查看产业链 煤—电—铝');
+    assert.deepEqual(went, ['/chains/uchain%3A0123456789ab']);
+    assert.equal(posts.length, 2);
+    await React.act(async () => root.render(React.createElement(suggestions.SuggestionNode, { node: { data: suggest }, ...actions() })));
+    assert.equal(container.querySelectorAll('button').length, 0);
+    assert.match(container.textContent || '', /煤—电—铝/);
+  } finally { win.removeEventListener('finance-object-navigate', listen); globalThis.CustomEvent = nodeCustomEvent; }
+});
+
 test('question click respects busy input; historical suggestion events share the read-only view', async () => {
   const event = { ...check, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'suggest', status: 'ok' }] }] };
   const text = '```vibe\n<suggest type="question"><q>煤价如何传导？</q></suggest>\n```';

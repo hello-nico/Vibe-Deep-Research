@@ -1,5 +1,5 @@
-// 产业链页第一版：链条、共同驱动、链上公司并排；公司无研究、接口缺口；从个股页进入。
-// 链结构与框架按「估值模板与行业公共层」T5 契约的夹具；公司估值用 t73_real.json 里的真实研究凭据。
+// 产业链页（用户自己的链）：链条、共同驱动、链上公司并排；公司无研究、接口缺口；个股页推荐所在链；建链、加减公司、撤回、删除、版本冲突。
+// 用户链按 Stock `docs/user-chains-contract.md`；环节骨架与框架用「估值模板与行业公共层」T5 契约的夹具；公司估值用 t73_real.json 里的真实研究凭据。
 import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -15,6 +15,11 @@ const contract = JSON.parse(readFileSync(new URL('./fixtures/chain_coal_power_al
 const real = JSON.parse(readFileSync(new URL('./fixtures/t73_real.json', import.meta.url), 'utf8'));
 const shenhuo = real.shenhuo, huaneng = real.huaneng;
 const SENS = shenhuo.sensitivityResult.result_id as string, SCEN = shenhuo.scenarioResult.result_id as string, HN_SCEN = huaneng.scenarioResult.result_id as string;
+
+const UID = 'uchain:0123456789ab';
+const UROUTE = '/wiki/user-chains/uchain%3A0123456789ab';
+/** 契约夹具的公共链骨架 → Backend 的用户链：环节叫 stages，带版本与是否有上一版。 */
+const userRaw = (chain: any, extra: Record<string, unknown> = {}) => ({ id: UID, public_chain_id: 'coal-power-aluminium', name: chain.name, stages: chain.nodes, drivers: [], transmission: chain.transmission, version: 3, has_previous: true, updated_at: '2026-10-26T00:00:00Z', source: { kind: 'created' }, ...extra });
 
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>, container: HTMLElement;
 let lib: Record<string, any>, pageModule: Record<string, any>, companyModule: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>, sessionModule: Record<string, any>;
@@ -44,7 +49,7 @@ const PRICES: Record<string, number> = { '600863': 5.21, '600011': 7.8, '600900'
 /** 路由 → 回包；值为 Error 表示这条读不到。 */
 function services(overrides: Record<string, unknown> = {}, quotes: unknown = undefined) {
   const routes: Record<string, unknown> = {
-    '/wiki/chains/coal-power-aluminum': contract.chain,
+    [UROUTE]: userRaw(contract.chain),
     ...Object.fromEntries(Object.entries(contract.frameworks).map(([code, body]) => [`/wiki/industries/${code}/valuation-framework`, body])),
     '/wiki/companies/000933.SZ/page-research': researched('偏高'),
     '/wiki/companies/000807.SZ/page-research': researched('合理'),
@@ -55,15 +60,20 @@ function services(overrides: Record<string, unknown> = {}, quotes: unknown = und
     ...overrides,
   };
   const requested: string[] = [];
+  const writes: { method: string; route: string; body?: any }[] = [];
+  const writeResult: { next: unknown } = { next: { ok: true } };
   return {
-    requested,
+    requested, writes, writeResult,
+    write: async (method: string, route: string, body?: unknown) => { writes.push({ method, route, body }); if (writeResult.next instanceof Error) throw writeResult.next; return structuredClone(writeResult.next); },
+    watched: () => ['000933', '600011', '601288'],
+    follow: async (code: string) => { writes.push({ method: 'FOLLOW', route: code }); },
     read: async (route: string) => { requested.push(route); const body = routes[route]; if (body === undefined || body instanceof Error) throw body instanceof Error ? body : new Error('404 ' + route); return structuredClone(body); },
     quote: async (codes: string) => { if (quotes instanceof Error) throw quotes; return Object.fromEntries(codes.split(',').map(code => [code, { name: NAMES[code], price: PRICES[code] }])); },
   };
 }
 const h = React.createElement;
 const sessions = { start: async () => ({ sessionId: 's', status: 'started' }), openSession: async () => {} };
-async function show(service: any, chainId = 'coal-power-aluminum') {
+async function show(service: any, chainId = UID) {
   await React.act(async () => root.render(null));
   await React.act(async () => root.render(h(router.MemoryRouter, null, h(pageContext.AiPageProvider, {}, h(sessionModule.ResearchSessionContext.Provider, { value: sessions }, h(pageModule.ChainPage, { chainId, services: service }))))));
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
@@ -87,7 +97,7 @@ test('纯函数：共同驱动按价格合并并列出影响的环节；箭头�
   assert.equal(lib.positionText(5, tiers.slice(0, 2)), '');
   assert.equal(lib.roleText('upstream'), '上游');
   assert.equal(lib.chainStages(chain), '煤炭开采 → 电力 → 工业金属');
-  assert.equal(lib.chainWatchedCount(chain, ['000933', '600900.SH', '601288.SH']), 2, '只计链上已关注，农行不在链上');
+  assert.equal(lib.chainCompanyCount(chain), 5, '链上公司数 = 各环节公司合计');
 });
 
 test('链条、共同驱动、链上公司并排：环节估值方法、驱动传导、每家公司的档位与区间位置', async () => {
@@ -113,12 +123,12 @@ test('链条、共同驱动、链上公司并排：环节估值方法、驱动�
   assert.equal(sh.querySelector('.chain-company-grade')!.textContent, '估值偏高');
   assert.match(sh.querySelector('.chain-band')!.getAttribute('aria-label')!, /现价 52\.67 元\/股，在中性价与乐观价之间/);
   assert.equal(sh.querySelectorAll('.chain-band-tick').length, 3);
-  assert.match(sh.querySelector('.chain-company-implied')!.textContent!, /市场在赌沪铝约 24,100 元\/吨，现在 23,465 元\/吨/);
+  assert.match(sh.querySelector('.chain-company-implied')!.textContent!, /按现在的股价，大致对应 沪铝约 24,100 元\/吨（研究时 23,465 元\/吨）/);
   assert.equal(row('000807.SZ').querySelector('.chain-company-grade')!.textContent, '估值合理');
   // 蒙电研究里没有敏感性凭据：就地写缺什么，不编。
   const hn = row('600863.SH');
   assert.match(hn.querySelector('.chain-band')!.getAttribute('aria-label')!, /现价 5\.21 元\/股/);
-  assert.equal(hn.querySelector('.chain-company-implied')!.textContent, '缺市场在赌的价格');
+  assert.equal(hn.querySelector('.chain-company-implied')!.textContent, '缺大致对应的价格');
   // 没研究的不触发研究，只写“尚未研究”，仍能进个股页。
   for (const symbol of ['600011.SH', '600900.SH']) {
     assert.equal(row(symbol).querySelector('.chain-company-none')!.textContent, '尚未研究');
@@ -149,12 +159,13 @@ test('公司无研究：整条链的公司都写“尚未研究”，页首如�
   assert.equal(service.requested.some(route => /ensure|\/research$/.test(route)), false, '只读，不触发研究');
   // 一家都没有的链。
   const empty = structuredClone(contract.chain); for (const node of empty.nodes) node.companies = [];
-  await show(services({ '/wiki/chains/coal-power-aluminum': empty }));
-  assert.match(text('[data-chain-section="companies"]'), /链上还没有关注公司/);
+  await show(services({ [UROUTE]: userRaw(empty) }));
+  assert.equal(container.querySelectorAll('[data-stage-empty]').length, 3, '每个环节各写一句还没有你关注的公司');
+  assert.match(text('[data-chain-section="companies"]'), /这个环节还没有你关注的公司/);
 });
 
 test('接口缺口：链读不到整页一句话加重试；框架、研究、凭据、行情各缺一块只缺那一块', async () => {
-  const down = services({ '/wiki/chains/coal-power-aluminum': new Error('503') });
+  const down = services({ [UROUTE]: new Error('503') });
   await show(down);
   assert.match(text('[role="alert"]'), /这条产业链暂时读取不到/);
   assert.equal(container.querySelector('[data-chain]'), null);
@@ -162,7 +173,7 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
   let ok = false;
   const flaky = services();
   const read = flaky.read;
-  flaky.read = async (route: string) => { if (route === '/wiki/chains/coal-power-aluminum' && !ok) throw new Error('503'); return read(route); };
+  flaky.read = async (route: string) => { if (route === UROUTE && !ok) throw new Error('503'); return read(route); };
   await show(flaky);
   ok = true;
   await React.act(async () => (container.querySelector('[role="alert"] button') as HTMLButtonElement).click());
@@ -177,7 +188,7 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
   await show(services({ [`/research-results/${SENS}`]: new Error('x'), [`/research-results/${SCEN}`]: new Error('x') }));
   assert.equal(row('000933.SZ').querySelector('.chain-company-grade')!.textContent, '估值偏高');
   assert.match(row('000933.SZ').textContent!, /缺三档价/);
-  assert.match(row('000933.SZ').textContent!, /缺市场在赌的价格/);
+  assert.match(row('000933.SZ').textContent!, /缺大致对应的价格/);
   // 行情读不到：名字退回代码，区间条缺现价。
   await show(services({}, new Error('quote down')));
   assert.equal(row('000933.SZ').querySelector('.chain-company-name a')!.textContent, '000933');
@@ -187,47 +198,155 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
   assert.equal(row('000933.SZ').querySelector('.chain-company-none')!.textContent, '尚未研究');
 });
 
-test('从个股页进入：公司在链上时页首出现“所属产业链”入口，不在链上或读不到就没有；链定义会话内只读一次', async () => {
+test('个股页推荐所在链：读推荐接口，已建的进你的链，未建的点「建这条产业链」建好进入；读不到或没有推荐整段不出现；不再按申万自动挂链', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
-  assert.equal(researchRoute('GET', '/wiki/chains'), true);
-  assert.equal(researchRoute('GET', '/wiki/chains/coal-power-aluminium'), true);
-  assert.equal(researchRoute('POST', '/wiki/chains'), false);
-  assert.equal(researchRoute('GET', '/wiki/industries/801055.SI/valuation-framework'), true);
-  const chains = [contract.chain, { ...contract.chain, chain_id: 'lithium-battery', name: '锂电', nodes: [{ industry_code: '1', industry_name: '电池', companies: ['300750.SZ'] }] }];
-  assert.deepEqual(lib.chainsOf(chains, '000933.SZ'), [{ chain_id: 'coal-power-aluminum', name: '煤—电—铝' }]);
-  assert.deepEqual(lib.chainsOf(chains, '000933'), [{ chain_id: 'coal-power-aluminum', name: '煤—电—铝' }], '带不带后缀都认');
-  assert.deepEqual(lib.chainsOf(chains, '601288.SH'), []);
-  assert.equal(lib.chainPath('coal-power-aluminum'), '/chains/coal-power-aluminum');
-  const routes: Record<string, unknown> = { '/wiki/chains': contract.list, '/wiki/chains/coal-power-aluminum': contract.chain, '/wiki/chains/lithium-battery': chains[1] };
+  for (const [method, path] of [['GET', '/wiki/user-chains'], ['GET', '/wiki/user-chains/recommendations'], ['POST', '/wiki/user-chains'], ['GET', '/wiki/user-chains/uchain:0123456789ab'], ['PATCH', '/wiki/user-chains/uchain:0123456789ab'], ['DELETE', '/wiki/user-chains/uchain:0123456789ab'], ['POST', '/wiki/user-chains/uchain:0123456789ab/revert'], ['GET', '/wiki/user-chains/uchain:0123456789ab/candidates']]) {
+    assert.equal(researchRoute(method, path), true, `${method} ${path}`);
+  }
+  assert.equal(lib.chainPath(UID), '/chains/uchain%3A0123456789ab');
+  assert.equal(lib.loadChainIndex, undefined, '预置链索引已移除');
+  // 纯函数：推荐。
+  const rec = { items: [{ public_chain_id: 'coal-power-aluminium', name: '煤—电—铝', built: false, user_chain_id: null }, { public_chain_id: 'lithium-battery', name: '锂电', built: true, user_chain_id: 'uchain:a1b2c3d4e5f6' }] };
   const asked: string[] = [];
-  const stub = { read: async (route: string) => { asked.push(route); if (!(route in routes)) throw new Error('404'); return routes[route]; }, quote: async () => ({}) };
-  assert.equal((await lib.loadChainIndex(stub)).length, 2);
-  assert.deepEqual(await lib.loadChainIndex({ read: async () => { throw new Error('down'); }, quote: async () => ({}) }), [], '读不到返回空，不抛');
+  const stub = { ...services(), read: async (route: string) => { asked.push(route); if (route.startsWith('/wiki/user-chains/recommendations')) return rec; throw new Error('404'); } };
+  assert.deepEqual(await lib.loadRecommendations('000933', stub), [{ publicChainId: 'coal-power-aluminium', name: '煤—电—铝', built: false, userChainId: null }, { publicChainId: 'lithium-battery', name: '锂电', built: true, userChainId: 'uchain:a1b2c3d4e5f6' }]);
+  assert.deepEqual(asked, ['/wiki/user-chains/recommendations?symbol=000933.SZ'], '6 位代码补成带后缀的完整代码');
+  assert.deepEqual(await lib.loadRecommendations('00700.HK', stub), [], '港股不请求');
+  assert.deepEqual(await lib.loadRecommendations('000933', { ...stub, read: async () => { throw new Error('down'); } }), [], '读不到返回空，不抛');
   // 页面：个股页头部。
-  lib.resetChainIndex();
-  globalThis.fetch = (async (url: string) => {
-    const route = String(url).replace('/finance-research', '');
-    return route in routes ? Response.json(routes[route]) : Response.json({ detail: 'x' }, { status: 404 });
-  }) as typeof fetch;
   const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'v' });
   fixture.services.data.quote = async () => ({ ...fixtureData.quote!, price: 52.67 });
+  const chainService = services();
+  let items = rec.items;
+  chainService.read = async (route: string) => { if (route.startsWith('/wiki/user-chains/recommendations')) { if (items === null) throw new Error('down'); return { symbol: '000933.SZ', items }; } throw new Error('404'); };
+  let at = '';
+  const Where = () => { at = router.useLocation().pathname; return null; };
   const open = async (symbol: string) => {
-    await React.act(async () => root.render(h(router.MemoryRouter, null, h(companyModule.CompanyPage, { key: symbol, symbol, name: '神火股份', services: fixture.services }))));
+    await React.act(async () => root.render(h(router.MemoryRouter, null, h(Where), h(companyModule.CompanyPage, { key: symbol, symbol, name: '神火股份', services: fixture.services, chainServices: chainService }))));
     await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
   };
   await open('000933');
   const entry = container.querySelector('[data-chain-entry]')!;
-  assert.match(entry.textContent!, /所属产业链：煤—电—铝/);
-  assert.equal(entry.querySelector('a')!.getAttribute('href'), '/chains/coal-power-aluminum');
+  assert.match(entry.textContent!, /^推荐所在链：煤—电—铝建这条产业链、锂电$/);
+  assert.equal(entry.querySelector('a')!.getAttribute('href'), '/chains/uchain%3Aa1b2c3d4e5f6', '已建的链进入你的那条');
+  assert.equal(entry.querySelectorAll('a').length, 1, '未建的不是链接');
+  // 点「建这条产业链」：以已关注公司为底建链，然后进入新链。
+  chainService.writeResult.next = { id: 'uchain:b1b2c3d4e5f6', created: true };
+  await React.act(async () => { (entry.querySelector('button') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.deepEqual(chainService.writes.map((item: any) => [item.method, item.route, item.body]), [['POST', '/wiki/user-chains', { public_chain_id: 'coal-power-aluminium', watched_symbols: ['000933.SZ', '600011.SH', '601288.SH'] }]]);
+  assert.equal(at, '/chains/uchain%3Ab1b2c3d4e5f6');
+  // 建失败：原处一句话，留在个股页。
+  await open('000933');
+  chainService.writeResult.next = new Error('500');
+  await React.act(async () => { (container.querySelector('[data-chain-entry] button') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.match(text('[data-chain-error]'), /这条产业链没建成/);
+  // 没有推荐 / 读不到：整段不出现。
+  items = [];
   await open('601288');
   assert.equal(container.querySelector('[data-chain-entry]'), null);
-  lib.resetChainIndex();
+  items = null as any;
+  await open('000933');
+  assert.equal(container.querySelector('[data-chain-entry]'), null);
+});
+
+test('同环节还可关注：展开读候选（整条链最多 8 家）按环节分开，点「关注」即关注并加入本链，带版本与已关注列表；读不到写一句话加重试', async () => {
+  const service = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: { items: [
+    { symbol: '600900.SH', industry_code: '801160', industry_name: '电力', role: 'midstream' },
+    { symbol: '000807.SZ', industry_code: '801050', industry_name: '工业金属', role: 'downstream' },
+  ], limit: 8 } });
+  await show(service);
+  assert.equal(service.requested.some((route: string) => route.includes('/candidates')), false, '展开前不读候选');
+  const stage = (code: string) => container.querySelector(`[data-stage="${code}"]`) as HTMLElement;
+  const details = stage('801160').querySelector('details') as HTMLDetailsElement;
+  assert.equal(details.querySelector('summary')!.textContent, '同环节还可关注');
+  await React.act(async () => { details.open = true; details.dispatchEvent(new win.Event('toggle') as unknown as Event); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.equal(service.requested.filter((route: string) => route.includes('/candidates')).length, 1);
+  assert.deepEqual([...stage('801160').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['600900.SH'], '只列本环节的候选');
+  assert.match(stage('801160').querySelector('[data-candidate]')!.textContent!, /长江电力|600900/);
+  assert.deepEqual([...stage('801050').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['000807.SZ'], '另一环节只有自己的候选');
+  // 点「关注」：先关注，再带版本号与已关注列表加进链；随后重读。
+  await React.act(async () => { (stage('801160').querySelector('[data-candidate] button') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.deepEqual(service.writes.map((item: any) => [item.method, item.route, item.body]), [
+    ['FOLLOW', '600900', undefined],
+    ['PATCH', UROUTE, { expected_version: 3, add_companies: ['600900.SH'], watched_symbols: ['000933.SZ', '600011.SH', '601288.SH'] }],
+  ]);
+  // 候选读不到：一句话加重试。
+  const down = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: new Error('500') });
+  await show(down);
+  const det = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
+  await React.act(async () => { det.open = true; det.dispatchEvent(new win.Event('toggle') as unknown as Event); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.match(text('[data-gap="candidates"]'), /候选暂时读取不到。重试/);
+  // 候选为空。
+  const none = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: { items: [], limit: 8 } });
+  await show(none);
+  const det2 = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
+  await React.act(async () => { det2.open = true; det2.dispatchEvent(new win.Event('toggle') as unknown as Event); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.match(text('[data-candidates-empty]'), /这个环节暂时没有可推荐的公司/);
+});
+
+test('管理：移出只移出这条链（带版本号）；撤回上一版（没有上一版不显示）；删除要确认；版本冲突重读并提示，不静默覆盖', async () => {
+  const service = services();
+  await show(service);
+  assert.ok(container.querySelector('[data-chain-revert]'), 'has_previous 为真时有撤回');
+  assert.equal(container.querySelector('[data-chain-delete]')!.textContent, '删除这条产业链');
+  // 移出。
+  await React.act(async () => { (row('000933.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.deepEqual(service.writes.map((item: any) => [item.method, item.route, item.body]), [['PATCH', UROUTE, { expected_version: 3, remove_companies: ['000933.SZ'] }]]);
+  // 撤回。
+  service.writes.length = 0;
+  await React.act(async () => { (container.querySelector('[data-chain-revert]') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.deepEqual(service.writes.map((item: any) => [item.method, item.route, item.body]), [['POST', `${UROUTE}/revert`, { expected_version: 3 }]]);
+  // 版本冲突：Backend 返回 409，重读并提示，不静默覆盖。
+  const conflict = await server.ssrLoadModule('/src/verticals/finance/lib/research.ts');
+  service.writeResult.next = new conflict.ResearchError(409, 'conflict');
+  const before = service.requested.filter((route: string) => route === UROUTE).length;
+  await React.act(async () => { (row('000807.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  assert.match(text('[data-chain-notice]'), /这条产业链刚被改过，已显示最新内容，请再操作一次/);
+  assert.ok(service.requested.filter((route: string) => route === UROUTE).length > before, '冲突后重读');
+  assert.ok(container.querySelector('[data-chain]'), '重读不闪回骨架，内容仍在');
+  // 其他失败：一句话。
+  service.writeResult.next = new Error('500');
+  await React.act(async () => { (row('000807.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  assert.match(text('[data-chain-notice]'), /没能移出，请稍后再试/);
+  // 没有上一版：不显示撤回。
+  await show(services({ [UROUTE]: userRaw(contract.chain, { has_previous: false }) }));
+  assert.equal(container.querySelector('[data-chain-revert]'), null);
+});
+
+test('删除：确认后带版本号删除并回到关注页产业链分段；取消不删', async () => {
+  const service = services();
+  let at = '';
+  const Where = () => { at = router.useLocation().pathname + router.useLocation().search; return null; };
+  await React.act(async () => root.render(null));
+  await React.act(async () => root.render(h(router.MemoryRouter, { initialEntries: [`/chains/${UID}`] }, h(Where), h(pageContext.AiPageProvider, {}, h(sessionModule.ResearchSessionContext.Provider, { value: sessions }, h(pageModule.ChainPage, { chainId: UID, services: service }))))));
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
+  const click = async (button: Element | null) => { await React.act(async () => { (button as HTMLButtonElement).click(); }); await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); };
+  await click(container.querySelector('[data-chain-delete]'));
+  const dialog = () => win.document.body.querySelector('[role="dialog"], [role="alertdialog"]') as HTMLElement | null;
+  assert.match(dialog()?.textContent ?? '', /只删除这条产业链，关注的公司和研究不受影响/);
+  const buttons = () => [...dialog()!.querySelectorAll('button')];
+  await click(buttons().find(button => /取消/.test(button.textContent!))!);
+  assert.equal(service.writes.length, 0, '取消不删');
+  await click(container.querySelector('[data-chain-delete]'));
+  await click(buttons().find(button => /确认删除/.test(button.textContent!))!);
+  assert.deepEqual(service.writes.map((item: any) => [item.method, item.route]), [['DELETE', `${UROUTE}?expected_version=3`]]);
+  assert.equal(at, '/watch?kind=chains');
 });
 
 // ---------------------------------------------------------------- 试算：沪铝变一下，链上各家利润怎么动
 
 test('试算纯函数：沪铝拖到 25,465 元/吨，神火利润 +19.92 亿元（系数 996,000 元/吨 × 2,000）；默认现价时全是 0；范围取模型区间；未研究与缺模型各写各的', async () => {
-  const view = await lib.loadChainView('coal-power-aluminum', services());
+  const view = await lib.loadChainView(UID, services());
   const setup = lib.calcSetup(view.companies);
   assert.deepEqual(setup, { id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: 23465, min: 20000, max: 28000, step: 50 });
   const at = (value: number) => Object.fromEntries(lib.calcRows(view.companies, setup, value).map((item: any) => [item.symbol, item]));
@@ -358,6 +477,6 @@ test('周期位置页：日线读不到只那一节写缺口加重试，其余�
   await show(cycleServices({ series: [futures.series[0]], failed: [{ id: 'cmdty:SHFE.AO', message: 'x' }] }));
   assert.equal(text('[data-gap="cycle"]').startsWith('氧化铝日线取不到'), true);
   const noDrivers = structuredClone(contract.chain); noDrivers.transmission = noDrivers.transmission.filter((item: any) => item.driver !== '氧化铝');
-  await show(cycleServices(futures, { '/wiki/chains/coal-power-aluminum': noDrivers }));
+  await show(cycleServices(futures, { [UROUTE]: userRaw(noDrivers) }));
   assert.equal(container.querySelector('[data-chain-section="cycle"]'), null);
 });

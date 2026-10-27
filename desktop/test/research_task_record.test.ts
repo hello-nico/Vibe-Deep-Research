@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 
 process.env.VIBE_RESEARCH_RESUME_DELAY_MS = '0';
+process.env.VIBE_REPORT_ARRIVAL_INTERVAL_MS = '0';
 const originalFetch = globalThis.fetch;
 globalThis.fetch = async (url, init) => String(url).endsWith('/health')
   ? new Response(JSON.stringify({ api: { version: 1, min_client: 1 } }), { status: 200 })
@@ -84,6 +85,21 @@ test('启动研究时建立任务记录，绑定带 task_id', async (t) => {
   assert.equal(record.host_boot_id, currentResearchBootId());
   assert.deepEqual(record.sessions, [started.session_id]);
   assert.equal(record.trigger_note, null);
+  assert.equal(record.trigger, null);
+});
+
+test('定期报告到达触发记在任务记录里', async (t) => {
+  useHome(t);
+  t.after(() => disposeReportRuntime());
+  const { ctx } = researchCtx();
+  const started = await startResearchRun(ctx, {
+    slug: 'companies/600011-sh', symbol: '600011.SH', prompt: '定期报告已披露，按最新报告重研',
+    title: '华能国际', trigger: 'report_arrival', trigger_period: '2026Q3',
+  });
+  const record = readResearchTask(loadReportTasks().sessions[started.session_id].task_id);
+  assert.equal(record.trigger, 'report_arrival');
+  assert.equal(record.trigger_period, '2026Q3');
+  assert.equal(record.report_period, '2026Q3');
 });
 
 test('步骤文件合成当前步，跳过的步骤不占当前步', async (t) => {

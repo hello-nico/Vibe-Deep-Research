@@ -380,7 +380,8 @@ export function changeLine(research: CompanyPageResearch | null, extras: { chang
     : talked ? { at: talked.confirmedAt, sessionId: talked.sessionId } : undefined;
   const revertable = extras.canRevert ?? Boolean(conversation);
   const changes = Object.entries(research.changes ?? {}).filter(([, text]) => typeof text === 'string' && text.trim());
-  const prefix = `${shortDate(research.researchedAt)} 更新：`;
+  // 来自对话的调整写「因 10-26 对话调整」，其余写保存日。
+  const prefix = conversation ? `因${conversation.at ? ` ${shortDate(conversation.at)} ` : ''}对话调整：` : `${shortDate(research.researchedAt)} 更新：`;
   if (changes.length) {
     const seen = new Set<string>();
     const parts = changes.flatMap(([key, text]) => {
@@ -393,8 +394,10 @@ export function changeLine(research: CompanyPageResearch | null, extras: { chang
     if (parts.length === 1) return { text: `${prefix}${parts[0]!.plain}`, conversation, revertable };
     return { text: `${prefix}${parts.length} 处判断有变化`, detail: parts.map(part => part.item).join('\n'), conversation, revertable };
   }
-  return { text: conversation ? `${prefix}来自你的对话确认` : `${prefix}判断没变`, conversation, revertable };
+  return { text: conversation ? prefix.replace(/：$/, '') : `${prefix}判断没变`, conversation, revertable };
 }
+/** 「来自 10-26 的对话」：个股页里来自对话的取值、论点、支柱旁的灰字。 */
+export const conversationOrigin = (at?: string) => `来自${at ? ` ${shortDate(at)} 的` : ''}对话`;
 export function conversationHint(conversation: ConversationSource | undefined) {
   if (!conversation) return '';
   return ['来自对话确认', conversation.at ? dateOf(conversation.at) : '', conversation.sessionId ? `会话 ${conversation.sessionId}` : '', conversation.reason].filter(Boolean).join(' · ');
@@ -458,18 +461,24 @@ export function flipGrade(flip: PriceFlip, variable: SensitivityVariable, curren
   const grade = sides[profitSign > 0 ? 1 : 0];
   return grade === String(currentGrade ?? '').trim() ? undefined : grade;
 }
+/** 页首「现在」用的变量最新价：盘中有报价用盘中，否则最近收盘；`when` 是已排好的时点文字（如「10-23 收盘」「10-26 14:05 盘中」）。 */
+export interface LivePrice { value: number; when: string }
 export interface VerdictLine { label: string; implied: string; flip: string; gap: string }
-/** 页首第二行：「估值偏高：市场在赌沪铝约 23,258 元/吨，现在 22,970 元/吨」。隐含价缺失时 implied 为空、gap 写原因（进「查看数据」）。 */
-export function verdictLine(args: { grade?: string | null; model?: SensitivityModel | null }): VerdictLine {
+/** 页首第二行：「估值偏高：按现在的股价，大致对应沪铝约 23,258 元/吨（现在 22,970 元/吨）」。隐含价缺失时 implied 为空、gap 写原因（进「查看数据」）。 */
+export function verdictLine(args: { grade?: string | null; model?: SensitivityModel | null; live?: LivePrice | null }): VerdictLine {
   const label = gradeLabel(args.grade);
   const model = args.model;
   const implied = model?.implied;
-  const variable = model && implied ? variableOf(model, implied.id) : undefined;
-  if (!model || !implied || !variable) {
-    return { label, implied: '', flip: '', gap: model ? '利润试算凭据里没有「市场在赌的价格」，页首只写判断。' : '没有利润试算凭据，页首只写判断。' };
+  const found = model && implied ? variableOf(model, implied.id) : undefined;
+  if (!model || !implied || !found) {
+    return { label, implied: '', flip: '', gap: model ? '利润试算凭据里没有大致对应的价格，页首只写判断。' : '没有利润试算凭据，页首只写判断。' };
   }
+  // 「现在」取变量最新价（Q1）；取不到才退回研究时的默认值并写「研究时」。比较「跌破 / 涨过」也以同一个现在为准。
+  const percent = found.unit.includes('%');
+  const live = percent ? null : args.live ?? null;
+  const variable = live ? { ...found, current: live.value } : found;
+  const nowText = live ? `现在 ${headlinePrice(variable, live.value)}，${live.when}` : `研究时 ${headlinePrice(variable, variable.current)}`;
   // 百分比变量的取值是相对对比期的变动（0 就是与对比期一样），不是价格：不写「约 x，现在 0」，改写比对比期高 / 低多少。
-  const percent = variable.unit.includes('%');
   const points = Math.round(Math.abs(implied.value) * 10) / 10;
   // 越界：Backend 照给反解值但标 within_range 为假；按现价说清楚市场隐含的数在近年区间之外，不再不显示。
   const outside = implied.withinRange === false
@@ -479,7 +488,7 @@ export function verdictLine(args: { grade?: string | null; model?: SensitivityMo
     : `${variable.name}约 ${headlinePrice(variable, implied.value)}`;
   const text = outside
     ? `按现价，市场隐含的${shown}，${outside}近年区间`
-    : percent ? `市场在赌${shown}` : `市场在赌${shown}，现在 ${headlinePrice(variable, variable.current)}`;
+    : percent ? `按现在的股价，大致对应${shown}` : `按现在的股价，大致对应 ${shown}（${nowText}）`;
   // 百分比变量的「接近」按百分点算：3 个点内（价格是 3%）。
   const near = model.flips.filter(item => item.id === variable.id && !item.invalid && (percent || variable.current !== 0))
     .map(item => ({ item, distance: percent ? Math.abs(item.value - variable.current) / 100 : Math.abs(item.value - variable.current) / Math.abs(variable.current) }))
@@ -577,6 +586,8 @@ function periodInfo(period: string) {
   return quarter ? { rank: year * 10 + quarter, name: quarter === 4 ? `${year} 年报` : REPORT_DEADLINES[quarter - 1]![0] } : null;
 }
 const latestReported = (packet: DataPacket | undefined) => Math.max(0, ...['revenue', 'net_profit_attributable'].map(key => reportRank(packet?.fields?.[key]?.period) ?? 0));
+/** 研究过期时页首的一句灰字：新报告已披露写资料名，取不到写「有新资料」。 */
+export const newMaterialText = (next: { name: string; disclosed: boolean } | null) => next?.disclosed ? `有新资料（${next.name}）` : '有新资料';
 export interface NextReport { name: string; day: string; text: string; /** 已披露：数据包还没用上这份新报告。 */ disclosed: boolean; /** 悬停补充；预约日取不到时写明。 */ hint: string }
 /** 下一次报告。有日历：未披露写预约日，已披露（数据包还没用上）写实际日并提示重新研究；没有日历或缺口：按法定披露截止日
  *  （一季报 4-30、半年报 8-31、三季报 10-31、年报次年 4-30），悬停写「预约日暂缺」。数据包里已有的最新报告期之前的不再算。 */
@@ -684,7 +695,7 @@ export function expectations(args: {
     ? [{ text: '模型：中性价 ' }, { text: scenarioPriceText(neutral!.price), strong: true }, { text: grade ? `，${gradeLabel(grade)}` : '' }]
     : [{ text: '模型：暂无三档价' }] };
   const marketRow: ExpectRow = { key: 'market', pieces: verdict.implied
-    ? [{ text: `股价隐含：${verdict.implied}` }] : [{ text: '股价隐含：暂无市场在赌的价格' }] };
+    ? [{ text: `股价隐含：${verdict.implied}` }] : [{ text: '股价隐含：暂无大致对应的价格' }] };
 
   const modelEps = (() => {
     const earnings = num(neutral?.earnings);
@@ -730,7 +741,7 @@ export function expectations(args: {
       : '模型：这家公司没有三档价',
     marketEps != null
       ? `股价隐含：现价 ÷ 中性倍数得每股收益 ${eps2(marketEps)}，是市场按模型倍数在定价的利润水平`
-      : `股价隐含：${verdict.gap || (verdict.implied ? '缺现价或中性倍数，算不出隐含的每股收益' : '暂无市场在赌的价格，不纳入差异比较')}`,
+      : `股价隐含：${verdict.gap || (verdict.implied ? '缺现价或中性倍数，算不出隐含的每股收益' : '暂无大致对应的价格，不纳入差异比较')}`,
   ];
   return { rows: [institution, modelRow, marketRow], difference, details };
 }

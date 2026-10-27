@@ -96,7 +96,7 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'deep_research' | 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
     target?: string;
     prompt?: string;
     pageSnapshot?: string;
@@ -108,7 +108,7 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'deep_research' | 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
     target?: string;
     fresh?: boolean;
   }): Promise<StartSessionResult>;
@@ -124,7 +124,6 @@ export interface ResearchSessions {
     load(): Promise<void>;
     select(selection: { provider: string; model: string }): Promise<void>;
   } | null;
-  switchAssistantMode(sessionId: string, mode: 'ask' | 'agent', pageKey?: string): Promise<void>;
   focusAssistantSession(sessionId: string): () => void;
   openSession(sessionId: string): Promise<void>;
   openTaskProcess(task: TaskProcessRef): void;

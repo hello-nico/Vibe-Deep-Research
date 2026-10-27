@@ -142,43 +142,6 @@ test('个股页（农行）：「接下来盯什么」出现净息差等驱动�
 });
 
 const STEPS = ['收集资料', '读报告', '算价格对利润的影响', '估值与判断', '保存资料', '整理结论'];
-const record = (symbol: string, name: string) => ({ task_id: `task:${symbol}`, kind: 'company_research', symbol, slug: `companies/${symbol.slice(0, 6)}`, title: `公司研究 · ${name}`, status: 'completed', current_step: 6,
-  steps: STEPS.map((label, index) => ({ key: String(index), label, attempts: 0, finished_at: null, outputs: {}, status: 'done' })), sessions: ['s1'], host_boot_id: 'b', trigger_note: null, reason: null, created_at: '2026-10-14T01:00:00Z', updated_at: '2026-10-14T03:00:00Z', finished_at: null });
-
-test('跟踪页：没有价格模型的公司那行写“盯：净息差、不良率”，有价格变量的公司（神火）不加；框架读不到不报错', async () => {
-  lib.clearDriverSets();
-  const identity = (code: string) => ({ spec: { blocks: [{ kind: 'identity', content: { industry_code: code, valuation_template: 'x' } }] } });
-  const routes: Record<string, unknown> = {
-    '/finance-research-tasks': { items: [record('601288.SH', '农业银行'), record('000933.SZ', '神火股份')] },
-    '/finance-research/tracking/variables': trackingFixture,
-    '/finance-api/client/watch': { symbols: ['601288', '000933'] },
-    '/finance-research/wiki/pages/read?slug=companies%2F601288-sh': identity(BANK),
-    [`/finance-research/wiki/industries/${BANK}/valuation-framework`]: frameworks[BANK],
-    '/finance-research/wiki/companies/': { research: { valuation: { grade: '合理' } }, stale: false, basisVersion: 'v' },
-  };
-  globalThis.fetch = (async (url: string) => {
-    const route = String(url);
-    const body = Object.entries(routes).find(([prefix]) => route.startsWith(prefix))?.[1];
-    return body ? Response.json(body) : Response.json({ detail: 'x' }, { status: 404 });
-  }) as typeof fetch;
-  const sessions = { start: async () => ({ sessionId: 's', status: 'started' }), openSession: async () => {} };
-  const mount = async () => {
-    await React.act(async () => root.render(null));
-    await React.act(async () => root.render(h(router.MemoryRouter, null, h(pageContext.AiPageProvider, {}, h(sessionModule.ResearchSessionContext.Provider, { value: sessions }, h(tracking.Tracking))))));
-    await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
-    await React.act(async () => {});
-  };
-  await mount();
-  assert.equal(container.querySelector('[data-research-row="601288.SH"] [data-driver-line]')!.textContent, '盯：净息差、不良率');
-  assert.equal(container.querySelector('[data-research-row="000933.SZ"] [data-driver-line]'), null, '神火有价格变量，不加');
-  // 框架读不到。
-  lib.clearDriverSets();
-  delete routes[`/finance-research/wiki/industries/${BANK}/valuation-framework`];
-  await mount();
-  assert.equal(container.querySelector('[data-driver-line]'), null);
-  assert.ok(container.querySelector('[data-research-row="601288.SH"]'));
-});
-
 test('读取：公司页 identity 里的行业代码 → 行业框架，同一公司、同一行业只读一次；读不到返回空且不缓存失败', async () => {
   lib.clearDriverSets();
   const asked: string[] = [];

@@ -11,6 +11,7 @@ export interface ResearchRecordStep { key: string; label: string; status: Resear
 export interface ResearchRecord {
   task_id: string; symbol: string; slug?: string; title?: string; status: ResearchRecordStatus; current_step: number;
   steps: ResearchRecordStep[]; sessions: string[]; reason: string | null; created_at: string; updated_at: string; finished_at?: string | null;
+  trigger?: string | null; trigger_period?: string | null; report_period?: string | null;
 }
 
 const STATUSES = new Set<string>(['running', 'completed', 'failed', 'cancelled', 'interrupted']);
@@ -44,6 +45,14 @@ export async function companyResearchRunning(symbol: string, signal?: AbortSigna
   return !!latest && researchActive(latest);
 }
 
+const CODE_ONLY = /^\d{6}(\.(SH|SZ|BJ))?$/i;
+/** 任务标题里没有公司名（空或只是代码）：显示时要补名。 */
+export const needsCompanyName = (record: ResearchRecord) => CODE_ONLY.test((record.title || '').replace(/^公司研究\s*·\s*/, '').trim()) || !(record.title || '').trim();
+/** 就地补名：标题没有公司名且查到了名称，标题改写成「公司研究 · 名称」；查不到原样返回。 */
+export const withCompanyName = (record: ResearchRecord, names: Record<string, string>): ResearchRecord => {
+  const name = needsCompanyName(record) ? names[record.symbol.split('.')[0]!] : undefined;
+  return name ? { ...record, title: `公司研究 · ${name}` } : record;
+};
 export const companyNameOf = (record: ResearchRecord) => (record.title || '').replace(/^公司研究\s*·\s*/, '') || record.symbol.split('.')[0]!;
 
 /** 研究步骤的显示名：主机记录里的原名有内部用语时，在界面上换成白话。 */

@@ -68,7 +68,7 @@ export interface AssistantHostDeps {
 }
 
 type AssistantMethods = Pick<ResearchSessions,
-  'startAssistant' | 'ensureAssistant' | 'insertAssistantObjects' | 'switchAssistantMode' | 'assistantModel' | 'focusAssistantSession'
+  'startAssistant' | 'ensureAssistant' | 'insertAssistantObjects' | 'assistantModel' | 'focusAssistantSession'
 >;
 
 export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
@@ -163,7 +163,6 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
           const bound = await bindAssistantPrompt({
             prompt: input.prompt,
             title: input.title,
-            mode,
             pageSnapshot: input.pageSnapshot,
             companyQuotes: input.companyQuotes as CompanySnapshotQuote[] | undefined,
             objects: (input.objects || []).map(item => ({
@@ -210,19 +209,6 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
     },
     insertAssistantObjects(sessionId, objects) {
       insertAssistantRefs(objects, sessionId);
-    },
-    async switchAssistantMode(sessionId, mode, pageKey) {
-      await deps.waitSession();
-      const store = await loadAssistantSessions().catch(() => ({ sessions: {} as Record<string, { plugin?: AssistantPlugin; target?: string; page_key?: string }> }));
-      const bound = store.sessions[sessionId];
-      const derived = pageKey ? assistantBindingForPage(pageKey) : null;
-      await bindAssistantSession({
-        session_id: sessionId,
-        mode,
-        plugin: bound?.plugin,
-        target: bound?.target,
-        page_key: derived?.bindKey || bound?.page_key || pageKey,
-      });
     },
     assistantModel(sessionId) {
       const existing = modelStores.get(sessionId);

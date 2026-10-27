@@ -44,7 +44,7 @@ async function show(load: () => Promise<unknown>) {
   const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
-      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load }))))));
+      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load, loadFilings: async () => ({ rows: [], hidden: 0 }) }))))));
   await React.act(async () => {});
 }
 
@@ -77,12 +77,12 @@ test('关注名单补上交易所后缀，去重，认不出的不请求，最�
 test('卡片标题写事情本身，第二行写碰到哪些关注公司和方向；金额不在第一层', () => {
   const [card] = trackingFixture.cards;
   assert.equal(lib.cardTitle(card), '沪铝一天跌 445 元/吨（−1.9%）');
-  assert.equal(lib.cardTouch(card), '关注中：神火 · 对利润偏负面');
+  assert.equal(lib.cardTouch(card), '涉及：神火 · 沪铝 · 对利润偏负面');
   const five = { ...card, rule: 'five_day', change: '300', change_pct: '0.0130', companies: [{ ...card.companies[0], impact: '248000000' }] };
   assert.equal(lib.cardTitle(five), '沪铝五天累计涨 300 元/吨（+1.3%）');
-  assert.equal(lib.cardTouch(five), '关注中：神火 · 对利润偏正面');
+  assert.equal(lib.cardTouch(five), '涉及：神火 · 沪铝 · 对利润偏正面');
   const mixed = { ...card, companies: [card.companies[0], { symbol: '000807.SZ', name: '云铝股份', impact: '500000000', pct_of_base: null, neutral_price_delta: null }] };
-  assert.equal(lib.cardTouch(mixed), '关注中：神火、云铝 · 对利润影响方向不同');
+  assert.equal(lib.cardTouch(mixed), '涉及：神火、云铝 · 沪铝 · 对利润影响方向不同');
   assert.equal(lib.cardTitle({ ...card, change_pct: null }), '沪铝一天跌 445 元/吨');
   assert.doesNotMatch(lib.cardTitle(card) + lib.cardTouch(card), /亿元|中性价/);
 });
@@ -107,8 +107,8 @@ test('卡片：价格变动卡不描边；展开才看金额；看个股页进�
   assert.equal(card.querySelector('.variable-card-title .is-down')!.textContent, '445 元/吨（−1.9%）');
   assert.equal(card.querySelector('.variable-card-touch .is-down')!.textContent, '对利润偏负面');
   assert.equal(card.querySelector('.variable-card-title')!.textContent, '沪铝一天跌 445 元/吨（−1.9%）');
-  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '关注中：神火 · 对利润偏负面');
-  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^10 月 8 日/);
+  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '涉及：神火 · 沪铝 · 对利润偏负面');
+  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^价格 · 10 月 8 日/);
   assert.equal(card.querySelector('.variable-card-effects'), null, '金额点展开才看');
   assert.doesNotMatch(card.textContent!, /亿元|中性价/);
   assert.doesNotMatch(container.textContent!, /系数|出卡线|系数 × 变动/, '第一层不露内部机制');
@@ -125,7 +125,7 @@ test('卡片：价格变动卡不描边；展开才看金额；看个股页进�
   assert.equal(asked.pageKey, 'feed:variables');
   assert.equal(asked.draft, '沪铝 10 月 8 日跌了 445 元/吨，对神火影响多大？', '输入框预填问句');
   assert.equal(asked.reference.title, '沪铝一天跌 445 元/吨（−1.9%）', '卡片标题随本轮带入');
-  assert.match(asked.reference.text, /^关注中：神火 · 对利润偏负面\n沪铝一天跌 445 元\/吨/);
+  assert.match(asked.reference.text, /^涉及：神火 · 沪铝 · 对利润偏负面\n沪铝一天跌 445 元\/吨/);
 });
 
 test('动态页只留卡片：没有变量表和覆盖区；没有卡片时显示一句空态', async () => {
@@ -133,8 +133,51 @@ test('动态页只留卡片：没有变量表和覆盖区；没有卡片时显�
   assert.equal(container.querySelector('table'), null);
   assert.equal(container.querySelector('[data-cover]'), null);
   await show(async () => ({ ...trackingFixture, cards: [] }));
-  assert.match(container.textContent!, /最近 20 个交易日没有足以影响利润的价格变动/);
+  assert.match(container.textContent!, /最近没有需要看的动态/);
   assert.equal(container.querySelector('[data-variable-card]'), null);
+});
+
+test('公告卡：涉及只写公司与领域；有展开与讨论；筛选「公告」时出「查看全部」，其余筛选不出', async () => {
+  const filing = { symbol: '603799.SH', name: '华友钴业', title: '华友钴业：收购进展公告', when: '2026-10-26 09:30', url: 'https://example.com/a', industry: '能源金属' };
+  const seen: boolean[] = [];
+  const loadFilings = async (showAll: boolean) => { seen.push(showAll); return { rows: [filing], hidden: 3 }; };
+  const render = async (filter: string) => React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+    React.createElement(sessionModule.ResearchSessionContext.Provider, { value: { start: async () => ({ sessionId: 's', status: 'started' }) } },
+      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load: async () => trackingFixture, loadFilings, filter }))))));
+  const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
+  await render('全部'); await React.act(async () => {});
+  const card = container.querySelector('[data-filing-card]')!;
+  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '涉及：华友钴业 · 能源金属');
+  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^公告 · 10 月 26 日/);
+  assert.equal(container.querySelector('[data-show-all]'), null, '全部筛选不出查看全部');
+  await React.act(async () => ([...card.querySelectorAll('button')].find(b => b.textContent === '展开') as HTMLButtonElement).click());
+  assert.equal(card.querySelector('.variable-card-effects a')!.getAttribute('href'), 'https://example.com/a');
+  await React.act(async () => ([...card.querySelectorAll('button')].find(b => b.textContent === '讨论') as HTMLButtonElement).click());
+  assert.equal(asked.draft, '华友钴业这条公告对研究有什么影响？');
+  assert.equal(asked.reference.title, '华友钴业：收购进展公告');
+  await render('公告'); await React.act(async () => {});
+  assert.deepEqual([...container.querySelectorAll('[data-stream-type]')].map(c => c.getAttribute('data-stream-type')), ['公告']);
+  const all = container.querySelector('[data-show-all]') as HTMLButtonElement;
+  assert.equal(all.textContent, '查看全部（另有 3 条例行）');
+  await React.act(async () => all.click());
+  assert.equal(seen.at(-1), true);
+  assert.equal((container.querySelector('[data-show-all]') as HTMLElement).textContent, '只看重要的');
+});
+
+test('「全部」里同公司同日公告合并成一张：底行「另有 N 份公告」，展开列出其余标题与原文链接', async () => {
+  const mk = (title: string, url: string) => ({ symbol: '603799.SH', name: '华友钴业', title, when: '2026-10-26 09:30', url, industry: '能源金属' });
+  const loadFilings = async () => ({ rows: [mk('收购进展公告', 'https://example.com/a'), mk('提示性公告', 'https://example.com/b')], hidden: 0 });
+  const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
+  await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+    React.createElement(sessionModule.ResearchSessionContext.Provider, { value: { start: async () => ({ sessionId: 's', status: 'started' }) } },
+      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load: async () => trackingFixture, loadFilings, filter: '全部' }))))));
+  await React.act(async () => {});
+  const cards = container.querySelectorAll('[data-filing-card]');
+  assert.equal(cards.length, 1);
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^公告 · 10 月 26 日 · 另有 1 份公告/);
+  await React.act(async () => ([...cards[0].querySelectorAll('button')].find(b => b.textContent === '展开') as HTMLButtonElement).click());
+  const links = [...cards[0].querySelectorAll('.variable-card-effects a')].map(a => [a.textContent, a.getAttribute('href')]);
+  assert.deepEqual(links, [['打开公告原文', 'https://example.com/a'], ['提示性公告', 'https://example.com/b']]);
 });
 
 test('加载中显示骨架；没有关注显示引导；读取失败一句话加重试', async () => {
@@ -164,17 +207,26 @@ test('请求走 Backend 读取通道：关注名单补后缀后请求 /tracking/
   } finally { globalThis.fetch = previous.fetch; }
 });
 
-test('动态页：「行情」是第一个分段且为默认；「资讯」保留，「市场」已移除', () => {
+test('动态页：一条流，顶部是类型筛选（全部、财报、价格、公告），没有「行情 / 资讯」分段', () => {
   const feed = readFileSync(new URL('../src/verticals/finance/pages/Feed.tsx', import.meta.url), 'utf8');
-  assert.match(feed, /\[\{ value: "variables", label: "行情" \}, \{ value: "intel", label: "资讯" \}\]/);
-  assert.match(feed, /params\.get\("tab"\) === "intel" \? "intel" : "variables"/);
-  assert.match(feed, /<Intel sub=\{params\.get\("sub"\)\} onSub=\{selectSub\} \/>/);
+  const stream = readFileSync(new URL('../src/verticals/finance/lib/feedStream.ts', import.meta.url), 'utf8');
+  assert.match(stream, /STREAM_FILTERS = \['全部', '财报', '价格', '公告'\]/);
+  assert.match(feed, /aria-label="按类型筛选"/);
+  assert.doesNotMatch(feed, /label: "行情"|label: "资讯"|Intel/);
 });
 
 test('宿主研究代理放行关键变量读取', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
   assert.equal(researchRoute('GET', '/tracking/variables'), true);
   assert.equal(researchRoute('POST', '/tracking/variables'), false);
+  // 跟踪清单：读、添加、不再盯/恢复、改信号类型；编号里的冒号是 %3A，其余方法与路径不放行。
+  assert.equal(researchRoute('GET', '/tracking/items'), true);
+  assert.equal(researchRoute('POST', '/tracking/items'), true);
+  assert.equal(researchRoute('PATCH', '/tracking/items/price%3Acmdty%3ASHFE.AL'), true);
+  assert.equal(researchRoute('PATCH', '/tracking/items/obs%3Atopic%3Aabc%3Anickel/signals/ab12'), true);
+  assert.equal(researchRoute('DELETE', '/tracking/items/price%3Acmdty%3ASHFE.AL'), false);
+  assert.equal(researchRoute('PATCH', '/tracking/items/a/b'), false);
+  assert.equal(researchRoute('PATCH', '/tracking/items/a/signals/b/c'), false);
 });
 
 test('设计原则 4：提醒卡也不用品牌橙描边，样式与普通动态卡一致（判断改变的卡同样）', async () => {

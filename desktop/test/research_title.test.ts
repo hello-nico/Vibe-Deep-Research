@@ -1,29 +1,35 @@
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { test } from 'node:test';
-import { createServer } from 'vite';
-import { createServer as createHttpServer } from 'node:http';
+import { resolveResearchTitle, titleNeedsName, researchTitleOf } from '../dsh/finance-ui/research-title.mjs';
+import { createServer, type ViteDevServer } from 'vite';
 import { fileURLToPath } from 'node:url';
+import { createServer as createHttpServer } from 'node:http';
 
-const message = '华友钴业供应关系\n引用材料：宁德时代 `companies/300750-sz@' + 'a'.repeat(64) + '`';
-const entries = (kind: 'fallback' | 'provider' | 'user') => [
-  { type: 'event', event: { type: 'user/message', seq: 1, data: { source: { kind: 'user' }, content: [{ type: 'text', text: message }] } } },
-  { type: 'event', event: { type: 'session/title', seq: 2, data: { title: '引用材料：宁德时代 `compan…', source: { kind }, messageSeqs: kind === 'user' ? [] : [1] } } },
-];
+let server: ViteDevServer;
+let tasks: { withCompanyName: (r: any, names: Record<string, string>) => any; needsCompanyName: (r: any) => boolean; companyNameOf: (r: any) => string };
+test.before(async () => {
+  server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)),
+    server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
+  tasks = await server.ssrLoadModule('/src/verticals/finance/lib/researchTasks.ts') as never;
+});
+test.after(async () => { await server.close(); });
 
-test('serialized @ slug folds to a readable first-message title', async () => {
-  const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
-  try {
-    const { foldResearchMentionsText, readableResearchTitle } = await server.ssrLoadModule('/src/verticals/finance/lib/researchMentions.ts');
-    const { readableTitleDecision } = await server.ssrLoadModule('/src/verticals/finance/dsh/research-title.ts');
-    assert.equal(foldResearchMentionsText(message), '华友钴业供应关系\n宁德时代');
-    assert.equal(readableResearchTitle(message), '宁德时代 · 华友钴业供应关系');
-    assert.deepEqual(readableTitleDecision(entries('fallback')), { status: 'rename', title: '宁德时代 · 华友钴业供应关系', eventSeq: 2 });
-    assert.deepEqual(readableTitleDecision(entries('provider')), { status: 'rename', title: '宁德时代 · 华友钴业供应关系', eventSeq: 2 });
-    assert.deepEqual(readableTitleDecision(entries('user')), { status: 'skip' });
-    assert.deepEqual(readableTitleDecision([...entries('fallback'),
-      { type: 'event', event: { type: 'session/title', seq: 3, data: { title: '我的手动标题', source: { kind: 'user' }, messageSeqs: [] } } }]), { status: 'skip' });
-    const plain = entries('fallback');
-    plain[1]!.event.data.title = '宁德时代供应链';
-    assert.deepEqual(readableTitleDecision(plain), { status: 'skip' });
-  } finally { await server.close(); }
+test('建任务：标题没有公司名（空、只是代码）时查名称，查不到才写代码；已有名称原样保留', async () => {
+  const lookup = async (symbol: string) => symbol === '300750.SZ' ? '宁德时代' : '';
+  assert.equal(await resolveResearchTitle('300750.SZ', '300750.SZ', lookup), '公司研究 · 宁德时代');
+  assert.equal(await resolveResearchTitle(undefined, '300750.SZ', lookup), '公司研究 · 宁德时代');
+  assert.equal(await resolveResearchTitle('公司研究 · 002379', '002379.SZ', async () => '宏桥控股'), '公司研究 · 宏桥控股');
+  assert.equal(await resolveResearchTitle('公司研究 · 神火股份', '000933.SZ', lookup), '公司研究 · 神火股份');
+  assert.equal(await resolveResearchTitle('300750.SZ', '300750.SZ', async () => { throw new Error('offline'); }), '公司研究 · 300750');
+  assert.equal(titleNeedsName('公司研究 · 神火股份'), false);
+  assert.equal(researchTitleOf('', '600900.SH'), '公司研究 · 600900');
+});
+
+test('显示：旧任务名称是代码就就地补名，查不到仍显示代码，已有名称不动', () => {
+  const rec = (title: string, symbol = '300750.SZ') => ({ title, symbol });
+  assert.equal(tasks.companyNameOf(tasks.withCompanyName(rec('300750.SZ'), { '300750': '宁德时代' })), '宁德时代');
+  assert.equal(tasks.companyNameOf(tasks.withCompanyName(rec('公司研究 · 002379', '002379.SZ'), { '002379': '宏桥控股' })), '宏桥控股');
+  assert.equal(tasks.companyNameOf(tasks.withCompanyName(rec('300750.SZ'), {})), '300750.SZ');
+  assert.equal(tasks.companyNameOf(tasks.withCompanyName(rec('公司研究 · 神火股份', '000933.SZ'), { '000933': '别的' })), '神火股份');
+  assert.equal(tasks.needsCompanyName(rec('公司研究 · 神火股份')), false);
 });

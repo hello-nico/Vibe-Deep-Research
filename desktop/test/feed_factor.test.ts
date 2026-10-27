@@ -24,7 +24,6 @@ before(async () => {
   modules = {
     factor: await server.ssrLoadModule('/src/verticals/finance/lib/feedFactor.ts'),
     narrative: await server.ssrLoadModule('/src/verticals/finance/lib/companyNarrative.ts'),
-    intel: await server.ssrLoadModule('/src/verticals/finance/pages/Intel.tsx'),
     page: await server.ssrLoadModule('/src/core/ai/pageContext.tsx'),
     watch: await server.ssrLoadModule('/src/verticals/finance/lib/watchlist.ts'),
     router: await server.ssrLoadModule('react-router-dom'),
@@ -74,32 +73,4 @@ test('只读已存的研究凭据：没有研究、没有凭据、读失败都�
   await loadFactorModel('000933.SZ', read, memo);
   assert.equal(calls.filter(route => route.includes('000933.SZ/page-research')).length, 1);
   assert.ok(calls.every(route => !/\/(coverage\/ensure|page-research\/revert)/.test(route)), '只有读取，不触发研究或数据补取');
-});
-
-test('资讯页：命中的那条下面有一句因素；未命中与无模型的公司不加句子，也不写「无关」；顶部没有过滤计数', async t => {
-  const rows = (symbol: string, titles: string[]) => titles.map((title, index) => ({ symbol, title, source: '证券时报', published_at: `2026-10-19T0${index}:00:00+00:00`, url: `https://example.test/${symbol}/${index}` }));
-  t.mock.method(globalThis, 'fetch', async (input: unknown) => {
-    const url = String(input);
-    if (url.includes('/feed/news')) {
-      return Response.json({ filtered: 7, items: [...rows('000933.SZ', ['沪铝价格再创新高', '神火股份召开股东大会']), ...rows('600900.SH', ['铝价上涨带动有色板块'])] });
-    }
-    if (url.includes('/market/quotes')) return Response.json({ quotes: [], missing: [] });
-    if (url.includes('000933.SZ/page-research')) return Response.json({ research: { sensitivity: { resultRef: RESULT } } });
-    if (url.includes('600900.SH/page-research')) return Response.json({ research: null });
-    if (url.includes(`/research-results/${RESULT}`)) return Response.json(shenhuo.sensitivityResult);
-    return Response.json({ items: [] });
-  });
-  modules.factor.clearFactorModels();
-  modules.watch.replaceWatchCache(['000933', '600900']);
-  const h = React.createElement;
-  const { MemoryRouter } = modules.router;
-  await React.act(async () => root.render(h(MemoryRouter, null, h(modules.page.AiPageProvider, {}, h(modules.intel.Intel, { sub: 'news' })))));
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 80)); });
-  const notes = [...container.querySelectorAll('[data-feed-factor]')].map(node => node.textContent);
-  assert.deepEqual(notes, ['碰到沪铝：每 +1,000 元/吨，净利润 +9.96 亿元']);
-  const text = container.textContent!;
-  assert.match(text, /沪铝价格再创新高/);
-  assert.match(text, /铝价上涨带动有色板块/);
-  assert.doesNotMatch(text, /无关/);
-  assert.doesNotMatch(text, /过滤|已过滤|屏蔽|7 条/, '页面不出现过滤计数');
 });

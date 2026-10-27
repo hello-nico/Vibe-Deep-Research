@@ -10,14 +10,22 @@ export interface ReconVariable {
 }
 /** 利润表单季科目：本季与上季（元，费用类为正数、减值亏损为负数），`impact` 是这一项变化对净利润的影响（费用多了记负，亏损加重记负）。 */
 export interface ReconItem { metric: string; name: string; previous: string; current: string; change: string; impact: string }
+export interface PreDisclosure {
+  start?: string | null; end?: string | null; days?: number; stock_change?: string | null;
+  industry_code?: string | null; industry_name?: string | null; industry_change?: string | null; gap?: string | null;
+}
+export interface ReconForecast { pre_report?: boolean | null; basis_note?: string | null; period?: string | null; value?: string | null }
 export interface Reconciliation {
   symbol: string; status: 'ok' | 'gap'; reason?: string;
   period?: string; previous_period?: string; actual?: string; previous?: string; change?: string; reported_on?: string | null;
   variables?: ReconVariable[]; unexplained?: string[]; price_total?: string | null; rest?: string | null;
   items?: ReconItem[]; item_gaps?: string[]; items_total?: string | null;
+  pre_disclosure?: PreDisclosure | null; forecast?: ReconForecast | null;
 }
 export interface ReconCard {
   symbol: string; company: string; period: string;
+  /** 披露日 YYYY-MM-DD；动态流按它排序。 */
+  date: string;
   /** 第一层：公司、哪份报告、单季净利润、比上季多少。 */
   headline: string;
   /** 有价格模型时的半句：价格带来多少、其余多少。 */
@@ -39,6 +47,25 @@ function itemsExplain(lines: { metric: string; name: string; impact: number }[],
   const top = lines.filter(line => !MECHANICAL.has(line.metric)).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))[0];
   const lead = top ? `最大的一项是${top.name}，影响 ${signedYi(top.impact)}；` : '';
   return `${lead}其他（税金及附加、其他收益、营业外等）${signedYi(rest)}`;
+}
+
+function moveText(change: string | null | undefined) {
+  const value = toNumber(change);
+  if (value == null) return null;
+  return `${value >= 0 ? '涨' : '跌'} ${plainNumber(Math.abs(value) * 100, 1)}%`;
+}
+function preLines(item: Reconciliation, company: string) {
+  const pre = item.pre_disclosure, stock = moveText(pre?.stock_change ?? null);
+  if (!stock) return [];
+  const board = pre?.industry_change != null && pre.industry_name ? `，同期${pre.industry_name}${moveText(pre.industry_change)}` : '';
+  const lines = [`披露前约 60 个交易日，${company}股价${stock}${board}；业绩变化可能已部分反映在股价里。`];
+  const forecast = item.forecast;
+  const eps = toNumber(forecast?.value);
+  if (forecast?.pre_report === false && eps != null) {
+    const year = /^FY(\d{4})/i.exec(String(forecast.period ?? ''))?.[1];
+    lines.push(`${forecast.basis_note || '机构'}：${year ? `${year} 年` : ''}预测每股 ${plainNumber(eps, 2)} 元`);
+  }
+  return lines;
 }
 
 /** 只看披露日：最近 RECON_DAYS 天内披露的季报就出卡，研究是否已经用上这份季报不影响；缺口、日期不明、超过天数的不出。 */
@@ -76,7 +103,7 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
       ...(price != null && variables.length ? [`研究模型估计：价格变化影响约 ${signedYi(price)}（税后年化系数折季），仅供参考，不与上面各项相加`, ...priceDetails] : []),
       '价格影响与减值可能部分重叠，没有去重；科目取自利润表，单季 = 累计值相减',
     ] : priceDetails;
-    return [{ symbol: item.symbol, company, period: item.period, headline, explain, details }];
+    return [{ symbol: item.symbol, company, period: item.period, date: item.reported_on.slice(0, 10), headline, explain, details: [...details, ...preLines(item, company)] }];
   });
 }
 

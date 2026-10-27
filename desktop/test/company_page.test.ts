@@ -35,7 +35,7 @@ test('名册读取不启动；首次打开并发读取、重复打开都只启�
   assert.equal(fixture.starts.length, 1);
   assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
 });
-test('已有判断不启动；过期后台更新保留旧版，完成后自动替换，再打开不重复', async () => {
+test('已有判断不启动；过期也不自动开始，点「重新研究」才开始，保留旧版，完成后替换', async () => {
   const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
   const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
   await store.refresh(true);
@@ -43,7 +43,10 @@ test('已有判断不启动；过期后台更新保留旧版，完成后自动�
   fixture.set({ research: fixtureResearch, stale: true, basisVersion: 'v2' });
   fixture.setTask({ ...fixture.task, status: 'completed' });
   await store.refresh(true);
-  assert.equal(fixture.starts.length, 1);
+  assert.equal(fixture.starts.length, 0, '研究已存在但过期：打开页面不自动重研');
+  assert.equal(store.getSnapshot().stale, true);
+  await store.restart();
+  assert.equal(fixture.starts.length, 1, '点按钮才开始');
   assert.equal(store.getSnapshot().research, fixtureResearch);
   const newer = { ...fixtureResearch, basisVersion: 'v2', researchedAt: '2026-10-11' };
   fixture.set({ research: newer, stale: false, basisVersion: 'v2' });
@@ -189,6 +192,23 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services }))));
 }
+test('研究过期：页首不自动开始，写「有新资料」加「重新研究」按钮，点了才开始；资料名取得到才写；未过期与从未研究没有这一行', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v1' });
+  fixture.services.readCalendar = async () => ({ status: 'sourced', reports: [{ period: '2099-09-30', appoint: null, first_appoint: null, actual: '2000-10-20' }] });
+  await mountPage(fixture);
+  const line = () => container.querySelector('[data-stale-line]') as HTMLElement | null;
+  assert.equal(fixture.starts.length, 0, '打开页面不自动重研');
+  assert.match(line()!.textContent!, /^有新资料（.+）重新研究$/);
+  await React.act(async () => { (line()!.querySelector('button') as HTMLButtonElement).click(); });
+  assert.equal(fixture.starts.length, 1, '点按钮才开始');
+  const noName = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v1' });
+  await mountPage(noName);
+  assert.equal(line()!.textContent, '有新资料重新研究', '资料名取不到只写有新资料');
+  await mountPage(companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' }));
+  assert.equal(line(), null);
+  await mountPage(companyPageFixture({ research: null, stale: false, basisVersion: 'v1' }));
+  assert.equal(line(), null);
+});
 test('「查看数据」里的 {…} 数据引用解析成数值，解析不到写（数据缺失），不漏出占位符', async () => {
   const research = structuredClone(fixtureResearch);
   research.sections.business!.details = '主营收入{revenue}，其他业务{segment:product:不存在业务.revenue}，计算{calc:result:00000000000000000000000000000000.profit}。';
@@ -426,10 +446,9 @@ test('真实路由挂夹具：工具栏、页内、返回关注显示同一进�
     await React.act(async () => (container.querySelector('[data-company-progress="toolbar"] button') as HTMLButtonElement).click());
     assert.deepEqual(opened, ['fixture-session']);
     await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === '关注')!.click());
-    // 关注列表里同一进度只以状态点出现一次，说明文字相同。
-    const dots = [...container.querySelectorAll('[role="img"][aria-label]')].map(element => element.getAttribute('aria-label'));
-    assert.equal(dots.length, 1);
-    assert.equal(dots[0], '核对利润变量');
+    // 关注列表里同一进度写在「研究」列，只出现一次，说明文字相同。
+    const cells = [...container.querySelectorAll('[data-research-cell]')].map(element => element.textContent);
+    assert.deepEqual(cells, ['核对利润变量']);
     await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === '600863')!.click());
     assert.equal(fixture.starts.length, 1);
     assert.equal(container.querySelector('iframe'), null);
@@ -466,10 +485,12 @@ test('研究过程面板：知识整理未完成不显示给用户；不显示�
   const show = async (task: Record<string, unknown>) => React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
     React.createElement(panel.TaskProcessPanel, { task: { sessionId: 'done-session', title: '公司研究', kind: 'research', ...task }, onClose: () => {} }))));
   await show({ settlementFailed: true });
-  assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成|本次没有需要展示/);
+  assert.equal(container.querySelector('nav'), null, '整理失败：不出现该标签');
   await show({});
-  assert.match(container.querySelector('nav')!.textContent!, /本次没有需要展示的整理过程/);
-  assert.doesNotMatch(container.querySelector('nav')!.textContent!, /未完成/);
+  assert.equal(container.querySelector('nav'), null, '没有整理产出：不出现标签，也不写没有整理过程');
+  assert.doesNotMatch(container.textContent!, /本次没有需要展示|研究结束后开始整理/);
+  await show({ settlementSessionId: 'settle-1' });
+  assert.match(container.querySelector('nav')!.textContent!, /公司研究.*知识整理/);
   const running = { subscribeSessionList: () => () => {}, taskRunning: () => true };
   await React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: running },
     React.createElement(panel.TaskProcessPanel, { task: { sessionId: 's', title: '公司研究', kind: 'research', resultRef: undefined }, onClose: () => {} }))));
@@ -689,7 +710,7 @@ test('完成后的补读失败保留旧判断并显示研究暂不可用，不�
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('接通后首次打开只在研究缺失或过期时，每个 basisVersion 触发一次', async () => {
+test('接通后首次打开只在研究缺失时，每个 basisVersion 触发一次；过期不触发', async () => {
   const originalFetch = globalThis.fetch;
   let response = { research: null as typeof fixtureResearch | null, stale: false, basisVersion: 'a'.repeat(64) };
   let starts = 0;
@@ -706,12 +727,7 @@ test('接通后首次打开只在研究缺失或过期时，每个 basisVersion 
     assert.equal(starts, 1);
     response = { ...response, stale: true };
     await store.refresh(true);
-    assert.equal(starts, 2);
-    response = { ...response, stale: false };
-    await store.refresh(true);
-    response = { ...response, stale: true };
-    await store.refresh(true);
-    assert.equal(starts, 2);
+    assert.equal(starts, 1);
   } finally { globalThis.fetch = originalFetch; }
 });
 test('数据包未到时估值节保留骨架；读取失败时不把缺口写成零', async () => {

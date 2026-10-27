@@ -120,6 +120,7 @@ export const topicCandidateDefinition: ConversationNodeDefinition<TopicCandidate
 
 export interface QuestionSuggestion { text: string }
 export interface CompanySuggestion { symbol: string; reason: string }
+export interface ChainSuggestion { public_chain_id: string; name: string; reason: string }
 export interface IndicatorSuggestion { name: string; reason: string; tracking_item: TrackingSuggestion }
 export type SuggestionData = {
   id: string;
@@ -127,7 +128,8 @@ export type SuggestionData = {
   consumer: 'deep_research';
 } & ({ type: 'question'; items: QuestionSuggestion[] }
   | { type: 'company'; items: CompanySuggestion[] }
-  | { type: 'indicator'; items: IndicatorSuggestion[] });
+  | { type: 'indicator'; items: IndicatorSuggestion[] }
+  | { type: 'chain'; items: ChainSuggestion[] });
 
 export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = {
   kind: 'finance-suggestion', target: 'chat',
@@ -135,7 +137,7 @@ export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = 
     const value = event as unknown as { type: string; data?: SuggestionData };
     const data = value.data;
     if (!['stock-research/suggestion', 'plugin:stock-research/suggestion'].includes(value.type) || data?.consumer !== 'deep_research'
-      || !data.id || !data.question || !['question', 'indicator', 'company'].includes(data.type)
+      || !data.id || !data.question || !['question', 'indicator', 'company', 'chain'].includes(data.type)
       || !Array.isArray(data.items) || !data.items.length) return null;
     return { id: data.id, role: 'start', exclusive: true };
   },

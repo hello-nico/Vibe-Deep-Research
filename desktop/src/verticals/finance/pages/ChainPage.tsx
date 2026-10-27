@@ -1,49 +1,99 @@
-import { Fragment, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { Panel, Tag } from "../components/ui/Card";
+import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import { gradeLabel, plainNumber, yiText } from "../lib/companyNarrative";
 import {
-  arrowLabel, calcRows, calcSetup, chainDrivers, chainHeadline, CYCLE, cycleSentence, defaultChainServices, hasCycle, loadChainView, loadCycle, roleText,
-  type CalcRow, type CalcSetup, type ChainCompany, type ChainServices, type ChainView, type Cycle,
+  addToChain, arrowLabel, calcRows, calcSetup, chainDrivers, chainHeadline, CYCLE, cycleSentence, defaultChainServices, deleteChain, hasCycle, isChainConflict, loadCandidates, loadChainView, loadCycle,
+  removeFromChain, revertChain, roleText,
+  type CalcRow, type CalcSetup, type Candidate, type ChainCompany, type ChainNode, type ChainServices, type ChainView, type Cycle,
 } from "../lib/chainPage";
 import "./chain-page.css";
 
-/** 产业链页：链条 → 共同驱动 → 链上公司并排。数据读行业公共层与各家已存研究，页面不触发研究。 */
+/** 产业链页（用户自己的链）：链条 → 共同驱动 → 链上公司并排。骨架读行业公共层，公司读各家已存研究，页面不触发研究。 */
 export function Chain() {
   const { chainId = "" } = useParams();
   return <ChainPage chainId={chainId} />;
 }
 
 type Load = { view?: ChainView; failed?: boolean };
+const CONFLICT = "这条产业链刚被改过，已显示最新内容，请再操作一次。";
+/** 改动入口：一次只做一件事；版本冲突时重读并提示，其余失败在页首下写一句话。 */
+type Run = (key: string, work: () => Promise<void>, failText: string) => Promise<void>;
 
 export function ChainPage({ chainId, services = defaultChainServices }: { chainId: string; services?: ChainServices }) {
+  const navigate = useNavigate();
+  const [confirmElement, ask] = useConfirm();
   const [state, setState] = useState<Load>({});
   const [attempt, setAttempt] = useState(0);
+  const [notice, setNotice] = useState("");
+  const [busy, setBusy] = useState("");
   useEffect(() => {
     const controller = new AbortController();
-    setState({});
+    // 改动后重读时保留已显示的内容，不闪骨架。
+    setState(previous => previous.view?.chain.chain_id === chainId ? { view: previous.view } : {});
     loadChainView(chainId, services, controller.signal).then(
       view => { if (!controller.signal.aborted) setState({ view }); },
       error => { if (controller.signal.aborted) return; console.warn("[finance/chain] unavailable", error); setState({ failed: true }); });
     return () => controller.abort();
   }, [chainId, services, attempt]);
+  useEffect(() => { setNotice(""); }, [chainId]);
   const { view, failed } = state;
+  const run: Run = async (key, work, failText) => {
+    if (busy) return;
+    setBusy(key); setNotice("");
+    try { await work(); }
+    catch (error) { setNotice(isChainConflict(error) ? CONFLICT : failText); }
+    finally { setBusy(""); setAttempt(value => value + 1); }
+  };
+  const remove = async () => {
+    if (!view) return;
+    const ok = await ask({ title: "删除产业链", kicker: "产业链", body: <><p>{view.chain.name}将被删除。</p><p className="refresh-dialog-scope">只删除这条产业链，关注的公司和研究不受影响。</p></>, confirmLabel: "确认删除" });
+    if (!ok) return;
+    setBusy("delete"); setNotice("");
+    try { await deleteChain(chainId, view.version, services); navigate("/watch?kind=chains"); }
+    catch (error) { setNotice(isChainConflict(error) ? CONFLICT : "这条产业链没删掉，请稍后再试。"); setAttempt(value => value + 1); }
+    finally { setBusy(""); }
+  };
   useAiPage({ key: `chain:${chainId}`, title: view?.chain.name ?? "产业链", context: view ? chainHeadline(view) : "产业链页正在读取", suggestions: ["这条链上哪个价格对利润影响最大？"] });
   return <div>
-    <PageHeader title={view?.chain.name ?? "产业链"} />
+    <PageHeader title={view?.chain.name ?? "产业链"} actions={view && <>
+      {view.hasPrevious && <button type="button" className="btn" disabled={Boolean(busy)} data-chain-revert="" onClick={() => void run("revert", () => revertChain(chainId, view.version, services), "没能撤回，请稍后再试。")}>撤回上一版</button>}
+      <button type="button" className="btn btn-text" disabled={Boolean(busy)} data-chain-delete="" onClick={() => void remove()}>删除这条产业链</button>
+    </>} />
+    {notice && <p role="status" className="chain-note chain-notice" data-chain-notice="">{notice}</p>}
     {failed ? <p role="alert" className="chain-note">这条产业链暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>
       : !view ? <div className="chain" aria-busy="true" aria-label="正在加载"><div className="chain-skeleton" /><div className="chain-skeleton" /></div>
-      : <ChainBody view={view} services={services} />}
+      : <ChainBody view={view} services={services} run={run} busy={busy} />}
     <Disclaimer />
+    {confirmElement}
   </div>;
 }
 
-function ChainBody({ view, services }: { view: ChainView; services: ChainServices }) {
+/** 同环节还可关注：整条链的候选一次读回（最多 8 家），按环节分到各自的展开处；改动后版本变了重读。 */
+function useCandidatePool(chainId: string, version: number, services: ChainServices) {
+  const [pool, setPool] = useState<{ items?: Candidate[]; failed?: boolean }>({});
+  const loaded = useRef<string>("");
+  useEffect(() => { loaded.current = ""; setPool({}); }, [chainId, version]);
+  const ensure = useCallback((force = false) => {
+    const stamp = `${chainId}@${version}`;
+    if (!force && loaded.current === stamp) return;
+    loaded.current = stamp;
+    setPool({});
+    loadCandidates(chainId, services).then(
+      items => { if (loaded.current === stamp) setPool({ items }); },
+      () => { if (loaded.current === stamp) setPool({ failed: true }); });
+  }, [chainId, version, services]);
+  return { pool, ensure };
+}
+
+function ChainBody({ view, services, run, busy }: { view: ChainView; services: ChainServices; run: Run; busy: string }) {
   const { chain, frameworks, companies, failed } = view;
+  const { pool, ensure } = useCandidatePool(chain.chain_id, view.version, services);
   const drivers = chainDrivers(chain);
   return <div className="chain" data-chain={chain.chain_id}>
     <p className="chain-headline" data-chain-headline="">{chainHeadline(view)}</p>
@@ -74,10 +124,36 @@ function ChainBody({ view, services }: { view: ChainView; services: ChainService
     {hasCycle(chain) && <CyclePanel services={services} />}
     <ChainCalc view={view} />
     <Panel title="链上公司" className="chain-section" data-chain-section="companies">
-      {companies.length ? <div className="chain-companies" role="table" aria-label="链上公司">
-        {chain.nodes.flatMap(node => companies.filter(company => company.industry_code === node.industry_code).map(company => <CompanyRow key={company.symbol} company={company} node={node.industry_name} />))}
-      </div> : <p className="chain-gap">链上还没有关注公司。</p>}
+      {chain.nodes.map(node => <StageGroup key={node.industry_code} node={node} companies={companies.filter(company => company.industry_code === node.industry_code)}
+        view={view} pool={pool} ensure={ensure} run={run} busy={busy} services={services} />)}
     </Panel>
+  </div>;
+}
+
+/** 一个环节：你关注的公司一家一行（可移出），末尾「同环节还可关注」展开候选，点「关注」即关注并放进这条链。 */
+function StageGroup({ node, companies, view, pool, ensure, run, busy, services }: {
+  node: ChainNode; companies: ChainCompany[]; view: ChainView; pool: { items?: Candidate[]; failed?: boolean }; ensure: (force?: boolean) => void; run: Run; busy: string; services: ChainServices;
+}) {
+  const [open, setOpen] = useState(false);
+  useEffect(() => { if (open) ensure(); }, [open, ensure]);
+  const mine = pool.items?.filter(item => item.industry_code === node.industry_code);
+  const chainId = view.chain.chain_id;
+  return <div className="chain-stage" data-stage={node.industry_code}>
+    <p className="chain-stage-name">{node.industry_name}</p>
+    {companies.length ? <div className="chain-companies" role="table" aria-label={`${node.industry_name}链上公司`}>
+      {companies.map(company => <CompanyRow key={company.symbol} company={company} node={node.industry_name} disabled={Boolean(busy)}
+        onRemove={() => void run(`remove:${company.symbol}`, () => removeFromChain(chainId, view.version, company.symbol, services), "没能移出，请稍后再试。")} />)}
+    </div> : <p className="chain-gap" data-stage-empty="">这个环节还没有你关注的公司。</p>}
+    <details className="chain-candidates" open={open} onToggle={event => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
+      <summary>同环节还可关注</summary>
+      {pool.failed ? <p className="chain-gap" data-gap="candidates">候选暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => ensure(true)}>重试</button></p>
+        : !mine ? <p className="chain-gap" aria-busy="true">正在读取…</p>
+        : !mine.length ? <p className="chain-gap" data-candidates-empty="">这个环节暂时没有可推荐的公司。</p>
+        : <ul className="chain-candidate-list">{mine.map(item => <li key={item.symbol} data-candidate={item.symbol}>
+          <span className="chain-company-name"><Link to={watchPath(item.symbol.split(".")[0]!)}>{item.name}</Link><small>{item.symbol.split(".")[0]}</small></span>
+          <button type="button" className="btn btn-sm" disabled={Boolean(busy)} onClick={() => void run(`add:${item.symbol}`, () => addToChain(chainId, view.version, item.symbol, services), "没能加进这条链，请稍后再试。")}>关注</button>
+        </li>)}</ul>}
+    </details>
   </div>;
 }
 
@@ -141,7 +217,7 @@ function CalcPanel({ view, setup }: { view: ChainView; setup: CalcSetup }) {
   </Panel>;
 }
 
-function CompanyRow({ company, node }: { company: ChainCompany; node: string }) {
+function CompanyRow({ company, node, onRemove, disabled }: { company: ChainCompany; node: string; onRemove: () => void; disabled: boolean }) {
   const code = company.symbol.split(".")[0]!;
   return <div className="chain-company" role="row" data-company={company.symbol} data-status={company.status}>
     <span className="chain-company-name" role="cell"><Link to={watchPath(code)}>{company.name}</Link><small>{node}</small></span>
@@ -149,8 +225,9 @@ function CompanyRow({ company, node }: { company: ChainCompany; node: string }) 
       <span role="cell" className="chain-company-grade"><Tag>{gradeLabel(company.grade)}</Tag></span>
       <span role="cell" className="chain-company-band">{company.tiers && company.tiers.length === 3 && company.price != null
         ? <TierBand tiers={company.tiers} price={company.price} position={company.position} /> : <small className="chain-gap">缺{company.gaps.filter(gap => gap === "三档价" || gap === "现价").join("、") || "三档价"}</small>}</span>
-      <span role="cell" className="chain-company-implied">{company.implied ? <>{company.implied}{company.flip ? <small>，{company.flip}</small> : null}</> : <small className="chain-gap">缺市场在赌的价格</small>}</span>
+      <span role="cell" className="chain-company-implied">{company.implied ? <>{company.implied}{company.flip ? <small>，{company.flip}</small> : null}</> : <small className="chain-gap">缺大致对应的价格</small>}</span>
     </>}
+    <span role="cell" className="chain-company-act"><button type="button" className="btn btn-text btn-sm" disabled={disabled} data-remove="" aria-label={`把${company.name}移出这条链`} onClick={onRemove}>移出</button></span>
   </div>;
 }
 

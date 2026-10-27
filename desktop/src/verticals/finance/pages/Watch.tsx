@@ -9,7 +9,7 @@ import { useConfirm } from "../components/ui/ConfirmDialog";
 import { WorkspaceTabs } from "../components/ui/WorkspaceTabs";
 import { SectionLabel, Sparkline, StatusPill, TableWrap } from "../components/ui/Card";
 import { ObjectCard } from "../components/ui/ObjectCard";
-import { StatusDot, type StatusTone } from "../components/ui/StatusDot";
+import { type StatusTone } from "../components/ui/StatusDot";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
 import { ResultCard } from "../components/ResearchResult";
 import { addCodes, addWatch, loadWatch, removeWatch } from "../lib/watchlist";
@@ -17,8 +17,8 @@ import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/r
 import { aShareQualified, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, wikiPages, type CompanyPageSummary, type WikiItem } from "../lib/research";
 import { marketOfSymbol } from "../lib/marketSymbol";
 import { watchPath } from "../lib/routes";
-import { chainPath, chainStages, chainWatchedCount, loadChainIndex, type Chain } from "../lib/chainPage";
-import { companyPageProgress, companyPageTaskActive, type CompanyPageServices, type CompanyPageState } from "../lib/companyPage";
+import { chainCompanyCount, chainPath, chainStages, loadUserChains, type Chain } from "../lib/chainPage";
+import { companyPageProgress, companyPageStore, companyPageTaskActive, researchCell, type CompanyPageServices, type CompanyPageState } from "../lib/companyPage";
 import { createCompanyPageServices } from "../lib/companyPageServices";
 import { useCloseSeries } from "../lib/closeSeries";
 import { useLiveQuotes, isTradingHours } from "../hooks/useLiveQuotes";
@@ -66,7 +66,7 @@ function WatchMarketPreview({ symbol }: { symbol: string }) {
 type Row = { symbol: string; name: string; quote?: Quote; summary?: CompanyPageSummary; supported: boolean };
 type ItemProps = {
   row: Row; view: "grid" | "list"; state?: CompanyPageState; chartOpen: boolean;
-  onOpen: () => void; onChart: () => void; onRemove: () => void;
+  onOpen: () => void; onChart: () => void; onRemove: () => void; onRerun?: () => void;
 };
 
 /** One status line per row: a dot (list) or nothing (card); normal state shows nothing. */
@@ -77,8 +77,9 @@ function statusOf(state?: CompanyPageState): { tone: StatusTone; label: string }
 }
 const judgmentOf = (state?: CompanyPageState) => clipCompanyOneLiner(state?.research?.thesis);
 
-function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: ItemProps) {
+function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove, onRerun }: ItemProps) {
   const status = statusOf(state);
+  const cell = state ? researchCell(state) : null;
   const judgment = judgmentOf(state);
   const industry = companyIndustryLabel(row.summary);
   const asOf = companyAsOfLabel(row.summary?.as_of);
@@ -100,7 +101,6 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: It
       <td>
         <div className="flex items-center gap-2">
           {row.supported ? <button type="button" className="text-left font-medium hover:underline" onClick={onOpen}>{row.name}</button> : <span className="font-medium">{row.name}</span>}
-          {status && <StatusDot tone={status.tone} label={status.label} />}
         </div>
         <span className="font-mono text-[11px] text-[var(--text-3)]">{row.symbol}</span>
       </td>
@@ -109,20 +109,26 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove }: It
       <td className="col-num text-[var(--text-2)]">{quote?.pe_ttm != null ? financialNumber(quote.pe_ttm) : "—"}</td>
       <td className="text-[var(--text-2)]">{industry || "—"}</td>
       <td className="max-w-[26rem] text-[var(--text-2)]"><span className="line-clamp-1">{judgment || <span className="text-[var(--text-4)]">—</span>}</span></td>
+      <td className="watch-research" data-research-cell={row.symbol}>{row.supported
+        ? cell ? <span className="watch-research-line"><span className={cell.progress ? "is-run" : undefined}>{cell.text}</span>
+          {cell.progress && <i className="watch-research-bar" role="progressbar" aria-label={cell.text} aria-valuemin={0} aria-valuemax={cell.progress.total} aria-valuenow={cell.progress.done}><u style={{ width: `${cell.progress.done / Math.max(1, cell.progress.total) * 100}%` }} /></i>}
+          {cell.rerun && onRerun && <button type="button" className="btn btn-sm" onClick={onRerun}>重新研究</button>}</span> : <span className="text-[var(--text-4)]">—</span>
+        : <span className="text-[var(--text-3)]">暂不支持研究</span>}</td>
       <td className="col-num text-[var(--text-3)]">{asOf || "—"}</td>
       <td className="col-action"><div className="row-actions">
         {aShare && <button type="button" className="btn btn-icon" aria-expanded={chartOpen} aria-label={`${chartOpen ? "收起" : "查看"} ${row.name} K 线`} title="K 线" onClick={onChart}><ChartCandlestick /></button>}
         {menu}
       </div></td>
     </tr>
-    {chartOpen && aShare && <tr className="watch-chart-row"><td colSpan={8}><WatchMarketPreview symbol={aShare} /></td></tr>}
+    {chartOpen && aShare && <tr className="watch-chart-row"><td colSpan={9}><WatchMarketPreview symbol={aShare} /></td></tr>}
   </>;
 }
 
 function SupportedItem(props: Omit<ItemProps, "state"> & { services: CompanyPageServices }) {
   const { services, ...rest } = props;
   const state = useCompanyPageState(services, rest.row.symbol, rest.row.name);
-  return <ItemView {...rest} state={state} />;
+  const store = useMemo(() => companyPageStore(services, rest.row.symbol, rest.row.name), [services, rest.row.symbol, rest.row.name]);
+  return <ItemView {...rest} state={state} onRerun={() => void store.restart()} />;
 }
 const Item = (props: Omit<ItemProps, "state"> & { services: CompanyPageServices }) => props.row.supported ? <SupportedItem {...props} /> : <ItemView {...props} />;
 
@@ -149,6 +155,8 @@ export function Watch() {
   const [revision, setRevision] = useState(0);
   const [pages, setPages] = useState<WikiItem[]>([]);
   const [chains, setChains] = useState<Chain[] | undefined>(undefined);
+  const [chainsFailed, setChainsFailed] = useState(false);
+  const [chainsAttempt, setChainsAttempt] = useState(0);
   const [view, setView] = useState<"grid" | "list">(() => prefGet(VIEW_KEY) === "grid" ? "grid" : "list");
   const [live, setLive] = useState(() => prefGet(LIVE_KEY) === "on");
   const [adding, setAdding] = useState(false);
@@ -168,9 +176,10 @@ export function Watch() {
   }, [revision]);
   useEffect(() => {
     const controller = new AbortController();
-    void loadChainIndex().then(value => { if (!controller.signal.aborted) setChains(value); }).catch(() => { if (!controller.signal.aborted) setChains([]); });
+    setChainsFailed(false);
+    void loadUserChains(undefined, controller.signal).then(value => { if (!controller.signal.aborted) setChains(value); }).catch(() => { if (!controller.signal.aborted) { setChains([]); setChainsFailed(true); } });
     return () => controller.abort();
-  }, []);
+  }, [chainsAttempt]);
   useEffect(() => {
     const top = Number(sessionStorage.getItem(overviewKey) || 0);
     const timer = requestAnimationFrame(() => document.getElementById("workspace-main")?.scrollTo(0, top));
@@ -228,9 +237,10 @@ export function Watch() {
       <PageHeader title="关注" />
       <KindTabs value="chains" onChange={setKind} />
       {chains === undefined ? <p className="text-sm text-[var(--text-3)]">正在读取产业链…</p>
-        : !chains.length ? <p className="text-sm text-[var(--text-2)]">暂时没有产业链。</p>
+        : chainsFailed ? <p role="alert" className="text-sm text-[var(--text-2)]">产业链暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setChainsAttempt(value => value + 1)}>重试</button></p>
+        : !chains.length ? <p className="text-sm text-[var(--text-2)]" data-chains-empty="">还没有产业链。打开一家公司，点「建这条产业链」，或在对话里让助手推荐。</p>
         : <div className="object-grid">{chains.map(chain => {
-          const n = chainWatchedCount(chain, watched);
+          const n = chainCompanyCount(chain);
           return <ObjectCard key={chain.chain_id} icon={GitBranch} tone="chain" name={chain.name}
             text={chainStages(chain)} foot={`链上已关注 ${n} 家`} to={chainPath(chain.chain_id)} openLabel="打开产业链页" />;
         })}</div>}
@@ -267,7 +277,7 @@ export function Watch() {
     </div> : view === "grid"
       ? <div className="object-grid">{visible.map(row => <Item key={row.symbol} row={row} view={view} services={services} chartOpen={false} onOpen={() => open(row)} onChart={() => {}} onRemove={() => void remove(row)} />)}</div>
       : <TableWrap><table className="data-table"><thead><tr>
-          <th>名称</th><th className="col-num">现价</th><th className="col-num">涨跌%</th><th className="col-num">PE(TTM)</th><th>行业</th><th>研究判断</th><th className="col-num">资料截至</th><th className="col-action"><span className="sr-only">操作</span></th>
+          <th>名称</th><th className="col-num">现价</th><th className="col-num">涨跌%</th><th className="col-num">PE(TTM)</th><th>行业</th><th>研究判断</th><th>研究</th><th className="col-num">资料截至</th><th className="col-action"><span className="sr-only">操作</span></th>
         </tr></thead><tbody>{visible.map(row => <Fragment key={row.symbol}><Item row={row} view={view} services={services} chartOpen={chartOpen === row.symbol} onOpen={() => open(row)} onChart={() => setChartOpen(current => current === row.symbol ? null : row.symbol)} onRemove={() => void remove(row)} /></Fragment>)}</tbody></table></TableWrap>}
     {confirmElement}
     <Disclaimer />

@@ -6,6 +6,7 @@
 .company-page-code { margin-top: 2px; font-family: var(--workspace-mono-font); font-size: 11px; color: var(--text-3); }
 .company-page-code[data-chain-entry] { font-family: inherit; font-size: 12px; }
 .company-page-code[data-chain-entry] a { color: var(--text-2); }
+.company-page-code[data-chain-entry] .btn { margin-left: 4px; }
 .company-page-code[data-chain-entry] a:hover { color: hsl(var(--foreground)); text-decoration: underline; }
 .company-page-label { color: var(--text-3); font-size: 12px; }
 .company-page-price { text-align: right; min-width: 130px; }
@@ -152,6 +153,7 @@
 .narrative-track-now > small { font-size: 12px; color: var(--text-3); }
 .narrative-track-more { display: grid; gap: 4px; padding-top: 8px; border-top: 1px solid var(--line-1); font-size: 12px; line-height: 1.7; color: var(--text-2); }
 .company-page-change .tag { flex: none; }
+.company-page-stale { margin-top: 4px; font-size: 12px; color: var(--text-3); display: flex; gap: 8px; align-items: baseline; }
 .company-page-period { margin-top: 6px; font-size: 12px; color: var(--text-3); }
 .company-page-quote-time { display: block; font-size: 11px; color: var(--text-3); font-weight: 400; }
 @media (max-width: 760px) { .narrative-sensitivity-body { grid-template-columns: minmax(0, 1fr); } }
@@ -167,3 +169,12 @@
 .narrative-expect > p { margin: 0; }
 .narrative-expect .narrative-slot { color: hsl(var(--foreground)); }
 .narrative-expect-diff { padding-top: 6px; border-top: 1px solid var(--line-1); color: var(--text-3); }
+
+.company-page-factors { display: flex; flex-direction: column; gap: 12px; }
+.company-page-factor { display: flex; flex-direction: column; gap: 6px; }
+.company-page-factor p { margin: 0; font-size: 14px; }
+.company-page-factor p .company-page-gap { margin-left: 8px; }
+.company-page-factor-actions, .company-page-factor-reason { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.company-page-factor-reason input { height: 28px; padding: 0 10px; border-radius: 8px; border: 1px solid var(--line-2, var(--line-1)); background: transparent; font-size: 13px; min-width: 220px; }
+.company-page-factor-state { color: var(--text-2); font-size: 13px; display: flex; gap: 8px; align-items: baseline; }
+.company-page-origin { margin: 4px 0 0; font-size: 12px; color: var(--text-3); }

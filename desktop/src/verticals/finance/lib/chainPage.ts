@@ -1,10 +1,13 @@
 import { api } from './api';
 import { scenarioTable } from './companyPacket';
+import { loadLivePrice } from './trackingVariables';
 import { gradeLabel, initialSliderValues, parseSensitivity, profitAt, verdictLine, type SensitivityModel } from './companyNarrative';
-import { researchRead } from './research';
+import { aShareQualified, researchRead, ResearchError } from './research';
+import { addWatch, loadWatch } from './watchlist';
+import { addToRoster } from './researchRoster';
 import { shortName } from './trackingVariables';
 
-/** 产业链页的数据：链结构与估值方法读行业公共层接口（契约见「估值模板与行业公共层」T5），公司估值读各家已存研究。 */
+/** 产业链页的数据：用户链（`/wiki/user-chains`，骨架来自行业公共层）、各环节估值方法读公共接口，公司估值读各家已存研究。 */
 export interface ChainNode { industry_code: string; industry_name: string; role?: string; template_id?: string; companies: string[] }
 export interface ChainTransmission { from: string; to: string; driver: string; text: string }
 export interface Chain { chain_id: string; name: string; nodes: ChainNode[]; transmission: ChainTransmission[] }
@@ -17,15 +20,25 @@ export interface ChainCompany {
   /** 研究保存的敏感度模型，试算用；没有就不试算。 */
   model?: SensitivityModel;
 }
-export interface ChainView { chain: Chain; frameworks: Record<string, Framework | null>; companies: ChainCompany[]; failed: { frameworks: boolean } }
+/** version 是改动时要带回去的版本号；hasPrevious = 有上一版可撤回。 */
+export interface ChainView { chain: Chain; frameworks: Record<string, Framework | null>; companies: ChainCompany[]; failed: { frameworks: boolean }; version: number; hasPrevious: boolean }
 
 export interface ChainServices {
   read<T>(route: string, signal?: AbortSignal): Promise<T>;
+  /** 改动类请求（建、改、撤回、删除）；Backend 校验并持久化。 */
+  write<T>(method: 'POST' | 'PATCH' | 'DELETE', route: string, body?: unknown): Promise<T>;
   quote(codes: string): Promise<Record<string, { name?: string; price: number | null }>>;
+  /** 已关注的 6 位代码（本机 Client 数据）。 */
+  watched(): string[];
+  /** 关注并加入研究名单。 */
+  follow(code: string): Promise<void>;
 }
 export const defaultChainServices: ChainServices = {
   read: (route, signal) => researchRead(route, { signal }),
+  write: (method, route, body) => researchRead(route, { method, headers: { 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }),
   quote: codes => api.quote(codes) as Promise<Record<string, { name?: string; price: number | null }>>,
+  watched: loadWatch,
+  follow: async code => { await addWatch(code); await addToRoster(code); },
 };
 
 const ROLE_NAME: Record<string, string> = { upstream: '上游', midstream: '中游', downstream: '下游' };
@@ -88,19 +101,30 @@ async function companyOf(services: ChainServices, symbol: string, industry_code:
   if (price == null) out.gaps.push('现价');
   const model = parseSensitivity(sensitivity);
   if (model) out.model = model;
-  const verdict = verdictLine({ grade, model });
+  // 页首「现在」取变量最新价；读不到退回研究时的默认值（verdictLine 写「研究时」）。
+  const live = model?.implied ? await loadLivePrice(symbol, model.implied.id, services.read, signal) : null;
+  const verdict = verdictLine({ grade, model, live });
   out.implied = verdict.implied;
   out.flip = verdict.flip;
-  if (!verdict.implied) out.gaps.push('市场在赌的价格');
+  if (!verdict.implied) out.gaps.push('大致对应的价格');
   return out;
 }
 
-/** 读一条链：结构、各环节估值方法、链上公司估值。框架或公司单块读不到只缺那一块，链本身读不到才抛错。 */
+/** Backend 的用户链：环节叫 stages，链编号叫 id；页面内部沿用 Chain（nodes、chain_id）。 */
+interface UserChainRaw { id: string; public_chain_id: string; name: string; stages: ChainNode[]; transmission?: ChainTransmission[]; version: number; has_previous?: boolean }
+function fromUser(raw: UserChainRaw | null | undefined): Chain & { version: number; hasPrevious: boolean } {
+  if (!raw || !Array.isArray(raw.stages) || !raw.name || !raw.id) throw new Error('产业链读取失败');
+  return {
+    chain_id: raw.id, name: raw.name, version: Number(raw.version) || 1, hasPrevious: Boolean(raw.has_previous),
+    transmission: Array.isArray(raw.transmission) ? raw.transmission : [],
+    nodes: raw.stages.map(stage => ({ ...stage, companies: Array.isArray(stage.companies) ? stage.companies : [] })),
+  };
+}
+const userChainRoute = (chainId: string) => `/wiki/user-chains/${encodeURIComponent(chainId)}`;
+
+/** 读一条用户链：结构、各环节估值方法、链上公司估值。框架或公司单块读不到只缺那一块，链本身读不到才抛错。 */
 export async function loadChainView(chainId: string, services: ChainServices = defaultChainServices, signal?: AbortSignal): Promise<ChainView> {
-  const chain = await services.read<Chain>(`/wiki/chains/${encodeURIComponent(chainId)}`, signal);
-  if (!chain || !Array.isArray(chain.nodes) || !chain.name) throw new Error('产业链读取失败');
-  chain.transmission = Array.isArray(chain.transmission) ? chain.transmission : [];
-  chain.nodes = chain.nodes.map(node => ({ ...node, companies: Array.isArray(node.companies) ? node.companies : [] }));
+  const { version, hasPrevious, ...chain } = fromUser(await services.read<UserChainRaw>(userChainRoute(chainId), signal));
   const frameworks: Record<string, Framework | null> = {};
   let frameworkFailed = false;
   await Promise.all(chain.nodes.map(async node => {
@@ -114,7 +138,7 @@ export async function loadChainView(chainId: string, services: ChainServices = d
     const quote = quotes[codeOf(symbol)];
     return companyOf(services, symbol, node.industry_code, quote?.name ? shortName(quote.name) : codeOf(symbol), quote?.price ?? null, signal);
   }));
-  return { chain, frameworks, companies, failed: { frameworks: frameworkFailed } };
+  return { chain, frameworks, companies, failed: { frameworks: frameworkFailed }, version, hasPrevious };
 }
 
 /** 页首一句话：从哪个环节到哪个环节、由哪几个价格连起来、链上研究了几家各在什么档位。 */
@@ -127,38 +151,69 @@ export function chainHeadline(view: ChainView): string {
   return `${path}${drivers.length ? `，由${drivers.join('、')}连成一条链` : ''}。链上${companies.length ? ` ${companies.length} 家公司，已研究 ${researched.length} 家${grades.length ? `：${grades.join('，')}` : ''}` : '还没有公司'}。`;
 }
 
-// ---------------------------------------------------------------- 从个股页进入：所属产业链
+// ---------------------------------------------------------------- 用户链：列出、推荐、建、改
 
-export interface ChainRef { chain_id: string; name: string }
-let chainIndex: Promise<Chain[]> | undefined;
-/** 全部链的结构，会话内只读一次；读不到返回空，不影响调用方。 */
-export function loadChainIndex(services: ChainServices = defaultChainServices): Promise<Chain[]> {
-  if (services !== defaultChainServices) return readIndex(services);
-  chainIndex ??= readIndex(services).then(chains => { if (!chains.length) chainIndex = undefined; return chains; });
-  return chainIndex;
-}
-async function readIndex(services: ChainServices): Promise<Chain[]> {
-  try {
-    const list = await services.read<unknown>('/wiki/chains');
-    const rows = (Array.isArray(list) ? list : (list as { items?: unknown; chains?: unknown } | null)?.items ?? (list as { chains?: unknown } | null)?.chains ?? []) as { chain_id?: string }[];
-    const details = await Promise.all(rows.map(row => row.chain_id ? services.read<Chain>(`/wiki/chains/${encodeURIComponent(row.chain_id)}`).catch(() => null) : Promise.resolve(null)));
-    return details.filter((chain): chain is Chain => Boolean(chain && Array.isArray(chain.nodes)));
-  } catch { return []; }
-}
-export const resetChainIndex = () => { chainIndex = undefined; };
-/** 这家公司所在的链（A 股代码，带不带后缀都行）。 */
-export function chainsOf(chains: readonly Chain[], symbol: string): ChainRef[] {
-  const code = codeOf(symbol);
-  return chains.filter(chain => chain.nodes.some(node => node.companies.some(item => codeOf(item) === code))).map(chain => ({ chain_id: chain.chain_id, name: chain.name }));
-}
+/** 一条推荐：公共链编号与名称；built = 已建，userChainId 是用户链编号。 */
+export interface ChainRecommendation { publicChainId: string; name: string; built: boolean; userChainId: string | null }
 export const chainPath = (chainId: string) => `/chains/${encodeURIComponent(chainId)}`;
-/** 关注页产业链卡：环节一句话、链上已关注几家（A 股代码带不带后缀都行）。 */
+/** 关注页产业链卡：环节一句话、链上已关注几家。 */
 export function chainStages(chain: Chain): string {
   return chain.nodes.map(node => node.industry_name).join(' → ');
 }
-export function chainWatchedCount(chain: Chain, watched: readonly string[]): number {
-  const mine = new Set(watched.map(codeOf));
-  return new Set(chain.nodes.flatMap(node => node.companies.map(codeOf)).filter(code => mine.has(code))).size;
+export const chainCompanyCount = (chain: Chain) => chain.nodes.reduce((sum, node) => sum + node.companies.length, 0);
+
+/** Backend 只认带后缀的 A 股代码；港美股与认不出的代码不传。 */
+const qualifiedWatch = (services: ChainServices) => [...new Set(services.watched().flatMap(code => { const full = aShareQualified(code); return full ? [full] : []; }))];
+
+/** 用户的全部链（关注页产业链分段）。列表读不到抛错，单条详情读不到只缺那一条。 */
+export async function loadUserChains(services: ChainServices = defaultChainServices, signal?: AbortSignal): Promise<Chain[]> {
+  const list = await services.read<{ items?: { id?: string }[] }>('/wiki/user-chains', signal);
+  const rows = Array.isArray(list?.items) ? list.items : [];
+  const details = await Promise.all(rows.map(row => row.id ? services.read<UserChainRaw>(userChainRoute(row.id), signal).then(fromUser, () => null) : Promise.resolve(null)));
+  return details.filter((chain): chain is NonNullable<typeof chain> => Boolean(chain));
+}
+/** 这家公司可能所在的公共链，以及你是否已建；读不到返回空，个股页那一段就不出现。 */
+export async function loadRecommendations(symbol: string, services: ChainServices = defaultChainServices, signal?: AbortSignal): Promise<ChainRecommendation[]> {
+  const full = aShareQualified(codeOf(symbol));
+  if (!full) return [];
+  try {
+    const value = await services.read<{ items?: { public_chain_id: string; name: string; built: boolean; user_chain_id: string | null }[] }>(`/wiki/user-chains/recommendations?symbol=${full}`, signal);
+    return (Array.isArray(value?.items) ? value.items : []).map(item => ({ publicChainId: item.public_chain_id, name: item.name, built: Boolean(item.built), userChainId: item.user_chain_id ?? null }));
+  } catch { return []; }
+}
+/** 从公共链建一条用户链，只放已关注的公司；同一条已建则返回已有的。返回用户链编号。 */
+export async function createUserChain(publicChainId: string, services: ChainServices = defaultChainServices, source?: string): Promise<string> {
+  const created = await services.write<{ id: string }>('POST', '/wiki/user-chains', { public_chain_id: publicChainId, watched_symbols: qualifiedWatch(services), ...(source ? { source } : {}) });
+  if (!created?.id) throw new Error('建链没有成功');
+  return created.id;
+}
+
+export interface Candidate { symbol: string; name: string; industry_code: string }
+/** 同环节还可关注的公司（整条链最多 8 家，已关注的不列）。名字读行情简称，读不到用代码。 */
+export async function loadCandidates(chainId: string, services: ChainServices = defaultChainServices, signal?: AbortSignal): Promise<Candidate[]> {
+  const watched = qualifiedWatch(services);
+  const value = await services.read<{ items?: { symbol: string; industry_code: string }[] }>(`${userChainRoute(chainId)}/candidates${watched.length ? `?watched=${watched.join(',')}` : ''}`, signal);
+  const items = Array.isArray(value?.items) ? value.items : [];
+  const quotes = items.length ? await services.quote(items.map(item => codeOf(item.symbol)).join(',')).catch(() => ({} as Record<string, { name?: string }>)) : {};
+  return items.map(item => ({ symbol: item.symbol, industry_code: item.industry_code, name: quotes[codeOf(item.symbol)]?.name ? shortName(quotes[codeOf(item.symbol)]!.name!) : codeOf(item.symbol) }));
+}
+
+/** 版本冲突：别处已改过这条链。 */
+export const isChainConflict = (error: unknown) => error instanceof ResearchError && error.status === 409;
+/** 关注这家公司并放进链里。关注在先，放链失败时公司仍已关注。 */
+export async function addToChain(chainId: string, version: number, symbol: string, services: ChainServices = defaultChainServices): Promise<void> {
+  await services.follow(codeOf(symbol));
+  await services.write('PATCH', userChainRoute(chainId), { expected_version: version, add_companies: [symbol], watched_symbols: qualifiedWatch(services) });
+}
+/** 只移出这条链，不取消关注。 */
+export async function removeFromChain(chainId: string, version: number, symbol: string, services: ChainServices = defaultChainServices): Promise<void> {
+  await services.write('PATCH', userChainRoute(chainId), { expected_version: version, remove_companies: [symbol] });
+}
+export async function revertChain(chainId: string, version: number, services: ChainServices = defaultChainServices): Promise<void> {
+  await services.write('POST', `${userChainRoute(chainId)}/revert`, { expected_version: version });
+}
+export async function deleteChain(chainId: string, version: number, services: ChainServices = defaultChainServices): Promise<void> {
+  await services.write('DELETE', `${userChainRoute(chainId)}?expected_version=${version}`);
 }
 
 // ---------------------------------------------------------------- 试算：共同驱动变一下，链上各家利润怎么动
