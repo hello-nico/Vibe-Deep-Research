@@ -14,6 +14,12 @@ const DOCUMENT = /^\/documents\/[a-f0-9]+(?:\/(?:raw|parsed|revisions|evidence-i
 const PROFILE = /^\/industries\/profiles\/[A-Za-z0-9.]+$/;
 /** T7.3：撤回对话写回的关键变量，恢复个股页研究上一版。写入由 Backend 校验，这里加授权头。 */
 const COMPANY_REVERT = /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/page-research\/revert$/;
+/** 对话里提到的因素改状态。 */
+const DRIVER_CANDIDATE = /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/driver-candidates\/[A-Za-z0-9_-]{1,64}$/;
+const USER_CHAIN = /^\/wiki\/user-chains\/(?:uchain:|uchain%3A)[0-9a-f]{12}$/i;
+/** 跟踪清单：不再盯 / 恢复、改观察信号类型。编号带冒号，浏览器会编码成 %3A。 */
+const TRACKING_ITEM = /^\/tracking\/items\/[A-Za-z0-9._~%-]+(?:\/signals\/[A-Za-z0-9._~%-]+)?$/;
+const USER_CHAIN_ACTION = /^\/wiki\/user-chains\/(?:uchain:|uchain%3A)[0-9a-f]{12}\/(?:revert|candidates)$/i;
 
 export function researchRoute(method, pathname) {
   if (method === 'GET' && [
@@ -21,11 +27,12 @@ export function researchRoute(method, pathname) {
     '/wiki/research-links/proposals', '/wiki/page-drafts/pending', '/wiki/page-drafts', '/wiki/industries/nbs',
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports', '/wiki/pages/diff',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
-    '/tracking/variables',
-    '/market/quotes', '/market/report-calendar', '/feed/announcements', '/feed/news',
-    '/wiki/chains',
+    '/tracking/variables', '/tracking/items', '/tracking/next-reports', '/tracking/catalog',
+    '/market/quotes', '/market/report-calendar', '/feed/announcements', '/feed/news', '/feed/research-events',
+    '/wiki/chains', '/wiki/user-chains', '/wiki/user-chains/recommendations',
   ].includes(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/chains\/[A-Za-z0-9._-]+$/.test(pathname)) return true;
+  if (method === 'GET' && (USER_CHAIN.test(pathname) || USER_CHAIN_ACTION.test(pathname))) return true;
   if (method === 'GET' && /^\/wiki\/industries\/[^/]+\/valuation-framework$/.test(pathname)) return true;
   if (method === 'GET' && (TOPIC_ID.test(pathname) || TOPIC_WALL.test(pathname) || TOPIC_BASIS.test(pathname) || TOPIC_SNAPSHOT.test(pathname) || PROFILE.test(pathname) || BLOCK.test(pathname) || DOCUMENT.test(pathname) || DRAFT_TOKEN.test(pathname) || NBS_INDUSTRY.test(pathname) || WIKI_SLUG.test(pathname))) return true;
   if (method === 'POST' && /^\/documents\/[a-f0-9]{32}\/(?:reparse|hide-from-library)$/.test(pathname)) return true;
@@ -43,10 +50,16 @@ export function researchRoute(method, pathname) {
     '/wiki/research-candidates', '/notes',
     '/research-results/market/preview',
     '/wiki/objects/status', // read-only batch status (T4-a); POST only for the slug list body
+    '/wiki/user-chains', '/tracking/items',
   ].includes(pathname)) return true;
+  if (method === 'POST' && USER_CHAIN_ACTION.test(pathname)) return true;
+  if ((method === 'PATCH' || method === 'DELETE') && USER_CHAIN.test(pathname)) return true;
+  if (method === 'PATCH' && TRACKING_ITEM.test(pathname)) return true;
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
-  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet|quarter-reconciliation)$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet|quarter-reconciliation|driver-candidates)$/.test(pathname)) return true;
+  // 对话里提到的因素：只能改状态（纳入 / 排除 / 观察）；新建候选只有模型带令牌能做。
+  if (method === 'PATCH' && DRIVER_CANDIDATE.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/coverage\/ensure$/.test(pathname)) return true;
   if (method === 'POST' && COMPANY_REVERT.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/research-candidates\/[^/]+\/(dispose|adopt)$/.test(pathname)) return true;

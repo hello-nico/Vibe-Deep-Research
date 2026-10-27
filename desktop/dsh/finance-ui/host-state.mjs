@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { backendHeaders, readCompatibility, resolveBackend, TOKEN_REJECTED, maskSecrets } from './backend-connection.mjs';
 import { REPORT_CHILD_PERSONA, RESEARCH_CHILD_PERSONA } from './child-personas.mjs';
+import { attachReportArrival, REPORT_ARRIVAL_PROMPT } from './report-arrival.mjs';
+import { resolveResearchTitle, researchTitleOf } from './research-title.mjs';
 
 const taskCreation = new AsyncLocalStorage();
 
@@ -33,7 +35,25 @@ const ASSISTANT_MODE = /^(ask|agent)$/;
 const assistantPageContexts = new Map();
 const pageContextTools = new Map();
 
+// deep_research 页面会话的快照由 Stock 每轮隐藏注入，不再给模型 read_page_context 工具。
+const deepResearchBound = sessionId => loadAssistantSessions().sessions[sessionId]?.plugin === 'deep_research';
+
+// Stock 研究插件加载时把暂存函数挂在进程全局（同一个 Symbol 键），两插件不互相按路径加载模块。
+const STOCK_PAGE_CONTEXT_STAGE = Symbol.for('stock-research.page-context.stage');
+let stockStage = null;
+export function setStockPageContextStage(stage) { stockStage = typeof stage === 'function' ? stage : null; }
+function currentStockStage() {
+  if (stockStage) return stockStage;
+  const shared = globalThis[STOCK_PAGE_CONTEXT_STAGE];
+  return typeof shared === 'function' ? shared : null;
+}
+
 export function ensureAssistantPageContextTool(ctx, sessionId) {
+  if (deepResearchBound(sessionId)) {
+    pageContextTools.get(sessionId)?.dispose();
+    pageContextTools.delete(sessionId);
+    return Boolean(liveAgent(ctx, sessionId));
+  }
   const agent = liveAgent(ctx, sessionId);
   if (!agent?.ctx?.tools?.register) return false;
   if (pageContextTools.get(sessionId)?.agent !== agent) {
@@ -65,7 +85,13 @@ export function stageAssistantPageContext(ctx, input) {
     throw Object.assign(new Error('问助手工具暂不可用'), { status: 503 });
   const turn = nextAssistantTurn(session);
   const turns = assistantPageContexts.get(sessionId) || new Map();
-  turns.set(turn, Object.freeze({ status: 'ready', page_name: pageName.trim(), fetched_at: new Date().toISOString(), content }));
+  const snapshot = Object.freeze({ status: 'ready', page_name: pageName.trim(), fetched_at: new Date().toISOString(), content });
+  if (deepResearchBound(sessionId)) {
+    const stage = currentStockStage();
+    if (!stage) throw Object.assign(new Error('页面上下文通道暂不可用'), { status: 503 });
+    if (!stage(sessionId, turn, snapshot)) throw Object.assign(new Error('页面上下文无效'), { status: 422 });
+  }
+  turns.set(turn, snapshot);
   while (turns.size > 8) turns.delete(turns.keys().next().value);
   assistantPageContexts.set(sessionId, turns);
   return { turn };
@@ -480,7 +506,7 @@ function writeAssistantStore(store) {
   });
 }
 
-const ASSISTANT_PLUGIN = /^(company_wiki|industry_wiki|market|intel|industry_profile)$/;
+const ASSISTANT_PLUGIN = /^(deep_research|company_wiki|industry_wiki|market|intel|industry_profile)$/;
 const ASSISTANT_TARGET = /^(companies|industries)\/(?=.{1,180}$)[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
 const PROFILE_TARGET = /^profile:sw2:[0-9A-Z.]+$/;
 
@@ -710,6 +736,9 @@ export function composeResearchTask(task) {
     sessions: Array.isArray(task.sessions) ? task.sessions : [],
     host_boot_id: task.host_boot_id,
     trigger_note: task.trigger_note ?? null,
+    trigger: task.trigger ?? null,
+    trigger_period: task.trigger_period ?? null,
+    report_period: task.report_period ?? null,
     reason: task.reason ?? null,
     created_at: task.created_at,
     updated_at: task.updated_at,
@@ -767,7 +796,7 @@ function modelSelection(ctx) {
   return null;
 }
 
-function createResearchTask({ slug, symbol, title, prompt, model_selection }) {
+function createResearchTask({ slug, symbol, title, prompt, model_selection, trigger = null, trigger_period = null, report_period = null }) {
   const now = new Date().toISOString();
   const task = {
     task_id: `task:${randomBytes(8).toString('hex')}`,
@@ -780,6 +809,9 @@ function createResearchTask({ slug, symbol, title, prompt, model_selection }) {
     sessions: [],
     host_boot_id: bootId,
     trigger_note: null,
+    trigger,
+    trigger_period,
+    report_period: report_period || trigger_period || null,
     reason: null,
     prompt,
     model_selection,
@@ -938,7 +970,110 @@ export function researchBootPromise() {
   return researchBootScan;
 }
 
-export async function startResearchRun(ctx, { slug, symbol, prompt, title }) {
+function aShareCode(symbol) {
+  return /^(\d{6})/.exec(String(symbol || ''))?.[1] || '';
+}
+
+function slugOfSymbol(symbol) {
+  const match = /^(\d{6})\.(SH|SZ|BJ)$/i.exec(symbol || '');
+  return match ? `companies/${match[1]}-${match[2].toLowerCase()}` : '';
+}
+
+function marketSymbol(code) {
+  if (/^\d{6}\.(SH|SZ|BJ)$/i.test(code || '')) return String(code).toUpperCase();
+  if (!/^\d{6}$/.test(code || '')) return '';
+  const suffix = /^(?:92|4|8)/.test(code) ? 'BJ' : /^[69]/.test(code) ? 'SH' : 'SZ';
+  return `${code}.${suffix}`;
+}
+
+async function companyNameFromQuotes(symbol) {
+  const connection = resolveBackend();
+  const response = await fetch(`${connection.url}/market/quotes?symbols=${encodeURIComponent(symbol)}`, {
+    headers: backendHeaders(connection, { Accept: 'application/json' }),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) return '';
+  const body = await response.json().catch(() => null);
+  const row = (body?.quotes || []).find(item => item?.symbol === symbol);
+  return typeof row?.name === 'string' ? row.name : '';
+}
+
+async function researchedAtFromWiki(symbol) {
+  const connection = resolveBackend();
+  const response = await fetch(`${connection.url}/wiki/companies/${encodeURIComponent(symbol)}/page-research`, {
+    headers: backendHeaders(connection, { Accept: 'application/json' }),
+  });
+  if (!response.ok) return null;
+  const body = await response.json().catch(() => null);
+  const at = body?.research?.researchedAt || body?.researchedAt;
+  return typeof at === 'string' && at ? at : null;
+}
+
+async function followedCodes() {
+  const dataRoot = (process.env.VRA_FINANCE_DATA_ROOT || process.env.VRA_DATA_ROOT || '').trim();
+  if (!dataRoot) return [];
+  try {
+    const { listWatch, listResearchRoster } = await import('../../../orchestrator/src/client_store.ts');
+    const data = { dataRoot };
+    return [...new Set([...listWatch(data).symbols, ...listResearchRoster(data).symbols])];
+  } catch {
+    return [];
+  }
+}
+
+async function listArrivalCompanies() {
+  const followed = new Set((await followedCodes()).map(code => aShareCode(code)).filter(Boolean));
+  if (!followed.size) return [];
+  const byCode = new Map();
+  for (const task of listResearchTaskFiles()) {
+    if (task.status !== 'completed') continue;
+    const code = aShareCode(task.symbol);
+    const prev = byCode.get(code);
+    if (!code || (prev && String(task.updated_at) <= String(prev.updated_at))) continue;
+    byCode.set(code, {
+      symbol: task.symbol,
+      slug: task.slug || slugOfSymbol(task.symbol),
+      title: task.title,
+      report_period: task.report_period || task.trigger_period || null,
+      researched_at: task.finished_at || task.updated_at,
+    });
+  }
+  const companies = [];
+  for (const code of followed) {
+    const existing = byCode.get(code);
+    if (existing) { companies.push(existing); continue; }
+    const symbol = marketSymbol(code);
+    if (!symbol) continue;
+    let researchedAt = null;
+    try { researchedAt = await researchedAtFromWiki(symbol); }
+    catch { researchedAt = null; }
+    if (!researchedAt) continue;
+    companies.push({
+      symbol, slug: slugOfSymbol(symbol), title: researchTitleOf('', symbol),
+      report_period: null, researched_at: researchedAt,
+    });
+  }
+  return companies;
+}
+
+async function fetchReportCalendars(symbols) {
+  if (!symbols.length) return new Map();
+  const connection = resolveBackend();
+  const query = symbols.map(encodeURIComponent).join(',');
+  const response = await fetch(`${connection.url}/market/report-calendar?symbols=${query}`, {
+    headers: backendHeaders(connection, { Accept: 'application/json' }),
+  });
+  const body = await response.json().catch(() => null);
+  const items = Array.isArray(body?.items) ? body.items : [];
+  const calendars = new Map();
+  for (const item of items) {
+    if (!item?.symbol) continue;
+    calendars.set(item.symbol, { reports: Array.isArray(item.reports) ? item.reports : [] });
+  }
+  return calendars;
+}
+
+export async function startResearchRun(ctx, { slug, symbol, prompt, title, trigger, trigger_period, report_period }) {
   const compatible = await readCompatibility();
   if (compatible.result === 'server_outdated' || compatible.result === 'client_outdated') {
     throw Object.assign(new Error(compatible.text), { status: 426 });
@@ -948,13 +1083,15 @@ export async function startResearchRun(ctx, { slug, symbol, prompt, title }) {
   const message = typeof prompt === 'string' ? prompt.trim() : '';
   if (!message) throw Object.assign(new Error('invalid prompt'), { status: 422 });
   const { signal } = lifetimeFor(ctx);
-  const start = () => startResearchRunLocked(ctx, { slug, symbol, prompt: message, title }, signal);
+  const start = () => startResearchRunLocked(ctx, {
+    slug, symbol, prompt: message, title, trigger, trigger_period, report_period,
+  }, signal);
   const run = spawnChain.then(start, start);
   spawnChain = run.then(() => undefined, () => undefined);
   return run;
 }
 
-async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, signal) {
+async function startResearchRunLocked(ctx, { slug, symbol, prompt, title, trigger, trigger_period, report_period }, signal) {
   assertActive(signal);
   const store = loadReportTasks();
   const reportBusy = Object.entries(store.sessions).some(([id, bind]) => (bind?.kind || 'report') === 'report' && bind.slug === slug
@@ -974,8 +1111,10 @@ async function startResearchRunLocked(ctx, { slug, symbol, prompt, title }, sign
     throw Object.assign(new Error('另一任务正在启动'), { status: 409 });
   const model_selection = { provider: selection.provider, model: selection.model,
     ...(selection.reasoningEffort ? { reasoningEffort: selection.reasoningEffort } : {}) };
-  const researchTitle = title || `公司研究 · ${symbol}`;
-  const task = createResearchTask({ slug, symbol, title: researchTitle, prompt, model_selection });
+  const researchTitle = await resolveResearchTitle(title, symbol, companyNameFromQuotes);
+  const task = createResearchTask({
+    slug, symbol, title: researchTitle, prompt, model_selection, trigger, trigger_period, report_period,
+  });
   try {
     const run = await spawnResearchSession(ctx, task, prompt, signal);
     return { session_id: run.childId, status: 'started', host_session_id: hostId };
@@ -1036,7 +1175,29 @@ export function installHostState(ctx, track = disposer => disposer) {
     signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
   });
   // Resumes go through the same spawn queue, so a start the user makes meanwhile is not held up by the wait.
-  researchBootScan = settle.then(recover, recover);
+  const diagnose = payload => {
+    if (payload?.step === 'error') console.error(`report-arrival: ${payload.message || '检查失败'}`);
+    else if (payload?.step === 'dry_run') console.error(`report-arrival dry-run: ${payload.symbol} ${payload.trigger_period || ''}`);
+  };
+  const arrival = () => signal.aborted ? undefined : attachReportArrival(ctx, track, {
+    lifetime: lifetimeFor(ctx),
+    diagnose,
+    listCompanies: listArrivalCompanies,
+    fetchCalendars: fetchReportCalendars,
+    listTasks: listResearchTaskFiles,
+    startRun: job => {
+      if (process.env.VIBE_REPORT_ARRIVAL_DRY_RUN === '1') {
+        diagnose({ step: 'dry_run', symbol: job.symbol, trigger_period: job.trigger_period });
+        return Promise.resolve({ dry: true, symbol: job.symbol });
+      }
+      return startResearchRun(ctx, {
+        slug: job.slug, symbol: job.symbol, prompt: job.prompt || REPORT_ARRIVAL_PROMPT,
+        title: job.title, trigger: job.trigger, trigger_period: job.trigger_period,
+        report_period: job.trigger_period,
+      });
+    },
+  });
+  researchBootScan = settle.then(recover, recover).then(arrival, arrival);
   return [
     track(() => {
       for (const { dispose } of pageContextTools.values()) dispose();
