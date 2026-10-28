@@ -9,9 +9,9 @@ from collections import Counter
 from datetime import datetime
 
 from lib import (
-    EVAL_DIR, LOCAL, PERIOD, SHANGHAI, StopPolling, append_jsonl, fetch_cninfo_q3,
+    EVAL_DIR, LOCAL, PERIOD, SHANGHAI, SourceLimited, append_jsonl, fetch_cninfo_q3,
     fetch_em_zyzb, fetch_sina_period, load_json, load_or_build_sample, now,
-    now_iso, save_json,
+    now_iso, save_json, source_cooldown,
 )
 
 STATE_PATH = LOCAL / "state.json"
@@ -34,11 +34,33 @@ def mark(state: dict, symbol: str, key: str, present: bool, round_iso: str) -> s
     return slot.get(key)
 
 
-def probe_one(row: dict) -> dict:
+CNINFO_GAP = {"ok": False, "posted": False, "earliest": None, "title": None, "error": "source_limited", "n": 0}
+SINA_GAP = {"ok": False, "has_period": False, "publish_date": None, "error": "source_limited", "periods": []}
+EM_GAP = {"ok": False, "has_period": False, "notice_date": None, "error": "source_limited", "dates": []}
+def _gap(source: str) -> dict:
+    if source == "cninfo":
+        return dict(CNINFO_GAP)
+    if source == "sina_api":
+        return dict(SINA_GAP)
+    return dict(EM_GAP)
+
+
+def _call_source(name: str, fetch, skip: set[str], symbol: str):
+    if name in skip:
+        return _gap(name)
+    try:
+        return fetch(symbol)
+    except SourceLimited as exc:
+        skip.add(exc.source)
+        print(f"SOURCE_GAP {exc.source} skip rest of round: {exc.reason}")
+        return _gap(exc.source)
+
+
+def probe_one(row: dict, skip: set[str]) -> dict:
     symbol = row["symbol"]
-    cninfo = fetch_cninfo_q3(symbol)
-    sina = fetch_sina_period(symbol)
-    eastmoney = fetch_em_zyzb(symbol)
+    cninfo = _call_source("cninfo", fetch_cninfo_q3, skip, symbol)
+    sina = _call_source("sina_api", fetch_sina_period, skip, symbol)
+    eastmoney = _call_source("eastmoney_api", fetch_em_zyzb, skip, symbol)
     return {
         "symbol": symbol,
         "name": row.get("name"),
@@ -75,11 +97,10 @@ def run_round(sample: dict, state: dict) -> dict:
     started = now()
     items = []
     errors = []
+    skip: set[str] = set()
     for row in sample["items"]:
         try:
-            item = probe_one(row)
-        except StopPolling:
-            raise
+            item = probe_one(row, skip)
         except Exception as exc:
             item = {
                 "symbol": row["symbol"], "name": row.get("name"), "board": row.get("board"),
@@ -108,6 +129,7 @@ def run_round(sample: dict, state: dict) -> dict:
         "n_sina": sum(1 for item in items if item.get("sina", {}).get("has_period")),
         "n_eastmoney": sum(1 for item in items if item.get("eastmoney", {}).get("has_period")),
         "n_errors": len(errors),
+        "skipped_sources": sorted(skip),
         "boards": dict(Counter(item.get("board") or "?" for item in items)),
         "errors": errors,
         "items": items,
@@ -150,22 +172,25 @@ def main() -> int:
     while True:
         try:
             summary = run_round(sample, state)
-        except StopPolling as exc:
-            save_json(LOCAL / "stopped.json", {"at": now_iso(), "reason": str(exc)})
-            print(f"STOP {exc}")
-            return 2
         except Exception as exc:
             save_json(LOCAL / "round_error.json", {"at": now_iso(), "error": type(exc).__name__, "trace": traceback.format_exc()})
             print(f"ROUND_ERROR {type(exc).__name__}: {exc}")
             return 1
+        skipped = summary.get("skipped_sources") or []
         print(
             f"round={summary['round']} elapsed_s={summary['elapsed_s']} "
             f"cninfo={summary['n_cninfo_posted']}/{summary['n']} "
-            f"sina={summary['n_sina']} eastmoney={summary['n_eastmoney']} errors={summary['n_errors']}"
+            f"sina={summary['n_sina']} eastmoney={summary['n_eastmoney']} "
+            f"errors={summary['n_errors']} skipped={skipped or '-'}"
         )
+        if skipped:
+            save_json(LOCAL / "source_gap.json", {"at": now_iso(), "round": summary["round"], "sources": skipped})
         if args.once or now() >= until:
             return 0
-        sleep_for = max(5, args.interval - summary["elapsed_s"])
+        cooldown = max((source_cooldown(name) for name in skipped), default=0)
+        sleep_for = max(5, args.interval - summary["elapsed_s"], cooldown)
+        if skipped:
+            print(f"wait {sleep_for:.0f}s for {skipped} cooldown then next round")
         time.sleep(sleep_for)
         if now() >= until:
             return 0

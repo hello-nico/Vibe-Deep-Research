@@ -26,7 +26,8 @@
 
 - 问助手与深度对话独立：深度对话没有模式，不承担问助手角色。
 - 角色由 Stock `consumers.mjs` 登记表定义，每个角色字面列出自己的工具与提示词，**禁止 spread 其他角色的工具数组**；收到未定义的模式直接报错，不回退。
-- 五个助手角色：market、intel、industry_profile、company_wiki、industry_wiki；通用研究纪律不用于页面助手，深度对话/我的研究及其他专用研究任务按下文实际装配区分。
+- 页面助手仅保留 intel（资料/资讯阅读）；通用研究纪律不用于 intel。四个旧页面角色的提示词、工具表、恢复与分派已删除；历史会话数据不迁移、不删除，继续旧会话时显示“这段对话所在的页面已下线，不能继续”，不映射或回退到主对话。
+- deep_research 不再有 stage_extraction、topic_list、topic_get；my_research 独立列出工具表，保留上述能力，后台抽取机制未退役。company_research 增加只读画像工具；按行业代码或公司代码读当前画像，按 profile_ref 保持哈希核验。所有新模型可见措辞仍须 Claude 定稿。
 - **个股页与动态「讨论」（2026-10-26）**：不再用 company_wiki，与主对话是同一个助手（`deep_research`，同一套提示词与写回能力）。个股页会话在 `assistant-sessions.json` 记 `plugin: deep_research` 与 `target: companies/*`，Stock 据此绑定当前公司；动态「讨论」不绑公司。页面快照不再由模型调用 `read_page_context` 读取：宿主每轮把暂存的快照交给 Stock `dsh/dist/page-context.mjs` 的 `stagePageContext`（按文件路径取同一模块实例；取不到时暂存失败并提示，不静默丢快照），Stock 在该轮开始时作为隐藏上下文注入，快照不进用户消息。没有 ask / agent 切换，也没有「模式」行；旧 company_wiki 会话不迁移，打开个股页新开会话。其余页面仍按下列角色与 `read_page_context`。
 - 未定义助手角色的页面不显示问助手入口（我的资料、资料阅读、首页等）。
 - 列表页绑定 Wiki 角色但目标为空时，拒绝全部维护写工具。

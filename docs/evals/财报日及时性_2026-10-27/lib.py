@@ -38,7 +38,16 @@ UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/
 
 
 class StopPolling(RuntimeError):
-    """Public API frequency limit or hard failure; caller must stop."""
+    """Deprecated: whole-process stop. Prefer SourceLimited."""
+
+
+class SourceLimited(RuntimeError):
+    """One public source hit rate-limit or breaker; skip it this round, keep polling."""
+
+    def __init__(self, source: str, reason: str = ""):
+        self.source = source
+        self.reason = reason or "limited"
+        super().__init__(f"{source} 频率限制或熔断: {reason}")
 
 
 def now() -> datetime:
@@ -88,17 +97,29 @@ def limiter(source: str):
     return get_limiter(source)
 
 
+def _is_limited(exc: BaseException) -> bool:
+    text = str(exc)
+    name = type(exc).__name__
+    return "403" in text or "Breaker" in name or "breaker" in text.lower()
+
+
 def request(source: str, method: str, url: str, **kwargs):
     try:
         response = limiter(source).request(method, url, **kwargs)
     except Exception as exc:
-        text = str(exc)
-        if "403" in text or "Breaker" in type(exc).__name__ or "breaker" in text.lower():
-            raise StopPolling(f"{source} 频率限制或熔断: {type(exc).__name__}") from exc
+        if _is_limited(exc):
+            raise SourceLimited(source, type(exc).__name__) from exc
         raise
     if response.status_code == 403:
-        raise StopPolling(f"{source} HTTP 403")
+        raise SourceLimited(source, "HTTP 403")
     return response
+
+
+def source_cooldown(source: str) -> float:
+    try:
+        return float(limiter(source).config.breaker_cooldown)
+    except Exception:
+        return 1800.0
 
 
 def to_symbol(code: str) -> str | None:
@@ -320,10 +341,11 @@ def fetch_cninfo_q3(symbol: str) -> dict:
     from app.models.document import DocumentType
     try:
         docs = cninfo_provider().list_documents(symbol, DocumentType.quarterly_report, period=PERIOD, limit=10)
+    except SourceLimited:
+        raise
     except Exception as exc:
-        text = str(exc)
-        if "403" in text:
-            raise StopPolling("cninfo HTTP 403") from exc
+        if _is_limited(exc):
+            raise SourceLimited("cninfo", type(exc).__name__) from exc
         return {"ok": False, "posted": False, "error": type(exc).__name__, "n": 0}
     posted = []
     for doc in docs:
@@ -370,7 +392,7 @@ def _sina_reports(symbol: str, source: str) -> dict:
 def fetch_sina_period(symbol: str) -> dict:
     try:
         reports = _sina_reports(symbol, "lrb")
-    except StopPolling:
+    except SourceLimited:
         raise
     except Exception as exc:
         return {"ok": False, "has_period": False, "error": type(exc).__name__, "periods": []}
@@ -401,7 +423,7 @@ def fetch_sina_period(symbol: str) -> dict:
 def fetch_sina_cash(symbol: str) -> dict:
     try:
         reports = _sina_reports(symbol, "llb")
-    except StopPolling:
+    except SourceLimited:
         raise
     except Exception as exc:
         return {"ok": False, "has_period": False, "error": type(exc).__name__, "fields": {}}
@@ -425,7 +447,7 @@ def fetch_em_zyzb(symbol: str) -> dict:
         )
         response.raise_for_status()
         rows = response.json().get("data") or []
-    except StopPolling:
+    except SourceLimited:
         raise
     except Exception as exc:
         return {"ok": False, "has_period": False, "error": type(exc).__name__, "dates": []}
