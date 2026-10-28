@@ -39,3 +39,19 @@ test('Wiki 加载卡片按行业和公司对象给出研究块名', async () => 
     assert.doesNotMatch(chip, /animate-spin|progressbar/);
   } finally { await server.close(); }
 });
+
+test('共用加载占位：卡片 + 可选标题 + 两条灰条；bare 不带卡片；页面不再有私有骨架类', async () => {
+  const server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom' });
+  try {
+    const { LoadingCard } = await server.ssrLoadModule('/src/verticals/finance/components/ui/LoadingCard.tsx');
+    const card = renderToStaticMarkup(createElement(LoadingCard, { title: '价格' }));
+    assert.match(card, /class="card loading-card"/);
+    assert.match(card, /aria-label="加载中"/);
+    assert.match(card, /价格/);
+    assert.equal((card.match(/class="skeleton"/g) ?? []).length, 2);
+    assert.doesNotMatch(renderToStaticMarkup(createElement(LoadingCard, { bare: true })), /class="card/);
+  } finally { await server.close(); }
+  const { readdirSync, readFileSync } = await import('node:fs');
+  const dir = fileURLToPath(new URL('../src/verticals/finance/pages/', import.meta.url));
+  for (const file of readdirSync(dir)) assert.doesNotMatch(readFileSync(dir + file, 'utf8'), /(?:tracking|chain|variable-desk|company-page)-skeleton/, `${file} 不应有私有骨架类`);
+});

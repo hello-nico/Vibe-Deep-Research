@@ -54,7 +54,7 @@ const TOOL_LABELS: Record<string, string> = {
   ensure_company_data: '收集资料',
   read_company_data_packet: '读取公司数据',
   save_company_page_research: '保存研究',
-  update_company_drivers: '算价格对利润的影响',
+  update_company_drivers: '算价格影响',
   suggest_next: '给出后续问题',
   topic_report_snapshot: '读取议题报告',
   topic_report_wall: '整理议题报告',

@@ -6,7 +6,7 @@ import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
 import { conflictValues, fieldIdLabel, otherPeriodText, pagePeriodText, sectionMeta, findField, forecastNote, formulaText, gapText, multipleText, scenarioPriceText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
 import { loadLivePrice } from '../lib/trackingVariables';
-import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, conversationOrigin, epsAt, initialSliderValues, keyIdsOf, newMaterialText, nextReport, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type LivePrice, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, conversationOrigin, epsAt, initialSliderValues, keyIdsOf, newMaterialText, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type LivePrice, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, ExpectationRows, FlowBar, GradePills, QuarterBars, SensitivityPanel, ValuationBand, WatchCards, type BandTier, type DriverNote } from '../components/CompanyNarrative';
 import { CompanyOpinion } from '../components/CompanyOpinion';
 import { ConversationFactors } from '../components/ConversationFactors';
@@ -19,14 +19,15 @@ import { currencyLabel } from '../lib/marketSymbol';
 import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
 import type { SnapshotSection } from '../assistant/snapshot';
 import { Metric, MetricTag, Panel, Tag } from '../components/ui/Card';
+import { LoadingCard } from '../components/ui/LoadingCard';
 import './company-page.css';
 
 export const CompanyPageServicesContext = createContext<CompanyPageServices | null>(null);
-export function useCompanyPageState(services: CompanyPageServices, symbol: string, name: string, opened = false) {
+export function useCompanyPageState(services: CompanyPageServices, symbol: string, name: string) {
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const state = useSyncExternalStore(store.subscribe, store.getSnapshot, store.getSnapshot);
   useEffect(() => { store.rename(name); }, [store, name]);
-  useEffect(() => { void store.refresh(opened); }, [store, opened]);
+  useEffect(() => { void store.refresh(); }, [store]);
   return state;
 }
 export function CompanyPageProgress({ state, location, onOpen }: { state: CompanyPageState; location: 'roster' | 'toolbar'; onOpen: (sessionId: string) => void }) {
@@ -41,7 +42,7 @@ export function CompanyPageProgress({ state, location, onOpen }: { state: Compan
   </div>;
 }
 function DataLoading({ label }: { label: string }) {
-  return <div className="company-page-skeleton" role="status" aria-label={`正在读取${label}`}><span /><span /></div>;
+  return <LoadingCard bare label={`正在读取${label}`} />;
 }
 function Detail({ children, label = '查看数据' }: { children: ReactNode; label?: string }) {
   return <details className="company-page-detail"><summary>{label}</summary><div>{children}</div></details>;
@@ -73,7 +74,7 @@ function KeyNumbers({ packet, ids, peers = false }: { packet?: DataPacket; ids: 
     // 估值一节的市盈率是近四季实际利润口径；与利润试算处「按估算利润的市盈率」不同，悬停里说明。
     const recent = peers && id === 'pe';
     return <Metric key={id} label={recent ? '市盈率（近四季）' : fieldIdLabel(field.field_id ?? id)} value={showField(field)}
-      title={[periodLabel(field.period), field.scope, recent ? '按近四季实际净利润算；利润试算处的市盈率按估算利润算，两者不同' : ''].filter(Boolean).join(' · ')}
+      title={[periodLabel(field.period), field.scope, recent ? '按近四季实际净利润' : ''].filter(Boolean).join(' · ')}
       tags={<>{otherPeriodText(packet, field) && <MetricTag>{otherPeriodText(packet, field)}</MetricTag>}{median != null && <MetricTag>同业中位 {plainNumber(median, id === 'pe' ? 1 : 2)}</MetricTag>}</>} />;
   })}</div>;
 }
@@ -179,17 +180,17 @@ function ChainRecommendations({ symbol, services }: { symbol: string; services: 
     if (busy) return;
     setBusy(item.publicChainId); setError('');
     try { navigate(chainPath(await createUserChain(item.publicChainId, services))); }
-    catch { setError('这条产业链没建成，请稍后再试。'); }
+    catch { setError('没成功'); }
     finally { setBusy(''); }
   };
   return <p className="company-page-code" data-chain-entry="">推荐所在链：{items.map((item, index) => <span key={item.publicChainId}>{index ? '、' : ''}
     {item.built && item.userChainId ? <Link to={chainPath(item.userChainId)}>{item.name}</Link>
-      : <>{item.name}<button type="button" className="btn btn-text btn-sm" disabled={Boolean(busy)} onClick={() => void build(item)}>{busy === item.publicChainId ? '正在建…' : '建这条产业链'}</button></>}</span>)}
+      : <>{item.name}<button type="button" className="btn btn-text btn-sm" disabled={Boolean(busy)} onClick={() => void build(item)}>{busy === item.publicChainId ? '新建中' : '建产业链'}</button></>}</span>)}
     {error && <span role="alert" data-chain-error=""> {error}</span>}</p>;
 }
 
 export function CompanyPage({ symbol, name, services, onSnapshot, chainServices = defaultChainServices }: { symbol: string; name: string; services: CompanyPageServices; onSnapshot?: (sections: SnapshotSection[]) => void; chainServices?: ChainServices }) {
-  const research = useCompanyPageState(services, symbol, name, true);
+  const research = useCompanyPageState(services, symbol, name);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
   const [scenarios, setScenarios] = useState<ScenarioTableData | null>(null);
@@ -310,7 +311,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       falsifiers: matching.map(item => [fill(item.text), thresholdText(item.threshold), item.window].filter(Boolean).join(' · ')),
     };
   });
-  const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">数据暂时取不到</p> : null;
+  const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">读取失败</p> : null;
   const block = (id: 'business' | 'cash' | 'valuation') => saved?.sections?.[id];
   // 小节标题：「影响因素」一节用前两个因素名，其余是固定问句。
   const titles = { ...QUESTIONS, variables: variablesQuestion(model?.variables.map(item => item.name)) };
@@ -366,7 +367,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     name, symbol, typeName: saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : undefined,
     quote: quote ? { price: quote.price, currencyLabel: currencyLabel(quote.currency), change_pct: quote.change_pct, fetched_at: quote.fetched_at } : null,
     quoteLoading: data.quote.loading,
-    thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, changeText: change?.text,
+    thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, changeText: change?.text, report_period: saved?.report_period,
     packet, packetLoading: data.packet.loading, packetError: Boolean(data.packet.error), calcs,
     show: showSection, titles,
     answers: { business: block('business')?.summary, variables: variableAnswer, cash: block('cash')?.summary, valuation: valuation?.summary, tracking: saved?.sections?.tracking?.summary },
@@ -382,7 +383,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     <section className="card company-page-hero">
       <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p>
         <ChainRecommendations symbol={symbol} services={chainServices} /></div>
-        <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">行情暂不可用</p>}</div>
+        <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">无行情</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
         {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} livePrice={price} />}
@@ -394,15 +395,18 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
         {!gapOnly && change && <p className="company-page-change" data-change-line="">
           <span data-change-hint={change.conversation ? '' : undefined} title={[conversationHint(change.conversation), change.detail].filter(Boolean).join('\n') || undefined}>{change.text}</span>
           {change.conversation?.sessionId && openSession && <button type="button" className="company-page-link" data-open-conversation="" onClick={() => openSession(change.conversation!.sessionId!)}>打开对话</button>}
-          {change.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '正在撤回' : '撤回'}</button>}
-          {reverting === 'failed' && <span className="company-page-gap" role="status">撤回没有成功，请稍后重试</span>}
+          {change.revertable && services.revertResearch && <button type="button" className="company-page-link" disabled={reverting === 'busy'} onClick={() => void revert()}>{reverting === 'busy' ? '撤回中' : '撤回'}</button>}
+          {reverting === 'failed' && <span className="company-page-gap" role="status">没成功</span>}
         </p>}
         {!gapOnly && change?.conversation && saved?.changes?.thesis && <p className="company-page-origin" data-origin="thesis">论点：{conversationOrigin(change.conversation.at)}</p>}
         <CompanyOpinion name={name} symbol={symbol} />
-        {pagePeriodText(packet) && <p className="company-page-period" data-page-period={packet?.page_period}>{pagePeriodText(packet)}</p>}
-        {saved && research.stale && !research.error && <p className="company-page-stale" data-stale-line="">
-          {newMaterialText(nextReport(packet, new Date(), calendar))}
+        {pagePeriodText(saved) && <p className="company-page-period" data-page-period={saved?.report_period}>{pagePeriodText(saved)}</p>}
+        {saved && research.new_material && !research.error && <p className="company-page-stale" data-stale-line="">
+          {`${newMaterialText(research.new_material)} · `}
           <button type="button" className="company-page-link" disabled={companyPageTaskActive(research.task)} onClick={() => void store.restart()}>重新研究</button>
+        </p>}
+        {!saved && research.loaded && !research.error && !companyPageTaskActive(research.task) && <p className="company-page-stale">
+          <button type="button" className="company-page-link" onClick={() => void store.restart()}>研究</button>
         </p>}
         {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
       </section>
@@ -451,15 +455,15 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       </Detail> : null,
       saved?.changes?.tracking)}
     {!gapOnly && saved && <ConversationFactors symbol={symbol} researching={companyPageTaskActive(research.task)} onResearch={() => void store.restart()} />}
-    <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无已确认的研究关联</p>}</Panel>
-    <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <p className="company-page-gap">资料暂不可用</p> : <SourceTimeline content={data.documents.value} />}</Panel>
+    <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无研究关联</p>}</Panel>
+    <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <p className="company-page-gap">资料读取失败</p> : <SourceTimeline content={data.documents.value} />}</Panel>
   </article>;
 }
 function Thesis({ research, state, packet, calcs, livePrice }: { research: CompanyPageResearch | null; state: CompanyPageState; packet?: DataPacket; calcs: Record<string, unknown>; livePrice?: number | null }) {
   if (research?.thesis) return <div title={research.changes?.thesis} data-change-hint={research.changes?.thesis || undefined}><AnswerSentence id="thesis" text={research.thesis} packet={packet} calcs={calcs} livePrice={livePrice} /></div>;
   if (!state.loaded) return <DataLoading label="已保存研究" />;
-  if (state.error === '服务器拒绝了访问令牌，请在设置里检查') return <p className="company-page-conclusion is-muted">{state.error}</p>;
-  if (state.error) return <p className="company-page-conclusion is-muted">研究暂不可用，数据仍可查看</p>;
-  if (!companyPageProgress(state)) return <p className="company-page-conclusion is-muted">尚无研究判断</p>;
+  if (state.error === '令牌无效 · 去设置检查') return <p className="company-page-conclusion is-muted">{state.error}</p>;
+  if (state.error) return <p className="company-page-conclusion is-muted">研究读取失败</p>;
+  if (!companyPageProgress(state)) return <p className="company-page-conclusion is-muted">未研究</p>;
   return null;
 }

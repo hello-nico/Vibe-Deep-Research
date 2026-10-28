@@ -59,7 +59,7 @@ export const companyNameOf = (record: ResearchRecord) => (record.title || '').re
 const STEP_LABEL: Record<string, string> = {
   fetch: '收集资料',
   read_report: '读报告',
-  key_variables: '算价格对利润的影响',
+  key_variables: '算价格影响',
   valuation: '估值与判断',
   save: '保存资料',
   settle: '整理结论',
@@ -69,21 +69,21 @@ const stepLabel = (step: { key: string; label: string }) => STEP_LABEL[step.key]
 export const stepProgress = (record: ResearchRecord) => {
   const step = record.steps[record.current_step - 1];
   const label = step ? stepLabel(step) : undefined;
-  return label ? `第 ${record.current_step} 步，共 ${record.steps.length} 步 · ${label}` : '正在研究';
+  return label ? `${record.current_step}/${record.steps.length} · ${label}` : '研究中';
 };
 
 /** 一行的结果句。grade 是个股页研究里的估值五档，读不到就只写「完成」。 */
 export function researchLine(record: ResearchRecord, grade?: string | null): string {
   switch (record.status) {
     case 'running': return stepProgress(record);
-    case 'interrupted': return '正在接着上次的进度继续';
-    case 'completed': return grade ? `完成，${gradeLabel(grade)}` : '完成';
-    case 'failed': return record.reason || '这次研究没有完成，可以稍后重新研究';
+    case 'interrupted': return '继续中';
+    case 'completed': return grade ? `完成 · ${gradeLabel(grade)}` : '完成';
+    case 'failed': return record.reason || '未完成';
     default: return '已中止';
   }
 }
 
-const STEP_STATE: Record<ResearchStepStatus, string> = { pending: '等待', running: '进行中', done: '完成', skipped: '已跳过', failed: '没完成' };
+const STEP_STATE: Record<ResearchStepStatus, string> = { pending: '等待', running: '进行中', done: '完成', skipped: '跳过', failed: '未完成' };
 /** 展开后的六步：名称 + 状态；读报告步附报告标题，关键变量步附变量名，其余输出不显示。 */
 export function researchStepRows(record: ResearchRecord): { key: string; label: string; state: string; status: ResearchStepStatus; note: string }[] {
   return record.steps.map(step => {

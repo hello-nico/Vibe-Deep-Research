@@ -4,7 +4,7 @@ import { loadAttentionIds, markArrivalsSeen, seenArrivals } from "../../lib/feed
 
 export const FEED_DOT_POLL_MS = 300_000;
 
-/** 导航「动态」旁的小圆点（不显示数字）：有未看的判断变化就亮；进入动态页即视为看过，记在本机。 */
+/** 导航「动态」旁的小圆点：有未看的新报告待重研或判断变化时亮。 */
 export function FeedDot({ pathname, load = loadAttentionIds }: { pathname: string; load?: typeof loadAttentionIds }) {
   const [unseen, setUnseen] = useState<string[]>([]);
   const onFeed = pathname === "/feed" || pathname.startsWith("/feed/");
@@ -21,5 +21,5 @@ export function FeedDot({ pathname, load = loadAttentionIds }: { pathname: strin
     return () => { controller.abort(); window.clearInterval(timer); };
   }, [onFeed, load]);
   if (!unseen.length || onFeed) return null;
-  return <StatusDot tone="info" label="动态里有估值判断变了的公司" className="workspace-nav-dot" />;
+  return <StatusDot tone="info" label="新报告或估值变化" className="workspace-nav-dot" />;
 }

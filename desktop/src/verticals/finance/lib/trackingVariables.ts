@@ -1,4 +1,5 @@
 import { researchRead, aShareQualified } from './research';
+import { dayLabel } from './utils';
 import { localService } from './localService';
 import { plainNumber, yiText, type LivePrice } from './companyNarrative';
 
@@ -86,7 +87,8 @@ export const yuanPerShareText = (value: string | null | undefined) => {
   const parsed = toNumber(value);
   return parsed == null ? '—' : `${signOf(parsed)}${plainNumber(Math.abs(parsed), 2)} 元`;
 };
-export const dayLabel = (date: string) => {
+/** 对话问句里的日期用口语「10 月 8 日」；页面上用 dayLabel 的「10-08」。 */
+const spokenDay = (date: string) => {
   const match = /^\d{4}-(\d{2})-(\d{2})$/.exec(date);
   return match ? `${Number(match[1])} 月 ${Number(match[2])} 日` : date;
 };
@@ -104,8 +106,37 @@ export function orderVariables(variables: readonly TrackedVariable[]): TrackedVa
   return [...variables.filter(item => item.status !== 'no_data'), ...variables.filter(item => item.status === 'no_data')];
 }
 
-/** 句子里用简称：去掉「股份」后缀（神火股份 → 神火），其余原样。 */
-export const shortName = (name: string) => name.length > 2 ? name.replace(/股份$/, '') : name;
+/** 公司明细只排序展示，不改变 Backend 的研究模型或影响数值。 */
+export function orderedCompanies(companies: readonly VariableCompany[]): VariableCompany[] {
+  const magnitude = (company: VariableCompany) => Math.abs(toNumber(company.impact_vs_anchor) ?? 0);
+  return [...companies].sort((a, b) => magnitude(b) - magnitude(a));
+}
+
+export function sensitivityStep(variable: TrackedVariable): number | null {
+  const coefs = variable.companies.flatMap(company => {
+    const coef = toNumber(company.coef_per_unit);
+    const profit = toNumber(company.profit_per_step), step = toNumber(company.step);
+    return coef != null ? [Math.abs(coef)] : profit != null && step != null && step > 0 ? [Math.abs(profit / step)] : [];
+  });
+  const largest = Math.max(0, ...coefs);
+  if (!largest) return null;
+  const target = Math.max(Math.abs(toNumber(variable.latest) ?? 0) * 0.01, 1_000_000 / largest);
+  return 10 ** Math.ceil(Math.log10(target));
+}
+
+export function profitAtStep(company: VariableCompany, step: number | null): string | null {
+  if (step == null) return null;
+  const coef = toNumber(company.coef_per_unit);
+  const previousStep = toNumber(company.step), previousProfit = toNumber(company.profit_per_step);
+  return coef != null ? String(coef * step) : previousStep != null && previousStep > 0 && previousProfit != null
+    ? String(previousProfit / previousStep * step) : null;
+}
+
+export function sensitivityImpactText(value: string | null): string {
+  const amount = toNumber(value);
+  return amount != null && amount !== 0 && Math.abs(amount) < 1_000_000
+    ? `${amount > 0 ? '+' : MINUS}不足 0.01 亿元` : impactText(value);
+}
 const directionOf = (change: string) => (toNumber(change) ?? 0) < 0 ? '跌' : '涨';
 export const withUnit = (value: string, unit: string | null | undefined) => unit ? `${value} ${unit}` : value;
 const sizeOf = (card: VariableCard) => withUnit(priceText(String(Math.abs(toNumber(card.change) ?? 0))), card.unit);
@@ -126,7 +157,7 @@ export function cardPieces(card: VariableCard): SentencePiece[] {
 }
 /** 某家公司的影响：全年利润、占基数、中性价；动态卡展开后一家一行。 */
 export function companyPieces(company: VariableCardCompany): SentencePiece[] {
-  const pieces: SentencePiece[] = [{ text: `${shortName(company.name)}年化净利润约 ` }, { text: impactText(company.impact), strong: true, tone: tone(company.impact) }];
+  const pieces: SentencePiece[] = [{ text: `${company.name}年化净利润约 ` }, { text: impactText(company.impact), strong: true, tone: tone(company.impact) }];
   if (company.pct_of_base != null) pieces.push({ text: `（占对比期利润 ${percentValue(company.pct_of_base)}）` });
   if (company.neutral_price_delta != null) pieces.push({ text: '，中性价约 ' }, { text: yuanPerShareText(company.neutral_price_delta), strong: true, tone: tone(company.neutral_price_delta) });
   return pieces;
@@ -151,7 +182,7 @@ export function cardTitle(card: VariableCard): string {
 }
 /** 第二行：涉及哪些关注公司与哪个价格、对利润的方向；各家不一致时只说方向不同。 */
 export function cardTouch(card: VariableCard): string {
-  return `涉及：${card.companies.map(company => shortName(company.name)).join('、')} · ${card.name}${touchEffect(card)}`;
+  return `${card.companies.map(company => company.name).join('、')} · ${card.name}${touchEffect(card)}`;
 }
 const touchEffect = (card: VariableCard) => {
   const directions = new Set(card.companies.map(company => tone(company.impact)).filter(Boolean));
@@ -174,12 +205,13 @@ export function lastCloseLabel(variable: TrackedVariable): string {
   const price = priceText(variable.latest);
   return price === '—' ? `${when} 收盘` : `${when} 收盘 ${price}`;
 }
-/** 跟踪页「正在盯的」一行的最新情况：最近 20 个交易日有卡片就写那一次，没有写平静。 */
+/** 跟踪页「价格」一行的最新情况：最近 20 个交易日有卡片就写那一次（如「10-26 跌 2,280 元/吨」），平稳时为空。 */
 export function variableLine(variable: TrackedVariable, cards: readonly VariableCard[]): string {
-  if (variable.status === 'no_data') return '没有公开行情，跟着财报更新';
-  if (variable.status === 'gap') return '暂时取不到行情';
+  if (variable.status === 'no_data') return '无行情';
+  if (variable.status === 'gap') return '无行情';
   const card = cards.filter(item => item.var_id === variable.var_id).sort((a, b) => b.date.localeCompare(a.date))[0];
-  return card ? `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}，已提醒` : '近一个月没有大到需要提醒的变动';
+  if (!card) return '';
+  return `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}`;
 }
 /** 有卡片的变量排前，其余保持原顺序（no_data 本来就在最后）。 */
 export function orderWatching(variables: readonly TrackedVariable[], cards: readonly VariableCard[]): TrackedVariable[] {
@@ -190,7 +222,7 @@ export const cardSentence = (card: VariableCard) => cardPieces(card).map(piece =
 
 /** 「讨论」预填的问句：自然语言，不提页面与系统机制。 */
 export function cardQuestion(card: VariableCard): string {
-  return `${card.name} ${dayLabel(card.date)}${directionOf(card.change)}了 ${sizeOf(card)}，对${card.companies.map(company => shortName(company.name)).join('、')}影响多大？`;
+  return `${card.name} ${spokenDay(card.date)}${directionOf(card.change)}了 ${sizeOf(card)}，对${card.companies.map(company => company.name).join('、')}影响多大？`;
 }
 
 const EXCHANGES: [RegExp, string][] = [[/\bSHFE\b/g, '上期所'], [/\bDCE\b/g, '大商所'], [/\bZCE\b/g, '郑商所'], [/\bGFEX\b/g, '广期所'], [/\bINE\b/g, '上期能源']];

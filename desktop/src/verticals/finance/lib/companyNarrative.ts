@@ -1,3 +1,4 @@
+import { dayLabel, disclosedDay } from './utils';
 import { fieldIdLabel, findField, periodLabel, scenarioPriceText, showField, thresholdText, tightPercent, type DataPacket, type PacketField, type PacketThreshold } from './companyPacket';
 import { formatFactValue } from './wikiFacts';
 import { driverWatch, type DriverSet } from './templateDrivers';
@@ -362,9 +363,7 @@ const shortDate = (value?: string) => dateOf(value).slice(5);
 /** 跨年或非今年带年份：2027 年 4 月 30 日；今年只写 10 月 30 日。 */
 export function reportDateText(iso: string, today: string): string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(iso)) return iso;
-  const month = Number(iso.slice(5, 7)), day = Number(iso.slice(8, 10));
-  const body = `${month} 月 ${day} 日`;
-  return iso.slice(0, 4) === today.slice(0, 4) ? body : `${iso.slice(0, 4)} 年 ${body}`;
+  return iso.slice(0, 4) === today.slice(0, 4) ? dayLabel(iso) : iso;
 }
 /** 研究说明里的内部说法换成用户能懂的话。 */
 export const plainChangeText = (text: string) => text.trim()
@@ -471,7 +470,7 @@ export function verdictLine(args: { grade?: string | null; model?: SensitivityMo
   const implied = model?.implied;
   const found = model && implied ? variableOf(model, implied.id) : undefined;
   if (!model || !implied || !found) {
-    return { label, implied: '', flip: '', gap: model ? '利润试算凭据里没有大致对应的价格，页首只写判断。' : '没有利润试算凭据，页首只写判断。' };
+    return { label, implied: '', flip: '', gap: model ? '无大致对应的价格' : '无利润试算' };
   }
   // 「现在」取变量最新价（Q1）；取不到才退回研究时的默认值并写「研究时」。比较「跌破 / 涨过」也以同一个现在为准。
   const percent = found.unit.includes('%');
@@ -549,8 +548,8 @@ export function segmentLine(row: SegmentRow, mode: SegmentSummary['mode']) {
 }
 /** 「查看数据」里的缺口说明；没有缺口为空。 */
 export function segmentGapText(summary: SegmentSummary) {
-  if (summary.mode === 'revenue') return '没有拿到各业务的成本，只能列各业务收入，算不出各业务毛利。';
-  return summary.costGaps.length ? `${summary.costGaps.join('、')}的分部成本暂缺，没有算毛利。` : '';
+  if (summary.mode === 'revenue') return '各业务成本缺失，只列收入';
+  return summary.costGaps.length ? `${summary.costGaps.join('、')}的分部成本缺失` : '';
 }
 
 // ---------------------------------------------------------------- 接下来盯什么
@@ -586,8 +585,8 @@ function periodInfo(period: string) {
   return quarter ? { rank: year * 10 + quarter, name: quarter === 4 ? `${year} 年报` : REPORT_DEADLINES[quarter - 1]![0] } : null;
 }
 const latestReported = (packet: DataPacket | undefined) => Math.max(0, ...['revenue', 'net_profit_attributable'].map(key => reportRank(packet?.fields?.[key]?.period) ?? 0));
-/** 研究过期时页首的一句灰字：新报告已披露写资料名，取不到写「有新资料」。 */
-export const newMaterialText = (next: { name: string; disclosed: boolean } | null) => next?.disclosed ? `有新资料（${next.name}）` : '有新资料';
+/** 页首只投影 Backend 的资料短名。 */
+export const newMaterialText = (material: { name: string } | null) => material ? `${material.name}已出` : '';
 export interface NextReport { name: string; day: string; text: string; /** 已披露：数据包还没用上这份新报告。 */ disclosed: boolean; /** 悬停补充；预约日取不到时写明。 */ hint: string }
 /** 下一次报告。有日历：未披露写预约日，已披露（数据包还没用上）写实际日并提示重新研究；没有日历或缺口：按法定披露截止日
  *  （一季报 4-30、半年报 8-31、三季报 10-31、年报次年 4-30），悬停写「预约日暂缺」。数据包里已有的最新报告期之前的不再算。 */
@@ -598,8 +597,8 @@ export function nextReport(packet: DataPacket | undefined, now = new Date(), cal
     const info = periodInfo(report.period);
     if (!info || info.rank <= reported) break;
     if (report.actual) {
-      const day = reportDateText(report.actual, today);
-      return { name: info.name, day, disclosed: true, hint: '披露日来自东方财富', text: `${info.name}已于 ${day} 披露，重新研究可用新报告校准` };
+      const day = reportDateText(disclosedDay(report.actual, today), today);
+      return { name: info.name, day, disclosed: true, hint: '披露日来自东方财富', text: `${info.name} ${day} 已披露` };
     }
     if (report.appoint) {
       const day = reportDateText(report.appoint, today);
@@ -629,7 +628,7 @@ export function watchItems(args: { model?: SensitivityModel | null; packet?: Dat
     const here = percent ? '当前' : '现价';
     const value = sliderUnitText(variable, variable.current);
     if (variable.anchor == null && !percent) {
-      items.push({ id: variable.id, title: variable.name, value, sub: `${variable.anchorLabel}暂缺`, note: `${variable.name}的${variable.anchorLabel}暂缺，算不出它对利润的影响` });
+      items.push({ id: variable.id, title: variable.name, value, sub: `${variable.anchorLabel}暂缺`, note: `${variable.name}的${variable.anchorLabel}缺失` });
       continue;
     }
     // 百分比变量的取值本身就是相对对比期的变动（0 = 与对比期一样）：写持平或高 / 低多少，不写「0 %」。
@@ -652,7 +651,7 @@ export function watchItems(args: { model?: SensitivityModel | null; packet?: Dat
       if (items.length >= KEY_LIMIT) break;
       if (numericValue(field) == null) continue;
       const when = periodLabel(field.period);
-      items.push({ id: key, title: fieldIdLabel(field.field_id ?? key), value: showField(field), sub: when, note: `${when ? `${when}的数，` : ''}它是影响利润的行业数据，下次报告时看它有没有变` });
+      items.push({ id: key, title: fieldIdLabel(field.field_id ?? key), value: showField(field), sub: when, note: `${when ? `${when}的数，` : ''}影响利润的行业数据` });
     }
     // 没有价格模型：数据包里有数的驱动先列，不够再补所属行业框架的驱动（只写名字与影响什么，不编数字）。
     for (const driver of driverWatch(args.drivers, items.map(item => item.title), KEY_LIMIT - items.length)) {
@@ -734,14 +733,14 @@ export function expectations(args: {
 
   const details = [
     instEps != null && instEps > 0
-      ? `机构预期：研报一致预期（中位数）${year ? `，${year} 年` : ''}每股收益 ${eps2(instEps)}${count != null ? `，${count} 家机构` : ''}；${(() => { const next = numericValue(findField(packet, 'eps_forecast_next')); return next != null ? `下一年 ${eps2(next)}；` : ''; })()}只在数据包里有数时才写，不估`
-      : '机构预期：数据包里没有可用的研报一致预期',
+      ? `机构预期：研报一致预期（中位数）${year ? `，${year} 年` : ''}每股收益 ${eps2(instEps)}${count != null ? `，${count} 家机构` : ''}${(() => { const next = numericValue(findField(packet, 'eps_forecast_next')); return next != null ? `；下一年 ${eps2(next)}` : ''; })()}`
+      : '机构预期：暂无',
     neutralPrice != null
       ? `模型：三档价按「每股收益 × 倍数」计算，中性倍数 ${multiple != null ? `${plainNumber(multiple, 1)} 倍` : '暂缺'}${neutral?.period ? `，利润期间 ${periodLabel(neutral.period)}` : ''}；中性每股收益 ${modelEps != null ? eps2(modelEps) : '暂缺'}`
-      : '模型：这家公司没有三档价',
+      : '模型：暂无三档价',
     marketEps != null
-      ? `股价隐含：现价 ÷ 中性倍数得每股收益 ${eps2(marketEps)}，是市场按模型倍数在定价的利润水平`
-      : `股价隐含：${verdict.gap || (verdict.implied ? '缺现价或中性倍数，算不出隐含的每股收益' : '暂无大致对应的价格，不纳入差异比较')}`,
+      ? `股价隐含：现价 ÷ 中性倍数得每股收益 ${eps2(marketEps)}`
+      : `股价隐含：${verdict.gap || (verdict.implied ? '缺现价或中性倍数' : '暂无大致对应的价格')}`,
   ];
   return { rows: [institution, modelRow, marketRow], difference, details };
 }

@@ -115,12 +115,12 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
       });
     },
     readResearch: async symbol => {
-      const { research, stale, basisVersion, researchVersion, canRevert, changedFrom } = await researchRead<Omit<CompanyPageResearchRead, 'task'>>(`/wiki/companies/${qualified(symbol)}/page-research`);
-      if (typeof basisVersion !== 'string' || !basisVersion || typeof stale !== 'boolean' || !(research === null || research && typeof research === 'object')) {
+      const { research, new_material, basisVersion, researchVersion, canRevert, changedFrom } = await researchRead<Omit<CompanyPageResearchRead, 'task'>>(`/wiki/companies/${qualified(symbol)}/page-research`);
+      if (typeof basisVersion !== 'string' || !basisVersion || !(new_material === null || new_material && ['report', 'announcement'].includes(new_material.kind) && typeof new_material.name === 'string' && (new_material.date === null || typeof new_material.date === 'string')) || !(research === null || research && typeof research === 'object')) {
         throw new Error('研究读取失败');
       }
       const task = await latestTask(qualified(symbol));
-      return { research, stale, basisVersion, task,
+      return { research, new_material, basisVersion, task,
         ...(researchVersion !== undefined ? { researchVersion } : {}), ...(canRevert !== undefined ? { canRevert } : {}), ...(changedFrom !== undefined ? { changedFrom } : {}) };
     },
     subscribeResearch: listener => sessions.subscribeSessionList(listener),

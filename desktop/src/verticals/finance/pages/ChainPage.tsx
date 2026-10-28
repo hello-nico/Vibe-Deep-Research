@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
+import { LoadingCard } from "../components/ui/LoadingCard";
 import { Panel, Tag } from "../components/ui/Card";
 import { useConfirm } from "../components/ui/ConfirmDialog";
 import { useAiPage } from "../../../core/ai/pageContext";
@@ -21,7 +22,7 @@ export function Chain() {
 }
 
 type Load = { view?: ChainView; failed?: boolean };
-const CONFLICT = "这条产业链刚被改过，已显示最新内容，请再操作一次。";
+const CONFLICT = "已更新到最新，请重试";
 /** 改动入口：一次只做一件事；版本冲突时重读并提示，其余失败在页首下写一句话。 */
 type Run = (key: string, work: () => Promise<void>, failText: string) => Promise<void>;
 
@@ -52,22 +53,22 @@ export function ChainPage({ chainId, services = defaultChainServices }: { chainI
   };
   const remove = async () => {
     if (!view) return;
-    const ok = await ask({ title: "删除产业链", kicker: "产业链", body: <><p>{view.chain.name}将被删除。</p><p className="refresh-dialog-scope">只删除这条产业链，关注的公司和研究不受影响。</p></>, confirmLabel: "确认删除" });
+    const ok = await ask({ title: "删除产业链", kicker: "产业链", body: <><p>{view.chain.name}将被删除。</p><p className="refresh-dialog-scope">关注和研究会保留。</p></>, confirmLabel: "确认删除" });
     if (!ok) return;
     setBusy("delete"); setNotice("");
     try { await deleteChain(chainId, view.version, services); navigate("/watch?kind=chains"); }
-    catch (error) { setNotice(isChainConflict(error) ? CONFLICT : "这条产业链没删掉，请稍后再试。"); setAttempt(value => value + 1); }
+    catch (error) { setNotice(isChainConflict(error) ? CONFLICT : "没成功"); setAttempt(value => value + 1); }
     finally { setBusy(""); }
   };
-  useAiPage({ key: `chain:${chainId}`, title: view?.chain.name ?? "产业链", context: view ? chainHeadline(view) : "产业链页正在读取", suggestions: ["这条链上哪个价格对利润影响最大？"] });
+  useAiPage({ key: `chain:${chainId}`, title: view?.chain.name ?? "产业链", context: view ? chainHeadline(view) : "加载中", suggestions: ["这条链上哪个价格对利润影响最大？"] });
   return <div>
     <PageHeader title={view?.chain.name ?? "产业链"} actions={view && <>
-      {view.hasPrevious && <button type="button" className="btn" disabled={Boolean(busy)} data-chain-revert="" onClick={() => void run("revert", () => revertChain(chainId, view.version, services), "没能撤回，请稍后再试。")}>撤回上一版</button>}
-      <button type="button" className="btn btn-text" disabled={Boolean(busy)} data-chain-delete="" onClick={() => void remove()}>删除这条产业链</button>
+      {view.hasPrevious && <button type="button" className="btn" disabled={Boolean(busy)} data-chain-revert="" onClick={() => void run("revert", () => revertChain(chainId, view.version, services), "没成功")}>撤回</button>}
+      <button type="button" className="btn btn-text" disabled={Boolean(busy)} data-chain-delete="" onClick={() => void remove()}>删除</button>
     </>} />
     {notice && <p role="status" className="chain-note chain-notice" data-chain-notice="">{notice}</p>}
-    {failed ? <p role="alert" className="chain-note">这条产业链暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>
-      : !view ? <div className="chain" aria-busy="true" aria-label="正在加载"><div className="chain-skeleton" /><div className="chain-skeleton" /></div>
+    {failed ? <p role="alert" className="chain-note">读取失败<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>
+      : !view ? <div className="chain"><LoadingCard /><LoadingCard /></div>
       : <ChainBody view={view} services={services} run={run} busy={busy} />}
     <Disclaimer />
     {confirmElement}
@@ -106,13 +107,13 @@ function ChainBody({ view, services, run, busy }: { view: ChainView; services: C
           <li className="chain-node" data-node={node.industry_code}>
             <b>{node.industry_name}</b>
             {node.role && <small>{roleText(node.role)}</small>}
-            <p>{method || "估值方法暂缺"}</p>
+            <p>{method || "缺估值方法"}</p>
             <small>链上 {node.companies.length} 家公司</small>
           </li>
           {index < chain.nodes.length - 1 && <li className="chain-arrow" aria-hidden="true"><span>→</span>{arrow && <small>{arrow}</small>}</li>}
         </Fragment>;
       })}</ol>
-      {failed.frameworks && <p className="chain-gap" data-gap="framework">部分环节的估值方法暂时读取不到。</p>}
+      {failed.frameworks && <p className="chain-gap" data-gap="framework">部分估值方法读取失败</p>}
     </Panel>
     {drivers.length > 0 && <Panel title="共同驱动" className="chain-section" data-chain-section="drivers">
       <ul className="chain-drivers">{drivers.map(item => <li key={item.driver} data-driver={item.driver}>
@@ -142,16 +143,16 @@ function StageGroup({ node, companies, view, pool, ensure, run, busy, services }
     <p className="chain-stage-name">{node.industry_name}</p>
     {companies.length ? <div className="chain-companies" role="table" aria-label={`${node.industry_name}链上公司`}>
       {companies.map(company => <CompanyRow key={company.symbol} company={company} node={node.industry_name} disabled={Boolean(busy)}
-        onRemove={() => void run(`remove:${company.symbol}`, () => removeFromChain(chainId, view.version, company.symbol, services), "没能移出，请稍后再试。")} />)}
-    </div> : <p className="chain-gap" data-stage-empty="">这个环节还没有你关注的公司。</p>}
+        onRemove={() => void run(`remove:${company.symbol}`, () => removeFromChain(chainId, view.version, company.symbol, services), "没成功")} />)}
+    </div> : <p className="chain-gap" data-stage-empty="">暂无关注公司</p>}
     <details className="chain-candidates" open={open} onToggle={event => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
       <summary>同环节还可关注</summary>
-      {pool.failed ? <p className="chain-gap" data-gap="candidates">候选暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => ensure(true)}>重试</button></p>
-        : !mine ? <p className="chain-gap" aria-busy="true">正在读取…</p>
-        : !mine.length ? <p className="chain-gap" data-candidates-empty="">这个环节暂时没有可推荐的公司。</p>
+      {pool.failed ? <p className="chain-gap" data-gap="candidates">读取失败<button type="button" className="btn btn-text btn-sm" onClick={() => ensure(true)}>重试</button></p>
+        : !mine ? <LoadingCard bare />
+        : !mine.length ? <p className="chain-gap" data-candidates-empty="">暂无推荐</p>
         : <ul className="chain-candidate-list">{mine.map(item => <li key={item.symbol} data-candidate={item.symbol}>
           <span className="chain-company-name"><Link to={watchPath(item.symbol.split(".")[0]!)}>{item.name}</Link><small>{item.symbol.split(".")[0]}</small></span>
-          <button type="button" className="btn btn-sm" disabled={Boolean(busy)} onClick={() => void run(`add:${item.symbol}`, () => addToChain(chainId, view.version, item.symbol, services), "没能加进这条链，请稍后再试。")}>关注</button>
+          <button type="button" className="btn btn-sm" disabled={Boolean(busy)} onClick={() => void run(`add:${item.symbol}`, () => addToChain(chainId, view.version, item.symbol, services), "没成功")}>关注</button>
         </li>)}</ul>}
     </details>
   </div>;
@@ -168,7 +169,7 @@ function CyclePanel({ services }: { services: ChainServices }) {
     return () => controller.abort();
   }, [services, attempt]);
   return <Panel title="现在在周期什么位置" className="chain-section" data-chain-section="cycle">
-    {!cycle ? <div className="chain-skeleton" aria-busy="true" aria-label="正在加载" />
+    {!cycle ? <LoadingCard bare />
       : cycle.state === "gap" ? <p className="chain-gap" data-gap="cycle">{cycle.reason}。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>
       : <>
         <p className="chain-cycle-line" data-cycle-line="">{cycleSentence(cycle.position)}</p>
@@ -183,7 +184,7 @@ function CyclePanel({ services }: { services: ChainServices }) {
 }
 
 const signed = (text: string, value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${text}`;
-const CALC_GAP: Record<Exclude<CalcRow["state"], "ok">, string> = { none: "未研究", nomodel: "研究里没有利润模型", novar: "利润模型里没有这个价格", noanchor: "模型缺对比期均价" };
+const CALC_GAP: Record<Exclude<CalcRow["state"], "ok">, string> = { none: "未研究", nomodel: "无利润模型", novar: "模型未含此价格", noanchor: "缺对比期均价" };
 
 /** 试算：一个滑块调共同驱动，每家一行看利润变动。只用各家已存的利润模型，没有研究的写「未研究」，不估。 */
 function ChainCalc({ view }: { view: ChainView }) {
@@ -204,12 +205,12 @@ function CalcPanel({ view, setup }: { view: ChainView; setup: CalcSetup }) {
       <small>现在 {plainNumber(setup.current, digits)} {setup.unit}{diff ? `，拖到的位置${diff > 0 ? "高" : "低"} ${plainNumber(Math.abs(diff), digits)}` : ""}；可拖范围取各家研究里的近年区间</small>
     </div>
     <div className="chain-calc-rows" role="table" aria-label="各家利润变动">
-      <div className="chain-calc-row chain-calc-head" role="row"><span role="columnheader">公司</span><span role="columnheader">利润变动</span><span role="columnheader">占对比期利润</span></div>
+      <div className="chain-calc-row chain-calc-head" role="row"><span role="columnheader">公司</span><span role="columnheader">利润变动</span><span role="columnheader">占利润</span></div>
       {rows.map(item => <div key={item.symbol} className="chain-calc-row" role="row" data-calc={item.symbol} data-state={item.state}>
         <span className="chain-company-name" role="cell"><b>{item.name}</b><small>{nodeName(item.industry_code)}</small></span>
         {item.state === "ok" ? <>
           <span role="cell" data-calc-delta="">{signed(yiText(Math.abs(item.delta!)), Math.round(item.delta! / 1e6))}</span>
-          <span role="cell" data-calc-share="">{item.share == null ? <small className="chain-gap">对比期利润非正，不算占比</small> : <>{signed(`${plainNumber(Math.abs(item.share) * 100, 1)}%`, Math.round(item.share * 1000))}<small title={item.baseLabel}>{item.baseLabel ? `（${item.baseLabel}）` : ""}</small></>}</span>
+          <span role="cell" data-calc-share="">{item.share == null ? <small className="chain-gap">利润为负，不算占比</small> : <>{signed(`${plainNumber(Math.abs(item.share) * 100, 1)}%`, Math.round(item.share * 1000))}<small title={item.baseLabel}>{item.baseLabel ? `（${item.baseLabel}）` : ""}</small></>}</span>
         </> : <span className="chain-gap chain-calc-gap" role="cell">{CALC_GAP[item.state]}</span>}
       </div>)}
     </div>
@@ -221,11 +222,11 @@ function CompanyRow({ company, node, onRemove, disabled }: { company: ChainCompa
   const code = company.symbol.split(".")[0]!;
   return <div className="chain-company" role="row" data-company={company.symbol} data-status={company.status}>
     <span className="chain-company-name" role="cell"><Link to={watchPath(code)}>{company.name}</Link><small>{node}</small></span>
-    {company.status === "none" ? <span className="chain-company-none" role="cell">尚未研究</span> : <>
+    {company.status === "none" ? <span className="chain-company-none" role="cell">未研究</span> : <>
       <span role="cell" className="chain-company-grade"><Tag>{gradeLabel(company.grade)}</Tag></span>
       <span role="cell" className="chain-company-band">{company.tiers && company.tiers.length === 3 && company.price != null
         ? <TierBand tiers={company.tiers} price={company.price} position={company.position} /> : <small className="chain-gap">缺{company.gaps.filter(gap => gap === "三档价" || gap === "现价").join("、") || "三档价"}</small>}</span>
-      <span role="cell" className="chain-company-implied">{company.implied ? <>{company.implied}{company.flip ? <small>，{company.flip}</small> : null}</> : <small className="chain-gap">缺大致对应的价格</small>}</span>
+      <span role="cell" className="chain-company-implied">{company.implied ? <>{company.implied}{company.flip ? <small>，{company.flip}</small> : null}</> : <small className="chain-gap">无对应价格</small>}</span>
     </>}
     <span role="cell" className="chain-company-act"><button type="button" className="btn btn-text btn-sm" disabled={disabled} data-remove="" aria-label={`把${company.name}移出这条链`} onClick={onRemove}>移出</button></span>
   </div>;

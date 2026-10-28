@@ -168,7 +168,7 @@ export function conflictValues(field: PacketField): { label: string; field: Pack
 export function gapText(field: PacketField) {
   const reason = String(field.reason ?? '').trim();
   if (!reason || /field_id|packet_field|scenarioRef|basisVersion|sha256|parse_revision|\/api\/|calculate_metrics|provider/i.test(reason)) {
-    return `暂时取不到${fieldLabel(field.metric)}`;
+    return `无${fieldLabel(field.metric)}`;
   }
   return reason;
 }
@@ -236,7 +236,7 @@ export function scenarioTable(result: unknown): ScenarioTableData | null {
     const price = String(row.price ?? '').trim();
     if (!name) return [];
     const loss = Number(row.earnings) < 0 || /亏损/.test(String(row.reason ?? ''));
-    return [{ name, multiple: String(row.multiple ?? ''), price, ...(price ? {} : { gapNote: loss ? '亏损，不给价' : '价格暂缺' }), earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period), reason: [row.reason, row.multiple_reason].find((value): value is string => typeof value === 'string' && value.trim() !== '') }];
+    return [{ name, multiple: String(row.multiple ?? ''), price, ...(price ? {} : { gapNote: loss ? '亏损，不给价' : '无价格' }), earnings: row.earnings == null ? undefined : String(row.earnings), period: row.earnings_period == null ? undefined : String(row.earnings_period), reason: [row.reason, row.multiple_reason].find((value): value is string => typeof value === 'string' && value.trim() !== '') }];
   });
   return rows.length === 3 ? { mode: scenarioMode(extra?.mode), rows } : null;
 }
@@ -275,7 +275,7 @@ export function periodLabel(period: string | null | undefined): string {
   const ytd = /^(\d{4})\s*YTD\s*(Q[1-4])$/i.exec(text);
   if (ytd) return `${ytd[1]} 年${YTD[ytd[2]!.toUpperCase()]}`;
   const iso = /^\d{4}-(\d{2})-(\d{2})/.exec(text);
-  if (iso) return `${Number(iso[1])} 月 ${Number(iso[2])} 日`;
+  if (iso) return `${iso[1]}-${iso[2]}`;
   return text;
 }
 /** 报告期写法：2026Q3 → 2026 年三季报；scheme 为分红这类按年度方案的数：FY2025 → 2025 年度方案。 */
@@ -307,6 +307,6 @@ export function sectionMeta(packet: DataPacket | undefined, field: { field_id?: 
   return otherPeriodText(packet, field);
 }
 /** 页首灰字：数据截至哪份报告；没有 page_period 返回空。 */
-export const pagePeriodText = (packet: DataPacket | undefined) => reportKey(packet?.page_period) ? `数据截至 ${reportPeriodText(packet!.page_period)}` : '';
+export const pagePeriodText = (research: { report_period?: string | null } | null | undefined) => reportKey(research?.report_period) ? `数据截至 ${reportPeriodText(research!.report_period)}` : '';
 /** 数字与百分号之间不留空格（23.35%）。 */
 export const tightPercent = (text: string) => text.replace(/(\d)\s+%/g, '$1%');

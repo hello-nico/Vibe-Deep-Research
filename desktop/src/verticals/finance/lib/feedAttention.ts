@@ -11,18 +11,17 @@ export const flipAttentionId = (flip: FlipCard) => `flip:${flip.symbol}:${flip.k
 export const writebackAttentionId = (eventId: string) => `writeback:${eventId}`;
 
 /**
- * 当前有哪些判断变化：跳档卡、档位变了的财报卡、对话写回导致档位变化的记录。读不到的部分当没有。
+ * 未重研的新报告及判断变化。读不到的部分不推断提醒。
  * 编号与已看状态沿用原圆点的本机存储。
  */
 export async function loadAttentionIds(signal?: AbortSignal): Promise<string[]> {
   const data = await loadTrackingVariables(signal).catch(() => null);
-  if (!data) return [];
   const [flips, recon] = await Promise.all([
-    loadFlipCards(data, signal).catch(() => [] as FlipCard[]),
+    data ? loadFlipCards(data, signal).catch(() => [] as FlipCard[]) : Promise.resolve([] as FlipCard[]),
     loadReconCards(data, signal).catch(() => []),
   ]);
   const results = await loadReconResults(recon, signal);
-  const ids = [...flips.map(flipAttentionId), ...Object.values(results).flatMap(result => result?.changed && result.id ? [result.id] : [])];
+  const ids = [...flips.map(flipAttentionId), ...Object.values(results).flatMap(result => (result?.changed || result?.pending) && result.id ? [result.id] : [])];
   const events = await loadResearchEvents(signal).catch(() => []);
   for (const event of events) if (writebackGradeChanged(event)) ids.push(writebackAttentionId(event.id));
   return [...new Set(ids)];

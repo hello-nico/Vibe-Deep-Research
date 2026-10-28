@@ -151,7 +151,7 @@ test('a running turn keeps its placeholder without an event and copies only pros
   try {
     await harness.render({ pending: true });
     await React.act(async () => t.mock.timers.tick(60_000));
-    assert.match(container.textContent || '', /前文.*正在准备研究组件.*后文/);
+    assert.match(container.textContent || '', /前文.*加载中.*后文/);
     assert.equal(harness.copy(), '前文\n\n\n\n后文');
   } finally { await harness.close(); }
 });
@@ -277,10 +277,10 @@ test('open fences and absent events stay placeholders; late events replace them 
     { path: '0.0', component: 'item', status: 'ok', values: { 'claim:income': value(1.23, '亿元') } },
   ] }] };
   await mount(text, undefined);
-  assert.match(container.textContent || '', /正在准备/);
+  assert.match(container.textContent || '', /加载中/);
   assert.ok(!container.textContent?.includes('claim:income'));
   await mount(text, event, { pending: true });
-  assert.match(container.textContent || '', /正在准备/);
+  assert.match(container.textContent || '', /加载中/);
   await mount(text, event);
   assert.ok(container.textContent?.includes('1.23'));
   assert.ok(!container.textContent?.includes('正在准备'));
@@ -341,13 +341,14 @@ test('开始观察：显示「开始观察：指标」与为什么重要；点�
   const posts: { url: string; body: any }[] = [];
   globalThis.fetch = async (input, init) => {
     const url = String(input), method = init?.method || 'GET';
-    if (method === 'GET' && url.includes('/wiki/research-topics?pool=active')) return Response.json({ items: saved ? [{ topic_id: 'topic:abc', tracking_items: [item] }] : [], next_offset: null });
+    if (method === 'GET' && url.endsWith('/tracking/items')) return Response.json({ items: saved ? [{ kind: 'observation', source: 'user', topic_id: 'topic:abc', tracking_key: item.tracking_key }] : [], muted: [] });
     if (method === 'GET' && url.endsWith('/wiki/research-topics/topic%3Aabc')) return Response.json({ topic_id: 'topic:abc', revision: 3, tracking_items: [] });
     if (method === 'POST') {
       const body = JSON.parse(String(init!.body)); posts.push({ url, body });
       if (url.endsWith('/research-topics/route')) return Response.json({ action: 'create', topic: { topic_id: 'topic:abc' } });
       if (fail) return Response.json({ detail: 'x' }, { status: 500 });
-      saved = true; return Response.json({ topic_id: 'topic:abc' });
+      if (url.endsWith('/tracking/items')) saved = true;
+      return Response.json({ topic_id: 'topic:abc' });
     }
     return Response.json({ detail: 'unused' }, { status: 404 });
   };
@@ -368,11 +369,14 @@ test('开始观察：显示「开始观察：指标」与为什么重要；点�
   assert.match(route.body.question, /^沪铝价差：铝价与氧化铝的价差决定电解铝利润/);
   const write = posts.filter(post => post.url.endsWith('/wiki/research-topics/topic%3Aabc')).at(-1)!;
   assert.deepEqual(write.body, { tracking_items: [item], expected_revision: 3 });
+  assert.deepEqual(posts.find(post => post.url.endsWith('/tracking/items'))!.body, { kind: 'observation', source: 'user', topic_id: 'topic:abc', tracking_key: 'al-spread' });
   await React.act(async () => root.render(null));
   await mount(text, event);
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 10)); });
   const done = [...container.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === '开始观察 沪铝价差') as HTMLButtonElement;
-  assert.ok(done.disabled && done.textContent!.includes('已在观察'), '已保存的跟踪项重载后仍显示已在观察');
+  assert.equal(done.disabled, false, '路由前不知道 topic，不凭同名 key 禁用；重选由 Backend 幂等');
+  await click('开始观察 沪铝价差');
+  assert.ok(done.disabled && done.textContent!.includes('已在观察'));
 });
 
 test('建产业链推荐：显示链名与一句理由；点一下以已关注公司为底建链并进入；已建的显示「查看」；失败一句灰字；历史事件只读', async () => {

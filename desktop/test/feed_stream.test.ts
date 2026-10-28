@@ -22,23 +22,23 @@ const filing = { symbol: '603799.SH', name: '华友钴业', title: '华友钴业
 
 test('四类卡片结构一致：第一句、涉及、类型 · 日期，都有「讨论」与「看公司」', () => {
   const cards = [stream.priceStream(price), stream.reconStream(recon), stream.flipStream(flip, '2026-10-26'), stream.filingStream(filing)];
-  assert.deepEqual(cards.map((card: any) => card.type), ['价格', '财报', '判断变化', '公告']);
+  assert.deepEqual(cards.map((card: any) => card.type), ['价格', '财报', '估值', '公告']);
   for (const card of cards) {
     assert.ok(card.title.length > 0 && card.discuss.question && card.discuss.title && card.companies.length === 1, card.type);
-    assert.match(card.involved.map((piece: any) => piece.text).join(''), /^涉及：/, card.type);
+    assert.doesNotMatch(card.involved.map((piece: any) => piece.text).join(''), /^涉及：/, card.type);
   }
-  assert.equal(cards[3].involved.map((piece: any) => piece.text).join(''), '涉及：华友钴业 · 能源金属', '公告只写公司与领域');
-  assert.equal(cards[1].involved.map((piece: any) => piece.text).join(''), '涉及：神火 · 利润 · 沪铝变化约带来 +1.20 亿元');
-  assert.equal(stream.reconStream({ ...recon, explain: undefined }).involved[0].text, '涉及：神火 · 利润 · 对账见展开');
-  assert.equal(stream.filingStream({ ...filing, industry: '' }).involved[0].text, '涉及：华友钴业');
+  assert.equal(cards[3].involved.map((piece: any) => piece.text).join(''), '华友钴业 · 能源金属', '公告只写公司与领域');
+  assert.equal(cards[1].involved.map((piece: any) => piece.text).join(''), '神火 · 沪铝变化约带来 +1.20 亿元');
+  assert.equal(stream.reconStream({ ...recon, explain: undefined }).involved[0].text, '神火');
+  assert.equal(stream.filingStream({ ...filing, industry: '' }).involved[0].text, '华友钴业');
   assert.doesNotMatch(JSON.stringify(cards[3]), /支柱/);
 });
 
-test('排序与筛选：判断变化置顶；其余日期倒序；财报、价格筛选时判断变化也在；公告只有公告', () => {
+test('排序与筛选：估值卡置顶；其余日期倒序；价格筛选时估值卡也在；公告只有公告', () => {
   const cards = [stream.priceStream(price), stream.filingStream(filing), stream.reconStream(recon), stream.flipStream(flip, '2026-10-26')];
-  assert.deepEqual(stream.streamOf(cards, '全部').map((card: any) => card.type), ['判断变化', '公告', '财报', '价格']);
-  assert.deepEqual(stream.streamOf(cards, '财报').map((card: any) => card.type), ['判断变化', '财报']);
-  assert.deepEqual(stream.streamOf(cards, '价格').map((card: any) => card.type), ['判断变化', '价格']);
+  assert.deepEqual(stream.streamOf(cards, '全部').map((card: any) => card.type), ['估值', '公告', '财报', '价格']);
+  assert.deepEqual(stream.streamOf(cards, '财报').map((card: any) => card.type), ['财报']);
+  assert.deepEqual(stream.streamOf(cards, '价格').map((card: any) => card.type), ['估值', '价格']);
   assert.deepEqual(stream.streamOf(cards, '公告').map((card: any) => card.type), ['公告']);
 });
 

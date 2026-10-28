@@ -23,7 +23,7 @@ async function request<T>(body: Record<string, unknown>): Promise<T> {
     method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body),
   });
   const value = await response.json();
-  if (!response.ok) throw Object.assign(new Error(value.detail || '刷新没有成功，请重试'), { code: value.code || 'request_failed' });
+  if (!response.ok) throw Object.assign(new Error(value.detail || '没成功 · 重试'), { code: value.code || 'request_failed' });
   return value as T;
 }
 
@@ -61,10 +61,10 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
     if (announce && value.status === 'unchanged') {
       const time = value.checked_at ? new Date(value.checked_at).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
       setNotice({ title: page === 'industry' && value.source ? '统计来源已收录' : '暂无新增资料',
-        detail: time ? `最近检查于 ${time}，现有资料保持原样。` : '现有资料保持原样。' });
+        detail: time ? `最近检查于 ${time}，` : '' });
     }
     if (announce && value.status === 'failed')
-      setNotice({ title: '这次未能检查完', detail: '资料保持原样。可稍后重新点击“刷新资料”重试。' });
+      setNotice({ title: '检查失败', detail: '资料未变' });
   };
   useEffect(() => {
     let active = true;
@@ -82,7 +82,7 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
     let active = true;
     const poll = () => { void request<CheckRecord>({ operation: 'read_check', check_id: check.check_id }).then(value => {
       if (active) acceptCheck(value, initiatedRef.current && value.status !== 'checking');
-    }).catch(() => { if (active) setNotice({ title: '暂时无法读取检查结果', detail: '检查仍可能在后台进行，请稍后重试。' }); }); };
+    }).catch(() => { if (active) setNotice({ title: '读取失败', detail: '稍后重试' }); }); };
     const timer = window.setInterval(poll, 2500);
     return () => { active = false; window.clearInterval(timer); };
   }, [check?.check_id, check?.status]);
@@ -112,7 +112,7 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
       }
       acceptCheck(value, value.status !== 'checking'); setUncertain(false);
     } catch (err) {
-      const message = err instanceof Error ? err.message : '刷新没能开始，请重试';
+      const message = err instanceof Error ? err.message : '没成功 · 重试';
       setNotice({ title: '资料检查未完成', detail: message });
     }
     finally { setBusy(null); }
@@ -134,16 +134,16 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
       const wrote = value.items[0]?.receipt?.status === 'success';
       if (wrote) setCheck(previous => previous ? { ...previous, status: 'completed' } : previous);
       if (wrote) {
-        if (approve) setNotice({ title: '资料已更新', detail: '刷新结果已记录。' });
+        if (approve) setNotice({ title: '资料已更新', detail: '' });
         onUpdated();
       } else if (approve && value.status === 'partial') {
-        setNotice({ title: '资料未能更新', detail: '现有资料保持原样，可重新检查。' });
+        setNotice({ title: '更新失败', detail: '资料未变' });
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : '结果还在确认中，请稍后查看');
+      setError(err instanceof Error ? err.message : '确认中');
       if (approve) {
         setUncertain(true);
-        setNotice({ title: '刷新结果确认中', detail: '稍后点“查看刷新结果”，先不要重复刷新。' });
+        setNotice({ title: '确认中', detail: '稍后查看结果' });
       }
     }
     finally { setBusy(null); }
@@ -158,15 +158,15 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
       if (value.items[0]?.receipt?.status === 'success') onUpdated();
     }
     catch (err) {
-      const message = err instanceof Error ? err.message : '暂时查不到结果';
+      const message = err instanceof Error ? err.message : '查不到结果';
       if (open) setError(message);
-      else setNotice({ title: '暂时查不到刷新结果', detail: message });
+      else setNotice({ title: '查不到结果', detail: message });
     }
     finally { setBusy(null); }
   };
   const statusText: Record<string, string> = {
     completed: '资料已更新', rejected: '已取消刷新',
-    partial: '请查看刷新结果', executing: '正在更新资料', unknown: '结果确认中',
+    partial: '查看结果', executing: '更新中', unknown: '确认中',
   };
   const pending = proposal && ['open', 'executing', 'unknown'].includes(proposal.status);
   const isChecking = busy === 'prepare' || check?.status === 'checking';
@@ -177,12 +177,12 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
   const source = page === 'industry' ? check?.source || proposal?.items[0]?.args?.source : undefined;
   const result = proposal?.items[0]?.receipt?.result;
   const receiptError = proposal?.items[0]?.receipt?.error;
-  const modalTitle = busy === 'confirm' ? '正在更新资料' : busy === 'reject' ? '正在取消刷新' : proposal?.status === 'open'
-    ? (page === 'industry' ? '确认添加统计来源' : '确认刷新财务与估值数据')
-    : statusText[proposal?.status || ''] || '查看刷新结果';
+  const modalTitle = busy === 'confirm' ? '更新中' : busy === 'reject' ? '取消中' : proposal?.status === 'open'
+    ? (page === 'industry' ? '确认添加统计来源' : '确认刷新')
+    : statusText[proposal?.status || ''] || '查看结果';
   const resultText = page === 'industry'
-    ? result?.added_sources ? `已向资料时间线追加 ${result.added_sources} 条统计来源。` : '没有新增统计来源，页面保持原样。'
-    : result?.status === 'unavailable' ? '这次没取到新数据，页面保持原样。'
+    ? result?.added_sources ? `已向资料时间线追加 ${result.added_sources} 条统计来源。` : '没有新来源'
+    : result?.status === 'unavailable' ? '没有新数据'
       : `已更新 ${result?.updated_fields ?? 0} 项数据。${check?.failed_sources?.length ? `未能检查：${check.failed_sources.join('、')}，原值保留。` : ''}`;
   const onDialogKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
     if (event.key === 'Escape') { event.stopPropagation(); close(); return; }
@@ -199,10 +199,10 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
       aria-busy={isChecking || isUpdating}
       onClick={() => { if (uncertain) { void readBack(); return; } if (pending) { setOpen(true); return; } void prepare(); }}>
       <RefreshCw />
-      {isChecking ? '正在检查资料…'
-        : isUpdating ? '资料更新中…' : uncertain ? '查看刷新结果'
-          : proposal?.status === 'unknown' ? '查看刷新结果'
-            : proposal?.status === 'open' ? '继续确认刷新' : '刷新资料'}
+      {isChecking ? '检查中'
+        : isUpdating ? '更新中' : uncertain ? '查看结果'
+          : proposal?.status === 'unknown' ? '查看结果'
+            : proposal?.status === 'open' ? '确认刷新' : '刷新资料'}
     </button>
     {notice && createPortal(<div role="alert" className="task-notice task-notice-local">
       <span className="task-notice-icon"><CircleAlert aria-hidden="true" size={17} /></span>
@@ -219,7 +219,7 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
           <button type="button" className="refresh-dialog-close" aria-label="关闭" disabled={!!busy} onClick={close}><X size={18} /></button>
         </header>
         {proposal.status === 'open' && busy !== 'confirm' && busy !== 'reject' ? <div className="refresh-dialog-body">
-          <p className="refresh-dialog-lead">{page === 'industry' ? '本次将在资料时间线中追加以下来源：' : '本次检查发现以下数据变化：'}</p>
+          <p className="refresh-dialog-lead">{page === 'industry' ? '将追加：' : '有以下变化：'}</p>
           <div className="refresh-source-card">
             <span className="refresh-source-label">{page === 'industry' ? '国家统计局 · 行业统计（表 3）' : '财务与估值数据'}</span>
             {source?.url ? <a href={source.url} target="_blank" rel="noreferrer" className="refresh-source-title">{source.title || proposal.items[0]?.label}<ExternalLink size={15} /></a>
@@ -228,18 +228,18 @@ function RefreshConfirm({ page, slug, version, title, disabledReason, onUpdated,
           </div>
           {page === 'company' && !!check?.changes?.length && <div className="refresh-changes">{check.changes.map(group => <div key={group.kind}><strong>{group.kind === 'financial_facts' ? '财务' : '估值'}</strong><ul>{group.items.map((item, index) => <li key={`${item.metric}-${item.period}-${index}`}>{item.metric} · {item.period || '当前'}：{item.value} {item.unit}</li>)}</ul></div>)}</div>}
           {!!check?.failed_sources?.length && <p className="refresh-dialog-scope">未能检查：{check.failed_sources.join('、')}。这些数据将保留原值。</p>}
-          <p className="refresh-dialog-scope">{page === 'industry' ? '只追加来源链接，研究内容保持不变。' : '只更新数据，研究内容和原文资料保持不变。'}</p>
+          <p className="refresh-dialog-scope">{page === 'industry' ? '研究不变' : '研究不变'}</p>
         </div> : <div className="refresh-dialog-body" role="status" aria-live="polite">
-          {busy === 'reject' ? <p className="refresh-dialog-state"><RefreshCw />正在取消…</p>
-            : busy === 'read' ? <p className="refresh-dialog-state"><RefreshCw />正在查询结果…</p>
-              : busy === 'confirm' || proposal.status === 'executing' ? <p className="refresh-dialog-state"><RefreshCw />资料更新中，可继续浏览本页。</p>
-                : <><p className="refresh-dialog-state">{['unknown', 'partial'].includes(proposal.status) ? <CircleAlert /> : <Check />}{statusText[proposal.status] || '请查看刷新结果'}</p>
+          {busy === 'reject' ? <p className="refresh-dialog-state"><RefreshCw />取消中</p>
+            : busy === 'read' ? <p className="refresh-dialog-state"><RefreshCw />查询中</p>
+              : busy === 'confirm' || proposal.status === 'executing' ? <p className="refresh-dialog-state"><RefreshCw />更新中</p>
+                : <><p className="refresh-dialog-state">{['unknown', 'partial'].includes(proposal.status) ? <CircleAlert /> : <Check />}{statusText[proposal.status] || '查看结果'}</p>
                 {result && <p className="refresh-dialog-detail">{resultText}</p>}
                 {receiptError && <p className="refresh-dialog-detail text-destructive">{receiptError.message}</p>}</>}
         </div>}
         {error && <p role="alert" className="refresh-dialog-error">{error}</p>}
         <footer className="refresh-dialog-footer">
-          {busy ? <span className="refresh-dialog-wait">正在处理…</span>
+          {busy ? <span className="refresh-dialog-wait">处理中</span>
             : proposal.status === 'open' ? <><button type="button" className="workspace-action" onClick={() => void choose(false)}>取消</button>
               <button type="button" className="workspace-action workspace-action-primary" disabled={!!disabledReason} title={disabledReason} onClick={() => void choose(true)}>{page === 'industry' ? '确认添加来源' : '确认刷新'}</button></>
               : <><button type="button" className="workspace-action" onClick={close}>关闭</button>

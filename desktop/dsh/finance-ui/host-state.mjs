@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import { backendHeaders, readCompatibility, resolveBackend, TOKEN_REJECTED, maskSecrets } from './backend-connection.mjs';
 import { REPORT_CHILD_PERSONA, RESEARCH_CHILD_PERSONA } from './child-personas.mjs';
-import { attachReportArrival, REPORT_ARRIVAL_PROMPT } from './report-arrival.mjs';
 import { resolveResearchTitle, researchTitleOf } from './research-title.mjs';
 
 const taskCreation = new AsyncLocalStorage();
@@ -970,22 +969,6 @@ export function researchBootPromise() {
   return researchBootScan;
 }
 
-function aShareCode(symbol) {
-  return /^(\d{6})/.exec(String(symbol || ''))?.[1] || '';
-}
-
-function slugOfSymbol(symbol) {
-  const match = /^(\d{6})\.(SH|SZ|BJ)$/i.exec(symbol || '');
-  return match ? `companies/${match[1]}-${match[2].toLowerCase()}` : '';
-}
-
-function marketSymbol(code) {
-  if (/^\d{6}\.(SH|SZ|BJ)$/i.test(code || '')) return String(code).toUpperCase();
-  if (!/^\d{6}$/.test(code || '')) return '';
-  const suffix = /^(?:92|4|8)/.test(code) ? 'BJ' : /^[69]/.test(code) ? 'SH' : 'SZ';
-  return `${code}.${suffix}`;
-}
-
 async function companyNameFromQuotes(symbol) {
   const connection = resolveBackend();
   const response = await fetch(`${connection.url}/market/quotes?symbols=${encodeURIComponent(symbol)}`, {
@@ -996,81 +979,6 @@ async function companyNameFromQuotes(symbol) {
   const body = await response.json().catch(() => null);
   const row = (body?.quotes || []).find(item => item?.symbol === symbol);
   return typeof row?.name === 'string' ? row.name : '';
-}
-
-async function researchedAtFromWiki(symbol) {
-  const connection = resolveBackend();
-  const response = await fetch(`${connection.url}/wiki/companies/${encodeURIComponent(symbol)}/page-research`, {
-    headers: backendHeaders(connection, { Accept: 'application/json' }),
-  });
-  if (!response.ok) return null;
-  const body = await response.json().catch(() => null);
-  const at = body?.research?.researchedAt || body?.researchedAt;
-  return typeof at === 'string' && at ? at : null;
-}
-
-async function followedCodes() {
-  const dataRoot = (process.env.VRA_FINANCE_DATA_ROOT || process.env.VRA_DATA_ROOT || '').trim();
-  if (!dataRoot) return [];
-  try {
-    const { listWatch, listResearchRoster } = await import('../../../orchestrator/src/client_store.ts');
-    const data = { dataRoot };
-    return [...new Set([...listWatch(data).symbols, ...listResearchRoster(data).symbols])];
-  } catch {
-    return [];
-  }
-}
-
-async function listArrivalCompanies() {
-  const followed = new Set((await followedCodes()).map(code => aShareCode(code)).filter(Boolean));
-  if (!followed.size) return [];
-  const byCode = new Map();
-  for (const task of listResearchTaskFiles()) {
-    if (task.status !== 'completed') continue;
-    const code = aShareCode(task.symbol);
-    const prev = byCode.get(code);
-    if (!code || (prev && String(task.updated_at) <= String(prev.updated_at))) continue;
-    byCode.set(code, {
-      symbol: task.symbol,
-      slug: task.slug || slugOfSymbol(task.symbol),
-      title: task.title,
-      report_period: task.report_period || task.trigger_period || null,
-      researched_at: task.finished_at || task.updated_at,
-    });
-  }
-  const companies = [];
-  for (const code of followed) {
-    const existing = byCode.get(code);
-    if (existing) { companies.push(existing); continue; }
-    const symbol = marketSymbol(code);
-    if (!symbol) continue;
-    let researchedAt = null;
-    try { researchedAt = await researchedAtFromWiki(symbol); }
-    catch { researchedAt = null; }
-    if (!researchedAt) continue;
-    companies.push({
-      symbol, slug: slugOfSymbol(symbol), title: researchTitleOf('', symbol),
-      report_period: null, researched_at: researchedAt,
-    });
-  }
-  return companies;
-}
-
-async function fetchReportCalendars(symbols) {
-  if (!symbols.length) return new Map();
-  const connection = resolveBackend();
-  const query = symbols.map(encodeURIComponent).join(',');
-  const response = await fetch(`${connection.url}/market/report-calendar?symbols=${query}`, {
-    headers: backendHeaders(connection, { Accept: 'application/json' }),
-  });
-  const body = await response.json().catch(() => null);
-  const items = Array.isArray(body?.items) ? body.items : [];
-  const calendars = new Map();
-  for (const item of items) {
-    if (!item?.symbol) continue;
-    calendars.set(item.symbol, { reports: Array.isArray(item.reports) ? item.reports : [] });
-  }
-  return calendars;
 }
 
 export async function startResearchRun(ctx, { slug, symbol, prompt, title, trigger, trigger_period, report_period }) {
@@ -1175,29 +1083,7 @@ export function installHostState(ctx, track = disposer => disposer) {
     signal.addEventListener('abort', () => { clearTimeout(timer); resolve(); }, { once: true });
   });
   // Resumes go through the same spawn queue, so a start the user makes meanwhile is not held up by the wait.
-  const diagnose = payload => {
-    if (payload?.step === 'error') console.error(`report-arrival: ${payload.message || '检查失败'}`);
-    else if (payload?.step === 'dry_run') console.error(`report-arrival dry-run: ${payload.symbol} ${payload.trigger_period || ''}`);
-  };
-  const arrival = () => signal.aborted ? undefined : attachReportArrival(ctx, track, {
-    lifetime: lifetimeFor(ctx),
-    diagnose,
-    listCompanies: listArrivalCompanies,
-    fetchCalendars: fetchReportCalendars,
-    listTasks: listResearchTaskFiles,
-    startRun: job => {
-      if (process.env.VIBE_REPORT_ARRIVAL_DRY_RUN === '1') {
-        diagnose({ step: 'dry_run', symbol: job.symbol, trigger_period: job.trigger_period });
-        return Promise.resolve({ dry: true, symbol: job.symbol });
-      }
-      return startResearchRun(ctx, {
-        slug: job.slug, symbol: job.symbol, prompt: job.prompt || REPORT_ARRIVAL_PROMPT,
-        title: job.title, trigger: job.trigger, trigger_period: job.trigger_period,
-        report_period: job.trigger_period,
-      });
-    },
-  });
-  researchBootScan = settle.then(recover, recover).then(arrival, arrival);
+  researchBootScan = settle.then(recover, recover);
   return [
     track(() => {
       for (const { dispose } of pageContextTools.values()) dispose();

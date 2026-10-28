@@ -6,7 +6,7 @@ import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
 import { useConfirm } from '../components/ui/ConfirmDialog';
 import { AssistantSlot } from '../components/layout/assistantSlot';
-import { companySlug, wikiPages, type WikiItem } from '../lib/research';
+import { companySlug } from '../lib/research';
 import { normalizeMarketSymbol } from '../lib/marketSymbol';
 import { addWatch, loadWatch, removeWatch } from '../lib/watchlist';
 import { addToRoster, loadRoster, removeFromRoster, touchRoster } from '../lib/researchRoster';
@@ -31,19 +31,13 @@ export function CompanyWiki() {
   const navigate = useNavigate();
   const location = useLocation();
   const backTo = (location.state as { from?: string } | null)?.from || '/watch';
-  const [revision, setRevision] = useState(0);
-  const [pages, setPages] = useState<WikiItem[]>([]);
+  const [, setRevision] = useState(0);
   const [names, setNames] = useState<Record<string, string>>({});
   const [error, setError] = useState('');
   const [confirmElement, ask] = useConfirm();
   const roster = loadRoster();
   const watched = new Set(loadWatch());
   const slug = companySlug(symbol) || symbol;
-  useEffect(() => {
-    const controller = new AbortController();
-    void wikiPages('companies', controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => {});
-    return () => controller.abort();
-  }, [revision]);
   const codes = [...new Set([symbol, ...roster, ...watched])];
   const codesKey = codes.join(',');
   useEffect(() => {
@@ -53,8 +47,7 @@ export function CompanyWiki() {
     }).catch(() => {});
     return () => { alive = false; };
   }, [codesKey]); // eslint-disable-line react-hooks/exhaustive-deps
-  const wikiBySlug = new Map(pages.map(page => [page.slug, page]));
-  const titleOf = (code: string) => names[code] || wikiBySlug.get(companySlug(code) || code)?.title || code;
+  const titleOf = (code: string) => names[code] || code;
   const title = titleOf(symbol);
   const rows = [...new Set([...roster, ...watched])].filter(code => /^\d{6}$/.test(code));
   const watching = watched.has(symbol) || roster.includes(symbol);

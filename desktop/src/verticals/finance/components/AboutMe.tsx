@@ -4,6 +4,7 @@ import { objectLabel, resolveObjectLabels } from "../lib/objectRegistry";
 import { loadMemory, saveMemory, type MemoryDoc } from "../lib/memory";
 import { aboutMeDate, aboutMeItems, aboutMeSource, forgetOps, rememberOps, type AboutMeItem } from "../lib/aboutMe";
 import { GroupCard, GroupRow } from "./ui/Card";
+import { LoadingCard } from "./ui/LoadingCard";
 
 const TOPIC_REF = /topic:[0-9a-f]{12}/g;
 
@@ -64,9 +65,9 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
       <button type="submit" className="btn" disabled={busy || !soul}>记下</button>
     </form>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {!soul && !recent && !error && <p role="status" className="text-sm text-[var(--text-3)]">正在读取…</p>}
+    {!soul && !recent && !error && <LoadingCard />}
     {(soul || recent) && (items.length === 0
-      ? <p className="text-sm text-[var(--text-3)]">还没有内容。在上面补充一句，或在对话里说“记住：回答先给结论”。</p>
+      ? <p className="text-sm text-[var(--text-3)]">补充一句，或在对话里说“记住：回答先给结论”</p>
       : <GroupCard>{items.map(item => <GroupRow key={`${item.kind}:${item.id}`} title={<TopicRefText text={item.text} />} description={source(item)}>
           <button type="button" className="btn btn-text btn-sm" disabled={busy} onClick={() => void apply(item.kind, forgetOps(item.id), "没删掉")}>删除</button>
         </GroupRow>)}</GroupCard>)}

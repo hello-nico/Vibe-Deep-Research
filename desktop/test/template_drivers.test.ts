@@ -109,7 +109,7 @@ test('接下来盯什么：无价格模型时数据包里有数的驱动先列�
 const h = React.createElement;
 async function openCompany(symbol: string, packet: any, fetchImpl: typeof fetch) {
   globalThis.fetch = fetchImpl;
-  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' } as any, stale: false, basisVersion: 'v' });
+  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' } as any, new_material: null, basisVersion: 'v' });
   fixture.services.data.packet = async () => packet;
   fixture.services.data.quote = async () => ({ ...fixtureData.quote!, price: 7.5 });
   await React.act(async () => root.render(h(router.MemoryRouter, null, h(companyModule.CompanyPage, { key: symbol + Math.random(), symbol, name: '测试', services: fixture.services }))));

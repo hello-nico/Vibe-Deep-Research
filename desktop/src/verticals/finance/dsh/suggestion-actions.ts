@@ -131,4 +131,8 @@ export async function startSuggestedIndicator(
   const topicId = routed.topic?.topic_id;
   if (!topicId) throw new Error(routed.reason || '没有找到可保存观察项的研究');
   await updateTrackingItem(topicId, item, request);
+  await request('/tracking/items', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ kind: 'observation', source: 'user', topic_id: topicId, tracking_key: item.tracking_key }),
+  });
 }

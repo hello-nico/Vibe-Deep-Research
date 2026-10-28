@@ -15,7 +15,7 @@ export function AnswerSentence({ text, packet, calcs, id, livePrice }: { text: s
     const slot = resolveSlot(part.token, packet, calcs, livePrice);
     return slot
       ? <strong key={index} className="narrative-slot" title={slot.title}>{slot.text}</strong>
-      : <span key={index} className="narrative-slot is-gap" title="暂时取不到">暂缺</span>;
+      : <span key={index} className="narrative-slot is-gap" title="读取失败">暂缺</span>;
   })}</p>;
 }
 
@@ -27,15 +27,15 @@ export function QuarterBars({ bars }: { bars: QuarterBar[] }) {
   return <div className="narrative-chart" data-chart="quarters">
     <div className="narrative-quarters">{bars.map((bar, index) => <figure key={bar.period} className={index === bars.length - 1 ? 'is-current' : undefined}>
       <div className="narrative-quarter-bars">
-        <span className="is-revenue" style={{ height: `${bar.revenue == null ? 0 : Math.max(4, (Math.abs(bar.revenue) / maxRevenue) * 100)}%` }} title={bar.revenue == null ? '营业收入暂缺' : `营业收入 ${yuanText(bar.revenue)}`} />
-        <span className="is-profit" style={{ height: `${bar.profit == null ? 0 : Math.max(4, (Math.abs(bar.profit) / maxProfit) * 100)}%` }} title={bar.profit == null ? '净利润暂缺' : `净利润 ${yuanText(bar.profit)}`} />
+        <span className="is-revenue" style={{ height: `${bar.revenue == null ? 0 : Math.max(4, (Math.abs(bar.revenue) / maxRevenue) * 100)}%` }} title={bar.revenue == null ? '无营业收入' : `营业收入 ${yuanText(bar.revenue)}`} />
+        <span className="is-profit" style={{ height: `${bar.profit == null ? 0 : Math.max(4, (Math.abs(bar.profit) / maxProfit) * 100)}%` }} title={bar.profit == null ? '无净利润' : `净利润 ${yuanText(bar.profit)}`} />
       </div>
       <figcaption><span>{quarterLabel(bar.period)}</span>
-        <small>{bar.revenue == null ? '收入 暂缺' : `收入 ${yuanText(bar.revenue)}`}</small>
-        <small>{bar.profit == null ? '净利 暂缺' : `净利 ${yuanText(bar.profit)}`}</small>
+        <small>{bar.revenue == null ? '收入 —' : `收入 ${yuanText(bar.revenue)}`}</small>
+        <small>{bar.profit == null ? '净利 —' : `净利 ${yuanText(bar.profit)}`}</small>
       </figcaption>
     </figure>)}</div>
-    <p className="company-page-gap">单季数据由数据包按累计值相减得到；柱高分别按各自最大值缩放。</p>
+    <p className="company-page-gap">单季 = 累计相减</p>
   </div>;
 }
 
@@ -53,7 +53,7 @@ export function FlowBar({ packet }: { packet?: DataPacket }) {
         style={{ flexGrow: item.value! }} title={`${item.label} ${yuanText(item.value!)}`}>{item.label} {yuanText(item.value!)}</span>)}
     </div>}
     <p className="narrative-flow-note">
-      {operating!.value != null ? <span data-flow="operating_cash_flow">经营现金流 {yuanText(operating!.value)}</span> : <span data-flow="operating_cash_flow" className="is-gap">经营现金流 暂缺</span>}
+      {operating!.value != null ? <span data-flow="operating_cash_flow">经营现金流 {yuanText(operating!.value)}</span> : <span data-flow="operating_cash_flow" className="is-gap">经营现金流 —</span>}
       {gaps.filter(item => item.key !== 'operating_cash_flow').map(item => <span key={item.key} data-flow={item.key} className="is-gap">{item.label} 暂缺</span>)}
     </p>
   </div>;
@@ -122,8 +122,8 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
               : <span className="narrative-origin" data-change-hint title={hint}>{conversationOrigin(note?.confirmedAt)}</span>) : undefined} />;
         })}
         <div className="narrative-slider-actions">
-          <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>回到今天价格</button>
-          <button type="button" className="btn btn-sm" data-reset="anchor" disabled={gaps.length === model.variables.length} onClick={() => onReset('anchor')}>回到对比期均价</button>
+          <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>回到今天</button>
+          <button type="button" className="btn btn-sm" data-reset="anchor" disabled={gaps.length === model.variables.length} onClick={() => onReset('anchor')}>回到对比期</button>
         </div>
       </div>
       <div className="narrative-result" data-result="">
@@ -135,12 +135,12 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
         <ul className="narrative-contrib">{parts.map(item => <li key={item.variable.id}>
           <span>{item.variable.name}</span>
           <span className="narrative-contrib-track" aria-hidden="true"><span className={item.profit >= 0 ? 'is-up' : 'is-down'} style={{ width: `${(Math.abs(item.profit) / reach) * 50}%`, [item.profit >= 0 ? 'left' : 'right']: '50%' }} /></span>
-          {item.variable.anchor == null ? <strong className="is-gap" title="缺对比期均价，不计入利润">暂缺</strong>
+          {item.variable.anchor == null ? <strong className="is-gap" title="缺对比期均价">暂缺</strong>
             : <strong className={item.profit > 0 ? 'is-up' : item.profit < 0 ? 'is-down' : undefined}>{item.profit === 0 ? '0' : `${item.profit > 0 ? '+' : '-'}${yiText(Math.abs(item.profit))}`}</strong>}
         </li>)}</ul>
         <div className="narrative-result-pair">
           <div><span>对应每股收益</span><strong data-eps="">{plainNumber(eps, 2)} 元/股</strong></div>
-          <div title="按上面估算的年化净利润和现价算出，随拖动变化；估值一节的市盈率用近四季实际净利润，所以两者不同。"><span>按估算利润的市盈率</span><strong data-pe="">{pe == null ? '暂缺' : `${plainNumber(pe, 1)} 倍`}</strong></div>
+          <div title="按估算利润与现价"><span>按估算利润的市盈率</span><strong data-pe="">{pe == null ? '—' : `${plainNumber(pe, 1)} 倍`}</strong></div>
         </div>
       </div>
     </div>

@@ -34,26 +34,79 @@ const running = { task_id: 't', symbol: '300750.SZ', status: 'running', current_
 
 test('三种结论：变了、没变、研究中；研究早于披露日、读不到不写；没有上一版只写档位', () => {
   const c = card('000933.SZ', '神火', '2026-10-20');
-  assert.deepEqual(result.reconResult(c, undefined, info('合理', '偏低')), { text: '已按三季报重新研究：估值从偏低变为合理', changed: true, id: 'recon:000933.SZ:2026Q3:偏低>合理' });
-  assert.deepEqual(result.reconResult(c, undefined, info('合理', '合理')), { text: '已按三季报重新研究：估值判断没变（合理）', changed: false });
-  assert.deepEqual(result.reconResult(card('300750.SZ', '宁德', '2026-10-21'), running as any, null), { text: '正在按三季报重新研究（3/6）', changed: false });
+  assert.deepEqual(result.reconResult(c, undefined, info('合理', '偏低')), { text: '估值从偏低变为合理', changed: true, id: 'recon:000933.SZ:2026Q3:偏低>合理' });
+  assert.deepEqual(result.reconResult(c, undefined, info('合理', '合理')), { text: '估值没变（合理）', changed: false });
+  assert.deepEqual(result.reconResult(card('300750.SZ', '宁德', '2026-10-21'), running as any, null), { text: '重新研究中 3/6', changed: false });
   assert.equal(result.reconResult(c, undefined, info('合理', '偏低', '2026-10-19T01:00:00Z')), null, '研究完成早于披露日：不写');
   assert.equal(result.reconResult(c, undefined, null), null, '读不到不写');
-  assert.deepEqual(result.reconResult(c, undefined, info('合理', null)), { text: '已按三季报重新研究：估值合理', changed: false });
+  assert.deepEqual(result.reconResult(c, undefined, info('合理', null)), { text: '三季报后估值合理', changed: false });
 });
 
-test('财报卡：第三行写结论，变了的置顶并在底行类型前加「判断变化 · 」；没变的不置顶', () => {
+test('财报卡：第三行写结论，变了的置顶，底行只写类型；没变的不置顶', () => {
   const changed = stream.reconStream(card('000933.SZ', '神火', '2026-10-20'), result.reconResult(card('000933.SZ', '神火', '2026-10-20'), undefined, info('合理', '偏低')));
   const same = stream.reconStream(card('601899.SH', '紫金', '2026-10-24'), result.reconResult(card('601899.SH', '紫金', '2026-10-24'), undefined, info('合理', '合理')));
   const none = stream.reconStream(card('600900.SH', '长电', '2026-10-25'));
-  assert.equal(changed.pinned, true); assert.deepEqual(changed.result, { text: '已按三季报重新研究：估值从偏低变为合理', strong: true });
+  assert.equal(changed.pinned, true); assert.deepEqual(changed.result, { text: '估值从偏低变为合理', strong: true });
   assert.equal(same.pinned, undefined); assert.equal(same.result.strong, false);
   assert.equal(none.result, undefined);
   assert.deepEqual(stream.streamOf([none, same, changed], '全部').map((c: any) => c.companies[0].name), ['神火', '长电', '紫金'], '变了的置顶，其余按日期');
 });
 
-test('页面：结论行与「判断变化 · 」前缀；进行中写进度', async () => {
-  const loadResults = async () => ({ '000933.SZ': result.reconResult(card('000933.SZ', '神火', '2026-10-20'), undefined, info('合理', '偏低')), '300750.SZ': result.reconResult(card('300750.SZ', '宁德', '2026-10-21'), running, null) });
+test('新一期数据只提示新报告，不写旧报告期；有进度时显示进度', () => {
+  const c = card('600011.SH', '华能国际', '2026-10-28');
+  const arrival = { material: { kind: 'report', name: '三季报', date: '2026-10-27' }, symbol: c.symbol, period: '2026Q3', company: c.company, date: '2026-10-27', text: '三季报已出', id: 'report:600011.SH:2026Q3' };
+  const pending = result.reconResult(c, undefined, info('偏高', '合理'), arrival);
+  assert.equal(pending.text, '三季报已出');
+  assert.equal(pending.pending, true);
+  assert.equal(pending.changed, false);
+  assert.deepEqual(stream.reconStream(c, pending).research, { symbol: c.symbol, name: c.company });
+  assert.equal(result.reconResult(c, running, null, arrival).text, '重新研究中 3/6');
+});
+
+test('无对账数字也有新报告卡；看卡只读，点击按钮才沿现有公司研究流程开始', async () => {
+  let starts = 0, reconReads = 0;
+  const methods: string[] = [];
+  const oldFetch = globalThis.fetch;
+  globalThis.fetch = (async (url, init) => {
+    methods.push(init?.method || 'GET');
+    const path = String(url);
+    if (path.includes('/coverage/ensure')) return Response.json({});
+    if (path.includes('/data-packet')) return Response.json({ symbol: '600011.SH', as_of: '2000-01-01', fields: {} });
+    if (path.includes('/page-research')) return Response.json({ research: { valuation: { grade: '偏高' } }, new_material: starts ? null : arrival.material, basisVersion: 'v1' });
+    if (path.startsWith('/finance-research-tasks')) return Response.json({ items: [] });
+    throw new Error(`unexpected ${path}`);
+  }) as typeof fetch;
+  const arrival = { material: { kind: 'report', name: '三季报', date: '2026-10-27' }, symbol: '600011.SH', period: '2026Q3', company: '华能国际', date: '2026-10-27', text: '三季报已出', id: 'report:600011.SH:2026Q3' };
+  const loadResults = async () => starts ? {} : ({ '600011.SH:2026Q3': { text: arrival.text, changed: false, pending: true, id: arrival.id } });
+  const data = { as_of: '2026-10-27', variables: [], cards: [], coverage: { unresearched: [], uncovered: [] } };
+  try {
+    await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+      React.createElement(sessionModule.ResearchSessionContext.Provider, { value: { start: async () => { starts++; return { sessionId: 'clicked', status: 'started' }; } } },
+        React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, {
+          load: async () => data, loadFlips: async () => [], loadRecon: async () => { reconReads++; return starts ? [] : [card(arrival.symbol, arrival.company, arrival.date, { headline: `${arrival.company}${arrival.text}`, details: [], reminder: true })]; },
+          loadFilings: async () => ({ rows: [], hidden: 0 }), loadEvents: async () => [], loadResults,
+        }))))));
+    await React.act(async () => {});
+    const cards = container.querySelectorAll('[data-recon-card]');
+    assert.equal(cards.length, 1);
+    assert.equal(cards[0].querySelector('h4')!.textContent, '华能国际三季报已出');
+    assert.equal(cards[0].querySelector('[data-recon-result]'), null, '不重复新报告文案');
+    assert.equal(cards[0].querySelector('.variable-card-foot > span')!.textContent, '财报', '观察日期不冒充披露日');
+    assert.doesNotMatch(cards[0].textContent!, /研究还按|半年报/);
+    assert.equal(starts, 0);
+    assert.ok(methods.every(method => method === 'GET'));
+    const button = [...cards[0].querySelectorAll('button')].find(item => item.textContent === '重新研究') as HTMLButtonElement;
+    await React.act(async () => { button.click(); });
+    await React.act(async () => {});
+    assert.equal(starts, 1);
+    assert.equal(methods.filter(method => method === 'POST').length, 1, '点击才沿既有路径 ensure');
+    assert.equal(reconReads, 2, '快速完成、未观察到进行中，也按用户动作重读一次资料快照');
+    assert.equal(container.querySelector('[data-recon-card]'), null);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test('页面：结论行，置顶卡底行不叠标签；进行中写进度', async () => {
+  const loadResults = async () => ({ '000933.SZ:2026Q3': result.reconResult(card('000933.SZ', '神火', '2026-10-20'), undefined, info('合理', '偏低')), '300750.SZ:2026Q3': result.reconResult(card('300750.SZ', '宁德', '2026-10-21'), running, null) });
   const data = { as_of: '2026-10-26', variables: [], cards: [], coverage: { unresearched: [], uncovered: [] } };
   const Probe = () => { pageContext.useAiQuestion(); return null; };
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
@@ -62,11 +115,11 @@ test('页面：结论行与「判断变化 · 」前缀；进行中写进度', a
   await React.act(async () => {});
   const cards = [...container.querySelectorAll('[data-recon-card]')];
   assert.deepEqual(cards.map(c => c.getAttribute('data-recon-card')), ['000933.SZ', '300750.SZ'], '档位变了的神火置顶');
-  assert.equal(cards[0].querySelector('[data-recon-result]')!.textContent, '已按三季报重新研究：估值从偏低变为合理');
+  assert.equal(cards[0].querySelector('[data-recon-result]')!.textContent, '估值从偏低变为合理');
   assert.ok(cards[0].querySelector('[data-recon-result].is-strong'));
-  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^判断变化 · 财报 · 10 月 20 日/);
-  assert.equal(cards[1].querySelector('[data-recon-result]')!.textContent, '正在按三季报重新研究（3/6）');
-  assert.match(cards[1].querySelector('.variable-card-foot')!.textContent!, /^财报 · 10 月 21 日/);
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^置顶 · 财报 · 10-20/);
+  assert.equal(cards[1].querySelector('[data-recon-result]')!.textContent, '重新研究中 3/6');
+  assert.match(cards[1].querySelector('.variable-card-foot')!.textContent!, /^财报 · 10-21/);
 });
 
 function mock(options: { grade?: [string | null, string | null] }) {
@@ -89,6 +142,57 @@ test('编号：对话里调整导致档位变化才有编号（与动态里的�
   assert.deepEqual(await attention.loadAttentionIds(), [], '旧记录没有档位字段');
 });
 
+test('没有对账数字的新报告也点亮动态小点，读取只发 GET，研究用上新一期后不再提醒', async () => {
+  const oldFetch = globalThis.fetch;
+  const methods: string[] = [];
+  let period = '2026H1';
+  globalThis.fetch = (async (url, init) => {
+    const path = String(url);
+    methods.push(init?.method || 'GET');
+    if (path.includes('client/watch')) return Response.json({ symbols: ['600011'] });
+    if (path.includes('/tracking/variables')) return Response.json({ as_of: '2026-10-27', variables: [], cards: [], coverage: { unresearched: [], uncovered: [] } });
+    if (path.includes('/market/report-periods')) return Response.json({ items: [{ symbol: '600011.SH', status: 'sourced', latest_report_period: '2026-09-30', fetched_at: '2026-10-27T23:00:00+08:00' }] });
+    if (path.startsWith('/finance-research-tasks')) return Response.json({ items: [{ task_id: 'old', symbol: '600011.SH', title: '公司研究 · 华能国际', status: 'completed', steps: [], report_period: period, updated_at: '2026-10-20', created_at: '2026-10-19' }] });
+    if (path.includes('/quarter-reconciliation')) return Response.json({ status: 'gap' });
+    if (path.includes('/page-research')) return Response.json({ new_material: period === '2026H1' ? { kind: 'report', name: '三季报', date: '2026-10-27' } : null, research: { valuation: { grade: '偏高' }, researchedAt: '2026-10-20', report_period: period } });
+    if (path.includes('/feed/research-events')) return Response.json({ items: [] });
+    return Response.json({});
+  }) as typeof fetch;
+  try {
+    assert.deepEqual(await attention.loadAttentionIds(), ['material:600011.SH:report:三季报:2026-10-27']);
+    assert.ok(methods.every(method => method === 'GET'));
+    period = '2026Q3';
+    assert.deepEqual(await attention.loadAttentionIds(), []);
+  } finally { globalThis.fetch = oldFetch; }
+});
+
+test('动态研究从进行中转为完成时重读资料卡一次，清除旧提醒快照', async t => {
+  const polls: (() => void)[] = [];
+  const nativeTimeout = win.setTimeout.bind(win);
+  t.mock.method(win, 'setTimeout', ((callback: () => void, ms: number, ...args: unknown[]) => {
+    if (ms === 15_000) { polls.push(callback); return 0; }
+    return nativeTimeout(callback, ms, ...args);
+  }) as typeof win.setTimeout);
+  let runningNow = true, reads = 0;
+  const data = { as_of: '2026-10-28', variables: [], cards: [], coverage: { unresearched: [], uncovered: [] } };
+  const loadRecon = async () => { reads++; return runningNow ? [card('600011.SH', '华能国际', '2026-10-27', { reminder: true, headline: '华能国际三季报已出', details: [] })] : []; };
+  const loadResults = async () => ({ '600011.SH:2026Q3': runningNow ? { text: '重新研究中 3/6', changed: false } : null });
+  await React.act(async () => root.render(null));
+  await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+    React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, {
+      load: async () => data, loadFlips: async () => [], loadRecon, loadResults,
+      loadFilings: async () => ({ rows: [], hidden: 0 }), loadEvents: async () => [],
+    })))));
+  await React.act(async () => {});
+  assert.equal(reads, 1);
+  assert.ok(polls.length);
+  runningNow = false;
+  await React.act(async () => { polls.pop()!(); });
+  await React.act(async () => {});
+  assert.equal(reads, 2);
+  assert.equal(container.querySelector('[data-recon-card]'), null);
+});
+
 test('小圆点：有未看的判断变化亮（无数字）；进入动态页清除并记为已看；看过不再亮；跟踪图标上没有', async () => {
   win.localStorage.clear();
   const render = async (path: string, ids: string[]) => {
@@ -99,13 +203,13 @@ test('小圆点：有未看的判断变化亮（无数字）；进入动态页�
     await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
   };
   const dot = () => container.querySelector('a[aria-label="动态"] .status-dot');
-  await render('/watch', ['flip:a', 'recon:b']);
+  await render('/watch', ['report:a', 'recon:b']);
   assert.ok(dot(), '圆点亮');
   assert.equal(dot()!.textContent!.replace(/\D/g, ''), '', '不显示数字');
   assert.equal(container.querySelector('a[aria-label="跟踪"] .status-dot'), null, '跟踪上没有');
-  await render('/feed', ['flip:a', 'recon:b']);
+  await render('/feed', ['report:a', 'recon:b']);
   assert.equal(dot(), null, '进入动态页即清除');
-  await render('/watch', ['flip:a', 'recon:b']);
+  await render('/watch', ['report:a', 'recon:b']);
   assert.equal(dot(), null, '看过不再亮');
   await render('/watch', ['flip:a', 'recon:b', 'recon:new']);
   assert.ok(dot(), '有新的又亮');

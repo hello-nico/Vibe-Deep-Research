@@ -8,6 +8,7 @@ import { adoptCandidate, CANDIDATE_CHANGED, CandidateChoiceNeeded, disposeCandid
 import type { ResearchTopicRouteCandidate } from '../lib/research';
 import { userFacingRuntimeError } from '../lib/userFacingError';
 import { useEffect, useState } from 'react';
+import { periodicReportDefinition, type PeriodicNotice } from './result-projection';
 import { registerInlineResultRenderer } from './inline-result';
 import { SuggestionNode } from './suggestion-node';
 import { loadTopicSessions } from '../lib/topicSessions';
@@ -19,6 +20,7 @@ import { installVibeAssistantContext, registerVibeRenderer, VibeBlock } from './
 interface ResultData { resultId: string }
 declare module '@deepseek-ai/dsh-client-ui-chat/client' {
   interface ChatNodeDataMap {
+    'finance-periodic-report': PeriodicNotice;
     'finance-result': ResultData; 'finance-maintenance': MaintenanceData;
     'finance-research-status': { text: string }; 'finance-topic-candidate': TopicCandidateData;
     'finance-suggestion': SuggestionData;
@@ -34,6 +36,8 @@ function ResultNode({ node, useTurnData }: Pick<ChatNodeViewProps<'finance-resul
   return <ResearchResult key={node.data.resultId} resultId={node.data.resultId} />;
 }
 export function installResultNode(ctx: Context) {
+  ctx.uiConversation.events.register(periodicReportDefinition);
+  ctx.slots.inject('conversation.chat.node', () => ctx.slots.register({ name: 'conversation.chat.node', key: 'finance-periodic-report' }, PeriodicReportNode));
   ctx.effect(() => registerInlineResultRenderer(resultId => <ResearchResult key={resultId} resultId={resultId} />), 'finance inline result renderer');
   ctx.uiConversation.events.register(resultDefinition);
   ctx.uiConversation.events.register(vibeDefinition);
@@ -52,6 +56,12 @@ export function installResultNode(ctx: Context) {
 
 function ResearchStatusNode({ node }: Pick<ChatNodeViewProps<'finance-research-status'>, 'node'>) {
   return <p className="my-2 text-sm text-muted-foreground">{node.data.text}</p>;
+}
+
+function PeriodicReportNode({ node }: Pick<ChatNodeViewProps<'finance-periodic-report'>, 'node'>) {
+  return <div className="my-2 break-words text-sm text-muted-foreground"><p>{node.data.text}</p>
+    {node.data.error && <details><summary className="cursor-pointer">查看详情</summary><p className="whitespace-pre-wrap">{node.data.error}</p></details>}
+  </div>;
 }
 
 function MaintenanceNode({ node }: Pick<ChatNodeViewProps<'finance-maintenance'>, 'node'>) {
@@ -119,10 +129,10 @@ function TopicCandidateNode({ node, sessionId }: Pick<ChatNodeViewProps<'finance
       {choices.map(item => <button key={item.topic_id} type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => void run('adopt', item.topic_id)}>{item.title}</button>)}
     </div>}
     {status === 'open' ? <div className="mt-3 flex flex-wrap gap-2">
-      <button type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => void run('adopt')}>{busy === 'adopt' ? '采用中…' : (editing ? '保存并采用' : '采用')}</button>
+      <button type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => void run('adopt')}>{busy === 'adopt' ? '采用中' : (editing ? '保存并采用' : '采用')}</button>
       <button type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => setEditing(value => !value)}>{editing ? '取消编辑' : '编辑后采用'}</button>
-      <button type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => void run('ignore')}>{busy === 'ignore' ? '处理中…' : '忽略'}</button>
-    </div> : <p className="mt-2 text-xs">{status === 'adopted' ? '已采用，可在我的研究中打开议题' : '已忽略'}</p>}
+      <button type="button" className="workspace-action" disabled={Boolean(busy)} onClick={() => void run('ignore')}>{busy === 'ignore' ? '处理中' : '忽略'}</button>
+    </div> : <p className="mt-2 text-xs">{status === 'adopted' ? '已采用' : '已忽略'}</p>}
     {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
   </div>;
 }

@@ -33,7 +33,7 @@ export const fixtureResearch: CompanyPageResearch = {
   changes: { thesis: '最新定期报告后更新' },
   related: [{ topicId: 'topic:123456abcdef', title: '电价与煤价传导' }],
 };
-export const fixturePageResearch: Omit<CompanyPageResearchRead, 'task'> = { research: fixtureResearch, stale: false, basisVersion: fixtureResearch.basisVersion };
+export const fixturePageResearch: Omit<CompanyPageResearchRead, 'task'> = { research: fixtureResearch, new_material: null, basisVersion: fixtureResearch.basisVersion };
 
 export const fixturePacket: DataPacket = {
   symbol: '600863.SH', as_of: '2026-10-10', financial_period: 'FY2025',
@@ -81,7 +81,7 @@ export const fixtureData: CompanyPageData = {
   packet: fixturePacket,
   documents: { items: [{ document_id: 'a'.repeat(32), title: '夹具半年报', reporting_period: '2026-06-30', document_type: 'annual_report' }] },
 };
-export function companyPageFixture(initial: Omit<CompanyPageResearchRead, 'task'> = { research: null, stale: false, basisVersion: 'b'.repeat(64) }) {
+export function companyPageFixture(initial: Omit<CompanyPageResearchRead, 'task'> = { research: null, new_material: null, basisVersion: 'b'.repeat(64) }) {
   let response = initial;
   let projectedTask: CompanyPageTask | undefined;
   const starts: { symbol: string; name: string; version: string }[] = [];

@@ -28,7 +28,7 @@ export function researchRoute(method, pathname) {
     '/wiki/research-memory', '/wiki/research-candidates', '/wiki/reports', '/wiki/pages/diff',
     '/industries/profiles', '/documents/uploads', '/notes', '/research-results',
     '/tracking/variables', '/tracking/items', '/tracking/next-reports', '/tracking/catalog',
-    '/market/quotes', '/market/report-calendar', '/feed/announcements', '/feed/news', '/feed/research-events',
+    '/market/quotes', '/market/report-calendar', '/market/report-periods', '/feed/announcements', '/feed/news', '/feed/research-events',
     '/wiki/chains', '/wiki/user-chains', '/wiki/user-chains/recommendations',
   ].includes(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/chains\/[A-Za-z0-9._-]+$/.test(pathname)) return true;

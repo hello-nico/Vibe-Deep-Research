@@ -148,7 +148,7 @@ export function VibeBlock({ code, options }: { code: string; options: VibeRender
     context.visibleBlocks.add(index);
     return () => { context.visibleBlocks.delete(index); };
   }, [result, context]);
-  if (result.pending) return <div role="status" className="my-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">正在准备研究组件…</div>;
+  if (result.pending) return <div role="status" className="my-3 rounded-xl border border-border bg-card p-4 text-sm text-muted-foreground">加载中</div>;
   return <>{Boolean(result.content?.length) && <div className="my-3 text-foreground" data-vibe-block>{result.content}</div>}{result.suggestion}</>;
 }
 

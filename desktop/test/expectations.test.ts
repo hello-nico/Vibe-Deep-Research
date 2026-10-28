@@ -66,11 +66,11 @@ test('机构少于 3 家写“样本少”；机构缺失写“暂无机构预�
   const none = narrative.expectations({ packet: packetWith(null), scenarios: scenarios(3.9), model: m, price: 39.3, grade: '合理', verdict });
   assert.equal(text(none.rows[0]), '暂无机构预期');
   assert.equal(none.difference, '模型中性每股收益 3.90 元，比股价隐含（3.28 元）高 19.1%');
-  assert.match(none.details[0], /没有可用的研报一致预期/);
+  assert.match(none.details[0], /机构预期：暂无/);
   const gap = narrative.expectations({ packet: packetWith(field(null)), scenarios: null, model: null, price: null, grade: null, verdict: narrative.verdictLine({ grade: null, model: null }) });
   assert.deepEqual(gap.rows.map(text), ['暂无机构预期', '模型：暂无三档价', '股价隐含：暂无大致对应的价格']);
   assert.equal(gap.difference, '');
-  assert.match(gap.details[2], /没有利润试算凭据|缺现价/);
+  assert.match(gap.details[2], /无利润试算|缺现价/);
   // 非正的每股收益（亏损）不参与比较。
   const loss = narrative.expectations({ packet: packetWith(field(-0.3)), scenarios: scenarios(3.9), model: m, price: 39.3, grade: '合理', verdict });
   assert.equal(text(loss.rows[0]), '暂无机构预期');
@@ -101,7 +101,7 @@ test('隐含价越界：照写数值并说明低于 / 高于近年区间，分�
 
 const SERVICES = (packet: any, over: Record<string, any> = {}) => {
   const research = { ...fixtureResearch, valuation: { grade: '偏高', basis: ['x'], conditions: '来水转枯。', scenarioRef: SCEN }, sensitivity: { resultRef: SENS, drivers: [] }, ...over };
-  const fixture = companyPageFixture({ research: research as any, stale: false, basisVersion: 'v' });
+  const fixture = companyPageFixture({ research: research as any, new_material: null, basisVersion: 'v' });
   fixture.services.data.packet = async () => packet;
   fixture.services.data.quote = async () => ({ ...fixtureData.quote!, price: 49.2 });
   fixture.services.readScenario = async () => packetLib.scenarioTable(shenhuo.scenarioResult);
@@ -134,7 +134,7 @@ test('个股页（神火真实凭据）：估值节区间带上方出现三行�
   assert.doesNotMatch(readFileSync(new URL('../src/verticals/finance/pages/company-page.css', import.meta.url), 'utf8').split('\n').filter(line => line.startsWith('.narrative-expect')).join('\n'), /brand|border:|box-shadow/);
   assert.doesNotMatch(valuation().textContent!, /买入|卖出|undefined|NaN/);
   // 没有研究：不出现三行。
-  const bare = companyPageFixture({ research: null, stale: false, basisVersion: 'v' });
+  const bare = companyPageFixture({ research: null, new_material: null, basisVersion: 'v' });
   bare.services.data.packet = async () => packet;
   bare.services.data.quote = async () => ({ ...fixtureData.quote!, price: 49.2 });
   await open(bare);

@@ -2,7 +2,6 @@
 .variable-desk { display: flex; flex-direction: column; gap: 36px; font-variant-numeric: tabular-nums; }
 .variable-desk-note { display: flex; align-items: center; gap: 12px; font-size: 13px; color: var(--text-2); }
 .variable-desk-empty { font-size: 13px; color: var(--text-3); }
-.variable-desk-skeleton { height: 88px; border-radius: 16px; background: var(--fill-1); }
 .variable-desk-cards { display: flex; flex-direction: column; gap: 12px; }
 .variable-card { display: flex; flex-direction: column; gap: 10px; padding: 16px 20px; }
 .variable-card-title { margin: 0; font-size: 14px; font-weight: 600; line-height: 1.5; }
@@ -11,6 +10,7 @@
 .variable-card-effects p { margin: 0; }
 .variable-card-effects b { font-weight: 600; }
 .variable-card-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: var(--text-3); }
+.variable-card-pinned { font-weight: 600; color: hsl(var(--foreground)); }
 .variable-card-actions { display: inline-flex; align-items: center; gap: 8px; }
 .variable-desk .is-up { color: hsl(var(--up)); }
 .variable-desk .is-down { color: hsl(var(--down)); }
@@ -20,5 +20,4 @@
 
 .variable-card-result { margin: 6px 0 0; font-size: 14px; }
 .variable-card-result.is-strong { font-weight: 600; }
-.variable-card-pin { font-weight: 600; }
 .variable-card-note { margin: 0; font-size: 12px; color: var(--text-3); }

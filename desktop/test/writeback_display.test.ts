@@ -30,7 +30,7 @@ after(async () => { await React.act(async () => root?.unmount()); await server?.
 
 const ev = (id: string, at: string, over: Record<string, unknown> = {}) => ({ id, at, symbol: '000933.SZ', kind: 'drivers', summary: '按讨论改写铝价取值', session_id: `s-${id}`, research_version: `v-${id}`, previous_version: null, reversible: true, grade_before: null, grade_after: null, ...over });
 
-test('撤回只对该公司最新一次可用，其余「已有更新的版本」；撤回过之后更早的都不可用；候选状态变化没有撤回', () => {
+test('撤回只对该公司最新一次可用，其余不显示撤回；撤回过之后更早的都不可用；候选状态变化没有撤回', () => {
   const list = [
     ev('c', '2026-10-26T09:00:00Z', { kind: 'candidate', reversible: false }),
     ev('b', '2026-10-26T08:00:00Z'), ev('a', '2026-10-25T08:00:00Z'),
@@ -52,13 +52,13 @@ test('三种记录卡：档位变了（置顶、判断变化）、没变、没�
   ], names).map(stream.writebackStream);
   assert.deepEqual(cards.map((c: any) => c.type), ['对话', '对话', '对话']);
   assert.equal(cards[0].title[0].text, '按讨论改写铝价取值');
-  assert.equal(cards[0].involved[0].text, '涉及：神火 · 价格影响 · 来自对话里的调整');
+  assert.equal(cards[0].involved[0].text, '神火 · 价格影响');
   assert.deepEqual(cards[0].result, { text: '估值从合理变为偏高', strong: true }); assert.equal(cards[0].pinned, true);
-  assert.deepEqual(cards[1].result, { text: '估值判断没变（偏高）', strong: false }); assert.equal(cards[1].pinned, undefined);
+  assert.deepEqual(cards[1].result, { text: '估值没变（偏高）', strong: false }); assert.equal(cards[1].pinned, undefined);
   assert.equal(cards[2].result, undefined); assert.equal(cards[2].revert, undefined);
   assert.equal(cards[0].revert.state, 'available'); assert.equal(cards[1].revert.state, 'newer');
   assert.equal(cards[0].date, '2026-10-26');
-  assert.equal(cards[2].title[0].text, '对话里提到了一个因素：电价', '内部说法换成人话');
+  assert.equal(cards[2].title[0].text, '新因素：电价', '内部说法换成人话');
   assert.equal(stream.streamOf(cards.slice().reverse(), '全部')[0].key, 'event:1', '档位变了的置顶');
   assert.doesNotMatch(JSON.stringify(cards.map((c: any) => [c.title, c.involved, c.result])), /写回|候选|driver|session/i);
 });
@@ -74,7 +74,7 @@ async function showDesk(loadEventsRaw: () => Promise<unknown>, sessions: Record<
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
 }
 
-test('动态里的记录卡：置顶、「判断变化 · 对话」、打开对话、撤回带版本发 POST 并重读；旧的显示灰字', async () => {
+test('动态里的记录卡：置顶、「对话」、打开对话、撤回带版本发 POST 并重读；旧的不显示撤回', async () => {
   const requests: { url: string; method: string; body?: string }[] = [];
   let reverted = false;
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
@@ -91,11 +91,11 @@ test('动态里的记录卡：置顶、「判断变化 · 对话」、打开对�
   assert.equal(cards[0].querySelector('.variable-card-title')!.textContent, '按讨论改写铝价取值');
   assert.equal(loadCount, 1, '记录只读一次，不会因渲染反复重读');
   assert.equal(cards[0].querySelector('.variable-card-result')!.textContent, '估值从合理变为偏高');
-  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^判断变化 · 对话 · 10 月 26 日/);
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^置顶 · 对话 · 10-26/);
   const labels = (card: Element) => [...card.querySelectorAll('.variable-card-actions > *')].map(el => el.textContent);
   assert.ok(labels(cards[0]).includes('撤回') && labels(cards[0]).includes('打开对话') && labels(cards[0]).includes('看神火') && labels(cards[0]).includes('讨论'));
   assert.ok(!labels(cards[1]).includes('撤回'), '旧的一次没有撤回按钮');
-  assert.ok(labels(cards[1]).includes('已有更新的版本'));
+  assert.ok(!labels(cards[1]).includes('已有更新的版本'), '旧的一次不写灰字');
   await React.act(async () => ([...cards[0].querySelectorAll('button')].find(b => b.textContent === '打开对话') as HTMLButtonElement).click());
   assert.deepEqual(opened, ['s-1']);
   reverted = true;
@@ -128,7 +128,7 @@ test('对话里提到的因素：纳入、排除（理由可空，Backend 要理
   const render = async () => { await React.act(async () => root.render(null)); await React.act(async () => root.render(React.createElement(factors.ConversationFactors, { symbol: '000933', onResearch: () => { researched++; } }))); await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); }); };
   await render();
   assert.match(calls[0].url, /\/finance-research\/wiki\/companies\/000933\.SZ\/driver-candidates$/);
-  assert.equal(container.querySelector('[data-conversation-factors] h3')!.textContent, '对话里提到的因素');
+  assert.equal(container.querySelector('[data-conversation-factors] h3')!.textContent, '对话里的新因素');
   assert.equal(container.querySelectorAll('[data-factor]').length, 3, '排除的不显示');
   const row = (id: string) => container.querySelector(`[data-factor="${id}"]`)!;
   assert.deepEqual([...row('f1').querySelectorAll('.company-page-factor-actions button')].map(b => b.textContent), ['纳入', '排除', '观察']);
@@ -150,7 +150,7 @@ test('对话里提到的因素：纳入、排除（理由可空，Backend 要理
   await React.act(async () => ([...row('f3').querySelectorAll('button')].find(b => b.textContent === '观察') as HTMLButtonElement).click());
   await React.act(async () => {});
   assert.deepEqual(calls.at(-1)!.body, { status: '观察' });
-  assert.equal(row('f3').querySelector('[data-factor-state="watching"]')!.textContent, '已标为观察');
+  assert.equal(row('f3').querySelector('[data-factor-state="watching"]')!.textContent, '观察中');
   globalThis.fetch = (async () => Response.json({ detail: 'x' }, { status: 500 })) as typeof fetch;
   await render();
   assert.equal(container.querySelector('[data-conversation-factors]'), null, '读不到整组不出现');

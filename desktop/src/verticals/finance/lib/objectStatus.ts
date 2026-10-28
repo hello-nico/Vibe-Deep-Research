@@ -1,9 +1,11 @@
 import { researchRead } from './research';
 import { watchPathOfCompany } from './routes';
+import type { NewMaterial } from './companyPage';
 
 // Backend owns object status (T4-a); UI reads the same rows in batches.
 export type StatusRow = {
   slug: string;
+  new_material?: NewMaterial | null;
   errors?: string[];
   existence?: 'missing' | 'building' | 'published';
   refresh?: { state?: 'none' | 'checking' | 'candidate'; checked_at?: string | null } | null;
@@ -24,7 +26,12 @@ export async function loadObjectStatuses(slugs: readonly string[]): Promise<Map<
     const batch = missing.slice(index, index + 50);
     const request = researchRead<{ objects: StatusRow[] }>('/wiki/objects/status', {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ slugs: batch }),
-    });
+    }).then(async result => ({ objects: await Promise.all(result.objects.map(async row => {
+      const match = /^companies\/(\d{6})-(sh|sz|bj)$/.exec(row.slug);
+      if (!match) return row;
+      const page = await researchRead<{ new_material: NewMaterial | null }>(`/wiki/companies/${match[1]}.${match[2]!.toUpperCase()}/page-research`);
+      return { ...row, new_material: page.new_material };
+    })) }));
     for (const slug of batch) {
       const row = request.then(result => result.objects.find(item => item.slug === slug));
       cache.set(slug, { until: Date.now() + TTL_MS, row });
@@ -47,7 +54,7 @@ export function statusBadges(row: StatusRow | undefined): string[] {
   if (row.existence === 'building') badges.push('建立中');
   if ((row.drafts?.pending || 0) > 0) badges.push('草案待确认');
   if ((row.maintenance?.pending || 0) > 0) badges.push('待确认维护');
-  if (row.refresh?.state === 'candidate') badges.push('有新资料');
+  if (row.new_material) badges.push(`${row.new_material.name}已出`);
   if (row.refresh?.state === 'checking') badges.push('检查资料中');
   if (row.report?.exists && row.report.stale) badges.push('报告已过期');
   return badges;
@@ -61,7 +68,7 @@ export function badgeHref(slug: string, badge: string, row?: StatusRow): string 
   const base = slug.startsWith('companies/') ? watchPathOfCompany(slug)
     : slug.startsWith('industries/nbs-') ? '/watch' : undefined;
   if (!base) return undefined;
-  if (badge === '有新资料') return `${base}${base.includes('?') ? '&' : '?'}refresh=confirm`;
+  if (row?.new_material && badge === `${row.new_material.name}已出`) return base;
   if (badge === '草案待确认') return row?.drafts?.latest?.status === 'pending'
     ? `/insights?tab=tasks&draft=${encodeURIComponent(row.drafts.latest.draft_id)}` : '/insights?tab=pending';
   if (badge === '报告已过期') return `${base}${base.includes('?') ? '&' : '?'}view=report`;

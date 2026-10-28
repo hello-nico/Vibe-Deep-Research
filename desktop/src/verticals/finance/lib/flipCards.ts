@@ -1,14 +1,27 @@
 import { researchRead } from './research';
 import { FLIP_NEAR, flipGrade, parseSensitivity, plainNumber, sliderUnitText, type SensitivityModel } from './companyNarrative';
 import { readValuationGrade } from './researchTasks';
-import { shortName, toNumber, type TrackingVariables } from './trackingVariables';
+import { toNumber, type TrackingVariables } from './trackingVariables';
 
 /** 动态「行情」与跟踪页的跳档提醒：关注公司的主价格接近或越过研究里的跳档价。 */
 export interface FlipCard {
   symbol: string; company: string; kind: 'crossed' | 'near'; text: string;
+  /** 越过：日线连续停在跳档价另一侧的第一天；只有盘中越过时没有，按当天。 */
+  date?: string;
 }
 
 export interface FlipInput { data: TrackingVariables; models: Record<string, SensitivityModel | null | undefined>; grades: Record<string, string | null | undefined> }
+
+/** 从最新一天往回数，日线一直停在跳档价另一侧（相对研究时价格）的最早一天。 */
+function crossedOn(series: string[][] | null | undefined, flip: number, from: number) {
+  let day: string | undefined;
+  for (const [date, close] of [...(series ?? [])].reverse()) {
+    const value = toNumber(close);
+    if (value == null || (value - flip) * (from - flip) > 0) break;
+    day = date;
+  }
+  return day;
+}
 
 /** 页面只按实时价比较研究里存的跳档价，不重新判断估值：原档取已存研究，新档由跳档边界推出。 */
 export function flipCards({ data, models, grades }: FlipInput): FlipCard[] {
@@ -28,7 +41,7 @@ export function flipCards({ data, models, grades }: FlipInput): FlipCard[] {
       const crossed = flips.filter(item => (item.value - from) * (item.value - live) <= 0 && item.value !== from)
         .sort((a, b) => Math.abs(b.value - from) - Math.abs(a.value - from))[0];
       const old = grades[company.symbol]?.trim() || undefined;
-      const name = shortName(company.name);
+      const name = company.name;
       const price = (value: number) => sliderUnitText(primary, value);
       const verdict = (flip: typeof flips[number], will: boolean) => {
         const to = flip.grade ?? flipGrade(flip, primary, old);
@@ -37,7 +50,8 @@ export function flipCards({ data, models, grades }: FlipInput): FlipCard[] {
       };
       if (crossed) {
         seen.add(company.symbol);
-        out.push({ symbol: company.symbol, company: name, kind: 'crossed', text: `${variable.name}${crossed.value < from ? '跌破' : '涨过'} ${price(crossed.value)}，${name}${verdict(crossed, false)}` });
+        const date = crossedOn(variable.series, crossed.value, from);
+        out.push({ symbol: company.symbol, company: name, kind: 'crossed', text: `${variable.name}${crossed.value < from ? '跌破' : '涨过'} ${price(crossed.value)}，${name}${verdict(crossed, false)}`, ...(date ? { date } : {}) });
         continue;
       }
       const near = flips.map(item => ({ item, gap: live === 0 ? Infinity : Math.abs(item.value - live) / Math.abs(live) })).filter(entry => entry.gap <= FLIP_NEAR).sort((a, b) => a.gap - b.gap)[0];
@@ -69,7 +83,7 @@ export function flipLines({ data, models, grades }: FlipInput): FlipLine[] {
       if (!pick) continue;
       const old = grades[company.symbol]?.trim() || undefined;
       const to = pick.grade ?? flipGrade(pick, primary, old);
-      const name = shortName(company.name);
+      const name = company.name;
       const verdict = !to ? '估值判断会改变' : old ? `估值从${old}变为${to}` : `估值变为${to}`;
       out.set(variable.var_id, { varId: variable.var_id, value: pick.value, text: `${pick.value < from ? '跌破' : '涨过'} ${sliderUnitText(primary, pick.value)}：${name}${verdict}` });
       break;

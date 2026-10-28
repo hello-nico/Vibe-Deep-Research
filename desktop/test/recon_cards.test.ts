@@ -80,9 +80,20 @@ test('只看披露日：最近 14 天内披露就出卡；缺口、日期不明�
   assert.equal(at('2026-10-07'), 1, '第 14 天');
   assert.equal(at('2026-10-06'), 0, '超过 14 天');
   assert.equal(at('2026-10-23'), 0, '日期在未来太多不出');
+  assert.equal(lib.reconCards([{ ...nongxing, reported_on: '2026-10-22' }], names, NOW)[0].date, '2026-10-21', '盘后发布记在次日：比今天晚的按今天');
   assert.equal(lib.reconCards([{ ...nongxing, status: 'error' }, { ...nongxing, status: 'gap', reason: '还没有研究' }, { ...nongxing, reported_on: null }], names, NOW).length, 0);
   assert.equal(lib.reconCards([nongxing], {}, NOW)[0].headline.startsWith('601288三季报'), true, '没有名字时用代码，不空');
   assert.equal(lib.reconLabel('2026Q1'), '一季报');
+});
+
+test('数据到达先提醒，对账到达后合并为一张，半年报 Q2/H1 也按同一期合并', () => {
+  const arrival = { material: { kind: 'report', name: '三季报', date: '2026-10-27' }, symbol: '600011.SH', period: '2026Q3', company: '华能国际', date: '2026-10-27', text: '三季报已出', id: 'report:600011.SH:2026Q3' };
+  const pending = lib.withReportReminders([], [arrival]);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].headline, '华能国际三季报已出');
+  const actual = { ...pending[0], headline: '三季报利润变化', details: ['已有数字'] };
+  assert.deepEqual(lib.withReportReminders([actual], [arrival]), [actual]);
+  assert.equal(lib.withReportReminders([{ ...actual, period: '2026Q2' }], [{ ...arrival, period: '2026H1', material: { kind: 'report', name: '半年报', date: '2026-10-27' } }]).length, 1);
 });
 
 const sessions = { start: async () => ({ sessionId: 's', status: 'started' }) };
@@ -94,18 +105,18 @@ async function show(loadRecon: () => Promise<unknown[]>, loadFlips: () => Promis
   await React.act(async () => {});
 }
 
-test('动态流：判断变化置顶，财报按披露日排在价格卡之前，不描边；展开看逐项；没有新季报时整块不出现；读取失败不影响其余', async () => {
+test('动态流：估值卡置顶，财报按披露日排在价格卡之前，不描边；展开看逐项；没有新季报时整块不出现；读取失败不影响其余', async () => {
   const cards = lib.reconCards([shenhuo, nongxing], names, NOW);
   const flip = { symbol: '000933.SZ', company: '神火', kind: 'near', text: '沪铝距 22,500 元/吨 只差 0.9%，越过后神火估值会从合理变为偏高' };
   await show(async () => cards, async () => [flip]);
   const types = [...container.querySelectorAll('[data-stream-card]')].map(card => card.getAttribute('data-stream-type'));
-  assert.deepEqual(types, ['判断变化', '财报', '财报', '价格']);
+  assert.deepEqual(types, ['估值', '财报', '财报', '价格']);
   const recon = container;
   assert.equal(recon.querySelectorAll('.card-alert').length, 0, '对账卡不抢描边');
   assert.equal(recon.querySelectorAll('[data-recon-card]').length, 2);
   assert.equal(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-title')!.textContent, '神火三季报：单季净利润 27.05 亿元，比上季多 2.14 亿元');
-  assert.match(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-touch')!.textContent!, /^涉及：神火 · 利润 · .*报告未单独披露/);
-  assert.match(recon.querySelector('[data-recon-card="601288.SH"] .variable-card-touch')!.textContent!, /^涉及：.*· 利润 · /, '没有价格模型也有涉及一行');
+  assert.match(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-touch')!.textContent!, /^神火 · .*报告未单独披露/);
+  assert.match(recon.querySelector('[data-recon-card="601288.SH"] .variable-card-touch')!.textContent!, /^农业银行/, '没有价格模型也有公司一行');
   assert.equal([...recon.querySelectorAll('[data-recon-card="601288.SH"] button')].some(button => button.textContent === '展开'), false, '没有明细就没有展开');
   assert.ok([...recon.querySelectorAll('[data-recon-card="000933.SZ"] button')].some(button => button.textContent === '讨论'), '对账卡有讨论');
   assert.equal(recon.querySelector('[data-recon-card="000933.SZ"] .variable-card-effects'), null);
@@ -134,10 +145,34 @@ test('loadReconCards：并发读各关注公司，跳过没研究的，读不到
   data.coverage.unresearched = ['601899.SH'];
   const result = await lib.loadReconCards(data, undefined, NOW);
   assert.deepEqual(result.map((card: any) => card.symbol), ['000933.SZ', '601288.SH']);
-  assert.equal(requested.some(path => path.includes('601899')), false, '没研究的公司不请求');
+  assert.equal(requested.some(path => path.endsWith('/601899.SH/quarter-reconciliation')), false, '无敏感性模型的公司不请求昂贵对账');
+  assert.equal(requested.some(path => path.endsWith('/601899.SH/page-research')), true, '全部关注公司仍读取唯一新资料字段');
   assert.ok(requested.every(path => !/ensure|startResearch|POST/.test(path)), '只读');
-  assert.equal(result[0].headline.startsWith('神火三季报'), true);
+  assert.equal(result[0].headline.startsWith('神火股份三季报'), true);
   assert.equal(await lib.loadReconCards(null, undefined, NOW).then((items: unknown[]) => items.length), 0);
+});
+
+test('已有研究但无敏感性模型也提醒，动态结果消费卡片快照，不重复扫描公告或单公司任务', async () => {
+  const requested: string[] = [];
+  const original = globalThis.fetch;
+  globalThis.fetch = (async (url: string) => {
+    const path = String(url); requested.push(path);
+    if (path.includes('client/watch')) return Response.json({ symbols: ['600011'] });
+    if (path.endsWith('/600011.SH/page-research')) return Response.json({ new_material: { kind: 'announcement', name: '减值公告', date: '2026-10-28' } });
+    if (path.startsWith('/finance-research-tasks')) return Response.json({ items: [] });
+    return Response.json({});
+  }) as typeof fetch;
+  try {
+    const data = { as_of: '2026-10-28', variables: [], cards: [], coverage: { unresearched: ['600011.SH'], uncovered: [] } };
+    const cards = await lib.loadReconCards(data, undefined, NOW);
+    assert.equal(cards.length, 1);
+    assert.match(cards[0].headline, /减值公告已出/);
+    const module = await server.ssrLoadModule('/src/verticals/finance/lib/reconResult.ts');
+    const results = await module.loadReconResults(cards);
+    assert.equal(Object.values(results)[0].text, '减值公告已出');
+    assert.equal(requested.filter(path => path.includes('/page-research')).length, 1);
+    assert.equal(requested.some(path => /quarter-reconciliation|symbol=600011/.test(path)), false);
+  } finally { globalThis.fetch = original; }
 });
 
 // ------------------------------------------------------------------ 出卡条件修正：只看披露日，研究是否已用上这份季报不影响

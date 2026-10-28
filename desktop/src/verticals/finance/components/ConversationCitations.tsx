@@ -1,14 +1,15 @@
 import { useEffect, useRef, type HTMLAttributes } from 'react';
 import { EvidenceLink } from './EvidenceCard';
 import { decodeEvidenceLink, loadEvidence } from '../lib/evidence';
-import { citationClickOpensPanel, citationReference, citationTitle, evidenceDeepLinkRef, inAppEvidenceRef, webCitationUrl } from '../lib/citationMarks';
+import { citationClickOpensPanel, citationReference, citationTitle, evidenceDeepLinkRef, inAppEvidenceRef, opaqueCitationText, webCitationUrl } from '../lib/citationMarks';
 import { markResearchMentions } from '../lib/researchMentions';
 import './conversation-citations.css';
 
 const GENERIC_CITATION_TITLES = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文', 'tencent', 'hithink', 'sina']);
 
-function meaningfulCitationTitle(value: string | undefined): string | null {
+function meaningfulCitationTitle(value: string | undefined, reference?: string): string | null {
   const title = value?.replace(/\s+/g, ' ').trim() || '';
+  if (title && opaqueCitationText(title, reference)) return null;
   if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(title)
     || (typeof window !== 'undefined' && title === window.location.hostname)) return null;
   return title && !GENERIC_CITATION_TITLES.has(title) && !/^(?:source|claim|evidence|provider|lookup):/.test(title) ? title : null;
@@ -27,8 +28,8 @@ function citationReferenceFromNode(node: HTMLElement): string | null {
   return null;
 }
 
-function existingCitationTitle(node: HTMLElement): string | null {
-  return meaningfulCitationTitle(node.dataset.citationLabel) ?? meaningfulCitationTitle(node.textContent || undefined);
+function existingCitationTitle(node: HTMLElement, reference?: string): string | null {
+  return meaningfulCitationTitle(node.dataset.citationLabel, reference) ?? meaningfulCitationTitle(node.textContent || undefined, reference);
 }
 
 function setCitationTitle(node: HTMLElement, reference: string, title: string): void {
@@ -47,7 +48,7 @@ function internalCitationNodes(root: HTMLElement): HTMLElement[] {
 function hydrateCitationTitles(root: HTMLElement, attempted: Set<string>, resolved: Map<string, string>, signal: AbortSignal): void {
   for (const node of internalCitationNodes(root)) {
     const reference = citationReferenceFromNode(node);
-    if (!reference || existingCitationTitle(node)) continue;
+    if (!reference || existingCitationTitle(node, reference)) continue;
     const knownTitle = resolved.get(reference);
     if (knownTitle) {
       setCitationTitle(node, reference, knownTitle);
@@ -61,7 +62,7 @@ function hydrateCitationTitles(root: HTMLElement, attempted: Set<string>, resolv
       if (signal.aborted || result.related.length || !meaningfulCitationTitle(result.title)) return;
       resolved.set(reference, result.title);
       for (const current of internalCitationNodes(root)) {
-        if (citationReferenceFromNode(current) === reference && !existingCitationTitle(current)) {
+        if (citationReferenceFromNode(current) === reference && !existingCitationTitle(current, reference)) {
           setCitationTitle(current, reference, result.title);
         }
       }
@@ -85,8 +86,8 @@ export function markWebCitations(root: ParentNode): void {
     const internal = deepRef ?? decodeEvidenceLink(rawHref);
     if (internal) {
       // 流式链接在 ref 尚未完整时可能先按外链展示；恢复原始标题或由依据层补标题。
-      const originalTitle = meaningfulCitationTitle(node.dataset.citationTitle)
-        ?? meaningfulCitationTitle(node.textContent?.trim());
+      const originalTitle = meaningfulCitationTitle(node.dataset.citationTitle, internal)
+        ?? meaningfulCitationTitle(node.textContent?.trim(), internal);
       const label = citationTitle(internal, originalTitle ?? undefined);
       node.dataset.internalCitation = 'true';
       delete node.dataset.webCitation;
@@ -126,7 +127,7 @@ export function markWebCitations(root: ParentNode): void {
     if (!internal && !href) continue;
     const reference = internal ?? href!;
     const label = internal
-      ? meaningfulCitationTitle(node.dataset.citationLabel) || meaningfulCitationTitle(node.textContent?.trim()) || citationTitle(reference)
+      ? meaningfulCitationTitle(node.dataset.citationLabel, reference) || meaningfulCitationTitle(node.textContent?.trim(), reference) || citationTitle(reference)
       : citationTitle(reference);
     const previewTitle = node.dataset.citationTitle || meaningfulCitationTitle(node.textContent?.trim());
     node.dataset.evidenceRef = reference;

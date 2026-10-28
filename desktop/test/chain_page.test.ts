@@ -92,7 +92,7 @@ test('纯函数：共同驱动按价格合并并列出影响的环节；箭头�
   assert.equal(lib.arrowLabel(chain, 1), '电价');
   assert.equal(lib.nodeIndex(chain, '801160'), 1, '传导里写行业代码也认');
   const tiers = [{ name: '悲观', price: 3 }, { name: '中性', price: 5 }, { name: '乐观', price: 7 }];
-  assert.deepEqual([2, 4, 5, 6, 8].map(price => lib.positionText(price, tiers)), ['低于悲观价', '在悲观价与中性价之间', '正在中性价', '在中性价与乐观价之间', '高于乐观价']);
+  assert.deepEqual([2, 4, 5, 6, 8].map(price => lib.positionText(price, tiers)), ['低于悲观价', '在悲观价与中性价之间', '在中性价', '在中性价与乐观价之间', '高于乐观价']);
   assert.equal(lib.positionText(null, tiers), '');
   assert.equal(lib.positionText(5, tiers.slice(0, 2)), '');
   assert.equal(lib.roleText('upstream'), '上游');
@@ -118,7 +118,7 @@ test('链条、共同驱动、链上公司并排：环节估值方法、驱动�
   // 链上公司按环节顺序：电力在前，工业金属在后。
   assert.deepEqual([...container.querySelectorAll('[data-company]')].map(item => item.getAttribute('data-company')), ['600863.SH', '600011.SH', '600900.SH', '000933.SZ', '000807.SZ']);
   const sh = row('000933.SZ');
-  assert.equal(sh.querySelector('.chain-company-name a')!.textContent, '神火', '公司名用简称，与动态、跟踪一致');
+  assert.equal(sh.querySelector('.chain-company-name a')!.textContent, '神火股份', '公司名用简称，与动态、跟踪一致');
   assert.equal(sh.querySelector('.chain-company-name a')!.getAttribute('href'), '/watch/000933');
   assert.equal(sh.querySelector('.chain-company-grade')!.textContent, '估值偏高');
   assert.match(sh.querySelector('.chain-band')!.getAttribute('aria-label')!, /现价 52\.67 元\/股，在中性价与乐观价之间/);
@@ -128,10 +128,10 @@ test('链条、共同驱动、链上公司并排：环节估值方法、驱动�
   // 蒙电研究里没有敏感性凭据：就地写缺什么，不编。
   const hn = row('600863.SH');
   assert.match(hn.querySelector('.chain-band')!.getAttribute('aria-label')!, /现价 5\.21 元\/股/);
-  assert.equal(hn.querySelector('.chain-company-implied')!.textContent, '缺大致对应的价格');
+  assert.equal(hn.querySelector('.chain-company-implied')!.textContent, '无对应价格');
   // 没研究的不触发研究，只写“尚未研究”，仍能进个股页。
   for (const symbol of ['600011.SH', '600900.SH']) {
-    assert.equal(row(symbol).querySelector('.chain-company-none')!.textContent, '尚未研究');
+    assert.equal(row(symbol).querySelector('.chain-company-none')!.textContent, '未研究');
     assert.ok(row(symbol).querySelector('a')!.getAttribute('href')!.startsWith('/watch/'));
   }
   assert.doesNotMatch(container.querySelector('.chain')!.textContent!, /买入|卖出|建议|undefined|NaN|null|template_id|commodity_pe|infra_yield|upstream/);
@@ -161,13 +161,13 @@ test('公司无研究：整条链的公司都写“尚未研究”，页首如�
   const empty = structuredClone(contract.chain); for (const node of empty.nodes) node.companies = [];
   await show(services({ [UROUTE]: userRaw(empty) }));
   assert.equal(container.querySelectorAll('[data-stage-empty]').length, 3, '每个环节各写一句还没有你关注的公司');
-  assert.match(text('[data-chain-section="companies"]'), /这个环节还没有你关注的公司/);
+  assert.match(text('[data-chain-section="companies"]'), /暂无关注公司/);
 });
 
 test('接口缺口：链读不到整页一句话加重试；框架、研究、凭据、行情各缺一块只缺那一块', async () => {
   const down = services({ [UROUTE]: new Error('503') });
   await show(down);
-  assert.match(text('[role="alert"]'), /这条产业链暂时读取不到/);
+  assert.match(text('[role="alert"]'), /读取失败/);
   assert.equal(container.querySelector('[data-chain]'), null);
   // 重试：链恢复后再读。
   let ok = false;
@@ -181,24 +181,24 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
   assert.ok(container.querySelector('[data-chain]'));
   // 一个环节的框架缺：该环节写“估值方法暂缺”，其余照常。
   await show(services({ '/wiki/industries/801160/valuation-framework': new Error('404') }));
-  assert.match(text('[data-node="801160"]'), /估值方法暂缺/);
+  assert.match(text('[data-node="801160"]'), /缺估值方法/);
   assert.match(text('[data-node="801050"]'), /商品周期市盈率/);
-  assert.match(text('[data-gap="framework"]'), /部分环节的估值方法暂时读取不到/);
-  // 神火的三档价与凭据都读不到：仍显示档位，区间条与隐含价各写缺什么。
+  assert.match(text('[data-gap="framework"]'), /部分估值方法读取失败/);
+  // 神火股份的三档价与凭据都读不到：仍显示档位，区间条与隐含价各写缺什么。
   await show(services({ [`/research-results/${SENS}`]: new Error('x'), [`/research-results/${SCEN}`]: new Error('x') }));
   assert.equal(row('000933.SZ').querySelector('.chain-company-grade')!.textContent, '估值偏高');
   assert.match(row('000933.SZ').textContent!, /缺三档价/);
-  assert.match(row('000933.SZ').textContent!, /缺大致对应的价格/);
+  assert.match(row('000933.SZ').textContent!, /无对应价格/);
   // 行情读不到：名字退回代码，区间条缺现价。
   await show(services({}, new Error('quote down')));
   assert.equal(row('000933.SZ').querySelector('.chain-company-name a')!.textContent, '000933');
   assert.match(row('000933.SZ').textContent!, /缺现价/);
   // 研究读取失败按尚未研究写，不报错。
   await show(services({ '/wiki/companies/000933.SZ/page-research': new Error('500') }));
-  assert.equal(row('000933.SZ').querySelector('.chain-company-none')!.textContent, '尚未研究');
+  assert.equal(row('000933.SZ').querySelector('.chain-company-none')!.textContent, '未研究');
 });
 
-test('个股页推荐所在链：读推荐接口，已建的进你的链，未建的点「建这条产业链」建好进入；读不到或没有推荐整段不出现；不再按申万自动挂链', async () => {
+test('个股页推荐所在链：读推荐接口，已建的进你的链，未建的点「建产业链」建好进入；读不到或没有推荐整段不出现；不再按申万自动挂链', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
   for (const [method, path] of [['GET', '/wiki/user-chains'], ['GET', '/wiki/user-chains/recommendations'], ['POST', '/wiki/user-chains'], ['GET', '/wiki/user-chains/uchain:0123456789ab'], ['PATCH', '/wiki/user-chains/uchain:0123456789ab'], ['DELETE', '/wiki/user-chains/uchain:0123456789ab'], ['POST', '/wiki/user-chains/uchain:0123456789ab/revert'], ['GET', '/wiki/user-chains/uchain:0123456789ab/candidates']]) {
     assert.equal(researchRoute(method, path), true, `${method} ${path}`);
@@ -227,10 +227,10 @@ test('个股页推荐所在链：读推荐接口，已建的进你的链，未�
   };
   await open('000933');
   const entry = container.querySelector('[data-chain-entry]')!;
-  assert.match(entry.textContent!, /^推荐所在链：煤—电—铝建这条产业链、锂电$/);
+  assert.match(entry.textContent!, /^推荐所在链：煤—电—铝建产业链、锂电$/);
   assert.equal(entry.querySelector('a')!.getAttribute('href'), '/chains/uchain%3Aa1b2c3d4e5f6', '已建的链进入你的那条');
   assert.equal(entry.querySelectorAll('a').length, 1, '未建的不是链接');
-  // 点「建这条产业链」：以已关注公司为底建链，然后进入新链。
+  // 点「建产业链」：以已关注公司为底建链，然后进入新链。
   chainService.writeResult.next = { id: 'uchain:b1b2c3d4e5f6', created: true };
   await React.act(async () => { (entry.querySelector('button') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
@@ -241,7 +241,7 @@ test('个股页推荐所在链：读推荐接口，已建的进你的链，未�
   chainService.writeResult.next = new Error('500');
   await React.act(async () => { (container.querySelector('[data-chain-entry] button') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-  assert.match(text('[data-chain-error]'), /这条产业链没建成/);
+  assert.match(text('[data-chain-error]'), /没成功/);
   // 没有推荐 / 读不到：整段不出现。
   items = [];
   await open('601288');
@@ -280,21 +280,21 @@ test('同环节还可关注：展开读候选（整条链最多 8 家）按环�
   const det = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
   await React.act(async () => { det.open = true; det.dispatchEvent(new win.Event('toggle') as unknown as Event); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-  assert.match(text('[data-gap="candidates"]'), /候选暂时读取不到。重试/);
+  assert.match(text('[data-gap="candidates"]'), /读取失败重试/);
   // 候选为空。
   const none = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: { items: [], limit: 8 } });
   await show(none);
   const det2 = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
   await React.act(async () => { det2.open = true; det2.dispatchEvent(new win.Event('toggle') as unknown as Event); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
-  assert.match(text('[data-candidates-empty]'), /这个环节暂时没有可推荐的公司/);
+  assert.match(text('[data-candidates-empty]'), /暂无推荐/);
 });
 
 test('管理：移出只移出这条链（带版本号）；撤回上一版（没有上一版不显示）；删除要确认；版本冲突重读并提示，不静默覆盖', async () => {
   const service = services();
   await show(service);
   assert.ok(container.querySelector('[data-chain-revert]'), 'has_previous 为真时有撤回');
-  assert.equal(container.querySelector('[data-chain-delete]')!.textContent, '删除这条产业链');
+  assert.equal(container.querySelector('[data-chain-delete]')!.textContent, '删除');
   // 移出。
   await React.act(async () => { (row('000933.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
@@ -310,14 +310,14 @@ test('管理：移出只移出这条链（带版本号）；撤回上一版（�
   const before = service.requested.filter((route: string) => route === UROUTE).length;
   await React.act(async () => { (row('000807.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
-  assert.match(text('[data-chain-notice]'), /这条产业链刚被改过，已显示最新内容，请再操作一次/);
+  assert.match(text('[data-chain-notice]'), /已更新到最新，请重试/);
   assert.ok(service.requested.filter((route: string) => route === UROUTE).length > before, '冲突后重读');
   assert.ok(container.querySelector('[data-chain]'), '重读不闪回骨架，内容仍在');
   // 其他失败：一句话。
   service.writeResult.next = new Error('500');
   await React.act(async () => { (row('000807.SZ').querySelector('[data-remove]') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
-  assert.match(text('[data-chain-notice]'), /没能移出，请稍后再试/);
+  assert.match(text('[data-chain-notice]'), /没成功/);
   // 没有上一版：不显示撤回。
   await show(services({ [UROUTE]: userRaw(contract.chain, { has_previous: false }) }));
   assert.equal(container.querySelector('[data-chain-revert]'), null);
@@ -333,7 +333,7 @@ test('删除：确认后带版本号删除并回到关注页产业链分段；�
   const click = async (button: Element | null) => { await React.act(async () => { (button as HTMLButtonElement).click(); }); await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); }); };
   await click(container.querySelector('[data-chain-delete]'));
   const dialog = () => win.document.body.querySelector('[role="dialog"], [role="alertdialog"]') as HTMLElement | null;
-  assert.match(dialog()?.textContent ?? '', /只删除这条产业链，关注的公司和研究不受影响/);
+  assert.match(dialog()?.textContent ?? '', /关注和研究会保留/);
   const buttons = () => [...dialog()!.querySelectorAll('button')];
   await click(buttons().find(button => /取消/.test(button.textContent!))!);
   assert.equal(service.writes.length, 0, '取消不删');
@@ -345,7 +345,7 @@ test('删除：确认后带版本号删除并回到关注页产业链分段；�
 
 // ---------------------------------------------------------------- 试算：沪铝变一下，链上各家利润怎么动
 
-test('试算纯函数：沪铝拖到 25,465 元/吨，神火利润 +19.92 亿元（系数 996,000 元/吨 × 2,000）；默认现价时全是 0；范围取模型区间；未研究与缺模型各写各的', async () => {
+test('试算纯函数：沪铝拖到 25,465 元/吨，神火股份利润 +19.92 亿元（系数 996,000 元/吨 × 2,000）；默认现价时全是 0；范围取模型区间；未研究与缺模型各写各的', async () => {
   const view = await lib.loadChainView(UID, services());
   const setup = lib.calcSetup(view.companies);
   assert.deepEqual(setup, { id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: 23465, min: 20000, max: 28000, step: 50 });
@@ -375,7 +375,7 @@ test('试算纯函数：沪铝拖到 25,465 元/吨，神火利润 +19.92 亿元
   assert.equal(lib.calcRows([loss], setup, 25000)[0].share, null);
 });
 
-test('试算页：滑块默认现价，每家一行；拖到 25,465 神火 +19.92 亿元、占对比期利润 20.8%；未研究写“未研究”', async () => {
+test('试算页：滑块默认现价，每家一行；拖到 25,465 神火股份 +19.92 亿元、占对比期利润 20.8%；未研究写“未研究”', async () => {
   await show(services());
   const panel = container.querySelector('[data-chain-section="calc"]') as HTMLElement;
   assert.ok(panel);
@@ -396,7 +396,7 @@ test('试算页：滑块默认现价，每家一行；拖到 25,465 神火 +19.9
   assert.match(calc('000933.SZ').querySelector('[data-calc-share]')!.textContent!, /^\+20\.8%/);
   assert.equal(calc('000807.SZ').querySelector('[data-calc-delta]')!.textContent, '+19.92 亿元');
   assert.equal(calc('600011.SH').textContent!.includes('未研究'), true);
-  assert.equal(calc('600863.SH').textContent!.includes('研究里没有利润模型'), true);
+  assert.equal(calc('600863.SH').textContent!.includes('无利润模型'), true);
   await React.act(async () => {
     const setter = Object.getOwnPropertyDescriptor(win.HTMLInputElement.prototype, 'value')!.set!;
     setter.call(input, '21465');

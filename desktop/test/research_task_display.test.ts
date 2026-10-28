@@ -37,8 +37,9 @@ test('错误边界兜底只影响这一张成果', () => {
   assert.equal(RESULT_EMBED_FALLBACK, '这份成果暂时无法显示');
 });
 
-test('公司列表使用现行名称回退', () => {
+test('公司列表只用行情证券简称，缺名回代码，不回研究标题', () => {
   const wiki = readFileSync(new URL('../src/verticals/finance/pages/Watch.tsx', import.meta.url), 'utf8');
-  assert.match(wiki, /quote\?\.name \|\| page\?\.title \|\| symbol/);
+  assert.match(wiki, /quote\?\.name \|\| symbol/);
+  assert.doesNotMatch(wiki, /name:.*page\?\.title/);
   assert.doesNotMatch(wiki, /\/wiki\/pages\/read\?slug=/);
 });

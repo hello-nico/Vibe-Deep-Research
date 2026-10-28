@@ -567,7 +567,7 @@ test('已结束且无制品的旧任务不显示刚刚生成完，也不自动�
     assert.ok(!env.container.textContent.includes('报告生成失败'));
     assert.ok(env.container.textContent.includes('生成报告'));
     assert.ok(!env.container.textContent.includes('生成过程'));
-    assert.ok(env.container.textContent.includes('还没有图文报告'));
+    assert.ok(env.container.textContent.includes('暂无图文报告'));
     assert.ok(!env.container.textContent.includes('研究页正文'));
   } finally { await env.cleanup(); }
 });
@@ -595,7 +595,7 @@ test('空报告区点击即发起生成，启动成功后即使索引尚未回�
     await env.act(async () => { resolveStart({ sessionId: 's-new', status: 'started' }); });
     assert.ok(env.container.textContent.includes('正在生成图文报告'), 'start 返回后不得弹回空态');
     assert.ok(!env.container.textContent.includes('生成过程'));
-    assert.ok(!env.container.textContent.includes('还没有图文报告'));
+    assert.ok(!env.container.textContent.includes('暂无图文报告'));
   } finally { await env.cleanup(); }
 });
 
@@ -679,7 +679,7 @@ test('任务状态一直缺失时明确待确认，不永久显示运行中', as
     offset = 16_000;
     await env.tickIntervals();
     assert.ok(!env.container.textContent.includes('正在生成图文报告'));
-    assert.ok(env.container.textContent.includes('暂时无法确认报告任务状态'));
+    assert.ok(env.container.textContent.includes('任务状态未知'));
   } finally { Date.now = now; await env.cleanup(); }
 });
 

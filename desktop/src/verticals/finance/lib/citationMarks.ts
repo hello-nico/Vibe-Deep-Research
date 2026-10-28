@@ -10,6 +10,21 @@ function compactCitationTitle(value: string): string {
 }
 
 /**
+ * 模型有时把链接文字写成单个字母（s、p）或直接抄引用 id 的片段；这类文字读者看不懂，
+ * 角标改用解析出的文档简称，解析不到时显示「来源」。可读的中文文字照旧。
+ */
+export function opaqueCitationText(text: string, reference?: string): boolean {
+  const value = text.replace(/\s+/g, ' ').trim();
+  if (!value) return true;
+  if (/^[A-Za-z0-9]{1,2}$/.test(value)) return true;
+  if (!reference) return false;
+  let decoded = reference;
+  try { decoded = decodeURIComponent(reference); } catch { /* keep raw */ }
+  const lower = value.toLowerCase();
+  return decoded.split(/[:/]/).some(part => part.toLowerCase() === lower);
+}
+
+/**
  * Pick the source text that can sit next to the answer without exposing an
  * opaque reference. Explicit link text wins; URLs fall back to their host;
  * producer names are safe metadata, while the other internal IDs stay hidden.
@@ -17,7 +32,7 @@ function compactCitationTitle(value: string): string {
 export function citationTitle(reference: string, explicitTitle?: string): string {
   const explicit = explicitTitle ? sourceName(compactCitationTitle(explicitTitle)) : '';
   const generic = new Set(['来源', '来源资料', '数据来源', '指标依据', '查看依据', '打开原文']);
-  if (explicit && !generic.has(explicit) && !webCitationUrl(explicit) && !/^(?:source|claim|evidence|provider|lookup):/.test(explicit)) return explicit;
+  if (explicit && !generic.has(explicit) && !webCitationUrl(explicit) && !/^(?:source|claim|evidence|provider|lookup):/.test(explicit) && !opaqueCitationText(explicit, reference)) return explicit;
   const web = webCitationUrl(reference);
   if (web) return new URL(web).hostname.replace(/^www\./, '');
   const provider = /^provider:([^:\s<>]+):/.exec(reference)?.[1];

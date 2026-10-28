@@ -41,8 +41,8 @@ function packet(page: string | undefined, flow: string, segment: string, annual:
   }
   return { symbol: '000933.SZ', as_of: '2026-10-20', financial_period: flow.replace('TTM:', ''), ...(page ? { page_period: page } : {}), fields } as any;
 }
-async function show(data: any) {
-  const fixture = companyPageFixture({ research: { ...fixtureResearch, sections: { ...fixtureResearch.sections, cash: { summary: '现金流够用。' } } } as any, stale: false, basisVersion: 'v' });
+async function show(data: any, reportPeriod = data.page_period) {
+  const fixture = companyPageFixture({ research: { ...fixtureResearch, report_period: reportPeriod, sections: { ...fixtureResearch.sections, cash: { summary: '现金流够用。' } } } as any, new_material: null, basisVersion: 'v' });
   fixture.services.data.packet = async () => data;
   fixture.services.data.quote = async () => ({ ...fixtureData.quote!, price: 25.5 });
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null, React.createElement(ui.CompanyPage, { key: Math.random(), symbol: '000933', name: '神火股份', services: fixture.services }))));
@@ -65,7 +65,8 @@ test('报告期写法：季报、半年报、年报；分红写“年度方案�
   assert.equal(otherPeriodText(page, { field_id: 'revenue', period: 'FY2025' }), '2025 年报');
   assert.equal(otherPeriodText(page, { period: '2026-10-20' }), '', '行情时点不是报告期');
   assert.equal(otherPeriodText({} as any, { period: '2026H1' }), '', '旧 Backend 没有 page_period');
-  assert.equal(pagePeriodText(page), '数据截至 2026 年三季报');
+  assert.equal(pagePeriodText({ report_period: '2026Q3' }), '数据截至 2026 年三季报');
+  assert.equal(pagePeriodText(page), '', '当前数据包不作为研究期来源');
   assert.equal(pagePeriodText({} as any), '');
   assert.equal(pagePeriodText({ page_period: 'junk' } as any), '');
 });
@@ -107,12 +108,12 @@ test('节标题右侧口径：与页面报告期同期不重复写，不同期�
   assert.equal(sectionMeta(page, { period: 'TTM:2026Q3' }), '');
   assert.equal(sectionMeta(page, { period: '2026H1' }), '2026 年半年报');
   assert.equal(sectionMeta(page, { field_id: 'dividend_yield', period: 'FY2025' }), '2025 年度方案');
-  assert.equal(sectionMeta(page, { period: '2026-10-20' }), '10 月 20 日');
+  assert.equal(sectionMeta(page, { period: '2026-10-20' }), '10-20');
   assert.equal(sectionMeta({} as any, { period: 'FY2025' }), '2025 年报');
   assert.equal(sectionMeta(page, { period: null }), '');
   // 神火式：生意节有分部（只到半年报）→ 写 2026 年半年报；现金节第一个数是年度分红 → 2025 年度方案；估值节是行情日期。
   await show(packet('2026Q3', 'TTM:2026Q3', '2026H1', 'FY2025'));
-  assert.deepEqual([meta('business'), meta('cash'), meta('valuation')], ['2026 年半年报', '2025 年度方案', '10 月 20 日']);
+  assert.deepEqual([meta('business'), meta('cash'), meta('valuation')], ['2026 年半年报', '2025 年度方案', '10-20']);
   // 没有分部、流量就是页面报告期：生意节不再重复。
   const noSegments = packet('2026Q3', 'TTM:2026Q3', '2026H1', 'FY2025');
   for (const key of Object.keys(noSegments.fields)) if (key.startsWith('segment:')) delete noSegments.fields[key];

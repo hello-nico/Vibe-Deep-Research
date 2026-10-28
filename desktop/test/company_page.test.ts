@@ -25,76 +25,83 @@ type TaskRecord = ReturnType<typeof taskRecord>;
 const isTasksUrl = (url: unknown) => String(url).startsWith('/finance-research-tasks');
 import { researchRoute } from '../dsh/finance-ui/research.mjs';
 
-test('名册读取不启动；首次打开并发读取、重复打开都只启动一次', async () => {
+test('名册和个股页重复读取都不启动；点研究才启动且并发点击只启动一次', async () => {
   const fixture = companyPageFixture();
   const store = companyPageStore(fixture.services, '600863', '华能蒙电');
   await store.refresh();
   assert.equal(fixture.starts.length, 0);
-  await Promise.all([store.refresh(true), store.refresh(true)]);
-  await companyPageStore(fixture.services, '600863', '华能蒙电').refresh(true);
+  await Promise.all([store.refresh(), store.refresh()]);
+  await companyPageStore(fixture.services, '600863', '华能蒙电').refresh();
+  assert.equal(fixture.starts.length, 0);
+  await Promise.all([store.restart(), store.restart()]);
   assert.equal(fixture.starts.length, 1);
   assert.equal(store.getSnapshot().task?.sessionId, fixture.task.sessionId);
 });
 test('已有判断不启动；过期也不自动开始，点「重新研究」才开始，保留旧版，完成后替换', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
   const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
-  await store.refresh(true);
+  await store.refresh();
   assert.equal(fixture.starts.length, 0);
-  fixture.set({ research: fixtureResearch, stale: true, basisVersion: 'v2' });
+  fixture.set({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' }, basisVersion: 'v2' });
   fixture.setTask({ ...fixture.task, status: 'completed' });
-  await store.refresh(true);
+  await store.refresh();
   assert.equal(fixture.starts.length, 0, '研究已存在但过期：打开页面不自动重研');
-  assert.equal(store.getSnapshot().stale, true);
+  assert.equal(store.getSnapshot().new_material?.name, '三季报');
   await store.restart();
   assert.equal(fixture.starts.length, 1, '点按钮才开始');
   assert.equal(store.getSnapshot().research, fixtureResearch);
   const newer = { ...fixtureResearch, basisVersion: 'v2', researchedAt: '2026-10-11' };
-  fixture.set({ research: newer, stale: false, basisVersion: 'v2' });
+  fixture.set({ research: newer, new_material: null, basisVersion: 'v2' });
   fixture.setTask({ ...fixture.task, status: 'completed' });
   await store.refresh();
   assert.equal(store.getSnapshot().research, newer);
-  await store.refresh(true);
+  await store.refresh();
   assert.equal(fixture.starts.length, 1);
 });
 test('接口读取失败不能当作首次打开；已有运行、失败、中止任务均不重复创建', async () => {
   const failedRead = companyPageFixture();
   failedRead.services.readResearch = async () => { throw new Error('fixture outage'); };
-  await new CompanyPageStore(failedRead.services, '600863', '华能蒙电').refresh(true);
+  await new CompanyPageStore(failedRead.services, '600863', '华能蒙电').refresh();
   assert.equal(failedRead.starts.length, 0);
   for (const status of ['researching', 'interrupted', 'failed', 'cancelled'] as const) {
-    const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+    const fixture = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
     fixture.setTask({ sessionId: status, status, stage: status, startedAt: new Date().toISOString() });
-    await new CompanyPageStore(fixture.services, '600863', '华能蒙电').refresh(true);
+    await new CompanyPageStore(fixture.services, '600863', '华能蒙电').refresh();
     assert.equal(fixture.starts.length, 0);
   }
 });
 test('一天前（含 T7 之前）未成功结束的研究不挡首次打开；仍在运行的老任务照样不重复创建', async () => {
   const old = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
   for (const status of ['failed', 'cancelled'] as const) {
-    const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+    const fixture = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
     fixture.setTask({ sessionId: status, status, stage: status, startedAt: old });
     const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
-    await store.refresh(true); await store.refresh(true);
+    await store.refresh(); await store.refresh();
+    assert.equal(fixture.starts.length, 0, status);
+    await store.restart();
     assert.equal(fixture.starts.length, 1, status);
   }
-  const running = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+  const running = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
   running.setTask({ sessionId: 'old-running', status: 'researching', stage: '正在研究', startedAt: old });
-  await new CompanyPageStore(running.services, '600863', '华能蒙电').refresh(true);
+  await new CompanyPageStore(running.services, '600863', '华能蒙电').refresh();
   assert.equal(running.starts.length, 0);
-  const resuming = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
-  resuming.setTask({ sessionId: 'old-interrupted', status: 'interrupted', stage: '正在接着上次的进度继续', startedAt: old });
-  await new CompanyPageStore(resuming.services, '600863', '华能蒙电').refresh(true);
+  const resuming = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
+  resuming.setTask({ sessionId: 'old-interrupted', status: 'interrupted', stage: '继续中', startedAt: old });
+  await new CompanyPageStore(resuming.services, '600863', '华能蒙电').refresh();
   assert.equal(resuming.starts.length, 0);
 });
 test('启动失败不循环自动重试；任务绑定回读暂未到达时保留进行中状态', async () => {
   const fixture = companyPageFixture();
   fixture.services.startResearch = async () => { fixture.starts.push({ symbol: '600863', name: '', version: '' }); throw new Error('fixture start failure'); };
   const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
-  await store.refresh(true); await store.refresh(true);
+  await store.refresh(); await store.refresh();
+  assert.equal(fixture.starts.length, 0);
+  await store.restart();
   assert.equal(fixture.starts.length, 1);
   const lag = companyPageFixture();
   const lagStore = new CompanyPageStore(lag.services, '600863', '华能蒙电');
-  await lagStore.refresh(true);
+  await lagStore.refresh();
+  await lagStore.restart();
   lag.setTask(undefined);
   await lagStore.refresh();
   assert.equal(lagStore.getSnapshot().task?.status, 'researching');
@@ -118,8 +125,9 @@ test('订阅中的任务自动回读完成结果；无订阅停止轮询，不�
   const fixture = companyPageFixture();
   const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
   const stop = store.subscribe(() => {});
-  await store.refresh(true);
-  fixture.set({ research: fixtureResearch, stale: false, basisVersion: 'v2' });
+  await store.refresh();
+  await store.restart();
+  fixture.set({ research: fixtureResearch, new_material: null, basisVersion: 'v2' });
   fixture.setTask({ ...fixture.task, status: 'completed' });
   let reads = 0;
   const read = fixture.services.readResearch;
@@ -134,21 +142,21 @@ test('订阅中的任务自动回读完成结果；无订阅停止轮询，不�
 });
 test('五种记录状态对应的页面文案：进行中显示第几步，接续、失败、中止各一句，完成不显示', () => {
   const read = (over: Record<string, unknown>) => companyPageTaskOf(taskRecord(over) as never);
-  assert.equal(read({ status: 'running', current_step: 3 }).stage, '第 3 步，共 6 步 · 算价格对利润的影响');
-  assert.equal(read({ status: 'running', current_step: 1 }).stage, '第 1 步，共 6 步 · 收集资料');
-  assert.equal(read({ status: 'interrupted' }).stage, '正在接着上次的进度继续');
+  assert.equal(read({ status: 'running', current_step: 3 }).stage, '3/6 · 算价格对利润的影响');
+  assert.equal(read({ status: 'running', current_step: 1 }).stage, '1/6 · 收集资料');
+  assert.equal(read({ status: 'interrupted' }).stage, '继续中');
   assert.equal(read({ status: 'failed', reason: '最新定期报告还没入库' }).stage, '最新定期报告还没入库');
-  assert.equal(read({ status: 'failed' }).stage, '这次研究未完成，可以稍后重新研究');
-  assert.equal(read({ status: 'cancelled' }).stage, '研究已中止');
+  assert.equal(read({ status: 'failed' }).stage, '未完成');
+  assert.equal(read({ status: 'cancelled' }).stage, '已中止');
   assert.equal(read({ status: 'completed' }).stage, '');
   assert.deepEqual([read({ status: 'running' }).status, read({ status: 'interrupted' }).status, read({ status: 'failed' }).status, read({ status: 'cancelled' }).status, read({ status: 'completed' }).status],
     ['researching', 'interrupted', 'failed', 'cancelled', 'completed']);
   assert.equal(read({ sessions: ['a', 'b', 'c'] }).sessionId, 'c');
-  const show = (over: Record<string, unknown>) => companyPageProgress({ loaded: true, research: null, stale: false, task: read(over) });
-  assert.equal(show({ status: 'running', current_step: 2 }), '第 2 步，共 6 步 · 读报告');
-  assert.equal(show({ status: 'interrupted' }), '正在接着上次的进度继续');
+  const show = (over: Record<string, unknown>) => companyPageProgress({ loaded: true, research: null, new_material: null, task: read(over) });
+  assert.equal(show({ status: 'running', current_step: 2 }), '2/6 · 读报告');
+  assert.equal(show({ status: 'interrupted' }), '继续中');
   assert.equal(show({ status: 'failed', reason: '最新定期报告还没入库' }), '最新定期报告还没入库');
-  assert.equal(show({ status: 'cancelled' }), '研究已中止');
+  assert.equal(show({ status: 'cancelled' }), '已中止');
   assert.equal(show({ status: 'completed' }), null);
   assert.throws(() => companyPageTaskOf({ ...taskRecord(), status: 'settling' } as never));
   // 页面文案里没有任何技术细节。
@@ -192,28 +200,49 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services }))));
 }
+
+test('数据截至只读保存的研究期：当前包已更新也不提前切换，无研究或缺期不显示', async () => {
+  for (const research of [{ ...fixtureResearch, report_period: '2026H1' }, { ...fixtureResearch, report_period: null }, null]) {
+    const fixture = companyPageFixture({ research, new_material: null, basisVersion: 'v1' });
+    fixture.services.data.packet = async () => ({ ...fixturePacket, page_period: '2026Q3' });
+    await mountPage(fixture);
+    const line = container.querySelector('.company-page-period');
+    assert.equal(line?.textContent ?? '', research?.report_period ? '数据截至 2026 年半年报' : '');
+  }
+});
 test('研究过期：页首不自动开始，写「有新资料」加「重新研究」按钮，点了才开始；资料名取得到才写；未过期与从未研究没有这一行', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' }, basisVersion: 'v1' });
   fixture.services.readCalendar = async () => ({ status: 'sourced', reports: [{ period: '2099-09-30', appoint: null, first_appoint: null, actual: '2000-10-20' }] });
   await mountPage(fixture);
   const line = () => container.querySelector('[data-stale-line]') as HTMLElement | null;
   assert.equal(fixture.starts.length, 0, '打开页面不自动重研');
-  assert.match(line()!.textContent!, /^有新资料（.+）重新研究$/);
+  assert.equal(line()!.textContent, '三季报已出 · 重新研究');
   await React.act(async () => { (line()!.querySelector('button') as HTMLButtonElement).click(); });
   assert.equal(fixture.starts.length, 1, '点按钮才开始');
-  const noName = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v1' });
+  const noName = companyPageFixture({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' }, basisVersion: 'v1' });
   await mountPage(noName);
-  assert.equal(line()!.textContent, '有新资料重新研究', '资料名取不到只写有新资料');
-  await mountPage(companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' }));
+  assert.equal(line()!.textContent, '三季报已出 · 重新研究', '只读 Backend 资料名，不读日历推断');
+  await mountPage(companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' }));
   assert.equal(line(), null);
-  await mountPage(companyPageFixture({ research: null, stale: false, basisVersion: 'v1' }));
+  await mountPage(companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' }));
   assert.equal(line(), null);
+});
+test('新报告页首与其他新资料合并为一行，只有点击才研究，文案不解释旧报告期', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' }, basisVersion: 'v1' });
+  await mountPage(fixture);
+  const lines = container.querySelectorAll('[data-stale-line]');
+  assert.equal(lines.length, 1);
+  assert.equal(lines[0].textContent, '三季报已出 · 重新研究');
+  assert.doesNotMatch(lines[0].textContent!, /研究还按|半年报|有新资料/);
+  assert.equal(fixture.starts.length, 0);
+  await React.act(async () => { (lines[0].querySelector('button') as HTMLButtonElement).click(); });
+  assert.equal(fixture.starts.length, 1);
 });
 test('「查看数据」里的 {…} 数据引用解析成数值，解析不到写（数据缺失），不漏出占位符', async () => {
   const research = structuredClone(fixtureResearch);
   research.sections.business!.details = '主营收入{revenue}，其他业务{segment:product:不存在业务.revenue}，计算{calc:result:00000000000000000000000000000000.profit}。';
   research.valuation!.conditions = '收入若低于{revenue}则改档。';
-  const fixture = companyPageFixture({ research, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research, new_material: null, basisVersion: 'v1' });
   await mountPage(fixture);
   const business = container.querySelector('[data-company-section="business"] .company-page-detail')!.textContent!;
   assert.match(business, /主营收入71\.00 亿元，其他业务（数据缺失），计算（数据缺失）。/);
@@ -221,7 +250,7 @@ test('「查看数据」里的 {…} 数据引用解析成数值，解析不到�
   assert.doesNotMatch(container.textContent!, /\{[^}]*\}/);
 });
 test('页面按方法论模板渲染数据包、情景表、变化悬停、资料与证据墙', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
   await mountPage(fixture);
   assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(element => element.getAttribute('data-company-section')), ['thesis', 'business', 'variables', 'cash', 'valuation', 'tracking']);
   assert.match(container.textContent!, /71.00 亿元/);
@@ -287,7 +316,7 @@ test('数据包按上海当天读取；当日已有快照不 ensure，缺当日�
     assert.equal(calls.filter(call => call.path.endsWith('/coverage/ensure')).length, 1);
     assert.equal(notified, 1);
     assert.ok(calls.every(call => call.method === 'POST' || call.asOf === '2026-10-10'));
-    const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+    const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
     await mountPage(fixture);
       await React.act(async () => { container.querySelectorAll('.narrative-track-head').forEach(item => (item as HTMLElement).click()); });
     assert.doesNotMatch(container.textContent!, /历史分位|不可交付/);
@@ -299,9 +328,11 @@ test('研究缺失仍显示数据包；过期更新期间保留上一版且不�
   await mountPage(missing);
   assert.match(container.textContent!, /71.00 亿元/);
   assert.doesNotMatch(container.textContent!, /核对利润变量/, "进度只在右上角，页面内不再重复");
+  assert.equal(missing.starts.length, 0);
+  await React.act(async () => { [...container.querySelectorAll('button')].find(item => item.textContent === '研究')!.click(); });
   assert.equal(missing.starts.length, 1);
   assert.doesNotMatch(container.textContent!, /生成报告|开始研究/);
-  const stale = companyPageFixture({ research: fixtureResearch, stale: true, basisVersion: 'v2' });
+  const stale = companyPageFixture({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' }, basisVersion: 'v2' });
   await mountPage(stale);
   assert.match(container.textContent!, /煤价与电价的价差决定利润/);
   assert.doesNotMatch(container.textContent!, /系统更新了判断/);
@@ -316,18 +347,18 @@ test('数据包已到时资料可后到；研究接口失败不会显示虚假�
   assert.match(container.textContent!, /4.28 元\/股/);
   assert.match(container.textContent!, /18.00 亿元/);
   assert.ok(container.querySelector('[aria-label="正在读取资料"]'));
-  assert.match(container.textContent!, /研究暂不可用/);
+  assert.match(container.textContent!, /研究读取失败/);
   assert.equal(container.querySelector('[data-company-progress]'), null);
   const denied = companyPageFixture();
   denied.services.readResearch = async () => { throw Object.assign(new Error('服务器拒绝了访问令牌，请在设置里检查'), { status: 401 }); };
   await mountPage(denied);
-  assert.match(container.textContent!, /服务器拒绝了访问令牌，请在设置里检查/);
-  assert.doesNotMatch(container.textContent!, /研究暂不可用/);
+  assert.match(container.textContent!, /令牌无效 · 去设置检查/);
+  assert.doesNotMatch(container.textContent!, /研究读取失败/);
   await React.act(async () => finish(fixtureData.documents));
   assert.equal(container.querySelector('[aria-label="正在读取资料"]'), null);
 });
 test('研究正文不渲染未登记组件；利润公式仍显示', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'bad' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'bad' });
   await mountPage(fixture);
   assert.equal(container.querySelector('[data-vibe-block]'), null);
   assert.doesNotMatch(container.textContent!, /正在准备研究组件|<stat>|坏指标/);
@@ -335,7 +366,7 @@ test('研究正文不渲染未登记组件；利润公式仍显示', async () =>
 });
 test('五类公司共用布局；缺口写原因，不把缺失数补成零', async () => {
   for (const companyType of ['generic', 'commodity_cycle', 'leveraged_cyclical_utility', 'scarce_asset_rent', 'bank'] as const) {
-    const fixture = companyPageFixture({ research: { ...fixtureResearch, companyType, sections: { ...fixtureResearch.sections, profit_formula: { summary: `已保存的 ${companyType} 利润公式` } } }, stale: false, basisVersion: companyType });
+    const fixture = companyPageFixture({ research: { ...fixtureResearch, companyType, sections: { ...fixtureResearch.sections, profit_formula: { summary: `已保存的 ${companyType} 利润公式` } } }, new_material: null, basisVersion: companyType });
     await mountPage(fixture);
     assert.match(container.textContent!, new RegExp(`已保存的 ${companyType} 利润公式`));
     const business = container.querySelector('[data-company-section="business"]')!.textContent!;
@@ -350,7 +381,7 @@ test('冲突两值并列，情景表缺口单独显示', async () => {
     provider_values: [{ provider: 'hithink', value: 19.8, unit: '倍', period: '2026-10-10' }],
     report_comparisons: [{ consistent: false, report: { value: 18.2, unit: '倍', period: 'FY2025' } }],
   } } };
-  const fixture = companyPageFixture({ research: { ...fixtureResearch, valuation: { grade: '合理', conditions: '条件变了就改档。' } }, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: { ...fixtureResearch, valuation: { grade: '合理', conditions: '条件变了就改档。' } }, new_material: null, basisVersion: 'v1' });
   fixture.services.data.packet = async () => conflict;
   fixture.services.readScenario = async () => null;
   await mountPage(fixture);
@@ -359,7 +390,7 @@ test('冲突两值并列，情景表缺口单独显示', async () => {
   assert.match(valuation, /18\.20 倍/);
   assert.match(valuation, /同花顺/);
   assert.match(valuation, /定期报告/);
-  assert.match(valuation, /暂时取不到市盈率/);
+  assert.match(valuation, /无市盈率/);
   assert.doesNotMatch(valuation, /行情来源与定期报告不一致|hithink|provider/);
   assert.match(container.querySelector('[data-scenario="gap"]')!.textContent!, /三档目标价暂时算不出来/);
   assert.equal(fixtureScenario.length, 3);
@@ -389,7 +420,7 @@ test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口
     ...fixtureResearch,
     pillars: [{ id: 'cited', text: '驱动和镜头可以引用。', fieldIds: ['driver:power_price', 'lens:peer_comparison.pe', 'lens:single_quarters.2026Q1.revenue', 'lens:missing.revenue'] }],
     falsifiers: [{ pillarId: 'cited', text: '滚动利润变弱。', fieldId: 'lens:ttm_profit.ttm_profit', window: '下一份定期报告' }],
-  }, stale: false, basisVersion: 'cited' });
+  }, new_material: null, basisVersion: 'cited' });
   await mountPage(cited);
   await React.act(async () => { container.querySelectorAll('.narrative-track-head').forEach(item => (item as HTMLElement).click()); });
   const pillar = container.querySelector('[data-pillar="cited"]')!.textContent!;
@@ -402,7 +433,7 @@ test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口
   assert.match(pillar, /36\.00 亿元/);
   const gap = companyPageFixture({
     research: { companyType: 'bank', gapNote: '核心字段 net_profit_attributable 暂不可用', researchedAt: '2026-10-12T08:00:00+00:00' },
-    stale: false, basisVersion: 'a'.repeat(64),
+    new_material: null, basisVersion: 'a'.repeat(64),
   });
   await mountPage(gap);
   assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /核心字段 net_profit_attributable 暂不可用/);
@@ -411,13 +442,13 @@ test('驱动与镜头按稳定 ID 显示，不存在的 ID 记成缺口；缺口
   assert.equal(container.querySelector('[data-scenario]'), null);
 });
 test('缺口说明不显示五档和情景表；利润模式情景表用利润列', async () => {
-  const noted = companyPageFixture({ research: { ...fixtureResearch, gapNote: '营业收入暂时取不到，这次不写判断。', thesis: undefined, valuation: { grade: '偏高', scenarioRef: fixtureResearch.valuation?.scenarioRef } }, stale: false, basisVersion: 'gap' });
+  const noted = companyPageFixture({ research: { ...fixtureResearch, gapNote: '营业收入暂时取不到，这次不写判断。', thesis: undefined, valuation: { grade: '偏高', scenarioRef: fixtureResearch.valuation?.scenarioRef } }, new_material: null, basisVersion: 'gap' });
   await mountPage(noted);
   assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /营业收入暂时取不到，这次不写判断。/);
   assert.equal(container.querySelector('[data-valuation-grade]'), null);
   assert.equal(container.querySelector('[data-scenario]'), null);
   assert.match(container.textContent!, /71.00 亿元/);
-  const profit = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'profit' });
+  const profit = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'profit' });
   profit.services.readScenario = async () => ({ mode: 'total', rows: [{ name: '中性', multiple: '19', price: '26.81', earnings: '32000000000' }] });
   await mountPage(profit);
   const table = container.querySelector('[data-scenario="table"]')!;
@@ -441,6 +472,8 @@ test('真实路由挂夹具：工具栏、页内、返回关注显示同一进�
         React.createElement(router.MemoryRouter, { initialEntries: ['/watch/600863'] }, React.createElement(router.Routes, null,
           React.createElement(router.Route, { path: '/watch', element: React.createElement(watchModule.Watch) }),
           React.createElement(router.Route, { path: '/watch/:symbol', element: React.createElement(routeModule.CompanyWiki) })))))));
+    assert.equal(fixture.starts.length, 0);
+    await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === '研究')!.click());
     assert.equal(container.querySelectorAll('[data-company-progress="toolbar"]').length, 1);
     assert.equal(container.querySelectorAll('[data-company-progress="page"]').length, 0);
     await React.act(async () => (container.querySelector('[data-company-progress="toolbar"] button') as HTMLButtonElement).click());
@@ -456,7 +489,7 @@ test('真实路由挂夹具：工具栏、页内、返回关注显示同一进�
   } finally { local.localService.clientResearch = original; }
 });
 test('「…」菜单：重新研究走 startResearch，进行中禁用；整理失败只在打开过程面板时带标记', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
   fixture.setTask({ sessionId: 'done-session', status: 'completed', stage: '', startedAt: new Date().toISOString(), settlementFailed: true });
   globalThis.fetch = async url => String(url).includes('/wiki/pages?') ? Response.json({ items: [], total: 0 }) : Response.json({ items: [] });
   const opened: Record<string, unknown>[] = [];
@@ -535,10 +568,10 @@ test('任务只读宿主记录：按带交易所后缀的代码取最新一条�
     // 会话是否在跑、绑定里的时间都不再参与判断。
     const services = serviceModule.createCompanyPageServices({ taskRunning: () => { throw new Error('页面不应再按会话状态推断'); } });
     for (const [over, status, stage, session] of [
-      [{ status: 'running', current_step: 2 }, 'researching', '第 2 步，共 6 步 · 读报告', 'current'],
-      [{ status: 'interrupted' }, 'interrupted', '正在接着上次的进度继续', 'current'],
+      [{ status: 'running', current_step: 2 }, 'researching', '2/6 · 读报告', 'current'],
+      [{ status: 'interrupted' }, 'interrupted', '继续中', 'current'],
       [{ status: 'failed', reason: '最新定期报告还没入库' }, 'failed', '最新定期报告还没入库', 'current'],
-      [{ status: 'cancelled', sessions: ['only'] }, 'cancelled', '研究已中止', 'only'],
+      [{ status: 'cancelled', sessions: ['only'] }, 'cancelled', '已中止', 'only'],
       [{ status: 'completed' }, 'completed', '', 'current'],
     ] as const) {
       record = taskRecord(over);
@@ -577,23 +610,23 @@ test('整理结论被跳过时页面照常显示完成；研究本身失败即�
     const { task } = await services.readResearch('600863');
     assert.equal(task.status, 'completed');
     assert.equal(task.settlementFailed, true);
-    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task }), null);
+    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, new_material: null, task }), null);
     record = taskRecord({ status: 'failed', current_step: 3 });
     const failed = (await services.readResearch('600863')).task;
     assert.equal(failed.status, 'failed');
     assert.equal(failed.settlementFailed, undefined);
-    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, stale: false, task: failed }), '这次研究未完成，可以稍后重新研究');
+    assert.equal(companyPageProgress({ loaded: true, research: fixtureResearch, new_material: null, task: failed }), '未完成');
   } finally { globalThis.fetch = originalFetch; }
 });
 
 test('重新研究走 startResearch：进行中不重复；发起后以记录为准；每次点击都可再发起', async () => {
-  const fixture = companyPageFixture({ research: fixtureResearch, stale: false, basisVersion: 'v1' });
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
   const done: CompanyPageTask = { sessionId: 'old-session', status: 'completed', stage: '', startedAt: '2026-10-10T00:00:00Z' };
   fixture.setTask(done);
   const store = new CompanyPageStore(fixture.services, '600863', '华能蒙电');
   await store.restart();
   assert.equal(fixture.starts.length, 0, '页面还没读到研究时不启动');
-  await store.refresh(true);
+  await store.refresh();
   assert.equal(fixture.starts.length, 0);
   await store.restart();
   assert.deepEqual(fixture.starts, [{ symbol: '600863', name: '华能蒙电', version: 'v1' }]);
@@ -620,7 +653,7 @@ test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不�
   globalThis.fetch = async url => {
     if (isTasksUrl(url)) return Response.json({ items: [record] });
     pageReads++;
-    return Response.json({ research: pageReads <= 2 ? fixtureResearch : newer, stale: pageReads <= 2, basisVersion: newer.basisVersion });
+    return Response.json({ research: pageReads <= 2 ? fixtureResearch : newer, new_material: pageReads <= 2 ? { kind: 'report', name: '三季报', date: '2026-10-27' } : null, basisVersion: newer.basisVersion });
   };
   try {
     const services = serviceModule.createCompanyPageServices({
@@ -634,7 +667,7 @@ test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不�
     stops.push(store.subscribe(() => { if (store.getSnapshot().research?.basisVersion === newer.basisVersion) finish(); }));
     stops.push(store.subscribe(() => {}));
     assert.equal(listeners.size, 1);
-    await store.refresh(true);
+    await store.refresh();
     assert.deepEqual(store.getSnapshot().research, fixtureResearch);
     assert.equal(store.getSnapshot().task?.status, 'researching');
     record = taskRecord({ status: 'completed', current_step: 6 });
@@ -646,9 +679,9 @@ test('DSH 保存完成事件补读一次研究并替换旧版；重复事件不�
     assert.equal(starts, 0);
     listeners.forEach(listener => listener());
     await store.refresh();
-    assert.equal(pageReads, 4);
+    assert.equal(pageReads, 3, '完成后 15 秒内的重复会话事件不再补读');
     t.mock.timers.tick(3000);
-    assert.equal(pageReads, 4);
+    assert.equal(pageReads, 3);
     stops.shift()!();
     assert.equal(listeners.size, 1);
     stops.shift()!();
@@ -665,7 +698,7 @@ test('Backend 404/503、无效回包或任务投影失败显示研究暂不可�
         if (failure === 'tasks' && isTasksUrl(url)) return Response.json({ detail: 'fixture task outage' }, { status: 503 });
         if (isTasksUrl(url)) return Response.json({ items: [] });
         if (failure === 'malformed') return Response.json({ items: [] });
-        if (failure === 'tasks') return Response.json({ research: null, stale: false, basisVersion: 'a'.repeat(64) });
+        if (failure === 'tasks') return Response.json({ research: null, new_material: null, basisVersion: 'a'.repeat(64) });
         return Response.json({ detail: 'fixture backend outage' }, { status: Number(failure) });
       };
       const services = serviceModule.createCompanyPageServices({
@@ -676,7 +709,7 @@ test('Backend 404/503、无效回包或任务投影失败显示研究暂不可�
       fixture.services.readResearch = services.readResearch;
       fixture.services.startResearch = services.startResearch;
       await mountPage(fixture);
-      assert.match(container.textContent!, /研究暂不可用/);
+      assert.match(container.textContent!, /研究读取失败/);
       assert.equal(container.querySelector('[data-company-progress]'), null);
       assert.equal(starts, 0);
     }
@@ -705,14 +738,14 @@ test('完成后的补读失败保留旧判断并显示研究暂不可用，不�
     const model = await server.ssrLoadModule('/src/verticals/finance/lib/companyPage.ts');
     await React.act(async () => model.companyPageStore(fixture.services, '600863', '华能蒙电（夹具）').refresh());
     assert.equal(pageReads, 3);
-    assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /煤价与电价的价差决定利润.*研究暂不可用/);
+    assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /煤价与电价的价差决定利润.*研究读取失败/);
     assert.equal(starts, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
 
-test('接通后首次打开只在研究缺失时，每个 basisVersion 触发一次；过期不触发', async () => {
+test('接通后读取缺失研究或新资料都不自动开始，只有点击发起', async () => {
   const originalFetch = globalThis.fetch;
-  let response = { research: null as typeof fixtureResearch | null, stale: false, basisVersion: 'a'.repeat(64) };
+  let response = { research: null as typeof fixtureResearch | null, new_material: null, basisVersion: 'a'.repeat(64) };
   let starts = 0;
   globalThis.fetch = async url => Response.json(isTasksUrl(url) ? { items: [] } : response);
   try {
@@ -720,26 +753,63 @@ test('接通后首次打开只在研究缺失时，每个 basisVersion 触发一
     const store = new CompanyPageStore(services, '600863', '华能蒙电');
     await store.refresh();
     assert.equal(starts, 0);
-    await Promise.all([store.refresh(true), store.refresh(true)]);
+    await Promise.all([store.refresh(), store.refresh()]);
+    assert.equal(starts, 0);
+    await store.restart();
     assert.equal(starts, 1);
-    response = { research: fixtureResearch, stale: false, basisVersion: 'b'.repeat(64) };
-    await store.refresh(true);
+    response = { research: fixtureResearch, new_material: null, basisVersion: 'b'.repeat(64) };
+    await store.refresh();
     assert.equal(starts, 1);
-    response = { ...response, stale: true };
-    await store.refresh(true);
+    response = { ...response, new_material: { kind: 'report', name: '三季报', date: '2026-10-27' } };
+    await store.refresh();
     assert.equal(starts, 1);
   } finally { globalThis.fetch = originalFetch; }
 });
 test('数据包未到时估值节保留骨架；读取失败时不把缺口写成零', async () => {
-  const pending = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+  const pending = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
   pending.services.data.packet = () => new Promise(() => {});
   await mountPage(pending);
   const valuation = container.querySelector('[data-company-section="valuation"]');
   assert.ok(valuation, '数据包未到时估值节保留并显示骨架');
   assert.ok(valuation!.querySelector('[role="status"]'));
-  const failed = companyPageFixture({ research: null, stale: false, basisVersion: 'v1' });
+  const failed = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
   failed.services.data.packet = async () => { throw new Error('fixture packet outage'); };
   await mountPage(failed);
-  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /数据暂时取不到/);
+  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /读取失败/);
   assert.doesNotMatch(container.textContent!, /0\.00 倍/);
+});
+
+test('会话列表频繁变动：没有进行中的研究时 15 秒内不重读；有进行中的研究照常刷新', async () => {
+  const fixture = companyPageFixture({ research: fixtureResearch, new_material: null, basisVersion: 'v1' });
+  let reads = 0;
+  let notify = () => {};
+  const read = fixture.services.readResearch;
+  const services = { ...fixture.services,
+    readResearch: async (...args: Parameters<typeof read>) => { reads += 1; return read(...args); },
+    subscribeResearch: (listener: () => void) => { notify = listener; return () => {}; } };
+  const store = new CompanyPageStore(services, '600863', '华能蒙电');
+  const off = store.subscribe(() => {});
+  await store.refresh();
+  const before = reads;
+  for (let i = 0; i < 5; i += 1) notify();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.equal(reads, before, '没有进行中的研究：会话列表变动不触发重读');
+  fixture.setTask({ ...fixture.task, status: 'researching' });
+  await store.refresh();
+  const running = reads;
+  notify();
+  await new Promise(resolve => setTimeout(resolve, 10));
+  assert.ok(reads > running, '研究进行中：会话变动照常刷新');
+  off();
+});
+
+test('新资料没有日期（数据源未给披露日）也能读，不当读取失败', async () => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async url => isTasksUrl(url) ? Response.json({ items: [] })
+    : Response.json({ research: fixtureResearch, new_material: { kind: 'report', name: '三季报', date: null }, basisVersion: 'v1' });
+  try {
+    const services = serviceModule.createCompanyPageServices({ taskRunning: () => false, subscribeSessionList: () => () => {}, start: async () => { throw new Error('x'); } });
+    const value = await services.readResearch('600011');
+    assert.deepEqual(value.new_material, { kind: 'report', name: '三季报', date: null });
+  } finally { globalThis.fetch = originalFetch; }
 });

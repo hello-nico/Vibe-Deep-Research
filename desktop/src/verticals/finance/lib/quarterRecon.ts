@@ -2,7 +2,9 @@ import { researchRead } from './research';
 import { api } from './api';
 import { localService } from './localService';
 import { plainNumber, yiText } from './companyNarrative';
-import { qualifiedWatch, shortName, toNumber, type TrackingVariables } from './trackingVariables';
+import { qualifiedWatch, toNumber, type TrackingVariables } from './trackingVariables';
+import { disclosedDay, shanghaiToday } from './utils';
+import { loadReportArrivals, matchesArrival, type ReportArrival } from './reportArrival';
 
 /** Backend `GET /wiki/companies/{symbol}/quarter-reconciliation`：最新一季相对上季的归母净利变化，以及价格变量能解释多少。 */
 export interface ReconVariable {
@@ -24,6 +26,9 @@ export interface Reconciliation {
 }
 export interface ReconCard {
   symbol: string; company: string; period: string;
+  arrival?: ReportArrival;
+  /** 尚无对账数字；date 仅作观察时点，不冒充披露日展示。 */
+  reminder?: boolean;
   /** 披露日 YYYY-MM-DD；动态流按它排序。 */
   date: string;
   /** 第一层：公司、哪份报告、单季净利润、比上季多少。 */
@@ -35,6 +40,15 @@ export interface ReconCard {
 }
 
 export const RECON_DAYS = 14;
+/** 同一公司同一期只出一张卡；对账没到时也能提醒，数字到达后直接合并。 */
+export function withReportReminders(cards: ReconCard[], arrivals: readonly ReportArrival[]): ReconCard[] {
+  return [...cards.map(card => {
+    const arrival = arrivals.find(item => matchesArrival(card, item));
+    return arrival ? { ...card, arrival } : card;
+  }), ...arrivals.filter(arrival => !cards.some(card => matchesArrival(card, arrival)))
+    .map(arrival => ({ symbol: arrival.symbol, company: arrival.company, period: arrival.period, date: arrival.date ?? shanghaiToday(),
+      headline: `${arrival.company}${arrival.text}`, details: [], reminder: true, arrival }))];
+}
 const LABEL = ['', '一季报', '半年报', '三季报', '年报'];
 export const reconLabel = (period: string) => LABEL[Number(period.slice(-1))] ?? '季报';
 const signedYi = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${yiText(Math.abs(value))}`;
@@ -103,7 +117,7 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
       ...(price != null && variables.length ? [`研究模型估计：价格变化影响约 ${signedYi(price)}（税后年化系数折季），仅供参考，不与上面各项相加`, ...priceDetails] : []),
       '价格影响与减值可能部分重叠，没有去重；科目取自利润表，单季 = 累计值相减',
     ] : priceDetails;
-    return [{ symbol: item.symbol, company, period: item.period, date: item.reported_on.slice(0, 10), headline, explain, details: [...details, ...preLines(item, company)] }];
+    return [{ symbol: item.symbol, company, period: item.period, date: disclosedDay(item.reported_on, shanghaiToday(now)), headline, explain, details: [...details, ...preLines(item, company)] }];
   });
 }
 
@@ -113,17 +127,23 @@ export async function loadReconCards(data: TrackingVariables | null, signal?: Ab
   if (!data) return [];
   const { symbols } = await localService.clientWatch();
   const skip = new Set(data.coverage.unresearched);
-  const targets = qualifiedWatch(symbols).filter(symbol => !skip.has(symbol));
-  const names = new Map(data.variables.flatMap(variable => variable.companies.map(company => [company.symbol, shortName(company.name)] as const)));
+  const watched = qualifiedWatch(symbols);
+  const targets = watched.filter(symbol => !skip.has(symbol));
+  const names = new Map(data.variables.flatMap(variable => variable.companies.map(company => [company.symbol, company.name] as const)));
   // 变量接口里没有名字的公司，一次行情请求补名字，与对账请求同时进行。
-  const nameless = targets.filter(symbol => !names.has(symbol)).map(symbol => symbol.split('.')[0]!).join(',');
+  const nameless = watched.filter(symbol => !names.has(symbol)).map(symbol => symbol.split('.')[0]!).join(',');
   const quoted = nameless ? api.quote(nameless).catch(() => ({} as Record<string, { name?: string }>)) : Promise.resolve({} as Record<string, { name?: string }>);
   const order = new Map(targets.map((symbol, index) => [symbol, index]));
   const arrived: Reconciliation[] = [];
+  let reminders: ReportArrival[] = [];
+  const reminderJob = loadReportArrivals(watched, signal).then(async items => {
+    reminders = items;
+    if (items.length && onProgress && !signal?.aborted) onProgress(await current());
+  });
   const current = async () => {
     const quotes = await quoted;
-    for (const item of arrived) { const quote = quotes[item.symbol.split('.')[0]!]; if (!names.has(item.symbol) && quote?.name) names.set(item.symbol, shortName(quote.name)); }
-    return reconCards([...arrived].sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0)), Object.fromEntries(names), now);
+    for (const symbol of watched) { const quote = quotes[symbol.split('.')[0]!]; if (!names.has(symbol) && quote?.name) names.set(symbol, quote.name); }
+    return withReportReminders(reconCards([...arrived].sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0)), Object.fromEntries(names), now), reminders.map(item => ({ ...item, company: names.get(item.symbol) || item.company })));
   };
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(4, targets.length) }, async () => {
@@ -137,5 +157,6 @@ export async function loadReconCards(data: TrackingVariables | null, signal?: Ab
       } catch { /* 读不到的公司不出卡 */ }
     }
   }));
+  await reminderJob;
   return current();
 }

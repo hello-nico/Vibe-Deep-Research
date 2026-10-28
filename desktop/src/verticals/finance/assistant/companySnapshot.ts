@@ -88,7 +88,7 @@ export interface CompanySnapshotInput {
   name: string; symbol: string; typeName?: string;
   quote?: { price?: number | null; currencyLabel?: string; change_pct?: number | null; fetched_at?: string | null } | null;
   quoteLoading?: boolean;
-  thesis?: string; gapNote?: string; grade?: string; changeText?: string;
+  thesis?: string; gapNote?: string; grade?: string; changeText?: string; report_period?: string | null;
   packet?: DataPacket; packetLoading?: boolean; packetError?: boolean;
   calcs: Record<string, unknown>;
   /** 页面当前显示的节（与页面 showSection 同口径）；没显示的节不进快照。 */
@@ -125,7 +125,7 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
     input.gapNote ? `研究缺口：${input.gapNote}` : input.thesis ? `论点：${fillSentence(input.thesis, packet, calcs)}` : '尚无研究判断。',
     !input.gapNote && input.grade ? `五档结论：${gradeLabel(input.grade)}` : '',
     !input.gapNote && input.changeText ? input.changeText : '',
-    pagePeriodText(packet),
+    pagePeriodText(input),
   ]));
   const narrative = (id: NarrativeId, extra: (string | undefined | false)[]) =>
     part(id, input.titles[id], [note, input.answers[id] ? `回答：${fillSentence(input.answers[id], packet, calcs)}` : undefined, ...extra]);

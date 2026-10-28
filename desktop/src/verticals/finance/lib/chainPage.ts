@@ -5,7 +5,6 @@ import { gradeLabel, initialSliderValues, parseSensitivity, profitAt, verdictLin
 import { aShareQualified, researchRead, ResearchError } from './research';
 import { addWatch, loadWatch } from './watchlist';
 import { addToRoster } from './researchRoster';
-import { shortName } from './trackingVariables';
 
 /** 产业链页的数据：用户链（`/wiki/user-chains`，骨架来自行业公共层）、各环节估值方法读公共接口，公司估值读各家已存研究。 */
 export interface ChainNode { industry_code: string; industry_name: string; role?: string; template_id?: string; companies: string[] }
@@ -75,7 +74,7 @@ export function positionText(price: number | null | undefined, tiers: { name: st
   if (price == null || low == null || mid == null || high == null) return '';
   if (price < low) return '低于悲观价';
   if (price > high) return '高于乐观价';
-  if (price === mid) return '正在中性价';
+  if (price === mid) return '在中性价';
   return price < mid ? '在悲观价与中性价之间' : '在中性价与乐观价之间';
 }
 
@@ -136,7 +135,7 @@ export async function loadChainView(chainId: string, services: ChainServices = d
   const quotes = codes ? await services.quote(codes).catch(() => ({} as Record<string, { name?: string; price: number | null }>)) : {};
   const companies = await Promise.all(placed.map(({ symbol, node }) => {
     const quote = quotes[codeOf(symbol)];
-    return companyOf(services, symbol, node.industry_code, quote?.name ? shortName(quote.name) : codeOf(symbol), quote?.price ?? null, signal);
+    return companyOf(services, symbol, node.industry_code, quote?.name || codeOf(symbol), quote?.price ?? null, signal);
   }));
   return { chain, frameworks, companies, failed: { frameworks: frameworkFailed }, version, hasPrevious };
 }
@@ -148,7 +147,7 @@ export function chainHeadline(view: ChainView): string {
   const drivers = chainDrivers(chain).map(item => item.driver);
   const researched = companies.filter(company => company.status === 'researched');
   const grades = [...new Set(researched.map(company => company.grade!))].map(grade => `${researched.filter(company => company.grade === grade).length} 家${gradeLabel(grade)}`);
-  return `${path}${drivers.length ? `，由${drivers.join('、')}连成一条链` : ''}。链上${companies.length ? ` ${companies.length} 家公司，已研究 ${researched.length} 家${grades.length ? `：${grades.join('，')}` : ''}` : '还没有公司'}。`;
+  return `${path}${drivers.length ? `，由${drivers.join('、')}连成一条链` : ''}。链上${companies.length ? ` ${companies.length} 家公司，已研究 ${researched.length} 家${grades.length ? `：${grades.join('，')}` : ''}` : '暂无公司'}。`;
 }
 
 // ---------------------------------------------------------------- 用户链：列出、推荐、建、改
@@ -184,7 +183,7 @@ export async function loadRecommendations(symbol: string, services: ChainService
 /** 从公共链建一条用户链，只放已关注的公司；同一条已建则返回已有的。返回用户链编号。 */
 export async function createUserChain(publicChainId: string, services: ChainServices = defaultChainServices, source?: string): Promise<string> {
   const created = await services.write<{ id: string }>('POST', '/wiki/user-chains', { public_chain_id: publicChainId, watched_symbols: qualifiedWatch(services), ...(source ? { source } : {}) });
-  if (!created?.id) throw new Error('建链没有成功');
+  if (!created?.id) throw new Error('没成功');
   return created.id;
 }
 
@@ -195,7 +194,7 @@ export async function loadCandidates(chainId: string, services: ChainServices = 
   const value = await services.read<{ items?: { symbol: string; industry_code: string }[] }>(`${userChainRoute(chainId)}/candidates${watched.length ? `?watched=${watched.join(',')}` : ''}`, signal);
   const items = Array.isArray(value?.items) ? value.items : [];
   const quotes = items.length ? await services.quote(items.map(item => codeOf(item.symbol)).join(',')).catch(() => ({} as Record<string, { name?: string }>)) : {};
-  return items.map(item => ({ symbol: item.symbol, industry_code: item.industry_code, name: quotes[codeOf(item.symbol)]?.name ? shortName(quotes[codeOf(item.symbol)]!.name!) : codeOf(item.symbol) }));
+  return items.map(item => ({ symbol: item.symbol, industry_code: item.industry_code, name: quotes[codeOf(item.symbol)]?.name || codeOf(item.symbol) }));
 }
 
 /** 版本冲突：别处已改过这条链。 */

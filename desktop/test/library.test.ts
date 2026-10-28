@@ -97,7 +97,7 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.match(page, /TableWrap/);
   assert.doesNotMatch(page, /type="checkbox"/);
   assert.match(page, /\/my-reports\/read\//);
-  assert.match(page, /资料已经保存/);
+  assert.match(page, /已保存/);
   assert.match(page, /从我的资料移除/);
   assert.match(page, /library-menu/);
   assert.match(page, /createPortal/);
@@ -125,7 +125,7 @@ test("资料页与对话入口共用同一 Backend 上传，不再强制公司�
   assert.match(client, /conversation\.input\.left/);
   assert.doesNotMatch(client, /finance-library-dock/);
   assert.doesNotMatch(client, /将保存到我的资料/);
-  assert.match(client, /资料已经保存/);
+  assert.match(client, /已保存/);
   assert.doesNotMatch(client, /资料已放入输入框/);
   assert.match(reader, /不要伪造 PDF 页码/);
   assert.match(reader, /parsedBodyPath/);

@@ -73,12 +73,14 @@ test('观察项按问题路由、读取最新版本并带 revision 写入', asyn
     return { topic_id: 'topic:abc123abc123', revision: 8 } as T;
   };
   await startSuggestedIndicator('铝价如何传导？', tracking, undefined, request);
-  assert.equal(calls.length, 3);
+  assert.equal(calls.length, 4);
   assert.deepEqual(JSON.parse(String(calls[0]?.init?.body)), {
     question: '铝价如何传导？', title: '铝价如何传导？', subjects: [], research_intent: true, confirm_new: false,
   });
   assert.equal(calls[1]?.route, '/wiki/research-topics/topic%3Aabc123abc123');
   assert.deepEqual(JSON.parse(String(calls[2]?.init?.body)), { tracking_items: [tracking], expected_revision: 7 });
+  assert.equal(calls[3]?.route, '/tracking/items');
+  assert.deepEqual(JSON.parse(String(calls[3]?.init?.body)), { kind: 'observation', source: 'user', topic_id: 'topic:abc123abc123', tracking_key: tracking.tracking_key });
 });
 
 test('长文路由按接口上限截断且不拆开 Unicode 字符', async () => {
@@ -101,15 +103,17 @@ test('长文路由按接口上限截断且不拆开 Unicode 字符', async () =>
 
 test('完全相同的跟踪草稿已存在时不重复更新 revision', async () => {
   const { startSuggestedIndicator } = await actionsModule;
-  let writes = 0;
+  let writes = 0, registrations = 0;
   const request = async <T>(route: string, init?: RequestInit): Promise<T> => {
     if (route.endsWith('/route')) return { action: 'touch', topic: { topic_id: 'topic:abc123abc123' } } as T;
     if (!init) return { revision: 4, tracking_items: [{ ...tracking, last_assessment: { outcome: 'strengthened' } }] } as T;
+    if (route === '/tracking/items') { registrations++; return {} as T; }
     writes++;
     return { revision: 5 } as T;
   };
   await startSuggestedIndicator('铝价如何传导？', tracking, undefined, request);
   assert.equal(writes, 0);
+  assert.equal(registrations, 1, '已有观察草稿也必须登记用户选择');
 });
 
 test('同 tracking_key 但草稿不同仍提交更新', async () => {
@@ -118,6 +122,7 @@ test('同 tracking_key 但草稿不同仍提交更新', async () => {
   const request = async <T>(route: string, init?: RequestInit): Promise<T> => {
     if (route.endsWith('/route')) return { action: 'touch', topic: { topic_id: 'topic:abc123abc123' } } as T;
     if (!init) return { revision: 4, tracking_items: [{ ...tracking, hypothesis: '旧假设' }] } as T;
+    if (route === '/tracking/items') return {} as T;
     writes++;
     return { revision: 5 } as T;
   };
@@ -149,6 +154,7 @@ test('版本冲突重读一次并只重试一次', async () => {
   const request = async <T>(route: string, init?: RequestInit): Promise<T> => {
     if (route.endsWith('/route')) return { action: 'touch', topic: { topic_id: 'topic:abc123abc123' } } as T;
     if (!init) return { revision: ++reads } as T;
+    if (route === '/tracking/items') return {} as T;
     writes++;
     if (writes === 1) throw Object.assign(new Error('冲突'), { status: 409 });
     return { revision: 3 } as T;

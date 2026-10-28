@@ -11,7 +11,6 @@ import {
   sendSuggestedQuestion,
   startSuggestedIndicator,
 } from './suggestion-actions';
-import { loadObserving } from '../lib/observing';
 import { chainPath, createUserChain, defaultChainServices } from '../lib/chainPage';
 import { researchRead } from '../lib/research';
 import type { ChainSuggestion, CompanySuggestion, IndicatorSuggestion, QuestionSuggestion } from './result-projection';
@@ -56,34 +55,29 @@ function CompanyItem({ item }: { item: CompanySuggestion }) {
   return <li>
     <button type="button" className="finance-suggest-row" aria-label={`关注 ${item.symbol}`} title={item.reason} disabled={status !== 'idle'} onClick={() => void run()}>
       <span className="finance-suggest-text"><span className="finance-suggest-symbol">{item.symbol}</span> · {item.reason}</span>
-      <span className="finance-suggest-status">{status === 'busy' ? '关注中…' : status === 'done' ? '已关注' : '关注'}</span>
+      <span className="finance-suggest-status">{status === 'busy' ? '关注中' : status === 'done' ? '已关注' : '关注'}</span>
     </button>
     {error && <p role="alert" className="mt-2 text-xs text-destructive">{error}</p>}
   </li>;
 }
 
-/** 开始观察：点一下把这条指标建成跟踪项；已经在观察的直接显示「已在观察」。 */
+/** 路由后才知道完整观察身份；显式点击登记，由 Backend 对 topic/key 幂等。 */
 function IndicatorItem({ item }: { item: IndicatorSuggestion }) {
   const [status, setStatus] = useState<'idle' | 'busy' | 'done'>('idle');
   const [error, setError] = useState('');
-  useEffect(() => {
-    let live = true;
-    loadObserving().then(rows => { if (live && rows.some(row => row.key === item.tracking_item.tracking_key)) setStatus(current => current === 'idle' ? 'done' : current); }, () => undefined);
-    return () => { live = false; };
-  }, [item.tracking_item.tracking_key]);
   const run = async () => {
     if (status !== 'idle') return;
     setStatus('busy'); setError('');
     try { await startSuggestedIndicator(`${item.name}：${item.reason}`, item.tracking_item); setStatus('done'); }
     catch (cause) {
       setStatus('idle');
-      setError(cause instanceof SuggestionChoiceNeeded ? '已有相近的研究，这一项没有自动保存。' : userFacingRuntimeError(cause, '没能开始观察'));
+      setError(cause instanceof SuggestionChoiceNeeded ? '已有相近研究，未保存' : userFacingRuntimeError(cause, '没成功'));
     }
   };
   return <li>
     <button type="button" className="finance-suggest-row" aria-label={`开始观察 ${item.name}`} title={item.reason} disabled={status !== 'idle'} onClick={() => void run()}>
       <span className="finance-suggest-text">开始观察：{item.name}<small className="finance-suggest-why" data-observe-why="">{item.reason}</small></span>
-      <span className="finance-suggest-status">{status === 'busy' ? '正在保存…' : status === 'done' ? '已在观察' : '开始观察'}</span>
+      <span className="finance-suggest-status">{status === 'busy' ? '保存中' : status === 'done' ? '已在观察' : '开始观察'}</span>
     </button>
     {error && <p role="alert" className="mt-2 text-xs text-muted-foreground" data-observe-error="">{error}</p>}
   </li>;
@@ -107,13 +101,13 @@ function ChainItem({ item }: { item: ChainSuggestion }) {
     if (chainId) { open(chainId); return; }
     setBusy(true); setError('');
     try { const id = await createUserChain(item.public_chain_id, defaultChainServices); setChainId(id); open(id); }
-    catch (cause) { setError(userFacingRuntimeError(cause, '没能建成这条产业链')); }
+    catch (cause) { setError(userFacingRuntimeError(cause, '没成功')); }
     finally { setBusy(false); }
   };
   return <li>
     <button type="button" className="finance-suggest-row" aria-label={`${chainId ? '查看' : '建'}产业链 ${item.name}`} title={item.reason} disabled={busy} onClick={() => void run()}>
       <span className="finance-suggest-text">{item.name}<small className="finance-suggest-why" data-chain-why="">{item.reason}</small></span>
-      <span className="finance-suggest-status">{busy ? '正在建…' : chainId ? '查看' : '建这条产业链'}</span>
+      <span className="finance-suggest-status">{busy ? '新建中' : chainId ? '查看' : '建这条产业链'}</span>
     </button>
     {error && <p role="alert" className="mt-2 text-xs text-muted-foreground" data-chain-error="">{error}</p>}
   </li>;

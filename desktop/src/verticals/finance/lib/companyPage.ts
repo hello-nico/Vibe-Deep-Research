@@ -19,6 +19,7 @@ export interface CompanyPageBlock {
   summary: string; details?: string; fieldIds?: string[]; calculationRefs?: string[];
 }
 export interface CompanyPageResearch {
+  report_period?: string | null;
   companyType?: CompanyType; thesis?: string; gapNote?: string; researchedAt?: string; basisVersion?: string;
   sections?: Partial<Record<CompanyPageBlockId, CompanyPageBlock>>;
   pillars?: { id: string; text: string; fieldIds?: string[] }[];
@@ -57,20 +58,19 @@ export function companyPageTaskOf(record: ResearchTaskRecord): CompanyPageTask {
   const status = STATUS_OF[record.status];
   if (!status || !Array.isArray(record.steps) || !Array.isArray(record.sessions)) throw new Error('研究记录读取失败');
   const label = record.steps[record.current_step - 1]?.label;
-  const stage = status === 'researching' ? (label ? `第 ${record.current_step} 步，共 ${record.steps.length} 步 · ${label}` : '正在研究')
-    : status === 'interrupted' ? '正在接着上次的进度继续'
-    : status === 'failed' ? record.reason || '这次研究未完成，可以稍后重新研究'
-    : status === 'cancelled' ? '研究已中止' : '';
+  const stage = status === 'researching' ? (label ? `${record.current_step}/${record.steps.length} · ${label}` : '研究中')
+    : status === 'interrupted' ? '继续中'
+    : status === 'failed' ? record.reason || '未完成'
+    : status === 'cancelled' ? '已中止' : '';
   const settlementFailed = status === 'completed' && record.steps[record.steps.length - 1]?.status === 'skipped';
   const step = record.steps.length ? { current: record.current_step, total: record.steps.length } : undefined;
   return { sessionId: record.sessions[record.sessions.length - 1] ?? '', status, stage, startedAt: record.created_at, ...(step ? { step } : {}), ...(settlementFailed ? { settlementFailed } : {}) };
 }
 /** A running task always holds back a new start; any other unsuccessful state only for a day, so older ones (incl. pre-T7 Wiki research) do not. */
 export const COMPANY_PAGE_RETRY_MS = 24 * 60 * 60 * 1000;
-const blocksStart = (task: CompanyPageTask | undefined, now: number) => !!task && task.status !== 'completed'
-  && (companyPageTaskActive(task) || now - Date.parse(task.startedAt || '') < COMPANY_PAGE_RETRY_MS);
+export interface NewMaterial { kind: 'report' | 'announcement'; name: string; date: string | null }
 export interface CompanyPageResearchRead {
-  research: CompanyPageResearch | null; stale: boolean; basisVersion: string; task?: CompanyPageTask;
+  research: CompanyPageResearch | null; new_material: NewMaterial | null; basisVersion: string; task?: CompanyPageTask;
   /** T7.3：当前研究记录的逻辑版本（撤回时带上，防并发覆盖）与是否有上一版可恢复。 */
   researchVersion?: string; canRevert?: boolean; changedFrom?: CompanyPageResearch['changedFrom'];
 }
@@ -94,23 +94,23 @@ export interface CompanyPageServices {
   startResearch(symbol: string, name: string, basisVersion: string): Promise<CompanyPageTask>;
 }
 export interface CompanyPageState {
-  loaded: boolean; research: CompanyPageResearch | null; stale: boolean; task?: CompanyPageTask; error?: string;
+  loaded: boolean; research: CompanyPageResearch | null; new_material: NewMaterial | null; task?: CompanyPageTask; error?: string;
   researchVersion?: string; canRevert?: boolean; changedFrom?: CompanyPageResearch['changedFrom'];
 }
-export const EMPTY_COMPANY_PAGE: CompanyPageState = { loaded: false, research: null, stale: false };
+export const EMPTY_COMPANY_PAGE: CompanyPageState = { loaded: false, research: null, new_material: null };
 export function companyPageTaskActive(task?: CompanyPageTask) { return task?.status === 'researching' || task?.status === 'interrupted'; }
 
 /** One owner per service/symbol. Navigation does not cancel DSH or create another task. */
+const SESSION_REREAD_MS = 15_000;
 export class CompanyPageStore {
   private state: CompanyPageState = EMPTY_COMPANY_PAGE;
   private listeners = new Set<() => void>();
-  private attempted = new Set<string>();
   private reading?: Promise<void>;
-  private opened = false;
   private timer?: ReturnType<typeof setTimeout>;
   private unsubscribeResearch?: () => void;
   private completedSession?: string;
   private basisVersion = '';
+  private lastRead = 0;
   private services: CompanyPageServices;
   private symbol: string;
   private name: string;
@@ -123,6 +123,8 @@ export class CompanyPageStore {
   subscribe = (listener: () => void) => {
     this.listeners.add(listener);
     if (this.listeners.size === 1) this.unsubscribeResearch = this.services.subscribeResearch?.(() => {
+      // 会话列表任何变动都会通知；没有进行中的研究时 15 秒内不重读，避免关注页每行跟着反复读。
+      if (!companyPageTaskActive(this.state.task) && Date.now() - this.lastRead < SESSION_REREAD_MS) return;
       if (this.reading) void this.reading.then(() => { if (this.listeners.size) void this.refresh(); });
       else void this.refresh();
     });
@@ -140,8 +142,7 @@ export class CompanyPageStore {
     if (this.timer || !this.listeners.size) return;
     this.timer = setTimeout(() => { this.timer = undefined; void this.refresh(); }, 3000);
   }
-  refresh = (opened = false): Promise<void> => {
-    if (opened) this.opened = true;
+  refresh = (): Promise<void> => {
     if (this.reading) return this.reading;
     this.reading = this.read().finally(() => {
       this.reading = undefined;
@@ -151,6 +152,7 @@ export class CompanyPageStore {
     return this.reading;
   };
   private async read() {
+    this.lastRead = Date.now();
     try {
       let value = await this.services.readResearch(this.symbol);
       if (value.task?.status === 'completed' && this.completedSession !== value.task.sessionId) {
@@ -159,25 +161,19 @@ export class CompanyPageStore {
         value = await this.services.readResearch(this.symbol);
       }
       this.basisVersion = value.basisVersion;
-      const task = value.task ?? ((!value.research || value.stale) && companyPageTaskActive(this.state.task) ? this.state.task : undefined);
-      this.publish({ loaded: true, research: value.research ?? this.state.research, stale: value.stale, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
-      const key = value.basisVersion;
-      // 只有从未研究过才自动开始；研究已存在但过期时由页首「重新研究」按钮触发。
-      if (this.opened && !value.research && !this.attempted.has(key) && !blocksStart(task, Date.now())) {
-        this.attempted.add(key);
-        await this.begin();
-      }
+      const task = value.task ?? (companyPageTaskActive(this.state.task) ? this.state.task : undefined);
+      this.publish({ loaded: true, research: value.research ?? this.state.research, new_material: value.new_material, task, researchVersion: value.researchVersion, canRevert: value.canRevert, changedFrom: value.changedFrom });
     } catch (error) {
       const status = error instanceof Error && 'status' in error ? (error as { status?: number }).status : undefined;
-      const unavailable = status === 401 ? '服务器拒绝了访问令牌，请在设置里检查'
+      const unavailable = status === 401 ? '令牌无效 · 去设置检查'
         : status === 426 && error instanceof Error ? error.message
-        : '研究暂不可用';
+        : '研究读取失败';
       console.warn('[finance/company-page] research unavailable', status === 401 || status === 426 ? unavailable : error);
       this.publish({ ...this.state, loaded: true, error: unavailable });
     }
   }
   private async begin() {
-    this.publish({ ...this.state, task: { sessionId: '', status: 'researching', stage: '正在开始研究' } });
+    this.publish({ ...this.state, task: { sessionId: '', status: 'researching', stage: '研究中' } });
     try {
       const started = await this.services.startResearch(this.symbol, this.name, this.basisVersion);
       this.publish({ ...this.state, task: started });
@@ -186,10 +182,10 @@ export class CompanyPageStore {
       console.warn('[finance/company-page] start failed', error);
       const message = error instanceof Error ? error.message : '';
       const outdated = message === SERVER_OUTDATED || message === CLIENT_OUTDATED;
-      this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: outdated ? message : '这次研究未完成' } });
+      this.publish({ ...this.state, task: { sessionId: '', status: 'failed', stage: outdated ? message : '未完成' } });
     }
   }
-  /** User-initiated 「重新研究」: same entry as the automatic start, but not once per basis version. No-op while a task is running or the page is unread. */
+  /** Only an explicit user action starts research. */
   restart = async () => {
     if (!this.state.loaded || this.state.error || !this.basisVersion || companyPageTaskActive(this.state.task)) return;
     await this.begin();
@@ -209,25 +205,25 @@ export function companyPageProgress(state: CompanyPageState): string | null {
   // An unsuccessful task older than the retry window (incl. pre-T7 Wiki research) is history, not the page's state.
   if (!companyPageTaskActive(task) && task.startedAt && Date.now() - Date.parse(task.startedAt) >= COMPANY_PAGE_RETRY_MS) return null;
   if (task.stage) return task.stage;
-  return task.status === 'researching' ? '正在研究' : task.status === 'interrupted' ? '正在接着上次的进度继续'
-    : task.status === 'cancelled' ? '研究已中止' : '这次研究未完成';
+  return task.status === 'researching' ? '研究中' : task.status === 'interrupted' ? '继续中'
+    : task.status === 'cancelled' ? '已中止' : '未完成';
 }
 
 /** 关注页列表「研究」列：一行文字，进行中带进度，需要时带「重新研究」。 */
-export interface ResearchCell { text: string; progress?: { done: number; total: number }; rerun: boolean }
+export interface ResearchCell { text: string; progress?: { done: number; total: number }; rerun: boolean; action?: '研究' | '重新研究' }
 const dayOf = (iso?: string) => { const date = new Date(iso ?? ''); return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}-${String(date.getDate()).padStart(2, '0')}`; };
 export function researchCell(state: CompanyPageState): ResearchCell | null {
   if (!state.loaded) return null;
   const task = state.task;
   if (companyPageTaskActive(task)) {
     const step = task?.step;
-    const lead = task?.status === 'interrupted' ? '接着上次继续' : '研究中';
+    const lead = task?.status === 'interrupted' ? '继续中' : '研究中';
     return { text: step ? `${lead} · ${step.current}/${step.total}` : task?.stage || lead, ...(step ? { progress: { done: Math.max(0, step.current - 1), total: step.total } } : {}), rerun: false };
   }
-  if (!state.research) return state.error ? null : { text: '未研究', rerun: true };
+  if (!state.research) return state.error ? null : { text: '未研究', rerun: true, action: '研究' };
   const day = dayOf(state.research.researchedAt);
   const grade = state.research.valuation?.grade;
   const done = [day && `${day} 研究`, grade && `估值${grade}`].filter(Boolean).join(' · ') || '已研究';
-  if (companyPageProgress(state)) return { text: '上次没有完成', rerun: true };
-  return { text: state.stale ? `${done} · 有新资料` : done, rerun: state.stale };
+  if (companyPageProgress(state)) return { text: '未完成', rerun: true, action: '重新研究' };
+  return { text: state.new_material ? `${done} · ${state.new_material.name}已出` : done, rerun: Boolean(state.new_material), ...(state.new_material ? { action: '重新研究' as const } : {}) };
 }

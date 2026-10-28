@@ -122,7 +122,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   // 研究页带依据的数据太少时，报告会在保存前被判为“内容空洞”而白跑一遍；生成前就拦下（2026-09-26 行业报告跑了近 3 分钟才被拒）。
   const dataGap = !topicReport && citableRefCount(page) < MIN_CITABLE_REFS
     ? '这一页可引用的数据还太少，先刷新资料或做一次研究，再生成图文报告。' : '';
-  const blockedReason = !taskActivity.ready ? '正在核对任务状态，请稍后重试。'
+  const blockedReason = !taskActivity.ready ? '核对任务状态中'
     : !topicReport && taskActivity.kind === 'research' ? '公司研究进行中，完成后可生成图文报告。' : dataGap;
   const [items, setItems] = useState<ReportMeta[] | null>(null);
   const [selected, setSelected] = useState<ReportMeta | null>(null);
@@ -186,7 +186,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       .catch(() => {
         if (controller.signal.aborted || seq.current !== mine) return;
         existingCurrent.current = null;
-        setError('生成报告列表暂时无法读取，研究页仍可阅读。');
+        setError('报告列表读取失败');
         setListSeed(value => value + 1);
       });
     return () => { ++pageEpoch.current; controller.abort(); };
@@ -255,7 +255,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         if (Date.now() - requestedAt.current > 15_000 && awaitingArtifact.current) {
           setPendingRun(false);
           setTask(previous => previous ? { ...previous, running: false } : previous);
-          setError('暂时无法确认报告任务状态，可在「我的研究 · 任务」查看过程后重试。');
+          setError('任务状态未知 · 可在「我的研究 · 任务」查看');
           startedSession.current = '';
         }
         if (!found) return;
@@ -301,7 +301,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
   }, [detail, selected?.report_id]);
 
   const generate = () => {
-    if (!sessions) { setError('研究服务正在连接，请稍后再试。'); return; }
+    if (!sessions) { setError('研究服务连接中'); return; }
     if (!inputHash) { setError('页面版本信息缺失，无法发起报告生成。'); return; }
     if (blockedReason) { setError(blockedReason); return; }
     const epoch = pageEpoch.current;
@@ -387,14 +387,14 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
       </div>}
       <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={reportWithNarrowLayout(detail.html, detail.unverifiedRefs, detail.semanticChecks)} style={{ minHeight: 480 }} />
     </div>}
-    {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '正在打开报告…' : '正在查看是否已有报告…'}</p>}
+    {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '加载中' : '加载中'}</p>}
     {waiting && <div className="wiki-report-empty">
       {error && <p role="alert" className="mb-3 text-sm text-destructive">{error}</p>}
       {busyOtherVersion && !generating && <p className="mb-3 text-sm text-muted-foreground">可生成当前版本。</p>}
       {generating ? (taskStale || !task?.sessionId
         ? <ResearchLoading title={taskStale ? '另一版本仍在生成' : '正在生成图文报告'} sections={REPORT_STEPS} />
         : <ReportProgress sessionId={task.sessionId} />) : <>
-        <p className="font-medium">{items?.some(item => item.current) ? '报告暂时无法打开' : '还没有图文报告'}</p>
+        <p className="font-medium">{items?.some(item => item.current) ? '报告打开失败' : '暂无图文报告'}</p>
         <p className="mt-2 text-sm text-muted-foreground">{dataGap || '按当前研究页生成。原文还在「研究页」里。'}</p>
         {canGenerate && <button type="button" className="workspace-action workspace-action-primary mt-4" onClick={generate}>{items?.some(item => item.current) ? '重新生成' : '生成报告'}</button>}
       </>}

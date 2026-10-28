@@ -10,7 +10,7 @@ import { WorkspaceTabs } from "../components/ui/WorkspaceTabs";
 import { SectionLabel, Sparkline, StatusPill, TableWrap } from "../components/ui/Card";
 import { ObjectCard } from "../components/ui/ObjectCard";
 import { type StatusTone } from "../components/ui/StatusDot";
-import { ResearchLoading } from "../components/ui/ResearchLoading";
+import { LoadingCard } from "../components/ui/LoadingCard";
 import { ResultCard } from "../components/ResearchResult";
 import { addCodes, addWatch, loadWatch, removeWatch } from "../lib/watchlist";
 import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/researchRoster";
@@ -51,15 +51,15 @@ function WatchMarketPreview({ symbol }: { symbol: string }) {
     void fetch("/finance-research/research-results/market/preview", {
       method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ symbol }), signal: controller.signal,
     }).then(async response => {
-      if (!response.ok) throw new Error(response.status === 422 ? "暂时没有这只股票的行情" : "行情暂时无法读取");
+      if (!response.ok) throw new Error(response.status === 422 ? "无行情" : "读取失败");
       const value = await response.json() as { payload?: MarketPayload };
-      if (!Array.isArray(value.payload?.rows)) throw new Error("行情数据不完整");
+      if (!Array.isArray(value.payload?.rows)) throw new Error("数据不全");
       if (!controller.signal.aborted) setPayload(value.payload);
-    }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "行情暂时无法读取"); });
+    }).catch(reason => { if (!controller.signal.aborted) setError(reason instanceof Error ? reason.message : "读取失败"); });
     return () => controller.abort();
   }, [symbol, retry]);
   if (error) return <p role="alert" className="py-6 text-center text-sm text-[var(--text-3)]">{error}<button type="button" className="btn btn-text btn-sm ml-3" onClick={() => setRetry(n => n + 1)}>重试</button></p>;
-  if (!payload) return <ResearchLoading compact title="正在读取行情" sections={["日线", "均线", "来源"]} />;
+  if (!payload) return <LoadingCard />;
   return <ResultCard payload={payload} sourceKey={`watch:${symbol}`} />;
 }
 
@@ -91,7 +91,7 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove, onRe
     return <ObjectCard icon={TrendingUp} tone="stock" name={row.name} code={row.symbol}
       keyValue={quote?.price != null ? <><div className="font-semibold">{financialNumber(quote.price)}</div><div className={cn("text-xs", tone(quote.change_pct))}>{pct(quote.change_pct)}</div></> : <span className="text-[var(--text-4)]">—</span>}
       text={judgment}
-      emptyText={status ? <StatusPill tone={status.tone === "run" ? "run" : "wait"}>{status.label}</StatusPill> : row.supported ? "第一次打开时开始研究" : "港股、美股暂不支持研究"}
+      emptyText={status ? <StatusPill tone={status.tone === "run" ? "run" : "wait"}>{status.label}</StatusPill> : row.supported ? "未研究" : "暂不支持港美股"}
       data={<div className="h-7">{series && <Sparkline values={series} label={`${row.name} 近 60 日走势`} />}</div>}
       foot={[industry, asOf ? `资料截至 ${asOf}` : ""].filter(Boolean).join(" · ")}
       onOpen={row.supported ? onOpen : undefined} openLabel="打开" menu={menu} />;
@@ -112,8 +112,8 @@ function ItemView({ row, view, state, chartOpen, onOpen, onChart, onRemove, onRe
       <td className="watch-research" data-research-cell={row.symbol}>{row.supported
         ? cell ? <span className="watch-research-line"><span className={cell.progress ? "is-run" : undefined}>{cell.text}</span>
           {cell.progress && <i className="watch-research-bar" role="progressbar" aria-label={cell.text} aria-valuemin={0} aria-valuemax={cell.progress.total} aria-valuenow={cell.progress.done}><u style={{ width: `${cell.progress.done / Math.max(1, cell.progress.total) * 100}%` }} /></i>}
-          {cell.rerun && onRerun && <button type="button" className="btn btn-sm" onClick={onRerun}>重新研究</button>}</span> : <span className="text-[var(--text-4)]">—</span>
-        : <span className="text-[var(--text-3)]">暂不支持研究</span>}</td>
+          {cell.rerun && onRerun && <button type="button" className="btn btn-sm" onClick={onRerun}>{cell.action}</button>}</span> : <span className="text-[var(--text-4)]">—</span>
+        : <span className="text-[var(--text-3)]">暂不支持</span>}</td>
       <td className="col-num text-[var(--text-3)]">{asOf || "—"}</td>
       <td className="col-action"><div className="row-actions">
         {aShare && <button type="button" className="btn btn-icon" aria-expanded={chartOpen} aria-label={`${chartOpen ? "收起" : "查看"} ${row.name} K 线`} title="K 线" onClick={onChart}><ChartCandlestick /></button>}
@@ -189,7 +189,7 @@ export function Watch() {
   const rows: Row[] = symbols.map(symbol => {
     const quote = quotes[symbol];
     const page = wikiBySlug.get(companySlug(symbol) || symbol);
-    return { symbol, name: quote?.name || page?.title || symbol, quote, summary: page?.summary, supported: marketOfSymbol(symbol) === "CN" };
+    return { symbol, name: quote?.name || symbol, quote, summary: page?.summary, supported: marketOfSymbol(symbol) === "CN" };
   });
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter(row => `${row.symbol} ${row.name}`.toLowerCase().includes(needle)) : rows;
@@ -203,11 +203,11 @@ export function Watch() {
   const add = async () => {
     const known = new Set(symbols);
     const parsed = addCodes([], input).next;
-    if (!parsed.length) { setHint(input.trim() ? "没识别到 A 股、港股或美股代码" : ""); return; }
+    if (!parsed.length) { setHint(input.trim() ? "没识别到代码" : ""); return; }
     // 已在自选但尚未进研究名单的 A 股也补进名单，保持两边一致。
     const fresh = parsed.filter(code => !known.has(code));
     const patch = parsed.filter(code => known.has(code) && marketOfSymbol(code) === "CN" && !roster.includes(code));
-    if (!fresh.length && !patch.length) { setHint("这些代码已在关注里"); setInput(""); return; }
+    if (!fresh.length && !patch.length) { setHint("已在关注里"); setInput(""); return; }
     try {
       for (const code of [...fresh, ...patch]) {
         if (!watched.includes(code)) await addWatch(code);
@@ -219,10 +219,10 @@ export function Watch() {
     } catch (reason) { setHint(`没保存上：${reason instanceof Error ? reason.message : String(reason)}`); setRevision(value => value + 1); }
   };
   const remove = async (row: Row) => {
-    const ok = await ask({ title: "移出关注", kicker: "关注", body: <><p>{row.name}（{row.symbol}）将从关注里移出。</p><p className="refresh-dialog-scope">只移出关注，已有研究和资料不受影响。</p></>, confirmLabel: "确认移出" });
+    const ok = await ask({ title: "移出关注", kicker: "关注", body: <><p>{row.name}（{row.symbol}）将从关注里移出。</p><p className="refresh-dialog-scope">研究和资料会保留。</p></>, confirmLabel: "确认移出" });
     if (!ok) return;
     setChartOpen(current => current === row.symbol ? null : current);
-    try { await Promise.all([removeWatch(row.symbol), removeFromRoster(row.symbol)]); } catch { setHint("移出关注暂时未能完成，列表已按当前状态刷新"); }
+    try { await Promise.all([removeWatch(row.symbol), removeFromRoster(row.symbol)]); } catch { setHint("没成功 · 已刷新列表"); }
     setRevision(value => value + 1);
   };
   const pageKey = "watch:list";
@@ -236,20 +236,20 @@ export function Watch() {
     return <div>
       <PageHeader title="关注" />
       <KindTabs value="chains" onChange={setKind} />
-      {chains === undefined ? <p className="text-sm text-[var(--text-3)]">正在读取产业链…</p>
-        : chainsFailed ? <p role="alert" className="text-sm text-[var(--text-2)]">产业链暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setChainsAttempt(value => value + 1)}>重试</button></p>
-        : !chains.length ? <p className="text-sm text-[var(--text-2)]" data-chains-empty="">还没有产业链。打开一家公司，点「建这条产业链」，或在对话里让助手推荐。</p>
+      {chains === undefined ? <LoadingCard />
+        : chainsFailed ? <p role="alert" className="text-sm text-[var(--text-2)]">读取失败<button type="button" className="btn btn-text btn-sm" onClick={() => setChainsAttempt(value => value + 1)}>重试</button></p>
+        : !chains.length ? <p className="text-sm text-[var(--text-2)]" data-chains-empty="">在公司页或对话里新建产业链</p>
         : <div className="object-grid">{chains.map(chain => {
           const n = chainCompanyCount(chain);
           return <ObjectCard key={chain.chain_id} icon={GitBranch} tone="chain" name={chain.name}
-            text={chainStages(chain)} foot={`链上已关注 ${n} 家`} to={chainPath(chain.chain_id)} openLabel="打开产业链页" />;
+            text={chainStages(chain)} foot={`链上已关注 ${n} 家`} to={chainPath(chain.chain_id)} openLabel="打开" />;
         })}</div>}
       <Disclaimer />
     </div>;
   }
   if (!rows.length && !needle) return <div><PageHeader title="关注" /><KindTabs value="stocks" onChange={setKind} /><FirstOpen pages={pages} onStart={startFirst} /><Disclaimer /></div>;
   const stamp = updatedAt ? `行情时点 ${new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}` : "";
-  const liveNote = error ? error : polling ? "自动刷新 · 间隔 3 秒" : live && symbols.length ? (isTradingHours(symbols) ? "已暂停（页面未激活）" : "当前关注市场均为非交易时段") : "";
+  const liveNote = error ? error : polling ? "自动刷新" : live && symbols.length ? (isTradingHours(symbols) ? "已暂停" : "休市") : "";
   return <div>
     <PageHeader title="关注"
       search={<WorkspaceSearch aria-label="搜索关注" placeholder="搜索名称或代码" value={query} onChange={value => { const next = new URLSearchParams(params); if (value) next.set("q", value); else next.delete("q"); setParams(next, { replace: true }); }} />}
@@ -267,12 +267,12 @@ export function Watch() {
     {!adding && hint && <p role="status" className="mb-4 text-xs text-[var(--text-3)]">{hint}</p>}
     <SectionLabel aside={<span className="inline-flex items-center gap-1">
       {[stamp, liveNote].filter(Boolean).join(" · ")}
-      <button type="button" className={cn("btn btn-text btn-sm", live && "!bg-[var(--fill-2)] !text-foreground")} aria-pressed={live} onClick={toggleLive} title="开启自动刷新（交易时段每次请求结束后等 3 秒；上游可能延迟）">自动刷新</button>
-      <button type="button" className="btn btn-icon" disabled={loading} onClick={refresh} aria-label="立即刷新行情" title="立即刷新"><RefreshCw className={cn(loading && "animate-spin")} /></button>
+      <button type="button" className={cn("btn btn-text btn-sm", live && "!bg-[var(--fill-2)] !text-foreground")} aria-pressed={live} onClick={toggleLive} title="交易时段每 3 秒刷新">自动刷新</button>
+      <button type="button" className="btn btn-icon" disabled={loading} onClick={refresh} aria-label="刷新行情" title="刷新"><RefreshCw className={cn(loading && "animate-spin")} /></button>
       <span role="tablist" aria-label="关注视图" className="segmented">{([["list", List, "表格"], ["grid", LayoutGrid, "卡片"]] as const).map(([id, Icon, label]) => <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} onClick={() => setView2(id)}><Icon size={14} /></button>)}</span>
     </span>}>{needle ? `匹配 ${visible.length} / ${rows.length}` : `共 ${rows.length} 家`}</SectionLabel>
     {!visible.length ? <div className="card px-6 py-14 text-center">
-      <p className="text-sm text-[var(--text-2)]">{rows.length ? "没有匹配的公司" : "还没有关注的公司。添加后会出现在这里，点开公司即可开始研究。"}</p>
+      <p className="text-sm text-[var(--text-2)]">{rows.length ? "没有匹配的公司" : "还没有关注的公司"}</p>
       {!rows.length && <button type="button" className="btn btn-primary mt-4" onClick={() => setAdding(true)}><Plus />添加关注</button>}
     </div> : view === "grid"
       ? <div className="object-grid">{visible.map(row => <Item key={row.symbol} row={row} view={view} services={services} chartOpen={false} onOpen={() => open(row)} onChart={() => {}} onRemove={() => void remove(row)} />)}</div>

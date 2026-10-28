@@ -10,6 +10,7 @@ import { WorkspaceSearch } from '../components/ui/WorkspaceSearch';
 import { StatusPill, TableWrap } from '../components/ui/Card';
 import { StatusDot } from '../components/ui/StatusDot';
 import { GlassCard } from '../components/ui/GlassCard';
+import { LoadingCard } from '../components/ui/LoadingCard';
 import { DashboardCard } from '../components/IndustryDashboardCard';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { useAiPage } from '../../../core/ai/pageContext';
@@ -128,7 +129,7 @@ function LibraryList({ segments }: { segments: ReactNode }) {
       const fail = (detail: string) => setQueue(current => current.map(item => item.id === id ? { ...item, status: 'failed', detail } : item));
       if (file.size > LIBRARY_MAX_BYTES) { fail('文件不能超过 32 MB'); return; }
       if (!libraryFileKind(file)) { fail('仅支持 PDF、TXT 或 Markdown'); return; }
-      setQueue(current => current.map(item => item.id === id ? { ...item, status: 'uploading', detail: '正在保存…' } : item));
+      setQueue(current => current.map(item => item.id === id ? { ...item, status: 'uploading', detail: '保存中' } : item));
       try {
         const saved = await uploadLibraryFile(file, symbol);
         setQueue(current => current.map(item => item.id === id ? { ...item, status: 'saved', detail: saved.has_parsed ? '已保存到我的资料，可引用' : '已保存到我的资料，正文尚未就绪' } : item));
@@ -146,25 +147,25 @@ function LibraryList({ segments }: { segments: ReactNode }) {
     if (result.status === 'inserted') {
       void navigate('/');
       setNotice(pending.length
-        ? '资料已经保存；正文尚未就绪的资料发送前请先移除或等待处理完成。'
-        : '资料已经保存。');
+        ? '已保存。正文未就绪的资料，发送前请移除或等处理完成'
+        : '已保存');
       return;
     }
     if (result.status === 'queued') {
       void navigate('/');
-      setNotice('资料已经保存。正在打开对话。');
+      setNotice('已保存 · 打开对话');
       return;
     }
-    setNotice('无法放入当前输入框。引用已保留，请打开深度对话后再次引用，或用 @ 选择同一份资料。');
+    setNotice('放不进输入框。打开对话后再引用，或用 @ 选这份资料');
   };
 
   const retry = (item: LibraryDocument) => {
     setMenuId('');
     setRetryingId(item.document_id);
-    setNotice('正在重试处理…');
+    setNotice('重试中');
     void retryLibraryDocument(item.document_id)
       .then(saved => {
-        setNotice(saved.has_parsed ? '已重新处理，可引用正文。' : '已重新提交处理，请稍后查看状态。');
+        setNotice(saved.has_parsed ? '已处理，可引用' : '已提交处理');
         return load(0, false);
       })
       .catch(err => setError(asResearchErrorMessage(err)))
@@ -193,9 +194,9 @@ function LibraryList({ segments }: { segments: ReactNode }) {
         ))}
       </div>
     </div>
-    <p className="section-label !mt-0">{items === null ? '正在读取资料…' : `共 ${total} 份`}</p>
+    <p className="section-label !mt-0">{items === null ? '' : `共 ${total} 份`}</p>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : notice ? <p role="status" className="text-sm text-muted-foreground">{notice}</p> : null}
-    {items === null ? <GlassCard><p role="status" className="py-12 text-center text-sm text-muted-foreground">正在读取资料…</p></GlassCard>
+    {items === null ? <LoadingCard />
       : empty ? <label className="library-empty library-drop" data-active={dropActive} onDragOver={event => { event.preventDefault(); setDropActive(true); }} onDragLeave={() => setDropActive(false)} onDrop={onDrop}>
         <FileText size={32} strokeWidth={1.25} className="mb-4 text-muted-foreground/50" />
         <p className="font-medium">把第一份资料放到这里</p>
@@ -275,7 +276,7 @@ function LibraryList({ segments }: { segments: ReactNode }) {
               .then(() => { setHideId(''); setNotice('已从我的资料移除，原文件和历史引用会保留。'); return load(0, false); })
               .catch(err => setError(asResearchErrorMessage(err)))
               .finally(() => setHiding(false));
-          }}>{hiding ? '正在移除…' : '从我的资料移除'}</button>
+          }}>{hiding ? '移除中' : '从我的资料移除'}</button>
         </div>
       </div>
     </div>}
@@ -335,7 +336,7 @@ function LibraryMenu({
       <div ref={menuRef} role="menu" className="library-menu" style={{ ...box, visibility: box ? 'visible' : 'hidden' }} onClick={event => event.stopPropagation()}>
         <Link role="menuitem" to={`/my-reports/read/${encodeURIComponent(item.document_id)}?from=${encodeURIComponent('/my-reports')}`}>阅读</Link>
         <button type="button" role="menuitem" onClick={onCite}>引用到对话</button>
-        {libraryNeedsRetry(item) && <button type="button" role="menuitem" disabled={retrying} onClick={onRetry}>{retrying ? '正在重试…' : '重试处理'}</button>}
+        {libraryNeedsRetry(item) && <button type="button" role="menuitem" disabled={retrying} onClick={onRetry}>{retrying ? '重试中' : '重试处理'}</button>}
         <a role="menuitem" href={`/finance-research/documents/${item.document_id}/raw`} target="_blank" rel="noreferrer">下载原件</a>
         <button type="button" role="menuitem" onClick={onRename}>修改标题</button>
         <button type="button" role="menuitem" onClick={onHide}>从我的资料移除</button>

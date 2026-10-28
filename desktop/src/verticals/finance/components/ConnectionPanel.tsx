@@ -32,7 +32,7 @@ export function ConnectionPanel() {
     const body = await call<{ url?: string; has_token?: boolean }>("");
     setUrl(body.url ?? ""); setHasToken(Boolean(body.has_token)); setLoaded(true);
   }, []);
-  useEffect(() => { read().catch(() => { setLoaded(true); setMessage("暂时读取不到连接设置"); }); }, [read]);
+  useEffect(() => { read().catch(() => { setLoaded(true); setMessage("读取失败"); }); }, [read]);
   const put = (body: { url: string; token?: string }) => call("", { method: "PUT", body: JSON.stringify(body) });
   const run = async (action: () => Promise<void>, failure: string) => {
     setBusy(true); setMessage("");
@@ -46,12 +46,12 @@ export function ConnectionPanel() {
     await put({ url: url.trim(), ...(token ? { token } : {}) });
     setToken(""); await read();
     const outcome = outcomeOf(await call<{ status?: string; result?: string }>("/test", { method: "POST", body: "{}" }));
-    setMessage(outcome ? OUTCOME_TEXT[outcome] : "暂时测不了，请稍后重试");
-  }, "暂时测不了，请稍后重试");
+    setMessage(outcome ? OUTCOME_TEXT[outcome] : "测试失败 · 重试");
+  }, "测试失败 · 重试");
   const clear = () => run(async () => {
     await put({ url: url.trim(), token: "" });
     setToken(""); await read(); setMessage("访问令牌已清除");
-  }, "没有清除成功，请稍后重试");
+  }, "没成功 · 重试");
   return <GroupCard label="连接">
     <GroupRow title="服务器地址" description="不填就用本机。">
       <input className="connection-input" aria-label="服务器地址" type="url" value={url} placeholder="https://" disabled={!loaded || busy} onChange={event => setUrl(event.target.value)} />

@@ -14,9 +14,19 @@ export interface PriceItem extends ItemBase {
   kind: 'price'; var_id: string; unit?: string | null; series: string[][] | null; status: 'ok' | 'gap' | 'no_data'; reason?: string | null;
   cards: VariableCard[]; companies: VariableCompany[];
 }
-export interface ObservationItem extends ItemBase { kind: 'observation'; hypothesis: string; signals: TrackingSignal[] }
+export interface ObservationItem extends ItemBase { kind: 'observation'; topic_id: string; tracking_key: string; topic_title: string; hypothesis: string; signals: TrackingSignal[] }
 export type TrackingItem = PriceItem | ObservationItem;
 export interface TrackingList { as_of: string; items: TrackingItem[]; muted: TrackingItem[] }
+
+export function observationGroups(items: readonly ObservationItem[]): { topicId: string; title: string; items: ObservationItem[] }[] {
+  const groups = new Map<string, { topicId: string; title: string; items: ObservationItem[] }>();
+  for (const item of items) {
+    const group = groups.get(item.topic_id) ?? { topicId: item.topic_id, title: item.topic_title, items: [] };
+    group.items.push(item);
+    groups.set(item.topic_id, group);
+  }
+  return [...groups.values()];
+}
 
 export async function loadTrackingItems(signal?: AbortSignal): Promise<TrackingList> {
   const { symbols } = await localService.clientWatch();
@@ -53,15 +63,13 @@ export const asTrackingVariables = (list: TrackingList): TrackingVariables => ({
 });
 
 /** 信号类型在界面上的说法：观察项本身是一个判断，信号按它对这个判断的影响说。Backend 的取值不变，只在显示时映射。 */
-export const KIND_LABEL: Record<SignalKind, string> = { 加强: '支持这个判断', 削弱: '不利于这个判断', 无关: '无关', 待定: '还没判断' };
-/** 行尾汇总：「4 条消息里 2 条支持、1 条不利」；只有一种时只写那一种；支持和不利都没有写「还没有相关消息」。 */
+export const KIND_LABEL: Record<SignalKind, string> = { 加强: '支持', 削弱: '不利', 无关: '无关', 待定: '未判断' };
+/** 行尾汇总：「支持 2 · 不利 1」；只有一种时只写那一种；都没有写「暂无消息」。 */
 export function summaryOf(signals: readonly TrackingSignal[]): string {
   const support = signals.filter(signal => signal.kind === '加强').length, against = signals.filter(signal => signal.kind === '削弱').length;
-  const total = `${signals.length} 条消息里`;
-  if (support && against) return `${total} ${support} 条支持、${against} 条不利`;
-  if (support) return `${total} ${support} 条支持这个判断`;
-  if (against) return `${total} ${against} 条不利于这个判断`;
-  return '还没有相关消息';
+  const parts = [support ? `支持 ${support}` : '', against ? `不利 ${against}` : ''].filter(Boolean);
+  if (parts.length) return parts.join(' · ');
+  return '暂无消息';
 }
 
 /** 信号时间轴：按日期铺在 420 宽的轴上，同一天略微错开；只有一个日期时居中。 */
@@ -99,5 +107,5 @@ export async function loadNextReports(signal?: AbortSignal): Promise<NextReport[
   if (!rows) throw new Error('下次报告读取失败');
   return rows.filter(row => row && typeof row.symbol === 'string' && typeof row.report === 'string');
 }
-/** 右边一格：「三季报 · 10-30」；没有日期写「预约日待公布」。 */
-export const nextReportWhen = (row: NextReport) => `${row.report} · ${/^\d{4}-(\d{2})-(\d{2})$/.test(row.date ?? '') ? row.date!.slice(5) : row.date_note || '预约日待公布'}`;
+/** 右边一格：「三季报 · 10-30」；没有日期写「日期未定」。 */
+export const nextReportWhen = (row: NextReport) => `${row.report} · ${/^\d{4}-(\d{2})-(\d{2})$/.test(row.date ?? '') ? row.date!.slice(5) : row.date_note || '日期未定'}`;

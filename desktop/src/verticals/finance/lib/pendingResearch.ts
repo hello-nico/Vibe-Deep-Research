@@ -34,7 +34,7 @@ export function pendingItems(rows: readonly StatusRow[], drafts: readonly Resear
       items.push({ id: draft.draft_id, slug: draft.slug, kind: 'invalid', label: `草案已失效 · ${draftInvalidReason(draft.invalid_reason)}`, time: draft.updated_at, draft });
   }
   for (const row of rows) {
-    if (row.refresh?.state === 'candidate') items.push({ id: `${row.slug}:refresh`, slug: row.slug, kind: 'refresh', label: '有新资料待确认', time: row.refresh.checked_at || undefined, href: badgeHref(row.slug, '有新资料', row) });
+    if (row.new_material) items.push({ id: `${row.slug}:refresh`, slug: row.slug, kind: 'refresh', label: `${row.new_material.name}已出`, time: row.new_material.date ?? undefined, href: badgeHref(row.slug, `${row.new_material.name}已出`, row) });
     if ((row.maintenance?.pending || 0) > 0) items.push({ id: `${row.slug}:maintenance`, slug: row.slug, kind: 'maintenance', label: '待确认维护', href: badgeHref(row.slug, '待确认维护', row) });
   }
   return items.sort((a, b) => String(b.time || '').localeCompare(String(a.time || '')));

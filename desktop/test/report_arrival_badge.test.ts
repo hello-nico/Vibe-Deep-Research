@@ -1,4 +1,4 @@
-// 财报到达自动重研：研究行文字（跟踪页仍在引用）、档位升降判断与「已看」本机存储。
+// 财报到达只提醒：报告期比较、只读读取与「已看」本机存储。
 import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -30,25 +30,38 @@ function record(over: Record<string, unknown> = {}) {
   return { task_id: 'task:a1', symbol: '000933.SZ', title: '公司研究 · 神火股份', status: 'completed', current_step: 6,
     steps: STEPS.map(key => ({ key, label: key, status: 'done', outputs: {} })), sessions: [], reason: null,
     created_at: '2026-10-26T01:00:00Z', updated_at: '2026-10-26T02:00:00Z', finished_at: '2026-10-26T02:00:00Z',
-    trigger: 'report_arrival', trigger_period: '2026Q3', report_period: '2026Q3', ...over };
+    report_period: '2026Q3', ...over };
 }
-const info = (grade: string | null, previousGrade: string | null, researchedAt: string | null = '2026-10-26T01:30:00Z') => ({ grade, previousGrade, researchedAt });
 
 test('报告名用中文', () => {
   assert.deepEqual(['2026Q1', '2026H1', '2026Q3', 'FY2025', null, 'x'].map(lib.reportName), ['一季报', '半年报', '三季报', '年报', '定期报告', '定期报告']);
 });
 
-test('三种文字：进行中、档位变了、没变；上一版为空与旧研究不比较', () => {
-  assert.equal(lib.researchRowLine(record({ status: 'running', current_step: 2 })), '神火股份三季报已披露，正在按新报告重新研究');
-  assert.equal(lib.researchRowLine(record({ status: 'interrupted' })), '神火股份三季报已披露，正在按新报告重新研究');
-  assert.equal(lib.researchRowLine(record(), info('明显高估', '偏高')), '已按三季报更新：估值偏高→估值明显高估', '升档');
-  assert.equal(lib.researchRowLine(record(), info('合理', '偏高')), '已按三季报更新：估值偏高→估值合理', '降档');
-  assert.equal(lib.researchRowLine(record(), info('偏高', '偏高')), '已按三季报更新：估值判断没变');
-  assert.equal(lib.researchRowLine(record(), info('偏高', null)), '已按三季报更新：估值偏高', 'previousGrade 为 null：没有可比的上一版');
-  assert.equal(lib.researchRowLine(record(), info('偏高', '合理', '2026-10-25T01:30:00Z')), '已按三季报更新：估值偏高', '保存早于任务开始：不是这次研究的结果');
-  assert.equal(lib.researchRowLine(record(), null), '已按三季报更新', '读不到档位');
-  assert.equal(lib.researchRowLine(record({ status: 'failed', reason: '最新定期报告还没入库' })), '最新定期报告还没入库');
-  assert.equal(lib.researchRowLine(record({ trigger: null }), info('合理', '偏高')), '完成，估值合理', '手动研究仍是原句');
+test('提醒直接投影 Backend 新资料：不再比较报告期，报告和公告同一文案', () => {
+  const reminder = lib.reportArrival('600011.SH', { kind: 'report', name: '三季报', date: '2026-10-27' }, '华能国际');
+  assert.equal(reminder.text, '三季报已出');
+  assert.equal(reminder.id, 'material:600011.SH:report:三季报:2026-10-27');
+  assert.equal(lib.reportArrival('600011.SH', null), null);
+  assert.equal(lib.reportArrival('600011.SH', { kind: 'announcement', name: '减值公告', date: '2026-10-28' }).text, '减值公告已出');
+});
+
+test('读取新报告全程只读，不按日历或完成时间猜测；研究更新到新一期后提醒消失', async () => {
+  const methods: string[] = [];
+  let material: { kind: string; name: string; date: string } | null = { kind: 'report', name: '三季报', date: '2026-10-27' };
+  globalThis.fetch = (async (url, init) => {
+    methods.push(init?.method || 'GET');
+    const path = String(url);
+    if (path.includes('/page-research')) return Response.json({ new_material: material, research: { report_period: '2026Q3' } });
+    if (path.startsWith('/finance-research-tasks')) return Response.json({ items: [record({ symbol: '600011.SH', report_period: '2026Q3' })] });
+    throw new Error(`unexpected ${path}`);
+  }) as typeof fetch;
+  try {
+    assert.equal((await lib.readReportArrival('600011')).text, '三季报已出');
+    material = null;
+    assert.equal(await lib.readReportArrival('600011.SH'), null);
+    assert.equal(await lib.readReportArrival('600011'), null);
+    assert.ok(methods.every(method => method === 'GET'));
+  } finally { globalThis.fetch = previous.fetch; }
 });
 
 test('已看存本机，坏数据当没有', () => {

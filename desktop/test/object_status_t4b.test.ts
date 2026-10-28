@@ -12,10 +12,11 @@ const pending = await loadFinanceModule<typeof import('../src/verticals/finance/
 const tasks = await loadFinanceModule<typeof import('../src/verticals/finance/lib/reportTasks.ts')>('lib/reportTasks.ts');
 
 test('徽标排序与去处映射', () => {
-  const row = { slug: 'companies/600900-sh', existence: 'building' as const, drafts: { pending: 1, latest: { draft_id: 'draft-123', status: 'pending' as const, created_at: '2026-09-24' } }, maintenance: { pending: 1 }, refresh: { state: 'candidate' as const }, report: { exists: true, stale: true } };
-  assert.deepEqual(status.statusBadges(row), ['建立中', '草案待确认', '待确认维护', '有新资料', '报告已过期']);
+  const row = { slug: 'companies/600900-sh', new_material: { kind: 'report' as const, name: '三季报', date: '2026-09-24' }, existence: 'building' as const, drafts: { pending: 1, latest: { draft_id: 'draft-123', status: 'pending' as const, created_at: '2026-09-24' } }, maintenance: { pending: 1 }, refresh: { state: 'candidate' as const }, report: { exists: true, stale: true } };
+  assert.deepEqual(status.statusBadges(row), ['建立中', '草案待确认', '待确认维护', '三季报已出', '报告已过期']);
   assert.equal(status.badgeHref(row.slug, '草案待确认', row), '/insights?tab=tasks&draft=draft-123');
-  assert.equal(status.badgeHref(row.slug, '有新资料', row), '/watch/600900?refresh=confirm');
+  assert.equal(status.badgeHref(row.slug, '三季报已出', row), '/watch/600900');
+  assert.deepEqual(status.statusBadges({ slug: row.slug, refresh: { state: 'candidate' }, new_material: null }), []);
   assert.equal(status.badgeHref('industries/nbs-电力', '报告已过期', row), '/watch?view=report');
   assert.equal(status.badgeHref(row.slug, '检查资料中', row), undefined);
 });
@@ -36,6 +37,7 @@ test('状态读取超过 50 个对象时分批，缓存与单项预览共用', a
   const original = globalThis.fetch;
   const batches: string[][] = [];
   globalThis.fetch = async (_input, init) => {
+    if (String(_input).includes('/page-research')) return Response.json({ new_material: null });
     const slugs = (JSON.parse(String(init?.body)) as { slugs: string[] }).slugs;
     batches.push(slugs);
     return new Response(JSON.stringify({ objects: slugs.map(slug => ({ slug, existence: 'published' })) }), { status: 200, headers: { 'content-type': 'application/json' } });
@@ -55,7 +57,7 @@ test('失效原因决定任务文案，待处理计数排除已失效', () => {
   assert.equal(pending.draftInvalidReason('base_changed'), '研究页已更新');
   assert.equal(pending.draftInvalidReason('discarded'), '已放弃');
   const now = Date.parse('2026-09-24T12:00:00Z');
-  const items = pending.pendingItems([{ slug: 'companies/600900-sh', refresh: { state: 'candidate', checked_at: '2026-09-24T11:00:00Z' }, maintenance: { pending: 1 } }], [
+  const items = pending.pendingItems([{ slug: 'companies/600900-sh', new_material: { kind: 'report', name: '三季报', date: '2026-09-24' }, refresh: { state: 'candidate', checked_at: '2026-09-24T11:00:00Z' }, maintenance: { pending: 1 } }], [
     { draft_id: 'draft-a', slug: 'companies/600900-sh', status: 'pending', created_at: '2026-09-24T10:00:00Z', updated_at: '2026-09-24T10:00:00Z' },
     { draft_id: 'draft-b', slug: 'companies/600900-sh', status: 'invalid', invalid_reason: 'base_changed', created_at: '2026-09-23T10:00:00Z', updated_at: '2026-09-24T09:00:00Z' },
     { draft_id: 'draft-c', slug: 'companies/600900-sh', status: 'invalid', invalid_reason: 'expired', created_at: '2026-09-01T10:00:00Z', updated_at: '2026-09-10T10:00:00Z' },

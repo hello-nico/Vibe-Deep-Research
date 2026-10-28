@@ -1,6 +1,6 @@
 import { api } from './api';
 import { researchRead } from './research';
-import { qualifiedWatch, shortName } from './trackingVariables';
+import { qualifiedWatch } from './trackingVariables';
 import { localService } from './localService';
 
 /**
@@ -16,7 +16,7 @@ export type RevertState = 'available' | 'newer';
 export interface WritebackEvent extends ResearchEvent { name: string; revert?: RevertState }
 
 const SHOWN = new Set(['drivers', 'thesis', 'candidate']);
-/** 撤回只能退一版：该公司最新一次可撤回的调整可用，其余显示「已有更新的版本」；撤回过之后更早的都不能再撤。 */
+/** 撤回只能退一版：该公司最新一次可撤回的调整可用，其余不显示撤回；撤回过之后更早的都不能再撤。 */
 export function revertStates(events: readonly ResearchEvent[]): Map<string, RevertState> {
   const out = new Map<string, RevertState>();
   const done = new Set<string>();
@@ -45,7 +45,7 @@ export async function loadResearchEvents(signal?: AbortSignal): Promise<Writebac
   let names: Record<string, string> = {};
   try {
     const quotes = await api.quote([...new Set(events.map(event => event.symbol.split('.')[0]!))].join(','));
-    names = Object.fromEntries(Object.entries(quotes).filter(([, quote]) => quote.name).map(([code, quote]) => [code, shortName(quote.name!)]));
+    names = Object.fromEntries(Object.entries(quotes).filter(([, quote]) => quote.name).map(([code, quote]) => [code, quote.name!]));
   } catch { /* 没有名字退回代码 */ }
   return writebackEvents(events, names);
 }

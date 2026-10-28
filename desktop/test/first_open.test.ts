@@ -64,7 +64,7 @@ let at = '';
 const Where = () => { at = router.useLocation().pathname; return null; };
 async function showWatch(path = '/watch') {
   const sessions = { start: async () => ({ sessionId: 's', status: 'started' }), subscribeSessionList: () => () => {} };
-  const services = { readResearch: async () => ({ stale: false, basisVersion: 'v1' }), subscribeResearch: () => () => {}, startResearch: async () => ({ sessionId: 's', status: 'researching', stage: '正在研究' }) };
+  const services = { readResearch: async () => ({ new_material: null, basisVersion: 'v1' }), subscribeResearch: () => () => {}, startResearch: async () => ({ sessionId: 's', status: 'researching', stage: '正在研究' }) };
   const { CompanyPageServicesContext } = await server.ssrLoadModule('/src/verticals/finance/pages/CompanyPage.tsx');
   await React.act(async () => root.render(null));
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, { initialEntries: [path] },
@@ -153,13 +153,13 @@ test('产业链分段只列用户链：没有时一句话说怎么建，不展�
   watchlist.replaceWatchCache(['000933']);
   userChains = [];
   await showWatch('/watch?kind=chains');
-  assert.match(container.querySelector('[data-chains-empty]')?.textContent ?? '', /还没有产业链。打开一家公司，点「建这条产业链」，或在对话里让助手推荐。/);
+  assert.match(container.querySelector('[data-chains-empty]')?.textContent ?? '', /在公司页或对话里新建产业链/);
   assert.equal(container.querySelectorAll('.object-grid a').length, 0);
   assert.equal(calls.some(call => /\/wiki\/chains(?!\w)/.test(call)), false, '不再读预置链');
   userChains = [chainFixture]; chainsDown = true;
   await showWatch('/watch?kind=chains');
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
-  assert.match(container.querySelector('[role=alert]')?.textContent ?? '', /产业链暂时读取不到。重试/);
+  assert.match(container.querySelector('[role=alert]')?.textContent ?? '', /读取失败重试/);
   chainsDown = false;
   await React.act(async () => { (container.querySelector('[role=alert] button') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });

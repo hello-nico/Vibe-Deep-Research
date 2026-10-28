@@ -26,7 +26,7 @@ function DocumentReader({ id }: { id: string }) {
   const refParam = params.get('ref') || '';
   const [refState, dispatchRefResolution] = useReducer(reduceRefResolution, null as RefResolution | null);
   const refTuple = activeRefTuple(refState, refParam);
-  const refError = refState?.status === 'failed' && refState.ref === refParam ? '原引用暂时无法核对，可以打开原件或稍后重试。' : '';
+  const refError = refState?.status === 'failed' && refState.ref === refParam ? '原引用核对失败 · 可打开原件' : '';
   useEffect(() => {
     if (!refParam) { dispatchRefResolution({ type: 'start', ref: '' }); return; }
     const controller = new AbortController();
@@ -70,7 +70,7 @@ function DocumentReader({ id }: { id: string }) {
         if (controller.signal.aborted) return;
         setError(err instanceof ResearchError && err.status === 404
           ? '该资料已从我的资料移除，或已无法打开。'
-          : '资料暂时无法读取，请稍后重试。');
+          : '资料读取失败 · 重试');
       });
     return () => controller.abort();
   }, [id]);
@@ -99,7 +99,7 @@ function DocumentReader({ id }: { id: string }) {
         setText('');
         setError(err instanceof Error && err.message === 'version-missing'
           ? '这个版本的正文已无法读取，不会改用最新版本代替。'
-          : '正文暂时无法读取，请稍后重试或打开原件。');
+          : '正文读取失败 · 可打开原件');
       });
     return () => controller.abort();
   }, [document, format, id, revision, hash, pinned]);
@@ -112,7 +112,7 @@ function DocumentReader({ id }: { id: string }) {
     const controller = new AbortController();
     void readPinnedBlock({ document_id: id, parse_revision_id: revision, parsed_content_sha256: hash, block_id: requestedBlock }, controller.signal)
       .then(block => { if (!controller.signal.aborted && !selectionChanged.current) setSelection({ text: block.text, pages: [block.page] }); })
-      .catch(() => { if (!controller.signal.aborted) setError('原引用暂时无法核对，可以阅读原件或重新选择文字。'); });
+      .catch(() => { if (!controller.signal.aborted) setError('原引用核对失败 · 可阅读原件或重选文字'); });
     return () => controller.abort();
   }, [id, revision, hash, requestedBlock]);
   const isPdf = format === 'pdf';
@@ -150,19 +150,19 @@ function DocumentReader({ id }: { id: string }) {
       lead={<Link replace to={from} className="shrink-0 text-sm text-[var(--text-2)] hover:text-foreground">← {from === '/' ? '返回深度对话' : from.startsWith('/insights/topics/') ? '返回研究议题' : from.startsWith('/insights') ? '返回我的研究' : from.startsWith('/research') ? '返回公司资料' : '返回我的资料'}</Link>}
       actions={<>
         {document?.has_raw && <a className="btn" href={raw} target="_blank" rel="noreferrer">打开 / 下载原件</a>}
-        {document && !document.extra?.library_hidden && <WorkspaceMoreMenu actions={[{ id: 'hide', label: hiding ? '正在移除…' : '从我的资料移除', disabled: hiding, onSelect: () => setConfirmHide(true) }]} />}
+        {document && !document.extra?.library_hidden && <WorkspaceMoreMenu actions={[{ id: 'hide', label: hiding ? '移除中' : '从我的资料移除', disabled: hiding, onSelect: () => setConfirmHide(true) }]} />}
       </>} />
     {(error || refError) && <p role="alert" className="text-sm text-destructive">{error || refError}</p>}
     <section className="overflow-hidden rounded-xl border bg-card">
       <div className="h-[max(420px,calc(100dvh-290px))]">
         {isPdf
-          ? (document?.has_raw ? <PdfReader src={raw} initialPage={initialPage} focusRequest={focusRequest} onPageChange={changePage} onSelection={changeSelection} onAsk={askAbout} onError={() => setError('PDF 暂时无法加载，请重试或打开原件。')} /> : <p className="p-6 text-sm text-muted-foreground">{document ? '暂无 PDF 原件可供阅读。' : '正在读取资料…'}</p>)
+          ? (document?.has_raw ? <PdfReader src={raw} initialPage={initialPage} focusRequest={focusRequest} onPageChange={changePage} onSelection={changeSelection} onAsk={askAbout} onError={() => setError('PDF 加载失败 · 可打开原件')} /> : <p className="p-6 text-sm text-muted-foreground">{document ? '暂无 PDF 原件可供阅读。' : '加载中'}</p>)
           : <pre className="h-full overflow-auto whitespace-pre-wrap break-words p-5 text-sm leading-7" onMouseUp={() => {
             const picked = window.getSelection()?.toString().trim() || '';
             changeSelection(picked ? { text: picked, pages: [] } : null);
             const rect = picked ? window.getSelection()?.getRangeAt(0).getBoundingClientRect() : null;
             setAskAt(rect ? { x: rect.left + rect.width / 2, y: rect.top } : null);
-          }}>{text || (document ? '正在读取正文…' : '正在读取资料…')}</pre>}
+          }}>{text || (document ? '加载中' : '加载中')}</pre>}
         {!isPdf && selection && askAt && <div className="report-ask-bar" role="toolbar" aria-label="所选文字" style={{ left: askAt.x, top: askAt.y }}>
           <button type="button" className="workspace-action workspace-action-compact" onMouseDown={event => event.preventDefault()} onClick={() => { void navigator.clipboard?.writeText(selection.text); }}>复制</button>
           <button type="button" className="workspace-action workspace-action-compact" disabled={!ask} onMouseDown={event => event.preventDefault()} onClick={() => { askAbout(selection); setAskAt(null); }}>{ASK_LABEL}</button>
@@ -181,7 +181,7 @@ function DocumentReader({ id }: { id: string }) {
               .then(() => navigate('/my-reports', { replace: true }))
               .catch(err => setError(asResearchErrorMessage(err)))
               .finally(() => { setHiding(false); setConfirmHide(false); });
-          }}>{hiding ? '正在移除…' : '从我的资料移除'}</button>
+          }}>{hiding ? '移除中' : '从我的资料移除'}</button>
         </div>
       </div>
     </div>}

@@ -90,8 +90,8 @@ test('驱动键 sales:<产品> 显示为「<产品>销量」，银行字段与�
   assert.equal(fieldLabel('segment:product:煤炭.gross_margin'), '煤炭毛利率');
   assert.equal(fieldLabel('segment:product:煤炭.unknown_metric'), '煤炭指标');
   assert.equal(fieldIdLabel('lens:other.revenue'), '相关指标');
-  assert.equal(gapText({ metric: 'sales:动力电池', status: 'gap', reason: 'provider failed field_id' }), '暂时取不到动力电池销量');
-  assert.equal(gapText({ metric: 'mystery_metric', status: 'gap' }), '暂时取不到相关指标');
+  assert.equal(gapText({ metric: 'sales:动力电池', status: 'gap', reason: 'provider failed field_id' }), '无动力电池销量');
+  assert.equal(gapText({ metric: 'mystery_metric', status: 'gap' }), '无相关指标');
 });
 
 test('阈值：yoy_pct 显示「同比 ±x%」，level 按字段单位，缺 kind 按 level', () => {
@@ -206,7 +206,7 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
       { pillarId: 'p1', text: '同比下滑会推翻支柱。', fieldId: 'revenue', threshold: { kind: 'yoy_pct', value: '5', unit: '%' }, window: '2026-10-30 披露的三季报' },
       { pillarId: 'p1', text: '毛利率跌破阈值。', fieldId: 'gross_margin', threshold: { kind: 'level', value: '20', unit: '%' }, window: '下一份定期报告' },
     ],
-  }, stale: false, basisVersion: 'real' });
+  }, new_material: null, basisVersion: 'real' });
   const documents = { items: [
     { document_id: '4d734ec60b5741a69046891eb4d14c2c', title: real.reportTitles[0], document_type: 'research_report' },
     { document_id: '390e0c2a31e848d49763a882df68ac06', title: real.reportTitles[1], document_type: 'research_report' },
@@ -239,7 +239,7 @@ test('页面用真实形态：驱动、银行字段、引用字段与阈值都�
 });
 
 test('页面银行真实形态：银行驱动字段中文，缺口写「暂时取不到…」不露键名', async () => {
-  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' }, stale: false, basisVersion: 'bank' });
+  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' }, new_material: null, basisVersion: 'bank' });
   fixture.services.data.packet = async () => real.packets['601288'];
   await mount(fixture.services, '601288', '农业银行');
   const text = container.querySelector('[data-company-section="variables"]')!.textContent!;
@@ -256,7 +256,7 @@ test('R6 页面：后台 ensure 完成后静默替换数据，不回到加载骨
   late.fields.revenue = { ...late.fields.revenue, value: '4200000000', status: 'verified' };
   let current = early;
   const listeners = new Set<() => void>();
-  const fixture = companyPageFixture({ research: null, stale: false, basisVersion: 'quiet' });
+  const fixture = companyPageFixture({ research: null, new_material: null, basisVersion: 'quiet' });
   fixture.services.data.packet = async () => current;
   fixture.services.subscribePacket = (_symbol: string, listener: () => void) => { listeners.add(listener); return () => { listeners.delete(listener); }; };
   await mount(fixture.services);
@@ -264,7 +264,7 @@ test('R6 页面：后台 ensure 完成后静默替换数据，不回到加载骨
   assert.equal(listeners.size, 1);
   current = late;
   let sawSkeleton = false;
-  const observer = new win.MutationObserver(() => { if (container.querySelector('.company-page-skeleton')) sawSkeleton = true; });
+  const observer = new win.MutationObserver(() => { if (container.querySelector('[data-loading]')) sawSkeleton = true; });
   observer.observe(container as unknown as Node, { childList: true, subtree: true });
   await React.act(async () => { listeners.forEach(listener => listener()); await new Promise(resolve => setTimeout(resolve, 10)); });
   observer.disconnect();

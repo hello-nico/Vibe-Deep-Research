@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams, useSearchParams } from "react-router-dom";
 import { Archive, Check, ChevronLeft, FileText, Plus, RefreshCw, RotateCcw, X } from "lucide-react";
 import { ResearchLoading } from "../components/ui/ResearchLoading";
+import { LoadingCard } from "../components/ui/LoadingCard";
 import { GlassCard } from "../components/ui/GlassCard";
 import { ResearchResult } from '../components/ResearchResult';
 import { Disclaimer } from "../components/ui/Disclaimer";
@@ -245,9 +246,9 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       </div>
     </div>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
-    {!topic && !error && <ResearchLoading title="正在读取议题" sections={["当前判断", "关联材料"]} />}
+    {!topic && !error && <LoadingCard />}
     {view === 'report' && reportPage && <WikiReportPane page={reportPage} active />}
-    {topic && view === 'wall' && (wall ? <TopicWall topic={topic} wall={wall} basis={basis} proposals={proposals} refresh={async () => { await Promise.all([load(), loadWall()]); }} continueResearch={continueWith} openChanges={slug => setSearch(previous => { const next = new URLSearchParams(previous); next.delete('view'); next.set('basis', slug); return next; })} decide={decide} /> : wallError ? <p role="alert" className="text-sm text-destructive">证据墙暂时无法读取：{wallError}</p> : <ResearchLoading title="正在读取证据墙" sections={['对象', '关系']} />)}
+    {topic && view === 'wall' && (wall ? <TopicWall topic={topic} wall={wall} basis={basis} proposals={proposals} refresh={async () => { await Promise.all([load(), loadWall()]); }} continueResearch={continueWith} openChanges={slug => setSearch(previous => { const next = new URLSearchParams(previous); next.delete('view'); next.set('basis', slug); return next; })} decide={decide} /> : wallError ? <p role="alert" className="text-sm text-destructive">证据墙暂时无法读取：{wallError}</p> : <LoadingCard />)}
     {topic && view === 'research' && busy === 'refresh' && <ResearchLoading title="正在刷新材料" sections={["读取已关联材料", "核对研究页", "整理待确认关联"]} />}
     {topic && <div className="topic-research-grid" hidden={view !== 'research' || busy === 'refresh'}>
       <section className="topic-section">
@@ -266,7 +267,7 @@ function TopicContent({ topicHex }: { topicHex: string }) {
       </section>}
       <section className="topic-section">
         <h2>待确认关联</h2>
-        {proposals.filter(item => !item.hypothesis_id).length === 0 && <p className="text-sm text-muted-foreground">还没有提议。开始研究后，助手会建议关联相关的记录或研究成果。</p>}
+        {proposals.filter(item => !item.hypothesis_id).length === 0 && <p className="text-sm text-muted-foreground">暂无提议</p>}
         {proposals.filter(item => !item.hypothesis_id).map(item => {
           const note = noteMap[item.note_id?.replace(/^note:/, "") ?? ''];
           return <div key={item.proposal_id} className="topic-material">

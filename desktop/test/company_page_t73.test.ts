@@ -41,7 +41,7 @@ after(async () => { await React.act(async () => root?.unmount()); await server?.
 
 const quote = (price: number) => ({ ...fixtureData.quote!, name: '夹具', price, change_pct: 1.2 });
 function services(opts: { packet: any; research: any; quote?: any; results?: Record<string, unknown>; scenario?: any; revert?: (symbol: string, version?: string) => Promise<void>; envelope?: Record<string, unknown> }) {
-  const fixture = companyPageFixture({ research: opts.research, stale: false, basisVersion: 'v1', ...opts.envelope });
+  const fixture = companyPageFixture({ research: opts.research, new_material: null, basisVersion: 'v1', ...opts.envelope });
   fixture.services.data.packet = async () => opts.packet;
   fixture.services.data.quote = async () => opts.quote ?? quote(5.21);
   fixture.services.readScenario = async () => opts.scenario ?? null;
@@ -235,7 +235,7 @@ test('单季柱图兜底数据与去向条按数据包取值', () => {
   assert.equal(flowItems({ ...huaneng.packet, lenses: {}, fields: { ...noShares.fields } })[3].value, null);
   assert.deepEqual(narrative.GRADES, ['明显低估', '偏低', '合理', '偏高', '明显高估']);
   assert.equal(narrative.periodLabel('FY2025'), '2025 年报');
-  assert.equal(narrative.periodLabel('2026-10-12'), '10 月 12 日');
+  assert.equal(narrative.periodLabel('2026-10-12'), '10-12');
   // D4：各种期间写法统一。
   for (const [raw, shown] of [['2026H1', '2026 半年报'], ['2026Q1', '2026 一季报'], ['2026Q3', '2026 三季报'], ['2026Q2', '2026 二季度'], ['TTM:2026Q3', '近四季（截至 2026 三季报）'], ['TTM:2026H1', '近四季（截至 2026 半年报）'],
     ['2026YTDQ2', '2026 年上半年'], ['2026YTDQ3', '2026 年前三季度'], ['FY2025', '2025 年报'], ['', ''], ['2026上半年', '2026上半年'], [null, '']] as const) assert.equal(narrative.periodLabel(raw as any), shown, String(raw));
@@ -258,7 +258,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   const research = structuredClone(huaneng.research.research);
   research.sections.business.summary = '毛利率只有{gross_margin}，营业收入{revenue}，分红{dividend_paid}取不到';
   research.sections.cash.summary = '经营现金流约为归母净利的{lens:cash_conversion.cash_conversion}';
-  const fixture = services({ packet: huaneng.packet, research: { research, stale: false, basisVersion: 'v1' }.research, scenario, quote: quote(5.21) });
+  const fixture = services({ packet: huaneng.packet, research: { research, new_material: null, basisVersion: 'v1' }.research, scenario, quote: quote(5.21) });
   await mount(fixture);
   assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(item => item.getAttribute('data-company-section')), ['thesis', 'business', 'variables', 'cash', 'valuation', 'tracking']);
   const titles = [...container.querySelectorAll('.company-page-section .panel-title')].slice(0, 5).map(item => item.textContent);
@@ -310,7 +310,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   assert.equal(pills.querySelector('.tone-brand')!.textContent, '估值合理');
   // 节标题右侧写口径：年报与行情日期。
   assert.equal(section('business')!.querySelector('.panel-meta')!.textContent, '2025 年报');
-  assert.match(section('valuation')!.querySelector('.panel-meta')!.textContent!, /\d+ 月 \d+ 日/);
+  assert.match(section('valuation')!.querySelector('.panel-meta')!.textContent!, /\d{2}-\d{2}/);
   assert.match(section('valuation')!.querySelector('[data-key-numbers]')!.textContent!, /同业中位 \d/);
   assert.match(section('valuation')!.textContent!, /什么情况会改判断/);
   const band = section('valuation')!.querySelector('[data-chart="band"]')!;
@@ -383,11 +383,11 @@ test('M1 分部毛利：收入减成本，按毛利排序最多三项；缺成�
   assert.deepEqual(summary.costGaps, ['铝箔']);
   assert.equal(summary.period, '2026H1');
   assert.deepEqual(segmentLine(summary.shown[0], summary.mode), { label: '煤炭毛利', value: '110.00 亿元', title: '收入 200.00 亿元 · 成本 90.00 亿元' });
-  assert.match(segmentGapText(summary), /铝箔的分部成本暂缺/);
+  assert.match(segmentGapText(summary), /铝箔的分部成本缺失/);
   const revenueOnly = segmentGross(withSegments({ fields: {} }, [['公司银行业务', '100000000000', null], ['个人银行业务', '120000000000', null]]));
   assert.equal(revenueOnly.mode, 'revenue');
   assert.deepEqual(revenueOnly.shown.map(row => segmentLine(row, revenueOnly.mode).label), ['个人银行业务收入', '公司银行业务收入']);
-  assert.match(segmentGapText(revenueOnly), /只能列各业务收入/);
+  assert.match(segmentGapText(revenueOnly), /只列收入/);
   const annual = segmentGross(withSegments({ fields: {} }, [['旧期', '2000000000', '1000000000']], true));
   assert.equal(annual.period, 'FY2025');
   assert.equal(annual.shown[0].name, '旧期');
@@ -399,11 +399,11 @@ test('M2 下一次报告：按法定披露截止日，数据包已有的报告�
   const { nextReport } = narrative;
   const at = (day: string) => new Date(`${day}T04:00:00Z`);
   const packet = (period: string) => ({ fields: { revenue: { period, status: 'verified', value: '1' } } }) as any;
-  assert.deepEqual(nextReport(packet('2026H1'), at('2026-10-20')), { name: '三季报', day: '10 月 31 日', text: '三季报最晚 10 月 31 日 披露', disclosed: false, hint: '预约日暂缺，按法定披露截止日' });
-  assert.equal(nextReport(packet('2026Q3'), at('2026-10-20'))!.text, '2026 年报最晚 2027 年 4 月 30 日 披露');
-  assert.equal(nextReport(packet('FY2025'), at('2026-11-05'))!.text, '2026 年报最晚 2027 年 4 月 30 日 披露');
-  assert.equal(nextReport(packet('FY2025'), at('2026-05-10'))!.text, '半年报最晚 8 月 31 日 披露');
-  assert.equal(nextReport(undefined, at('2026-02-01'))!.text, '2025 年报最晚 4 月 30 日 披露', '年初：上一年的年报还没到截止日');
+  assert.deepEqual(nextReport(packet('2026H1'), at('2026-10-20')), { name: '三季报', day: '10-31', text: '三季报最晚 10-31 披露', disclosed: false, hint: '预约日暂缺，按法定披露截止日' });
+  assert.equal(nextReport(packet('2026Q3'), at('2026-10-20'))!.text, '2026 年报最晚 2027-04-30 披露');
+  assert.equal(nextReport(packet('FY2025'), at('2026-11-05'))!.text, '2026 年报最晚 2027-04-30 披露');
+  assert.equal(nextReport(packet('FY2025'), at('2026-05-10'))!.text, '半年报最晚 08-31 披露');
+  assert.equal(nextReport(undefined, at('2026-02-01'))!.text, '2025 年报最晚 04-30 披露', '年初：上一年的年报还没到截止日');
 });
 
 const calendarBody = (symbol: string, reports: unknown[], status = 'sourced') => ({ items: [{ symbol, status, source: 'eastmoney', fetched_at: '2026-10-20T10:00:00+08:00', reports }] });
@@ -417,20 +417,20 @@ test('K2 财报日历：未披露写预约日，已披露写实际日并提示�
   assert.equal(yunlv.status, 'sourced');
   assert.equal(yunlv.reports[0].period, '2026-12-31');
   const upcoming = nextReport(packet('2026H1'), at('2026-10-20'), yunlv)!;
-  assert.deepEqual([upcoming.text, upcoming.day, upcoming.disclosed], ['三季报预约 10 月 30 日 披露', '10 月 30 日', false]);
+  assert.deepEqual([upcoming.text, upcoming.day, upcoming.disclosed], ['三季报预约 10-30 披露', '10-30', false]);
   assert.match(upcoming.hint, /预约日来自东方财富/);
   const shenhuo = parseReportCalendar(calendarBody('000933.SZ', [q3('2026-10-20', '2026-10-20')]), '000933.SZ');
   const out = nextReport(packet('2026H1'), at('2026-10-20'), shenhuo)!;
-  assert.deepEqual([out.text, out.disclosed], ['三季报已于 10 月 20 日 披露，重新研究可用新报告校准', true]);
+  assert.deepEqual([out.text, out.disclosed], ['三季报 10-20 已披露', true]);
   // 数据包已经用上三季报：不再提示校准，回到下一份（年报）的法定截止日。
-  assert.equal(nextReport(packet('2026Q3'), at('2026-10-21'), shenhuo)!.text, '2026 年报最晚 2027 年 4 月 30 日 披露');
+  assert.equal(nextReport(packet('2026Q3'), at('2026-10-21'), shenhuo)!.text, '2026 年报最晚 2027-04-30 披露');
   // 缺口、读不到、公司身份不符、形态不对：都退回法定截止日并写明预约日暂缺。
   for (const calendar of [parseReportCalendar(calendarBody('000807.SZ', [], 'gap'), '000807.SZ'), parseReportCalendar({}, '000807.SZ'), parseReportCalendar(calendarBody('600000.SH', [q3('2026-10-30', null)]), '000807.SZ'), null, undefined]) {
     const fallback = nextReport(packet('2026H1'), at('2026-10-20'), calendar as any)!;
-    assert.deepEqual([fallback.text, fallback.hint], ['三季报最晚 10 月 31 日 披露', '预约日暂缺，按法定披露截止日']);
+    assert.deepEqual([fallback.text, fallback.hint], ['三季报最晚 10-31 披露', '预约日暂缺，按法定披露截止日']);
   }
   const cards = watchItems({ packet: packet('2026H1'), now: at('2026-10-20'), calendar: shenhuo });
-  assert.deepEqual([cards.at(-1)!.title, cards.at(-1)!.value, cards.at(-1)!.note], ['新报告已出', '10 月 20 日', '三季报已于 10 月 20 日 披露，重新研究可用新报告校准']);
+  assert.deepEqual([cards.at(-1)!.title, cards.at(-1)!.value, cards.at(-1)!.note], ['新报告已出', '10-20', '三季报 10-20 已披露']);
   assert.equal(watchItems({ packet: packet('2026H1'), now: at('2026-10-20'), calendar: yunlv }).at(-1)!.title, '下一次报告');
 });
 
@@ -445,11 +445,11 @@ test('K2 财报日历·页面：云铝显示预约日、神火显示已披露；
     return container.querySelector('[data-watch="next-report"]') as HTMLElement;
   };
   const waiting = await run(calendarBody('000933.SZ', [q3('2026-10-30', null)]));
-  assert.equal(waiting.querySelector('.narrative-track-note')!.textContent, '三季报预约 10 月 30 日 披露');
+  assert.equal(waiting.querySelector('.narrative-track-note')!.textContent, '三季报预约 10-30 披露');
   assert.equal(waiting.querySelector('.narrative-track-title b')!.textContent, '下一次报告');
   assert.match(waiting.getAttribute('title')!, /东方财富/);
   const done = await run(calendarBody('000933.SZ', [q3('2026-10-20', '2026-10-20')]));
-  assert.equal(done.querySelector('.narrative-track-note')!.textContent, '三季报已于 10 月 20 日 披露，重新研究可用新报告校准');
+  assert.equal(done.querySelector('.narrative-track-note')!.textContent, '三季报 10-20 已披露');
   assert.equal(done.querySelector('.narrative-track-title b')!.textContent, '新报告已出');
   const fixture = shenhuoServices({ packet: structuredClone(huaneng.packet) });
   fixture.services.readCalendar = async () => null;
@@ -492,12 +492,12 @@ test('M2 盯什么·一般公司（无商品价格）：行业驱动项有数就
   const cards = watchCards();
   assert.deepEqual(cards.map(card => card.getAttribute('data-watch')), ['power_price', 'next-report']);
   assert.match(cards[0]!.querySelector('.narrative-track-now strong')!.textContent!, /321/);
-  assert.match(cards[0]!.querySelector('.narrative-track-note')!.textContent!, /2025 年报的数，它是影响利润的行业数据/);
+  assert.match(cards[0]!.querySelector('.narrative-track-note')!.textContent!, /2025 年报的数，影响利润的行业数据/);
 });
 
 test('M2 盯什么·银行（农行）：驱动项是净息差；只有分部收入没有成本时第一层写收入，缺口写进「查看数据」', async () => {
   const bank = withSegments(real.packets?.['601288'] ?? realBank.packets['601288'], [['公司银行业务', '300000000000', null], ['个人银行业务', '350000000000', null], ['资金业务', '80000000000', null]]);
-  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' }, stale: false, basisVersion: 'bank' });
+  const fixture = companyPageFixture({ research: { companyType: 'bank', thesis: '息差决定利润。', researchedAt: '2026-10-12T00:00:00Z' }, new_material: null, basisVersion: 'bank' });
   fixture.services.data.packet = async () => bank;
   await mount(fixture, '601288', '农业银行');
   const cards = watchCards();
@@ -507,7 +507,7 @@ test('M2 盯什么·银行（农行）：驱动项是净息差；只有分部收
   const business = section('business')!;
   assert.equal(business.querySelector('[data-key-numbers]')!.getAttribute('data-segments'), 'revenue');
   assert.deepEqual([...business.querySelectorAll('[data-key-numbers] .metric-label > span:first-child')].map(item => item.textContent), ['个人银行业务收入', '公司银行业务收入', '资金业务收入']);
-  assert.match(business.querySelector('details.company-page-detail [data-gap="segment-cost"]')!.textContent!, /只能列各业务收入/);
+  assert.match(business.querySelector('details.company-page-detail [data-gap="segment-cost"]')!.textContent!, /只列收入/);
   assert.doesNotMatch(container.textContent!, /average_earning_assets|net_interest_margin|credit_cost|segment:|undefined|NaN/);
 });
 
@@ -568,7 +568,7 @@ test('神火关键变量：公式行、滑块按真实单位，滑轨标参考�
   const says = variables.querySelector('[data-company-says]')!;
   assert.match(says.textContent!, /公司自己说[\s\S]*「受电解铝、煤炭产品售价同比上涨/);
   assert.equal(al.querySelector('.narrative-quote'), null);
-  assert.deepEqual([...variables.querySelectorAll('.narrative-slider-actions button')].map(item => item.textContent), ['回到今天价格', '回到对比期均价']);
+  assert.deepEqual([...variables.querySelectorAll('.narrative-slider-actions button')].map(item => item.textContent), ['回到今天', '回到对比期']);
   const result = variables.querySelector('[data-result]')!.textContent!;
   assert.match(result, /年化净利润（估算）\s*92\.38 亿元/);
   assert.match(result, /比对比期 -3\.24 亿元/);
@@ -665,14 +665,14 @@ test('对话写回：变化处悬停显示来源对话与时间；撤回调用 r
   failing = true;
   await React.act(async () => { (line.querySelector('button') as HTMLElement).click(); await new Promise(resolve => setTimeout(resolve, 5)); });
   assert.equal(reverts, 1);
-  assert.match(line.textContent!, /撤回没有成功/);
+  assert.match(line.textContent!, /没成功/);
   assert.equal(reads, before, '撤回失败不重读');
   failing = false;
   await React.act(async () => { (line.querySelector('button') as HTMLElement).click(); await new Promise(resolve => setTimeout(resolve, 10)); });
   assert.equal(reverts, 2);
   assert.deepEqual(versions, ['rv-7', 'rv-7'], '撤回带上读到的研究版本，防并发覆盖');
   assert.ok(reads > before, '撤回成功后重读研究');
-  assert.doesNotMatch(line.textContent!, /撤回没有成功/);
+  assert.doesNotMatch(line.textContent!, /没成功/);
 });
 
 test('Backend 说没有上一版可恢复时不显示撤回', async () => {
@@ -767,7 +767,7 @@ test('D1 页内「现价」只用页首实时价：快照价不出现在跟踪�
   assert.doesNotMatch(section('tracking')!.textContent!, new RegExp(snapshot.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), '跟踪卡里没有快照价');
   const detail = section('valuation')!.querySelector('details.company-page-detail')!.textContent!;
   assert.match(detail, /快照价格/);
-  assert.match(detail, /\d+ 月 \d+ 日/, '快照价标日期');
+  assert.match(detail, /\d{2}-\d{2}/, '快照价标日期');
   const { resolveSlot } = narrative;
   assert.equal(resolveSlot('price', huaneng.packet, {}, 31.5)!.text, '31.50 元/股');
   assert.equal(resolveSlot('price', huaneng.packet, {})!.text, snapshot);
@@ -784,8 +784,8 @@ test('P1/P4/P5 页首判断：有隐含价、缺隐含价、跳档价接近、�
   const lone = verdictLine({ grade: '偏高', model: base });
   assert.equal(lone.label, '估值偏高');
   assert.equal(lone.implied, '');
-  assert.match(lone.gap, /没有大致对应的价格/);
-  assert.match(verdictLine({ grade: '偏高', model: null }).gap, /没有利润试算凭据/);
+  assert.match(lone.gap, /无大致对应的价格/);
+  assert.match(verdictLine({ grade: '偏高', model: null }).gap, /无利润试算/);
   assert.equal(verdictLine({ grade: null, model: withImplied }).label, '');
   // 百分比类变量：一位小数、百分号紧跟、四舍五入成零写 0（不出现「-0 %」）。
   const pct = { ...base, variables: [{ ...variable, id: 'v', name: '境内水电发电量', unit: '%', current: 0, step: 1 }], implied: { id: 'v', value: -0.04 } };

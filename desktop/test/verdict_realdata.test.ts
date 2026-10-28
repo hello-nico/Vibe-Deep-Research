@@ -102,7 +102,7 @@ function packetOf(row: Row) {
 
 test('R2/R3 11 家“它靠什么赚钱”：有分部写各业务毛利，没有分部（万华、农行）回到营业收入、毛利率、净利润，都不空白、无禁用词', async () => {
   for (const row of rows) {
-    const fixture = companyPageFixture({ research: { companyType: row.companyType, thesis: '夹具。', researchedAt: '2026-10-20T00:00:00Z', valuation: { grade: row.grade }, sections: { business: { summary: row.business.replace(/\{[^}]*\}/g, '') } } } as any, stale: false, basisVersion: 'v' });
+    const fixture = companyPageFixture({ research: { companyType: row.companyType, thesis: '夹具。', researchedAt: '2026-10-20T00:00:00Z', valuation: { grade: row.grade }, sections: { business: { summary: row.business.replace(/\{[^}]*\}/g, '') } } } as any, new_material: null, basisVersion: 'v' });
     fixture.services.data.packet = async () => packetOf(row) as any;
     fixture.services.data.quote = async () => ({ ...fixtureData.quote!, price: 10 });
     await React.act(async () => root.render(React.createElement(router.MemoryRouter, null, React.createElement(ui.CompanyPage, { key: row.symbol, symbol: row.symbol.slice(0, 6), name: row.name, services: fixture.services }))));
@@ -180,5 +180,5 @@ test('S3 隐含值越界：有 within_range 为假时写“按现价，市场隐
   // 系数为零：value 为空，仍只写判断并说明原因。
   const gap = narrative.verdictLine({ grade: '偏低', model: extra({ var_id: 'cmdty:SHFE.CU', value: null, within_range: false, reason: '主变量系数为零，无法反解' }) });
   assert.equal(gap.implied, '');
-  assert.match(gap.gap, /没有大致对应的价格/);
+  assert.match(gap.gap, /无大致对应的价格/);
 });

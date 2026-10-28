@@ -1,11 +1,11 @@
 // T12a B 线：动态页「关键变量」分段、卡片文案、表格排序与灰显、讨论入口。
-// 夹具 fixtures/tracking_variables.json 是 A 线 track_variables 对 tests/fixtures/t12a/ 三份真实凭据（神火敏感性、沪铝、氧化铝行情）算出的真实响应，
+// 夹具 fixtures/tracking_variables.json 是 A 线 track_variables 对 tests/fixtures/t12a/ 三份真实凭据（神火股份敏感性、沪铝、氧化铝行情）算出的真实响应，
 // 结构以 Stock-Research/backend/tests/fixtures/tracking-variables.schema.json 为准。重新生成（在 Stock-Research/backend 目录）：
 //   uv run python -c "import sys, json; sys.path.insert(0, 'tests'); import test_tracking_variables as t;
 //     coal = {**t.load(t.SENSITIVITY)['payload']['calculation']['extra']['variables'][0], 'var_id': '000933.SZ:coal_price', 'name': '煤炭售价'};
 //     r = t.run([t.company(extra_variable=coal), t.company('601899.SH', '紫金矿业', research=False)]).model_dump(by_alias=True);
 //     json.dump(r, open('<Vibe>/desktop/test/fixtures/tracking_variables.json', 'w'), ensure_ascii=False, indent=1)"
-// 其中煤炭售价是神火自述的公司自有变量（无公开日行情），紫金矿业是没有敏感性研究的关注公司。
+// 其中煤炭售价是神火股份自述的公司自有变量（无公开日行情），紫金矿业是没有敏感性研究的关注公司。
 import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -49,16 +49,16 @@ async function show(load: () => Promise<unknown>) {
 }
 
 test('卡片一句话写清哪个变量动了多少、对谁的利润和中性价影响多少；亿元四舍五入', () => {
-  assert.equal(lib.cardSentence(trackingFixture.cards[0]), '沪铝一天跌 445 元/吨（23,830 → 23,385，−1.87%），神火年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元。');
+  assert.equal(lib.cardSentence(trackingFixture.cards[0]), '沪铝一天跌 445 元/吨（23,830 → 23,385，−1.87%），神火股份年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元。');
   const edge = { ...trackingFixture.cards[0], companies: [{ ...trackingFixture.cards[0].companies[0], impact: '-368500000' }] };
   assert.match(lib.cardSentence(edge), /约 −3\.69 亿元/, '3.685 亿进位，不截断');
   const up = { ...trackingFixture.cards[0], rule: 'five_day', from: '23000', to: '23300', change: '300', change_pct: '0.0130', companies: [{ symbol: '000933.SZ', name: '神火股份', impact: '248000000', pct_of_base: '0.036', neutral_price_delta: null }] };
-  assert.equal(lib.cardSentence(up), '沪铝五天累计涨 300 元/吨（23,000 → 23,300，+1.30%），神火年化净利润约 +2.48 亿元（占对比期利润 3.6%）。');
+  assert.equal(lib.cardSentence(up), '沪铝五天累计涨 300 元/吨（23,000 → 23,300，+1.30%），神火股份年化净利润约 +2.48 亿元（占对比期利润 3.6%）。');
 });
 
 test('「讨论」问句是自然问题：不提页面，也不提系统机制', () => {
   const question = lib.cardQuestion(trackingFixture.cards[0]);
-  assert.equal(question, '沪铝 10 月 8 日跌了 445 元/吨，对神火影响多大？');
+  assert.equal(question, '沪铝 10 月 8 日跌了 445 元/吨，对神火股份影响多大？');
   assert.doesNotMatch(question, /页面|卡片|动态|系统|数据包|凭据|后端|接口/);
 });
 
@@ -77,24 +77,24 @@ test('关注名单补上交易所后缀，去重，认不出的不请求，最�
 test('卡片标题写事情本身，第二行写碰到哪些关注公司和方向；金额不在第一层', () => {
   const [card] = trackingFixture.cards;
   assert.equal(lib.cardTitle(card), '沪铝一天跌 445 元/吨（−1.9%）');
-  assert.equal(lib.cardTouch(card), '涉及：神火 · 沪铝 · 对利润偏负面');
+  assert.equal(lib.cardTouch(card), '神火股份 · 沪铝 · 对利润偏负面');
   const five = { ...card, rule: 'five_day', change: '300', change_pct: '0.0130', companies: [{ ...card.companies[0], impact: '248000000' }] };
   assert.equal(lib.cardTitle(five), '沪铝五天累计涨 300 元/吨（+1.3%）');
-  assert.equal(lib.cardTouch(five), '涉及：神火 · 沪铝 · 对利润偏正面');
+  assert.equal(lib.cardTouch(five), '神火股份 · 沪铝 · 对利润偏正面');
   const mixed = { ...card, companies: [card.companies[0], { symbol: '000807.SZ', name: '云铝股份', impact: '500000000', pct_of_base: null, neutral_price_delta: null }] };
-  assert.equal(lib.cardTouch(mixed), '涉及：神火、云铝 · 沪铝 · 对利润影响方向不同');
+  assert.equal(lib.cardTouch(mixed), '神火股份、云铝股份 · 沪铝 · 对利润影响方向不同');
   assert.equal(lib.cardTitle({ ...card, change_pct: null }), '沪铝一天跌 445 元/吨');
   assert.doesNotMatch(lib.cardTitle(card) + lib.cardTouch(card), /亿元|中性价/);
 });
 
 test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有写平静，没有行情与取不到各一句', () => {
   const [al, ao, coal] = trackingFixture.variables;
-  assert.equal(lib.variableLine(al, trackingFixture.cards), '10 月 8 日 跌 445 元/吨，已提醒');
-  assert.equal(lib.variableLine(ao, []), '近一个月没有大到需要提醒的变动');
+  assert.equal(lib.variableLine(al, trackingFixture.cards), '10-08 跌 445 元/吨');
+  assert.equal(lib.variableLine(ao, []), '');
   assert.equal(lib.lastCloseLabel(al), '10-12 收盘 23,465');
   assert.equal(lib.lastCloseLabel(coal), '');
-  assert.equal(lib.variableLine(coal, trackingFixture.cards), '没有公开行情，跟着财报更新');
-  assert.equal(lib.variableLine({ ...ao, status: 'gap' }, []), '暂时取不到行情');
+  assert.equal(lib.variableLine(coal, trackingFixture.cards), '无行情');
+  assert.equal(lib.variableLine({ ...ao, status: 'gap' }, []), '无行情');
   assert.deepEqual(lib.orderWatching([coal, ao, al], trackingFixture.cards).map((v: any) => v.var_id), ['cmdty:SHFE.AL', '000933.SZ:coal_price', 'cmdty:SHFE.AO']);
 });
 
@@ -107,14 +107,14 @@ test('卡片：价格变动卡不描边；展开才看金额；看个股页进�
   assert.equal(card.querySelector('.variable-card-title .is-down')!.textContent, '445 元/吨（−1.9%）');
   assert.equal(card.querySelector('.variable-card-touch .is-down')!.textContent, '对利润偏负面');
   assert.equal(card.querySelector('.variable-card-title')!.textContent, '沪铝一天跌 445 元/吨（−1.9%）');
-  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '涉及：神火 · 沪铝 · 对利润偏负面');
-  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^价格 · 10 月 8 日/);
+  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '神火股份 · 沪铝 · 对利润偏负面');
+  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^价格 · 10-08/);
   assert.equal(card.querySelector('.variable-card-effects'), null, '金额点展开才看');
   assert.doesNotMatch(card.textContent!, /亿元|中性价/);
   assert.doesNotMatch(container.textContent!, /系数|出卡线|系数 × 变动/, '第一层不露内部机制');
   const toggle = [...card.querySelectorAll('button')].find(b => b.textContent === '展开')!;
   await React.act(async () => toggle.click());
-  assert.equal(card.querySelector('.variable-card-effects')!.textContent, '神火年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元');
+  assert.equal(card.querySelector('.variable-card-effects')!.textContent, '神火股份年化净利润约 −3.68 亿元（占对比期利润 5.3%），中性价约 −1.64 元');
   assert.ok(card.querySelector('.variable-card-effects b.is-down'), '沿用涨红跌绿配色');
   await React.act(async () => [...card.querySelectorAll('button')].find(b => b.textContent === '收起')!.click());
   assert.equal(card.querySelector('.variable-card-effects'), null);
@@ -123,9 +123,9 @@ test('卡片：价格变动卡不描边；展开才看金额；看个股页进�
   await React.act(async () => discuss.click());
   assert.deepEqual(started, [], '不新开深度对话');
   assert.equal(asked.pageKey, 'feed:variables');
-  assert.equal(asked.draft, '沪铝 10 月 8 日跌了 445 元/吨，对神火影响多大？', '输入框预填问句');
+  assert.equal(asked.draft, '沪铝 10 月 8 日跌了 445 元/吨，对神火股份影响多大？', '输入框预填问句');
   assert.equal(asked.reference.title, '沪铝一天跌 445 元/吨（−1.9%）', '卡片标题随本轮带入');
-  assert.match(asked.reference.text, /^涉及：神火 · 沪铝 · 对利润偏负面\n沪铝一天跌 445 元\/吨/);
+  assert.match(asked.reference.text, /^神火股份 · 沪铝 · 对利润偏负面\n沪铝一天跌 445 元\/吨/);
 });
 
 test('动态页只留卡片：没有变量表和覆盖区；没有卡片时显示一句空态', async () => {
@@ -147,8 +147,8 @@ test('公告卡：涉及只写公司与领域；有展开与讨论；筛选「�
   const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
   await render('全部'); await React.act(async () => {});
   const card = container.querySelector('[data-filing-card]')!;
-  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '涉及：华友钴业 · 能源金属');
-  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^公告 · 10 月 26 日/);
+  assert.equal(card.querySelector('.variable-card-touch')!.textContent, '华友钴业 · 能源金属');
+  assert.match(card.querySelector('.variable-card-foot')!.textContent!, /^公告 · 10-26/);
   assert.equal(container.querySelector('[data-show-all]'), null, '全部筛选不出查看全部');
   await React.act(async () => ([...card.querySelectorAll('button')].find(b => b.textContent === '展开') as HTMLButtonElement).click());
   assert.equal(card.querySelector('.variable-card-effects a')!.getAttribute('href'), 'https://example.com/a');
@@ -174,7 +174,7 @@ test('「全部」里同公司同日公告合并成一张：底行「另有 N �
   await React.act(async () => {});
   const cards = container.querySelectorAll('[data-filing-card]');
   assert.equal(cards.length, 1);
-  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^公告 · 10 月 26 日 · 另有 1 份公告/);
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^公告 · 10-26 · 另有 1 份公告/);
   await React.act(async () => ([...cards[0].querySelectorAll('button')].find(b => b.textContent === '展开') as HTMLButtonElement).click());
   const links = [...cards[0].querySelectorAll('.variable-card-effects a')].map(a => [a.textContent, a.getAttribute('href')]);
   assert.deepEqual(links, [['打开公告原文', 'https://example.com/a'], ['提示性公告', 'https://example.com/b']]);
@@ -183,7 +183,7 @@ test('「全部」里同公司同日公告合并成一张：底行「另有 N �
 test('加载中显示骨架；没有关注显示引导；读取失败一句话加重试', async () => {
   let release!: (value: unknown) => void;
   await show(() => new Promise(resolve => { release = resolve; }));
-  assert.equal(container.querySelector('[aria-busy="true"]')?.getAttribute('aria-label'), '正在加载');
+  assert.equal(container.querySelector('[aria-busy="true"]')?.getAttribute('aria-label'), '加载中');
   await React.act(async () => release(null));
   assert.match(container.textContent!, /关注公司后/);
   assert.equal(container.querySelector('a')!.getAttribute('href'), '/watch');

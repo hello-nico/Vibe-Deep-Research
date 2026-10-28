@@ -98,6 +98,3 @@ button.rl-object-chip:hover { background: color-mix(in srgb, hsl(var(--brand)) 2
 .rl-topic-title-row { flex-wrap: nowrap; align-items: flex-start; }
 .rl-topic-title-row > .status-dot { margin-top: 7px; }
 /* 列表行的状态点贴着左边缘：提示框改为从状态点左侧对齐向右展开，避免被卡片裁掉左半截 */
-.rl-task-head > .status-dot .status-dot-tip { left: -6px; transform: translate(0, 2px); }
-.rl-task-head > .status-dot:hover .status-dot-tip,
-.rl-task-head > .status-dot:focus-visible .status-dot-tip { transform: translate(0, 0); }

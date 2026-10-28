@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import vm from 'node:vm';
 import { fileURLToPath } from 'node:url';
-import { resultDefinition } from '../src/verticals/finance/dsh/result-projection.ts';
+import { resultDefinition, periodicReportDefinition } from '../src/verticals/finance/dsh/result-projection.ts';
 import { vibeDefinition, vibeResultReferences } from '../src/verticals/finance/dsh/vibe.ts';
 
 const runtimeRoot = fileURLToPath(new URL('../dsh/runtime/', import.meta.url));
@@ -21,7 +21,7 @@ function loadInstalledFactory(file: string, exposeChatDefinitions = false): Reco
   const returnNeedle = '\t\treturn module.exports;';
   const instrumented = exposeChatDefinitions
     ? source.replace(returnNeedle,
-      '\t\texports.__projectionReplay = { assistantDefinition, turnProcessDefinition, chatViewDefinition };\n'
+      '\t\texports.__projectionReplay = { assistantDefinition, turnProcessDefinition, chatViewDefinition, messageDefinition };\n'
       + returnNeedle)
     : source;
   if (exposeChatDefinitions) {
@@ -135,6 +135,34 @@ function harness(entries: readonly ReturnType<typeof at>[] = []) {
 function visibility(snapshot: any, id: string): string | undefined {
   return snapshot.nodes.values().find((node: any) => node.kind === 'finance-result' && node.id === id)?.visibility;
 }
+
+test('installed live and replay projection shows a late report notification without a native execution request', () => {
+  const message = { customType: 'stock-research-periodic-report-context', details: {
+    companyName: '华能国际', reportName: '三季报', status: 'ready',
+  } };
+  const entries = [...turnOne,
+    at(12, 'plugin:stock-research/periodic-report', message, { ignorable: true }),
+    at(13, 'user/message', { id: 'report-context', role: 'user', source: { kind: 'stock-research', message },
+      content: [{ type: 'text', text: '周期报告已入库' }] }, { surfaceOp: 'append' }),
+  ];
+  const make = () => {
+    const assembler = new ConversationNodeAssembler({ entries: () => [chatRuntime.messageDefinition, periodicReportDefinition], fallbackEntry: () => undefined },
+      { entries: () => [chatRuntime.chatViewDefinition] });
+    assembler.activateTarget('chat');
+    return assembler;
+  };
+  for (const live of [false, true]) {
+    const assembler = make();
+    if (live) for (const entry of entries) assembler.append(entry);
+    else assembler.replaceWindow(entries, false);
+    assembler.flush();
+    const nodes = assembler.snapshot('chat').nodes.values();
+    const notices = nodes.filter((node: any) => node.kind === 'finance-periodic-report');
+    assert.equal(notices.length, 1);
+    assert.equal(notices[0].data.text, '华能国际 三季报已入库');
+    assert.equal(nodes.some((node: any) => ['turn-trigger', 'context', 'user'].includes(node.kind)), false);
+  }
+});
 
 test('installed live projection hides an embedded result only after the final turn boundary', () => {
   const value = harness();

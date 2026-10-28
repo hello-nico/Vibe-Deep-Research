@@ -70,7 +70,7 @@ export const maintenanceDefinition: ConversationNodeDefinition<MaintenanceData> 
   start(_context, match) {
     const data = match.event.data as unknown as { question?: string; proposal: { research_blocks: { content: string }[] }; draft?: { draft_token?: string } };
     return { content: data.proposal.research_blocks[0]?.content ?? '', question: data.question,
-      rationale: '本次研究整理出一份知识更新草案，尚未发布。请核对内容后再授权发布。',
+      rationale: '知识更新草案待核对',
       draftToken: data.draft?.draft_token };
   },
   update(context) { return context.state; },
@@ -151,6 +151,38 @@ export const suggestionDefinition: ConversationNodeDefinition<SuggestionData> = 
     return { key: context.key, kind: 'finance-suggestion', id: context.id, target: 'chat',
       groupTree: 'turn',
       anchorSeq: turn.end.seq, location, visibility: 'visible', data: context.state };
+  },
+};
+
+export interface PeriodicNotice { text: string; error?: string }
+
+export function periodicNotice(message: { details?: { companyName?: string; reportName?: string; status?: string; error?: string } }): PeriodicNotice {
+  const details = message.details || {};
+  const report = `${details.companyName || '公司'} ${details.reportName || '定期报告'}`;
+  return details.status === 'ready' ? { text: `${report}已入库` }
+    : { text: /LiteParse|parse|Markdown|BlockIndex|revision/i.test(details.error || '') ? `${report}解析失败` : `${report}入库失败`, error: details.error };
+}
+
+export const periodicReportDefinition: ConversationNodeDefinition<PeriodicNotice | null> = {
+  kind: 'finance-periodic-report', target: 'chat',
+  match(event) {
+    const value = event as unknown as { type: string; seq: number; data?: { source?: { kind?: string; message?: { customType?: string } } } };
+    if (value.type === 'plugin:stock-research/periodic-report') return { id: String(value.seq), role: 'start', exclusive: true };
+    const source = value.data?.source;
+    // The product event owns presentation, including context delivered on a later question.
+    return value.type === 'user/message' && source?.kind === 'stock-research'
+      && ['stock-research-periodic-report', 'stock-research-periodic-report-context'].includes(source.message?.customType || '')
+      ? { id: String(value.seq), role: 'start', exclusive: true } : null;
+  },
+  start(_context, match) {
+    const event = match.event as unknown as { type: string; data: Parameters<typeof periodicNotice>[0] };
+    return event.type === 'plugin:stock-research/periodic-report' ? periodicNotice(event.data) : null;
+  },
+  update(context) { return context.state; },
+  buildViewNode(context) {
+    return context.state ? { key: context.key, kind: 'finance-periodic-report', id: context.id, target: 'chat',
+      groupTree: 'turn', anchorSeq: context.start?.event?.seq ?? 0,
+      location: context.start?.location ?? { kind: 'unresolved' as const }, visibility: 'visible', data: context.state } : null;
   },
 };
 
