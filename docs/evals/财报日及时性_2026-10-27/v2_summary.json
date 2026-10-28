@@ -1,0 +1,75 @@
+{
+  "built_at": "2026-10-27T23:03:17+08:00",
+  "n_companies": 8,
+  "symbols": [
+    "600011.SH",
+    "600795.SH",
+    "600863.SH",
+    "000933.SZ",
+    "601899.SH",
+    "603799.SH",
+    "300750.SZ",
+    "688041.SH"
+  ],
+  "missing_required": [],
+  "status_counts": {
+    "match": 14,
+    "extract_gap": 34
+  },
+  "by_metric": {
+    "revenue": {
+      "label": "营收",
+      "n": 8,
+      "extracted": 5,
+      "extract_rate": 0.625,
+      "match": 5,
+      "mismatch": 0,
+      "match_rate_among_extracted": 1.0
+    },
+    "net_profit_attributable": {
+      "label": "归母净利润",
+      "n": 8,
+      "extracted": 0,
+      "extract_rate": 0.0,
+      "match": 0,
+      "mismatch": 0,
+      "match_rate_among_extracted": null
+    },
+    "net_profit_ex_nonrecurring": {
+      "label": "扣非归母净利润",
+      "n": 8,
+      "extracted": 0,
+      "extract_rate": 0.0,
+      "match": 0,
+      "mismatch": 0,
+      "match_rate_among_extracted": null
+    },
+    "cost": {
+      "label": "营业成本",
+      "n": 8,
+      "extracted": 3,
+      "extract_rate": 0.375,
+      "match": 3,
+      "mismatch": 0,
+      "match_rate_among_extracted": 1.0
+    },
+    "operating_cash_flow": {
+      "label": "经营现金流",
+      "n": 8,
+      "extracted": 3,
+      "extract_rate": 0.375,
+      "match": 3,
+      "mismatch": 0,
+      "match_rate_among_extracted": 1.0
+    },
+    "gross_profit": {
+      "label": "毛利(营收-成本)",
+      "n": 8,
+      "extracted": 3,
+      "extract_rate": 0.375,
+      "match": 3,
+      "mismatch": 0,
+      "match_rate_among_extracted": 1.0
+    }
+  }
+}

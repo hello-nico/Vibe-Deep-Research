@@ -25,9 +25,10 @@
 - 六个入口：对话 `/`、动态 `/feed`、洞悉 `/insights`、关注 `/watch`（个股页 `/watch/:symbol`）、资料 `/my-reports`、设置 `/settings`。动态现阶段承载关注公司公告与新闻；洞悉承载原我的研究。由 T8b 替换。
 - 旧地址由 `lib/routes.ts` 的 `legacyRedirect` 对照跳转：`/watchlist`、`/research` → `/watch`；`/research?company=<slug>` → `/watch/<symbol>`；`/daily-review` → `/feed?tab=market`；`/intel`、`/intel/:tab` → `/feed?tab=intel`（带小栏目时 `&sub=`）；`/my-research` → `/insights`；`/my-research/topics/:hex` → `/insights/topics/:hex`。`/evidence` 深链不变。
 - 行业、产业研究与信号页面已删除；`/sectors`、`/sectors/profiles`、`/signals` 及其全部子路径统一跳到 `/watch`，不携带旧页面查询参数。行业与产业对象链接也回关注；现有知识与资料读取保留。
-- 关注把自选与研究名单合成一张表（可切卡片）：添加同时写入两处，移出关注两处同时移除且只动 Client 选择；打开个股页才触发研究。
+- 关注把自选与研究名单合成一张表（可切卡片）：添加同时写入两处，移出关注两处同时移除且只动 Client 选择；研究只在用户点击「研究 / 重新研究」时开始，打开页面只读取。
+- 新资料只读公司研究回读的 `new_material`，`lib/reportArrival.ts` 仅投影短名、日期与提醒身份，不自行比较报告期。关注研究列、页首与动态卡写同一资料名加「已出」与「重新研究」；缺研究写「未研究」加「研究」。objectStatus 与 pendingResearch 同读此字段，refresh candidate 不再产生新资料提示。无对账数字也能提醒；财报与对应对账卡合并，公告按 Backend 身份显示独立提醒。小点覆盖未看新资料和判断变化，已看只存 Client 偏好；中断任务继续沿 DSH 原路径。
 - 个股页（T7.2）：数据层只读 Backend 当日数据包（`/wiki/companies/{代码}/data-packet`），先显示已有数据，缺当日快照时后台 ensure（每股每日一次），完成后静默刷新。
-  字段按已核对、来源、冲突（两值并列）、缺口显示，按稳定 `field_id` 查找（主字段、`driver:`、`lens:`）。研究层读 `page-research`：六节、支柱与证伪条件（阈值 level / yoy_pct）、五档结论；三档目标价由 `scenarioRef` 读回 `calculate_metrics` 凭据（`payload.calculation.extra`，每股或总利润模式）。资料过期显示 stale；第三方研报标题去掉末尾评级字样。
+  字段按已核对、来源、冲突（两值并列）、缺口显示，按稳定 `field_id` 查找（主字段、`driver:`、`lens:`）。研究层读 `page-research`：六节、支柱与证伪条件（阈值 level / yoy_pct）、五档结论；三档目标价由 `scenarioRef` 读回 `calculate_metrics` 凭据（`payload.calculation.extra`，每股或总利润模式）。新资料显示 Backend 返回的短名；第三方研报标题去掉末尾评级字样。
 - 「问助手」按钮由 `AssistantSlot` 落在页首（或对象页工具栏）右侧；没有占位的页面回落到内容面右上角。
 - 公共组件在 `components/ui/`：`Card`（`GroupCard`、`Panel`、`Metric`、`StatusPill`、`Tag`、`Sparkline`、`TableWrap`）、`ObjectCard`、`StatusDot`；令牌与按钮、输入类样式在 `src/index.css`，公共组件样式在 `components/ui/ui.css`。无调用的 `Button.tsx` 已删除，按钮仍遵循视觉协议；资料页在用的 `IndustryDashboardCard` 保留。
 
@@ -50,6 +51,8 @@
 
 ## 4. 样式责任
 
+跟踪观察只读 Backend 用户清单：用户点「开始观察」后，先保存 Topic 内容，再调用 `POST /tracking/items` 登记 `kind: observation, source: user, topic_id, tracking_key`；已有同一草稿仍登记用户选择，登记失败不显示成功，可重试。GET 不导入旧议题项，不迁移存量来源；同一研究标题下分组显示各条。公司名由 Backend 行情缓存提供当前证券简称，前端不裁剪、不回研究标题。价格明细按影响绝对值排序、前三家及「另外 N 家」，统一的敏感度整档只做显示换算。
+
 | 层 | 唯一责任 |
 |---|---|
 | 主题状态 | DSH theme 服务；产品派生 class 与 token |
@@ -62,6 +65,7 @@
 
 - 每个 `webServer.register` 等注册都要交给 `track()`，卸载时释放（M9.2 曾修复 11 处丢弃 disposer）。
 - 收尾覆盖成功、失败、停止、新输入与晚到结果，按 generation 或 agent 身份隔离。
+- 周期报告通知由 `plugin:stock-research/periodic-report` 唯一显示公司与报告中文名；对应模型上下文消息由产品投影排除原生执行请求标题。晚到通知不触发模型续轮，失败原文在详情中展开。
 
 ## 6. 验收层级
 

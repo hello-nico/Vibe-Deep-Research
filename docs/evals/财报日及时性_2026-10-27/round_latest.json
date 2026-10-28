@@ -1,0 +1,757 @@
+{
+  "round": 36,
+  "period": "2026Q3",
+  "started_at": "2026-10-28T16:07:12+08:00",
+  "finished_at": "2026-10-28T16:12:00+08:00",
+  "elapsed_s": 288.2,
+  "n": 46,
+  "n_cninfo_posted": 21,
+  "n_sina": 21,
+  "n_eastmoney": 21,
+  "n_errors": 0,
+  "boards": {
+    "深市主板": 13,
+    "深市创业板": 9,
+    "沪市主板": 23,
+    "沪市科创板": 1
+  },
+  "errors": [],
+  "items": [
+    {
+      "symbol": "000002.SZ",
+      "name": "万科A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000006.SZ",
+      "name": "深振业A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000007.SZ",
+      "name": "全新好",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000008.SZ",
+      "name": "神州高铁",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000012.SZ",
+      "name": "南玻A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000017.SZ",
+      "name": "深中华A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000025.SZ",
+      "name": "特力A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:00:55+08:00",
+        "sina": "2026-10-27T23:00:55+08:00",
+        "eastmoney": "2026-10-27T23:00:55+08:00"
+      }
+    },
+    {
+      "symbol": "000028.SZ",
+      "name": "国药一致",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000034.SZ",
+      "name": "神州数码",
+      "board": "深市主板",
+      "in_watch": true,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:00+08:00",
+        "sina": "2026-10-27T23:01:00+08:00",
+        "eastmoney": "2026-10-27T23:01:00+08:00"
+      }
+    },
+    {
+      "symbol": "000037.SZ",
+      "name": "深南电A",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:02+08:00",
+        "sina": "2026-10-27T23:01:02+08:00",
+        "eastmoney": "2026-10-27T23:01:02+08:00"
+      }
+    },
+    {
+      "symbol": "000048.SZ",
+      "name": "京基智农",
+      "board": "深市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:04+08:00",
+        "sina": "2026-10-27T23:01:04+08:00",
+        "eastmoney": "2026-10-27T23:01:04+08:00"
+      }
+    },
+    {
+      "symbol": "000807.SZ",
+      "name": "云铝股份",
+      "board": "深市主板",
+      "in_watch": true,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "000933.SZ",
+      "name": "神火股份",
+      "board": "深市主板",
+      "in_watch": true,
+      "appoint": "2026-10-20",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-20T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:09+08:00",
+        "sina": "2026-10-27T23:01:09+08:00",
+        "eastmoney": "2026-10-27T23:01:09+08:00"
+      }
+    },
+    {
+      "symbol": "300002.SZ",
+      "name": "神州泰岳",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:25+08:00",
+        "sina": "2026-10-27T23:01:25+08:00",
+        "eastmoney": "2026-10-27T23:01:25+08:00"
+      }
+    },
+    {
+      "symbol": "300004.SZ",
+      "name": "南风股份",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:27+08:00",
+        "sina": "2026-10-27T23:01:27+08:00",
+        "eastmoney": "2026-10-27T23:01:27+08:00"
+      }
+    },
+    {
+      "symbol": "300007.SZ",
+      "name": "汉威科技",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "300013.SZ",
+      "name": "新宁物流",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-29T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-28T16:08:33+08:00",
+        "sina": "2026-10-28T16:08:33+08:00",
+        "eastmoney": "2026-10-28T16:08:33+08:00"
+      }
+    },
+    {
+      "symbol": "300015.SZ",
+      "name": "爱尔眼科",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "300024.SZ",
+      "name": "机器人",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "300274.SZ",
+      "name": "阳光电源",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "300521.SZ",
+      "name": "爱司凯",
+      "board": "深市创业板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "300750.SZ",
+      "name": "宁德时代",
+      "board": "深市创业板",
+      "in_watch": true,
+      "appoint": "2026-10-21",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-21T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:46+08:00",
+        "sina": "2026-10-27T23:01:46+08:00",
+        "eastmoney": "2026-10-27T23:01:46+08:00"
+      }
+    },
+    {
+      "symbol": "600000.SH",
+      "name": "浦发银行",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600004.SH",
+      "name": "白云机场",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600006.SH",
+      "name": "东风股份",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600007.SH",
+      "name": "中国国贸",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600010.SH",
+      "name": "包钢股份",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:57+08:00",
+        "sina": "2026-10-27T23:01:57+08:00",
+        "eastmoney": "2026-10-27T23:01:57+08:00"
+      }
+    },
+    {
+      "symbol": "600011.SH",
+      "name": "华能国际",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:01:59+08:00",
+        "sina": "2026-10-27T23:01:59+08:00",
+        "eastmoney": "2026-10-27T23:01:59+08:00"
+      }
+    },
+    {
+      "symbol": "600017.SH",
+      "name": "日照港",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600018.SH",
+      "name": "上港集团",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-30",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600019.SH",
+      "name": "宝钢股份",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:07+08:00",
+        "sina": "2026-10-27T23:02:07+08:00",
+        "eastmoney": "2026-10-27T23:02:07+08:00"
+      }
+    },
+    {
+      "symbol": "600023.SH",
+      "name": "浙能电力",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600026.SH",
+      "name": "中远海能",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600051.SH",
+      "name": "宁波联合",
+      "board": "沪市主板",
+      "in_watch": false,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:14+08:00",
+        "sina": "2026-10-27T23:02:14+08:00",
+        "eastmoney": "2026-10-27T23:02:14+08:00"
+      }
+    },
+    {
+      "symbol": "600176.SH",
+      "name": "中国巨石",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-20",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-20T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:16+08:00",
+        "sina": "2026-10-27T23:02:16+08:00",
+        "eastmoney": "2026-10-27T23:02:16+08:00"
+      }
+    },
+    {
+      "symbol": "600309.SH",
+      "name": "万华化学",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-27",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-27T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:19+08:00",
+        "sina": "2026-10-27T23:02:19+08:00",
+        "eastmoney": "2026-10-27T23:02:19+08:00"
+      }
+    },
+    {
+      "symbol": "600585.SH",
+      "name": "海螺水泥",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600795.SH",
+      "name": "国电电力",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-27",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-27T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:23+08:00",
+        "sina": "2026-10-27T23:02:23+08:00",
+        "eastmoney": "2026-10-27T23:02:23+08:00"
+      }
+    },
+    {
+      "symbol": "600863.SH",
+      "name": "华能蒙电",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-28",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-28T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:25+08:00",
+        "sina": "2026-10-27T23:02:25+08:00",
+        "eastmoney": "2026-10-27T23:02:25+08:00"
+      }
+    },
+    {
+      "symbol": "600900.SH",
+      "name": "长江电力",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "600941.SH",
+      "name": "中国移动",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-21",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-21T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:28+08:00",
+        "sina": "2026-10-27T23:02:28+08:00",
+        "eastmoney": "2026-10-27T23:02:28+08:00"
+      }
+    },
+    {
+      "symbol": "601288.SH",
+      "name": "农业银行",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-31",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "601811.SH",
+      "name": "新华文轩",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-29",
+      "cninfo_posted": false,
+      "cninfo_earliest": null,
+      "sina": false,
+      "eastmoney": false,
+      "first_seen": {
+        "cninfo": null,
+        "sina": null,
+        "eastmoney": null
+      }
+    },
+    {
+      "symbol": "601899.SH",
+      "name": "紫金矿业",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-24",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-24T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:36+08:00",
+        "sina": "2026-10-27T23:02:36+08:00",
+        "eastmoney": "2026-10-27T23:02:36+08:00"
+      }
+    },
+    {
+      "symbol": "603799.SH",
+      "name": "华友钴业",
+      "board": "沪市主板",
+      "in_watch": true,
+      "appoint": "2026-10-24",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-24T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:38+08:00",
+        "sina": "2026-10-27T23:02:38+08:00",
+        "eastmoney": "2026-10-27T23:02:38+08:00"
+      }
+    },
+    {
+      "symbol": "688041.SH",
+      "name": "海光信息",
+      "board": "沪市科创板",
+      "in_watch": true,
+      "appoint": "2026-10-20",
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-20T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
+      "first_seen": {
+        "cninfo": "2026-10-27T23:02:41+08:00",
+        "sina": "2026-10-27T23:02:41+08:00",
+        "eastmoney": "2026-10-27T23:02:41+08:00"
+      }
+    }
+  ]
+}
