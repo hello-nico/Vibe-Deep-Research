@@ -74,6 +74,7 @@ export interface ResolvedSlot { text: string; title: string }
 export function resolveSlot(token: string, packet: DataPacket | undefined, calcs: Record<string, unknown>, livePrice?: number | null): ResolvedSlot | null {
   // 页内凡写「现价」一律用页首同一实时价；数据包的快照价只在「查看数据」里出现。
   if (token === 'price' && typeof livePrice === 'number' && Number.isFinite(livePrice)) return { text: `${plainNumber(livePrice, 2)} 元/股`, title: '现价（页首实时行情）' };
+  if (token === 'price' && livePrice === null) return null;
   const calc = parseCalcToken(token);
   if (calc) {
     const raw = calcs[calc.resultId];
@@ -130,6 +131,7 @@ export function calculationExtra(raw: unknown): Record<string, unknown> | undefi
 /** anchor：基数期间的变量均值，零变动点；current：今天，只作滑块初始位置。利润(x) = 基数 + Σ 系数 × (x − anchor)。
  *  anchor 为 null 表示凭据缺这个值：该变量不可拖，也不计入利润。 */
 export interface SensitivityVariable {
+  currentDate?: string;
   id: string; name: string; unit: string; current: number; anchor: number | null; anchorLabel: string;
   coef: number; min: number; max: number; step: number; sourceLabel?: string;
 }
@@ -156,6 +158,7 @@ export function parseSensitivity(raw: unknown): SensitivityModel | null {
     variables.push({
       id: row.var_id, name: String(row.name ?? '').trim() || '价格', unit: String(row.unit ?? '').trim(),
       current, coef, min, max, step: num(row.step) ?? (max - min) / 100,
+      currentDate: typeof row.current_date === 'string' ? row.current_date : undefined,
       anchor: num(row.anchor) ?? num(record(row.anchor)?.value),
       anchorLabel: typeof row.anchor_label === 'string' && row.anchor_label.trim() ? row.anchor_label.trim().replace(/基数期/g, '对比期') : '对比期均价',
       sourceLabel: typeof row.source_label === 'string' ? row.source_label : undefined,
@@ -476,7 +479,7 @@ export function verdictLine(args: { grade?: string | null; model?: SensitivityMo
   const percent = found.unit.includes('%');
   const live = percent ? null : args.live ?? null;
   const variable = live ? { ...found, current: live.value } : found;
-  const nowText = live ? `现在 ${headlinePrice(variable, live.value)}，${live.when}` : `研究时 ${headlinePrice(variable, variable.current)}`;
+  const nowText = live ? `现在 ${headlinePrice(variable, live.value)}${live.when ? `，${live.when}` : ''}` : `研究时 ${headlinePrice(variable, variable.current)}`;
   // 百分比变量的取值是相对对比期的变动（0 就是与对比期一样），不是价格：不写「约 x，现在 0」，改写比对比期高 / 低多少。
   const points = Math.round(Math.abs(implied.value) * 10) / 10;
   // 越界：Backend 照给反解值但标 within_range 为假；按现价说清楚市场隐含的数在近年区间之外，不再不显示。
@@ -675,6 +678,7 @@ const forecastYear = (period: string | null | undefined) => /^FY(\d{4})E?$/i.exe
 /** 三方预期：机构（研报一致预期每股收益）、模型（三档区间与档位）、股价隐含（市场在赌的价格）；只用已有字段，缺的写缺，不估。
  *  分歧一句把三方折成同一口径的每股收益再比：机构预测；模型中性价对应的预测利润 ÷ 股本；现价 ÷ 模型中性倍数。 */
 export function expectations(args: {
+  marketEps?: number | null;
   packet?: DataPacket; scenarios?: { mode: 'per_share' | 'total'; rows: { name: string; multiple: string; price: string; earnings?: string; period?: string }[] } | null;
   model?: SensitivityModel | null; price?: number | null; grade?: string | null; verdict: VerdictLine;
 }): Expectation {
@@ -704,7 +708,7 @@ export function expectations(args: {
   })();
   const multiple = num(neutral?.multiple);
   // 股价隐含行写「暂无」时，差异句也不纳入股价隐含：行与句说的是同一件事。
-  const marketEps = verdict.implied && price != null && price > 0 && multiple != null && multiple > 0 ? price / multiple : null;
+  const marketEps = 'marketEps' in args ? args.marketEps ?? null : verdict.implied && price != null && price > 0 && multiple != null && multiple > 0 ? price / multiple : null;
   const sources = ([['机构预期', instEps], ['模型中性', modelEps], ['股价隐含', marketEps]] as const)
     .flatMap(([name, value]) => value != null && Number.isFinite(value) && value > 0 ? [{ name, value }] : []);
 

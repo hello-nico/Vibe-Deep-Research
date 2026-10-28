@@ -57,14 +57,13 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
   assert.equal(assistantBindingForPage('daily-review'), null);
   assert.equal(assistantBindingForPage('intel:news')?.plugin, 'intel');
   assert.equal(assistantBindingForPage('intel:news')?.bindKey, 'intel:radar');
-  assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.plugin, 'industry_profile');
+  assert.equal(assistantBindingForPage('industry-profile:801080.SI'), null);
   // §9.2 缺口修复：产业研究详情页绑定 Profile 身份供只读叙述，列表页仍不绑定具体对象。
-  assert.equal(assistantBindingForPage('industry-profile:801080.SI')?.target, 'profile:sw2:801080.SI');
-  assert.equal(assistantBindingForPage('industry-profile:list')?.target, '');
+  assert.equal(assistantBindingForPage('industry-profile:list'), null);
   assert.deepEqual(assistantBindingForPage('company-wiki:companies/600900-sh'), { plugin: 'deep_research', target: 'companies/600900-sh', bindKey: 'deep_research:companies/600900-sh' });
   assert.deepEqual(assistantBindingForPage('feed:variables'), { plugin: 'deep_research', target: '', bindKey: 'deep_research:feed-variables' });
-  assert.equal(assistantBindingForPage('company-wiki:list')?.plugin, 'company_wiki');
-  assert.equal(assistantBindingForPage('industry-wiki:industries/nbs-power')?.plugin, 'industry_wiki');
+  assert.equal(assistantBindingForPage('company-wiki:list'), null);
+  assert.equal(assistantBindingForPage('industry-wiki:industries/nbs-power'), null);
   assert.equal(assistantBindingForPage('home'), null);
   assert.equal(assistantBindingForPage('my-research'), null);
   assert.equal(assistantBindingForPage('my-research:topics:abc'), null);
@@ -75,9 +74,6 @@ test('五角色绑定：资讯和大盘不再落到 deep_research，切赛道不
 test('问助手开场介绍按页面区分，对象提示不出现已发布版本或当前页', () => {
   assert.match(assistantIntro('intel', 'intel:news'), /选一条新闻/);
   assert.match(assistantIntro('intel', 'intel:filings'), /选一条公告/);
-  assert.match(assistantIntro('industry_wiki', 'industry-wiki:industries/nbs-power'), /这个行业怎么赚钱/);
-  assert.match(assistantIntro('industry_profile', 'industry-profile:list'), /选一个产业/);
-  assert.match(assistantIntro('company_wiki', 'company-wiki:list'), /选一家公司/);
   assert.match(assistantIntro('deep_research', 'company-wiki:companies/600900-sh'), /另一家公司可以做对比/);
   const wiki = wikiAssistantObject({ slug: 'companies/600900-sh', title: '长江电力', inputHash: 'a'.repeat(64), section: '个股研究' });
   assert.equal(wiki?.hint, undefined);

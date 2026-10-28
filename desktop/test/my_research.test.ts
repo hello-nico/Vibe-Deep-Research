@@ -133,14 +133,14 @@ test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，�
     assert.throws(() => bindAssistantSession({ mode: "chat" }), /invalid assistant mode/);
     fs.mkdirSync(path.join(home, "sessions", "ws", "sess-co-1"));
     fs.writeFileSync(path.join(home, "sessions", "ws", "sess-co-1", "session.jsonl"), "");
-    const company = bindAssistantSession({ session_id: "sess-co-1", plugin: "company_wiki", mode: "agent", target: "companies/600900-sh", page_key: "company-wiki:companies/600900-sh" });
-    assert.equal(company.plugin, "company_wiki");
+    const company = bindAssistantSession({ session_id: "sess-co-1", plugin: "deep_research", mode: "agent", target: "companies/600900-sh", page_key: "company-wiki:companies/600900-sh" });
+    assert.equal(company.plugin, "deep_research");
     assert.equal(company.target, "companies/600900-sh");
-    assert.equal(loadAssistantSessions().pages["company_wiki:companies/600900-sh"].session_id, "sess-co-1");
+    assert.equal(loadAssistantSessions().pages["deep_research:companies/600900-sh"].session_id, "sess-co-1");
     const chineseTarget = 'industries/煤炭';
-    const industry = bindAssistantSession({ session_id: 'sess-co-1', plugin: 'industry_wiki', mode: 'agent', target: chineseTarget, page_key: `industry-wiki:${chineseTarget}` });
+    const industry = bindAssistantSession({ session_id: 'sess-co-1', plugin: 'deep_research', mode: 'agent', target: chineseTarget, page_key: `industry-wiki:${chineseTarget}` });
     assert.equal(industry.target, chineseTarget);
-    assert.throws(() => bindAssistantSession({ session_id: 'sess-co-1', plugin: 'industry_wiki', mode: 'agent', target: 'industries/coal?x=1', page_key: 'industry-wiki:industries/coal' }), /invalid assistant target/);
+    assert.throws(() => bindAssistantSession({ session_id: 'sess-co-1', plugin: 'deep_research', mode: 'agent', target: 'industries/coal?x=1', page_key: 'industry-wiki:industries/coal' }), /invalid assistant target/);
     fs.mkdirSync(path.join(home, "sessions", "ws", "sess-intel-1"));
     fs.writeFileSync(path.join(home, "sessions", "ws", "sess-intel-1", "session.jsonl"), "");
     const intel = bindAssistantSession({ session_id: "sess-intel-1", plugin: "intel", mode: "ask", page_key: "intel:radar" });
@@ -148,8 +148,8 @@ test("问助手会话按 plugin×mode×target 绑定，取消 pending 抢占，�
     assert.equal(loadAssistantSessions().pages["intel:radar"].session_id, "sess-intel-1");
     fs.mkdirSync(path.join(home, "sessions", "ws", "sess-market-1"));
     fs.writeFileSync(path.join(home, "sessions", "ws", "sess-market-1", "session.jsonl"), "");
-    const market = bindAssistantSession({ session_id: "sess-market-1", plugin: "market", mode: "ask", page_key: "market:daily-review" });
-    assert.equal(market.plugin, "market");
+    const market = bindAssistantSession({ session_id: "sess-market-1", plugin: "intel", mode: "ask", page_key: "intel:radar" });
+    assert.equal(market.plugin, "intel");
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = previous;
@@ -162,40 +162,13 @@ test('空问助手会话未落盘时，新绑定移除无效旧记录', () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-assistant-empty-'));
   process.env.DSH_HOME = home;
   try {
-    const binding = { plugin: 'market', mode: 'ask', page_key: 'market:daily-review' };
+    const binding = { plugin: 'intel', mode: 'ask', page_key: 'intel:radar' };
     bindAssistantSession({ ...binding, session_id: 'session-old' }, { sessionExists: () => true });
     bindAssistantSession({ ...binding, session_id: 'session-new' }, { sessionExists: id => id === 'session-new' });
     const store = loadAssistantSessions();
-    assert.equal(store.pages['market:daily-review'].session_id, 'session-new');
+    assert.equal(store.pages['intel:radar'].session_id, 'session-new');
     assert.equal(store.sessions['session-old'], undefined);
     assert.ok(store.sessions['session-new']);
-  } finally {
-    if (previous === undefined) delete process.env.DSH_HOME;
-    else process.env.DSH_HOME = previous;
-    fs.rmSync(home, { recursive: true, force: true });
-  }
-});
-
-test('产业页面生成的 Profile 身份可经宿主绑定、读回和切换模式', () => {
-  const previous = process.env.DSH_HOME;
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), 'vibe-profile-binding-'));
-  process.env.DSH_HOME = home;
-  try {
-    const binding = assistantBindingForPage('industry-profile:801080.SI')!;
-    const input = { session_id: 'profile-review-session', plugin: binding.plugin, target: binding.target, page_key: binding.bindKey };
-    const deps = { sessionExists: () => true, isRunning: () => false };
-    for (const mode of ['ask', 'agent']) {
-      const bound = bindAssistantSession({ ...input, mode }, deps);
-      assert.equal(bound.target, 'profile:sw2:801080.SI');
-      assert.equal(bound.mode, mode);
-      const saved = loadAssistantSessions();
-      assert.equal(saved.sessions[input.session_id].target, binding.target);
-      assert.equal(saved.pages[binding.bindKey].session_id, input.session_id);
-    }
-    assert.throws(() => bindAssistantSession({ ...input, mode: 'ask' }, { ...deps, isRunning: () => true }), /running/);
-    assert.throws(() => bindAssistantSession({ ...input, plugin: 'company_wiki', mode: 'agent' }, deps), /Profile target requires/);
-    for (const target of ['profile:sw2:', 'profile:sw2:801080.SI/..', 'profile:sw2:801080.SI?x=1'])
-      assert.throws(() => bindAssistantSession({ ...input, target, mode: 'agent' }, deps), /invalid assistant target/);
   } finally {
     if (previous === undefined) delete process.env.DSH_HOME;
     else process.env.DSH_HOME = previous;

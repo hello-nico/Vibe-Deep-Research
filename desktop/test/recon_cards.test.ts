@@ -308,3 +308,76 @@ test('没有科目时对账卡与以前一致：价格半句、没有价格只�
   assert.equal(card.explain, '沪铝、氧化铝变化约带来 -1.05 亿元，其余 +3.19 亿元来自量和成本等，报告未单独披露');
   assert.ok(!card.details.some((line: string) => line.includes('其他（税金及附加')));
 });
+
+// ---- 利润桥瀑布图（G1）
+test('利润桥：三家真实回包，上季 + 各项 = 本季，按影响大小排，小于总变化 3% 的并进「其他」', () => {
+  for (const item of [huayou, zijinItems, shenhuoItems]) {
+    const [card] = lib.reconCards([{ ...item, reported_on: '2026-10-24' }], { [item.symbol]: '公司' }, NOW_OCT26);
+    const bridge = card.bridge;
+    assert.ok(bridge, item.symbol);
+    assert.equal(bridge.start, Number(item.previous));
+    assert.equal(bridge.end, Number(item.actual));
+    const sum = bridge.steps.reduce((total: number, step: any) => total + step.impact, 0);
+    assert.ok(Math.abs(bridge.start + sum - bridge.end) <= 1, `${item.symbol} 各项之和等于本季减上季`);
+    const sizes = bridge.steps.map((step: any) => Math.abs(step.impact));
+    assert.deepEqual(sizes, [...sizes].sort((a, b) => b - a), '按绝对值从大到小');
+    const threshold = Math.abs(Number(item.change)) * 0.03;
+    for (const step of bridge.steps) if (step.name !== '其他') assert.ok(Math.abs(step.impact) >= threshold, `${step.name} 不该是小项`);
+    assert.equal(bridge.steps.filter((step: any) => step.name === '其他').length, 1);
+  }
+});
+
+test('利润桥：华友 9 项里小项合并进「其他」，合并后总和不变', () => {
+  const [card] = lib.reconCards([{ ...huayou, reported_on: '2026-10-24' }], { '603799.SH': '华友' }, NOW_OCT26);
+  const threshold = Math.abs(Number(huayou.change)) * 0.03;
+  const small = huayou.items.filter((line: any) => Math.abs(Number(line.impact)) < threshold);
+  assert.ok(small.length > 0, '夹具里确有小项');
+  const other = card.bridge.steps.find((step: any) => step.name === '其他');
+  const expected = Number(huayou.rest) + small.reduce((total: number, line: any) => total + Number(line.impact), 0);
+  assert.ok(Math.abs(other.impact - expected) < 1);
+  assert.equal(card.bridge.steps.length, huayou.items.length - small.length + 1);
+});
+
+test('利润桥：没有科目的卡（价格模型、只有差额）不出桥；各项对不上时也不出', () => {
+  const [priceOnly] = lib.reconCards([shenhuo], names, NOW);
+  assert.equal(priceOnly.bridge, undefined);
+  const [plain] = lib.reconCards([nongxing], names, NOW);
+  assert.equal(plain.bridge, undefined);
+  const broken = { ...huayou, reported_on: '2026-10-24', rest: String(Number(huayou.rest) + 100) };
+  const [card] = lib.reconCards([broken], { '603799.SH': '华友' }, NOW_OCT26);
+  assert.equal(card.bridge, undefined, '差额超过 1 元不画桥');
+  assert.ok(card.details.length > 0, '文字明细照旧');
+});
+
+test('展开：先是瀑布图，首末实心条，增减项条形，口径说明，逐项文字收进「看数据」且措辞不变', async () => {
+  const [card] = lib.reconCards([{ ...huayou, reported_on: '2026-10-24' }], { '603799.SH': '华友' }, NOW_OCT26);
+  await show(async () => [card]);
+  const scope = '[data-recon-card="603799.SH"]';
+  assert.equal(container.querySelector(`${scope} [data-profit-bridge]`), null, '收起时不显示');
+  await React.act(async () => ([...container.querySelectorAll(`${scope} button`)].find(button => button.textContent === '展开') as HTMLButtonElement).click());
+  const effects = container.querySelector(`${scope} .variable-card-effects`)!;
+  assert.ok(effects.firstElementChild!.hasAttribute('data-profit-bridge'), '瀑布图是展开后的第一块');
+  const rows = [...effects.querySelectorAll('[data-bridge-kind]')];
+  const kinds = rows.map(row => row.getAttribute('data-bridge-kind'));
+  assert.equal(kinds[0], 'total');
+  assert.equal(kinds.at(-1), 'total');
+  assert.equal(rows.length, card.bridge.steps.length + 2);
+  assert.equal(rows[0]!.querySelector('.profit-bridge-name')!.textContent, '上季');
+  assert.equal(rows.at(-1)!.querySelector('.profit-bridge-name')!.textContent, '本季');
+  assert.match(rows[1]!.querySelector('.profit-bridge-value')!.textContent!, /^[+-]\d/);
+  assert.match(effects.querySelector('.profit-bridge-note')!.textContent!, /科目取自利润表，单季 = 累计值相减/);
+  const data = effects.querySelector('[data-bridge-data]')!;
+  assert.equal(data.querySelector('summary')!.textContent, '看数据');
+  assert.equal(data.querySelectorAll('p').length, card.details.length, '逐项文字全部在「看数据」里');
+  assert.match(data.textContent!, /毛利变化：本季 .+亿元，上季 .+亿元，对净利润的影响 -13\.04 亿元/);
+  assert.equal(effects.querySelectorAll('p').length - 1, card.details.length, '图外只多一行口径说明');
+});
+
+test('展开：没有桥的财报卡仍是原来的逐项文字', async () => {
+  const [card] = lib.reconCards([shenhuo], names, NOW);
+  await show(async () => [card]);
+  await React.act(async () => ([...container.querySelectorAll('[data-recon-card="000933.SZ"] button')].find(button => button.textContent === '展开') as HTMLButtonElement).click());
+  assert.equal(container.querySelector('[data-profit-bridge]'), null);
+  assert.equal(container.querySelector('[data-bridge-data]'), null);
+  assert.match(container.querySelector('[data-recon-card="000933.SZ"] .variable-card-effects')!.textContent!, /沪铝：本季均价/);
+});

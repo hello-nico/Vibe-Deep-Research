@@ -505,7 +505,7 @@ function writeAssistantStore(store) {
   });
 }
 
-const ASSISTANT_PLUGIN = /^(deep_research|company_wiki|industry_wiki|market|intel|industry_profile)$/;
+const ASSISTANT_PLUGIN = /^(deep_research|intel)$/;
 const ASSISTANT_TARGET = /^(companies|industries)\/(?=.{1,180}$)[A-Za-z0-9._一-鿿-]+(?:\/[A-Za-z0-9._一-鿿-]+)*$/;
 const PROFILE_TARGET = /^profile:sw2:[0-9A-Z.]+$/;
 
@@ -532,8 +532,6 @@ export function bindAssistantSession({ session_id, plugin, mode, target, page_ke
   const nextPlugin = plugin || bound?.plugin || '';
   if (!ASSISTANT_PLUGIN.test(nextPlugin)) throw Object.assign(new Error('invalid assistant plugin'), { status: 422 });
   const nextTarget = target || bound?.target || '';
-  if (PROFILE_TARGET.test(nextTarget) && nextPlugin !== 'industry_profile')
-    throw Object.assign(new Error('Profile target requires industry_profile assistant'), { status: 422 });
   let running = false;
   try { running = isRunning ? Boolean(isRunning(session_id)) : false; }
   catch { running = false; }

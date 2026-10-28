@@ -24,6 +24,8 @@ export interface Reconciliation {
   items?: ReconItem[]; item_gaps?: string[]; items_total?: string | null;
   pre_disclosure?: PreDisclosure | null; forecast?: ReconForecast | null;
 }
+/** 利润桥：上季单季净利润 → 各项增减 → 本季单季净利润（元）。`steps` 已按影响绝对值从大到小排好，小项并进「其他」。 */
+export interface ReconBridge { start: number; end: number; steps: { name: string; impact: number }[] }
 export interface ReconCard {
   symbol: string; company: string; period: string;
   arrival?: ReportArrival;
@@ -37,6 +39,8 @@ export interface ReconCard {
   explain?: string;
   /** 展开后的逐项说明。 */
   details: string[];
+  /** 有利润表逐项时的利润桥；只有价格模型或各项对不上时没有。 */
+  bridge?: ReconBridge;
 }
 
 export const RECON_DAYS = 14;
@@ -51,7 +55,7 @@ export function withReportReminders(cards: ReconCard[], arrivals: readonly Repor
 }
 const LABEL = ['', '一季报', '半年报', '三季报', '年报'];
 export const reconLabel = (period: string) => LABEL[Number(period.slice(-1))] ?? '季报';
-const signedYi = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${yiText(Math.abs(value))}`;
+export const signedYi = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${yiText(Math.abs(value))}`;
 const dayDiff = (iso: string, now: Date) => Math.floor((now.getTime() - Date.parse(`${iso}T00:00:00+08:00`)) / 86400000);
 
 /** 所得税与少数股东损益是税前利润变化的机械结果，只在展开里列出，不做首句结论。 */
@@ -61,6 +65,20 @@ function itemsExplain(lines: { metric: string; name: string; impact: number }[],
   const top = lines.filter(line => !MECHANICAL.has(line.metric)).sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact))[0];
   const lead = top ? `最大的一项是${top.name}，影响 ${signedYi(top.impact)}；` : '';
   return `${lead}其他（税金及附加、其他收益、营业外等）${signedYi(rest)}`;
+}
+
+/** 小于总变化这个比例的项并进「其他」。 */
+export const BRIDGE_MIN_SHARE = 0.03;
+/** 利润桥的唯一产出处：各项加「其他」必须等于本季减上季（误差 1 元内），对不上就不出桥。 */
+export function reconBridge(previous: number | null, actual: number, lines: { name: string; impact: number }[], rest: number | null): ReconBridge | undefined {
+  if (previous == null || rest == null || !lines.length) return undefined;
+  const threshold = Math.abs(actual - previous) * BRIDGE_MIN_SHARE;
+  const big = lines.filter(line => Math.abs(line.impact) >= threshold && line.impact !== 0);
+  const other = rest + lines.filter(line => !big.includes(line)).reduce((sum, line) => sum + line.impact, 0);
+  const steps = [...big.map(({ name, impact }) => ({ name, impact })), ...(other !== 0 ? [{ name: '其他', impact: other }] : [])]
+    .sort((a, b) => Math.abs(b.impact) - Math.abs(a.impact));
+  if (Math.abs(previous + steps.reduce((sum, step) => sum + step.impact, 0) - actual) > 1) return undefined;
+  return { start: previous, end: actual, steps };
 }
 
 function moveText(change: string | null | undefined) {
@@ -117,7 +135,8 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
       ...(price != null && variables.length ? [`研究模型估计：价格变化影响约 ${signedYi(price)}（税后年化系数折季），仅供参考，不与上面各项相加`, ...priceDetails] : []),
       '价格影响与减值可能部分重叠，没有去重；科目取自利润表，单季 = 累计值相减',
     ] : priceDetails;
-    return [{ symbol: item.symbol, company, period: item.period, date: disclosedDay(item.reported_on, shanghaiToday(now)), headline, explain, details: [...details, ...preLines(item, company)] }];
+    return [{ symbol: item.symbol, company, period: item.period, date: disclosedDay(item.reported_on, shanghaiToday(now)), headline, explain, details: [...details, ...preLines(item, company)],
+      bridge: reconBridge(toNumber(item.previous), actual, lines, rest) }];
   });
 }
 

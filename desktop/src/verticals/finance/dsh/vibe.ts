@@ -7,6 +7,7 @@ export interface VibeValue { value: number | string; unit: string; period: strin
 export interface VibeElementCheck {
   path: string; component: string; status: 'ok' | 'dropped'; reason?: string;
   values?: Record<string, VibeValue>;
+  html?: string; refs?: string[];
 }
 export interface VibeBlockCheck { index: number; ok: boolean; elements: VibeElementCheck[] }
 export type VibeSuggest = { type: 'question'; items: QuestionSuggestion[] } | { type: 'company'; items: CompanySuggestion[] } | { type: 'indicator'; items: IndicatorSuggestion[] } | { type: 'chain'; items: ChainSuggestion[] };
@@ -30,6 +31,8 @@ declare module '@deepseek-ai/dsh-client-ui-conversation/client' {
 
 /** Read the non-executable tag vocabulary. Stock owns semantic validation. */
 export function parseVibe(code: string): VibeNode[] {
+  const html = /^\s*<html\s+title="([^"<>]+)">([\s\S]*)<\/html>\s*$/.exec(code);
+  if (html) return [{ component: 'html', path: '0', attrs: { title: decode(html[1]!) }, text: html[2]!, children: [] }];
   const roots: VibeNode[] = [], stack: VibeNode[] = [];
   let cursor = 0;
   for (const match of code.matchAll(/<\/?[A-Za-z][\w-]*(?:"[^"]*"|'[^']*'|[^"'<>])*>/g)) {
@@ -153,6 +156,8 @@ export function readVibeCheck(value: unknown): VibeCheck | undefined {
       if (!record(element) || typeof element.path !== 'string' || !/^\d+(?:\.\d+)*$/.test(element.path)
         || paths.has(element.path) || typeof element.component !== 'string' || !['ok', 'dropped'].includes(String(element.status))) return;
       paths.add(element.path);
+      if (element.component === 'html' && element.status === 'ok' && (typeof element.html !== 'string'
+        || !Array.isArray(element.refs) || !element.refs.every(ref => typeof ref === 'string'))) return;
       if (element.values !== undefined) {
         if (!record(element.values)) return;
         for (const item of Object.values(element.values)) {

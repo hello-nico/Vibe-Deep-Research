@@ -17,6 +17,7 @@ import { ResearchSessionContext } from "../dsh/research-session";
 import { createCompanyPageServices } from "../lib/companyPageServices";
 import { companyPageStore } from "../lib/companyPage";
 import { filingStreams, flipStream, writebackStream, loadFilingRows, priceStream, reconStream, streamDayText, streamOf, type FilingRow, type StreamCard, type StreamFilter } from "../lib/feedStream";
+import { ProfitBridge } from "../components/ProfitBridge";
 import "./variable-desk.css";
 
 type Loader = (signal?: AbortSignal) => Promise<TrackingVariables | null>;
@@ -174,7 +175,9 @@ export function StreamItem({ card, onDiscuss, onOpenSession, onRevert, onResearc
     setReverting("busy");
     try { await onRevert(card.revert.event); setReverting("idle"); } catch (error) { console.warn("[finance/stream] revert failed", error); setReverting("failed"); }
   };
-  const expandable = card.details.length > 0 || !!card.url || !!card.extra?.length;
+  const detailLines = card.details.map((line, index) => <p key={index}>{line.map((piece, i) => piece.strong
+    ? <b key={i} className={piece.tone ? `is-${piece.tone}` : undefined}>{piece.text}</b> : <Fragment key={i}>{piece.text}</Fragment>)}</p>);
+  const expandable = card.details.length > 0 || !!card.bridge || !!card.url || !!card.extra?.length;
   const marker = { [DATA_ATTR[card.type]!]: card.companies[0]?.symbol ?? "", "data-stream-card": card.key, "data-stream-type": card.type };
   return <Card>
     <article className="variable-card" {...marker}>
@@ -184,8 +187,9 @@ export function StreamItem({ card, onDiscuss, onOpenSession, onRevert, onResearc
         {card.result && <p className={`variable-card-result${card.result.strong ? " is-strong" : ""}`} data-recon-result="">{card.result.text}</p>}
       </div>
       {expanded && <div className="variable-card-effects">
-        {card.details.map((line, index) => <p key={index}>{line.map((piece, i) => piece.strong
-          ? <b key={i} className={piece.tone ? `is-${piece.tone}` : undefined}>{piece.text}</b> : <Fragment key={i}>{piece.text}</Fragment>)}</p>)}
+        {card.bridge && <ProfitBridge bridge={card.bridge} />}
+        {card.bridge && <p className="profit-bridge-note">科目取自利润表，单季 = 累计值相减</p>}
+        {card.bridge ? <details className="profit-bridge-data" data-bridge-data=""><summary>看数据</summary>{detailLines}</details> : detailLines}
         {card.url && <p><a href={card.url} target="_blank" rel="noreferrer">打开公告原文</a></p>}
         {card.extra?.map((item, index) => <p key={index}>{item.url ? <a href={item.url} target="_blank" rel="noreferrer">{item.title}</a> : item.title}</p>)}
       </div>}

@@ -9,6 +9,35 @@ import { Window } from 'happy-dom';
 import { hasMarkdownHeading, hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, readVibeCheck, summarizeVibeMarkdown, vibeBlocks, type VibeCheck } from '../src/verticals/finance/dsh/vibe.ts';
 
 const id = 'result:' + 'a'.repeat(32);
+
+test('HTML receives only the checked envelope, source-window height and allowed citations', async () => {
+  const globals = { getComputedStyle: globalThis.getComputedStyle, CSS: globalThis.CSS, matchMedia: globalThis.matchMedia, CustomEvent: globalThis.CustomEvent };
+  Object.assign(globalThis, { getComputedStyle: win.getComputedStyle.bind(win), CSS: win.CSS, matchMedia: win.matchMedia.bind(win), CustomEvent: win.CustomEvent });
+  const ref = 'provider:fixture:profit';
+  const raw = '<html title="季度归母"><span data-ref="' + ref + '">12亿元</span></html>';
+  const text = '正文保留\n```vibe\n' + raw + '\n```';
+  const checked = '<head></head><body><span data-ref="' + ref + '">12亿元</span></body>';
+  const event = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'html', status: 'ok', html: checked, refs: [ref] }] }] };
+  const citations: string[] = [];
+  const receive = (e: Event) => citations.push((e as CustomEvent<string>).detail);
+  win.addEventListener('finance-open-evidence', receive);
+  try {
+    await mount(text, event);
+    const frame = container.querySelector('iframe')!;
+    assert.equal(frame.getAttribute('sandbox'), 'allow-scripts');
+    assert.ok(frame.srcdoc.includes('--vibe-text:'));
+    assert.ok(frame.srcdoc.includes('12亿元'));
+    win.dispatchEvent(new win.MessageEvent('message', { source: win, data: { source: 'vibe-wiki-report', type: 'resize', height: 555 } }));
+    assert.notEqual(frame.style.height, '563px');
+    win.dispatchEvent(new win.MessageEvent('message', { source: frame.contentWindow, data: { source: 'vibe-wiki-report', type: 'resize', height: 555 } }));
+    assert.equal(frame.style.height, '563px');
+    for (const value of ['provider:unknown', ref]) win.dispatchEvent(new win.MessageEvent('message', { source: frame.contentWindow, data: { source: 'vibe-wiki-report', type: 'cite', ref: value } }));
+    assert.deepEqual(citations, [ref]);
+    const dropped = { turn: 1, blocks: [{ index: 0, ok: true, elements: [{ path: '0', component: 'html', status: 'dropped', reason: 'citation_numbers' }] }] };
+    await mount(text, dropped);
+    assert.equal(container.querySelector('iframe'), null);
+  } finally { win.removeEventListener('finance-open-evidence', receive); Object.assign(globalThis, globals); }
+});
 const code = `<section question="利润来自发电">
 <grid cols="2"><stat><item label="收入" ref="claim:income" unit="亿元"/><item label="坏指标" ref="claim:missing" unit="亿元"/></stat>
 <compare title="毛利率对比"><bar label="电力" ref="claim:power"/><bar label="煤炭" ref="claim:coal"/></compare></grid>

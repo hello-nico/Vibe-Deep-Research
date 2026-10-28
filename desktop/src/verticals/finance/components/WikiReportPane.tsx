@@ -9,6 +9,7 @@ import { ResearchLoading } from './ui/ResearchLoading';
 import { reportProgress, REPORT_STEPS } from '../lib/reportProgress';
 import { objectPathFromLocation, trackTask } from '../lib/taskNotices';
 import './wiki-report.css';
+import { ReportFrame } from './ReportFrame';
 
 interface ReportMeta {
   report_id: string;
@@ -385,7 +386,7 @@ export function WikiReportPane({ page, fallback = null, active = true, actionSlo
         {canGenerate && !actionSlot && <button type="button" className="wiki-report-tab" onClick={generate}>重新生成</button>}
         {error && <span role="alert" className="text-destructive">{error}</span>}
       </div>}
-      <iframe ref={frame} title={`${page.spec.title} 交互报告`} sandbox="allow-scripts" srcDoc={reportWithNarrowLayout(detail.html, detail.unverifiedRefs, detail.semanticChecks)} style={{ minHeight: 480 }} />
+      <ReportFrame ref={frame} title={`${page.spec.title} 交互报告`} srcDoc={reportWithNarrowLayout(detail.html, detail.unverifiedRefs, detail.semanticChecks)} style={{ minHeight: 480 }} />
     </div>}
     {active && (loadingList || loadingDetail) && <p role="status" className="py-12 text-center text-sm text-muted-foreground">{loadingDetail ? '加载中' : '加载中'}</p>}
     {waiting && <div className="wiki-report-empty">

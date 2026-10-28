@@ -96,7 +96,7 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'deep_research' | 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'deep_research' | 'intel';
     target?: string;
     prompt?: string;
     pageSnapshot?: string;
@@ -108,7 +108,7 @@ export interface ResearchSessions {
     pageKey: string;
     title: string;
     mode: 'ask' | 'agent';
-    plugin?: 'deep_research' | 'company_wiki' | 'industry_wiki' | 'market' | 'intel' | 'industry_profile';
+    plugin?: 'deep_research' | 'intel';
     target?: string;
     fresh?: boolean;
   }): Promise<StartSessionResult>;

@@ -5,6 +5,7 @@ import type { ChatNodeViewProps } from '@deepseek-ai/dsh-client-ui-chat/client';
 import type { PropsRenderSlots } from '@deepseek-ai/dsh-client-ui-slots';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { ResearchResult } from '../components/ResearchResult';
+import { ConversationHTML } from '../components/ConversationHTML';
 import { financialNumber } from '../lib/financialDisplay';
 import { Suggest, type SuggestActions } from './suggestion-node';
 import { hasMarkdownHeading, hideUnfencedSuggestions, unfencedSuggestionRanges, parseVibe, summarizeVibeMarkdown, vibeBlocks, type VibeCheck, type VibeNode, type VibeValue } from './vibe';
@@ -85,6 +86,9 @@ export function VibeBlock({ code, options }: { code: string; options: VibeRender
         });
         const value = check.values?.[node.attrs.ref ?? ''];
         switch (node.component) {
+          case 'html':
+            if (!check.html || !check.refs) throw new Error('图缺少已核对的内容');
+            return <ConversationHTML html={check.html} refs={check.refs} title={node.attrs.title || '数据图'} />;
           case 'section': case 'grid': case 'row': case 'stat': {
             const content = children();
             if (!content.length) return null;

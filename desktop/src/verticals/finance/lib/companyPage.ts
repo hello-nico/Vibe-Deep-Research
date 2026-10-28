@@ -19,6 +19,7 @@ export interface CompanyPageBlock {
   summary: string; details?: string; fieldIds?: string[]; calculationRefs?: string[];
 }
 export interface CompanyPageResearch {
+  sensitivity_inherited_from?: string | null;
   report_period?: string | null;
   companyType?: CompanyType; thesis?: string; gapNote?: string; researchedAt?: string; basisVersion?: string;
   sections?: Partial<Record<CompanyPageBlockId, CompanyPageBlock>>;
@@ -79,6 +80,7 @@ export interface CompanyPageData {
   quote: Quote | null; packet: DataPacket; documents: { items: CompanyPageDocument[] };
 }
 export interface CompanyPageServices {
+  evaluateResearch?(symbol: string, signal?: AbortSignal): Promise<{ status: string; sensitivity?: unknown; scenario?: unknown; quote?: Quote; as_of?: string; price?: string | null; market_eps?: string | null; grade_base?: ValuationGrade | null; reason?: string | null }>;
   data: { [K in keyof CompanyPageData]: (symbol: string, signal: AbortSignal) => Promise<CompanyPageData[K]> };
   /** Background ensure finished for this symbol; re-read the packet quietly. Returns an unsubscribe. */
   subscribePacket?(symbol: string, listener: () => void): () => void;

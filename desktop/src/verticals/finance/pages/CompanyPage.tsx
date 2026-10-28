@@ -4,9 +4,9 @@ import { Loader2 } from 'lucide-react';
 import { EvidenceLink } from '../components/EvidenceCard';
 import { SourceTimeline } from '../components/WikiReport';
 import { ScenarioTable } from '../components/ScenarioTable';
-import { conflictValues, fieldIdLabel, otherPeriodText, pagePeriodText, sectionMeta, findField, forecastNote, formulaText, gapText, multipleText, scenarioPriceText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
+import { scenarioTable, conflictValues, fieldIdLabel, otherPeriodText, pagePeriodText, sectionMeta, findField, forecastNote, formulaText, gapText, multipleText, scenarioPriceText, showField, thresholdText, type DataPacket, type PacketField, type ScenarioTableData } from '../lib/companyPacket';
 import { loadLivePrice } from '../lib/trackingVariables';
-import { COMPANY_TYPE_NAME, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, conversationOrigin, epsAt, initialSliderValues, keyIdsOf, newMaterialText, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type LivePrice, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
+import { COMPANY_TYPE_NAME, calculationExtra, calcRefsIn, expectations, variablesQuestion, verdictLine, changeLine, fillSlots, conversationHint, conversationOrigin, epsAt, initialSliderValues, keyIdsOf, newMaterialText, numericValue, parseSensitivity, peerMedian, periodLabel, plainNumber, profitAt, quarterSeries, segmentGapText, segmentGross, segmentLine, sliderUnitText, splitSentence, watchItems, yuanText, type LivePrice, type ReportCalendar, type SegmentSummary, type SensitivityModel, type SliderValues } from '../lib/companyNarrative';
 import { AnswerSentence, ExpectationRows, FlowBar, GradePills, QuarterBars, SensitivityPanel, ValuationBand, WatchCards, type BandTier, type DriverNote } from '../components/CompanyNarrative';
 import { CompanyOpinion } from '../components/CompanyOpinion';
 import { ConversationFactors } from '../components/ConversationFactors';
@@ -193,7 +193,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   const research = useCompanyPageState(services, symbol, name);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
-  const [scenarios, setScenarios] = useState<ScenarioTableData | null>(null);
+  const [storedScenarios, setScenarios] = useState<ScenarioTableData | null>(null);
+  const [evaluation, setEvaluation] = useState<Awaited<ReturnType<NonNullable<CompanyPageServices['evaluateResearch']>>> | null>(null);
   const [calcs, setCalcs] = useState<Record<string, unknown>>({});
   const [slid, setSlid] = useState<SliderValues>({});
   const [reverting, setReverting] = useState<'idle' | 'busy' | 'failed'>('idle');
@@ -223,14 +224,28 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     return () => { controller.abort(); unsubscribe(); };
   }, [services, symbol]);
   const saved = research.research;
+  const inherited = saved != null && 'sensitivity_inherited_from' in saved;
+  useEffect(() => {
+    const controller = new AbortController();
+    setEvaluation(null);
+    if (inherited && data.packet.value && services.evaluateResearch) {
+      void services.evaluateResearch(symbol, controller.signal).then(value => {
+        if (!controller.signal.aborted) setEvaluation(value);
+      }).catch(() => {
+        if (!controller.signal.aborted) setEvaluation({ status: 'gap', reason: '当前价格或利润计算输入暂缺' });
+      });
+    }
+    return () => controller.abort();
+  }, [services, symbol, saved?.researchedAt, data.packet.value, inherited]);
+  const scenarios = inherited ? (evaluation?.status === 'sourced' ? scenarioTable(evaluation.scenario) : null) : storedScenarios;
   const scenarioRef = saved?.valuation?.scenarioRef;
   useEffect(() => {
     const controller = new AbortController();
     setScenarios(null);
-    if (!scenarioRef || !services.readScenario) return () => controller.abort();
+    if (inherited || !scenarioRef || !services.readScenario) return () => controller.abort();
     void services.readScenario(scenarioRef, controller.signal).then(rows => { if (!controller.signal.aborted) setScenarios(rows); });
     return () => controller.abort();
-  }, [services, scenarioRef]);
+  }, [services, scenarioRef, inherited]);
   // 计算凭据：敏感性与句中 {calc:…} 占位引用的凭据，读不到的占位显示「暂缺」。
   const sensitivityRef = saved?.sensitivity?.resultRef ?? undefined;
   const summaries = Object.values(saved?.sections ?? {}).flatMap(block => [block?.summary, block?.details]);
@@ -241,11 +256,18 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     if (!calcKey || !services.readResult) return () => controller.abort();
     for (const ref of calcKey.split(',')) {
       void services.readResult(ref, controller.signal).then(result => {
-        if (!controller.signal.aborted && result) setCalcs(previous => ({ ...previous, [ref]: result }));
+        if (!controller.signal.aborted && result) {
+          if (inherited) {
+            const extra = calculationExtra(result);
+            // Only coefficient-scale quantities survive; historical prices/profits cannot fill slots.
+            result = { extra: { rule_of_thumb: extra?.rule_of_thumb } };
+          }
+          setCalcs(previous => ({ ...previous, [ref]: result }));
+        }
       });
     }
     return () => controller.abort();
-  }, [services, calcKey]);
+  }, [services, calcKey, inherited, sensitivityRef]);
   // 预约披露日：A 股读 Backend 日历，读不到（含港股）时「接下来盯什么」退回法定截止日。
   const [calendar, setCalendar] = useState<ReportCalendar | null>(null);
   useEffect(() => {
@@ -264,18 +286,18 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     if (industryCode) void loadDriverSetByIndustry(industryCode).then(set => { if (alive) setTemplateDrivers(set); });
     return () => { alive = false; };
   }, [industryCode]);
-  const model = useMemo(() => sensitivityRef && calcs[sensitivityRef] ? parseSensitivity(calcs[sensitivityRef]) : null, [sensitivityRef, calcs]);
+  const model = useMemo(() => inherited ? (evaluation?.status === 'sourced' ? parseSensitivity(evaluation.sensitivity) : null) : sensitivityRef && calcs[sensitivityRef] ? parseSensitivity(calcs[sensitivityRef]) : null, [inherited, evaluation, sensitivityRef, calcs]);
   useEffect(() => { setSlid({}); }, [model]);
   // 页首「现在」用变量最新价，取不到页首退回研究时的默认值并写「研究时」。
   const [live, setLive] = useState<LivePrice | null>(null);
   const impliedId = model?.implied?.id;
   useEffect(() => {
     setLive(null);
-    if (!impliedId) return;
+    if (inherited || !impliedId) return;
     const controller = new AbortController();
     void loadLivePrice(symbol, impliedId, undefined, controller.signal).then(value => { if (!controller.signal.aborted) setLive(value); });
     return () => controller.abort();
-  }, [symbol, impliedId]);
+  }, [symbol, impliedId, inherited]);
   const values = model ? { ...initialSliderValues(model), ...slid } : {};
   const resetSliders = (target: 'today' | 'anchor') => {
     if (!model) return;
@@ -283,8 +305,9 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   };
   const moved = Boolean(model && model.variables.some(item => values[item.id] !== item.current));
   const packet = data.packet.value;
-  const quote = data.quote.value;
-  const price = typeof quote?.price === 'number' ? quote.price : numericValue(packet?.fields.price);
+  const quote = inherited && evaluation?.status === 'sourced' ? evaluation.quote : data.quote.value;
+  const price = inherited ? (evaluation?.status === 'sourced' ? Number(evaluation.price) : null) : typeof quote?.price === 'number' ? quote.price : numericValue(packet?.fields.price);
+  const slotPrice = inherited ? quote?.price ?? null : price;
   const multiple = neutralMultiple(scenarios);
   const adjusted = model && moved && multiple != null ? epsAt(model, profitAt(model, values)) * multiple : null;
   const notes: Record<string, DriverNote> = Object.fromEntries((saved?.sensitivity?.drivers ?? []).map(item => [item.var_id, item]));
@@ -292,8 +315,11 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   const gapOnly = Boolean(saved?.gapNote);
   const change = changeLine(saved, { changedFrom: research.changedFrom, canRevert: research.canRevert });
   const tiers = bandTiers(scenarios, model);
-  const verdict = verdictLine({ grade: saved?.valuation?.grade, model, live });
-  const expectation = expectations({ packet, scenarios, model, price, grade: saved?.valuation?.grade, verdict });
+  const grade = inherited ? evaluation?.grade_base : saved?.valuation?.grade;
+  const primary = model?.variables.find(item => item.id === model.implied?.id);
+  const currentLive = inherited && primary ? { value: primary.current, when: primary.currentDate ? periodLabel(primary.currentDate) : '' } : live;
+  const verdict = verdictLine({ grade, model, live: currentLive });
+  const expectation = expectations({ packet, scenarios, model, price, grade, verdict, ...(inherited ? { marketEps: evaluation?.status === 'sourced' && evaluation.market_eps != null ? Number(evaluation.market_eps) : null } : {}) });
   const revert = async () => {
     if (!services.revertResearch) return;
     setReverting('busy');
@@ -301,7 +327,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     catch (error) { console.warn('[finance/company-page] revert failed', error); setReverting('failed'); }
   };
   // 研究文字里的 {…} 数据引用统一在这里解析成数值；解析不到写「（数据缺失）」。
-  const fill = (text?: string) => fillSlots(text, packet, calcs, undefined, price);
+  const fill = (text?: string) => fillSlots(text, packet, calcs, undefined, slotPrice);
   const watch = watchItems({ model, packet, calendar, drivers: templateDrivers });
   // 研究里原有的支柱与不成立的条件不再占第一层，收进「查看数据」。
   const pillars = (saved?.pillars ?? []).map(pillar => {
@@ -319,7 +345,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     const keyNumbers = <KeyNumbers packet={packet} ids={keys} peers={id === 'valuation'} />;
     return <Panel className="company-page-section" data-company-section={id} title={titles[id]} meta={meta} key={id}>
       {loadingBody(titles[id]) ?? <>
-        {answer && <div data-change-hint={change || undefined} title={change}><AnswerSentence id={id} text={answer} packet={packet} calcs={calcs} livePrice={price} /></div>}
+        {answer && <div data-change-hint={change || undefined} title={change}><AnswerSentence id={id} text={answer} packet={packet} calcs={calcs} livePrice={slotPrice} /></div>}
         {chart}
         {keyNumbers}
         {more}
@@ -386,7 +412,9 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
         <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">无行情</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
-        {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} livePrice={price} />}
+        {inherited && <p data-inherited-sensitivity="">影响利润的因素沿用 {saved?.sensitivity_inherited_from || '报告期未记录'}</p>}
+        {inherited && evaluation?.status !== 'sourced' && <p className="company-page-gap" data-evaluation-gap="">{evaluation?.reason || '当前价格或利润计算输入暂缺'}</p>}
+        {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} livePrice={slotPrice} />}
         {!gapOnly && verdict.label && <p className="company-page-verdict" data-verdict="">
           <Tag brand><span data-valuation-grade={saved?.valuation?.grade}>{verdict.label}</span></Tag>
           {verdict.implied && <span data-verdict-implied="">：{verdict.implied}</span>}

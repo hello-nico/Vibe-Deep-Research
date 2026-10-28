@@ -3,7 +3,7 @@ import { loadWatch } from './watchlist';
 import { wikiPages } from './research';
 import { companyIndustryLabel } from './companyRoster';
 import type { FlipCard } from './flipCards';
-import type { ReconCard } from './quarterRecon';
+import type { ReconBridge, ReconCard } from './quarterRecon';
 import type { ReconResult } from './reconResult';
 import type { WritebackEvent } from './researchEvents';
 import {
@@ -28,6 +28,8 @@ export interface StreamCard {
   /** 「讨论」：输入框预填的问句、本轮引用的标题与正文。 */
   discuss: { question: string; title: string; text: string };
   url?: string;
+  /** 财报卡展开后的第一块：利润桥瀑布图；数据全由 `reconCards` 算好。 */
+  bridge?: ReconBridge;
   /** 财报卡第三行：研究是否已按这份财报重做、档位变了没有；变了的 `strong`。 */
   result?: { text: string; strong: boolean };
   research?: { symbol: string; name: string };
@@ -59,7 +61,7 @@ export function reconStream(card: ReconCard, result?: ReconResult | null): Strea
     ...(result && !(result.pending && card.reminder) ? { result: { text: result.text, strong: result.changed } } : {}),
     ...(result?.pending ? { research: { symbol: card.symbol, name: card.company } } : {}),
     title: text(card.headline), involved: text([card.company, card.explain].filter(Boolean).join(' · ')),
-    details: card.details.map(text),
+    details: card.details.map(text), ...(card.bridge ? { bridge: card.bridge } : {}),
     companies: [{ symbol: card.symbol, name: card.company }],
     discuss: { question: `${card.company}这份财报里利润为什么变了？`, title: card.headline, text: [card.explain, result?.text, ...card.details].filter(Boolean).join('\n') },
   };

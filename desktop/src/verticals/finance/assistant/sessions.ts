@@ -108,32 +108,11 @@ export function focusAssistantComposer(root: ParentNode = document): boolean {
 }
 
 export function assistantIntro(plugin: AssistantPlugin, pageKey = ''): string {
-  if (plugin === 'market') {
-    return '问我今天的盘面：指数表现、市场情绪、资金流向。输入 @ 选一个指数或个股，可以问得更具体。';
-  }
   if (plugin === 'intel') {
     if (pageKey.includes('filings')) return '输入 @ 选一条公告，我帮你读懂它说了什么、可能影响什么。';
     return '输入 @ 选一条新闻，我帮你解读这件事，以及它会影响谁。';
   }
-  if (plugin === 'industry_wiki') {
-    if (pageKey.startsWith('industry-wiki:industries/')) {
-      return '直接问这个行业怎么赚钱、最近有什么变化、会影响哪些公司。';
-    }
-    return '输入 @ 选一个行业，问它怎么赚钱、最近有什么变化。';
-  }
-  if (plugin === 'industry_profile') {
-    if (pageKey !== 'industry-profile:list' && pageKey.startsWith('industry-profile:')) {
-      return '问这个产业的供需、产业链位置，或者还有哪些问题值得核实。';
-    }
-    return '输入 @ 选一个产业，比较供需、产业链和值得核实的问题。';
-  }
   if (plugin === 'deep_research') {
-    if (pageKey.startsWith('company-wiki:companies/')) {
-      return '问经营、财务或估值都可以。输入 @ 选另一家公司可以做对比。';
-    }
-    return '输入 @ 选一家公司，问它做什么、财务或估值怎么看。';
-  }
-  if (plugin === 'company_wiki') {
     if (pageKey.startsWith('company-wiki:companies/')) {
       return '问经营、财务或估值都可以。输入 @ 选另一家公司可以做对比。';
     }

@@ -58,6 +58,7 @@ export function researchRoute(method, pathname) {
   if (method === 'PUT' && pathname === '/wiki/research-memory') return true;
   if (method === 'GET' && /^\/wiki\/research-candidates\/[^/]+$/.test(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/(provider-snapshot|facts|documents|page-research|data-packet|quarter-reconciliation|driver-candidates)$/.test(pathname)) return true;
+  if (method === 'GET' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/page-research\/evaluation$/.test(pathname)) return true;
   // 对话里提到的因素：只能改状态（纳入 / 排除 / 观察）；新建候选只有模型带令牌能做。
   if (method === 'PATCH' && DRIVER_CANDIDATE.test(pathname)) return true;
   if (method === 'POST' && /^\/wiki\/companies\/\d{6}\.(SH|SZ|BJ)\/coverage\/ensure$/.test(pathname)) return true;

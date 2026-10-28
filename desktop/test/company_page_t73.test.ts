@@ -542,6 +542,40 @@ const shenhuoServices = (extra: Partial<Parameters<typeof services>[0]> = {}) =>
   results: { [sensitivityRef]: shenhuo.sensitivityResult }, scenario: packetModule.scenarioTable(shenhuo.scenarioResult), ...extra,
 });
 
+test('沿用系数只消费一次当前求值，缺口时不回填旧隐含值或三档价', async () => {
+  const research = { ...shenhuoResearch(), sensitivity_inherited_from: 'FY2025' };
+  research.sections.business.summary = `现价{price}，旧价格{calc:${scenarioRef}.scenarios.0.price}`;
+  const sources = { [sensitivityRef]: shenhuo.sensitivityResult, [scenarioRef]: shenhuo.scenarioResult };
+  const fixture = shenhuoServices({ research, results: sources });
+  let calls = 0;
+  fixture.services.readScenario = async () => { throw new Error('must not read the historical scenario'); };
+  fixture.services.evaluateResearch = async () => {
+    calls++;
+    return { status: 'sourced', price: '200', quote: quote(200), as_of: '2026-10-28', grade_base: '偏高', market_eps: '20',
+      sensitivity: { extra: { base_profit: '100', shares: '10', variables: [{ var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: '120', current_date: '2026-10-27', anchor: '100', coef_per_unit: '1', range: ['50', '250'], step: '1' }],
+        scenarios: [], implied: { var_id: 'cmdty:SHFE.AL', value: '200', multiple: '10' }, flips: [] } },
+      scenario: { extra: { mode: 'per_share', scenarios: ['悲观', '中性', '乐观'].map((name, index) => ({ name, multiple: '10', price: String(100 + index * 20), earnings: String(10 + index * 2) })) } } };
+  };
+  await mount(fixture, '000933', '神火股份');
+  assert.equal(calls, 1);
+  assert.match(container.querySelector('[data-inherited-sensitivity]')!.textContent!, /影响利润的因素沿用 FY2025/);
+  assert.match(container.querySelector('[data-verdict-implied]')!.textContent!, /200 元\/吨/);
+  assert.match(container.querySelector('[data-verdict-implied]')!.textContent!, /10-27/);
+  assert.doesNotMatch(container.querySelector('[data-verdict-implied]')!.textContent!, /23,258/);
+  assert.match(section('valuation')!.textContent!, /20\.00 元/);
+  assert.match(section('business')!.querySelector('[data-company-summary]')!.textContent!, /现价\s*200\.00 元\/股.*旧价格暂缺/);
+  const missing = shenhuoServices({ research, results: sources });
+  missing.services.evaluateResearch = async () => ({ status: 'gap', reason: '缺当前行情' });
+  await mount(missing, '000933', '神火股份');
+  assert.equal(container.querySelector('[data-verdict-implied]'), null);
+  assert.equal(container.querySelector('[data-verdict-flip]'), null);
+  assert.equal(section('variables')?.querySelector('input[type="range"]'), null);
+  assert.match(container.querySelector('[data-evaluation-gap]')!.textContent!, /缺当前行情/);
+  assert.match(container.querySelector('.company-page-price')!.textContent!, new RegExp(String(shenhuo.quote.price).replace('.', '\\.')));
+  assert.match(section('business')!.querySelector('[data-company-summary]')!.textContent!, new RegExp(`现价\\s*${String(shenhuo.quote.price).replace('.', '\\.')} 元/股`));
+  assert.doesNotMatch(section('variables')!.querySelector('[data-company-summary]')!.textContent!, /数据缺失/);
+});
+
 test('神火关键变量：公式行、滑块按真实单位，滑轨标参考价；初始值为当前值', async () => {
   await mount(shenhuoServices(), '000933', '神火股份');
   const variables = section('variables')!;

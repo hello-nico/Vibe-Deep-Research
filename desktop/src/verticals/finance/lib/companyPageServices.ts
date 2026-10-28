@@ -69,6 +69,7 @@ export function createCompanyPageServices(sessions: ResearchSessions): CompanyPa
     return code;
   };
   return {
+    evaluateResearch: (symbol, signal) => researchRead(`/wiki/companies/${qualified(symbol)}/page-research/evaluation`, { signal }),
     data: {
       quote: async symbol => (await api.quote(symbol))[symbol] ?? null,
       packet: (symbol, signal) => openPacket(qualified(symbol), signal),
