@@ -1,9 +1,9 @@
 {
-  "round": 58,
+  "round": 62,
   "period": "2026Q3",
-  "started_at": "2026-10-29T21:49:36+08:00",
-  "finished_at": "2026-10-29T21:52:01+08:00",
-  "elapsed_s": 145.1,
+  "started_at": "2026-10-29T23:49:36+08:00",
+  "finished_at": "2026-10-29T23:51:34+08:00",
+  "elapsed_s": 117.8,
   "n": 46,
   "n_cninfo_posted": 37,
   "n_sina": 37,

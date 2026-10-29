@@ -1,0 +1,118 @@
+{
+  "samples_sha256": "14608117fa4dabfc552e1462ec371b75843e4125242d04975844d6aa85072d4e",
+  "samples": 26,
+  "attempted_channel_calls": 52,
+  "retries": 0,
+  "selected": "jev",
+  "selection_metric": "both questions correct; failures count wrong",
+  "threshold": 0.85,
+  "results": {
+    "jev": {
+      "joint_correct": 24,
+      "joint_accuracy": 0.9230769230769231,
+      "failures": 0,
+      "wrong": [
+        {
+          "id": "m10",
+          "expected": {
+            "about_user": true,
+            "supported": false
+          },
+          "answer": {
+            "about_user": false,
+            "supported": false
+          },
+          "failure": null
+        },
+        {
+          "id": "m25",
+          "expected": {
+            "about_user": true,
+            "supported": true
+          },
+          "answer": {
+            "about_user": true,
+            "supported": false
+          },
+          "failure": null
+        }
+      ],
+      "question_correct": {
+        "about_user": 25,
+        "supported": 25
+      }
+    },
+    "model": {
+      "joint_correct": 21,
+      "joint_accuracy": 0.8076923076923077,
+      "failures": 4,
+      "wrong": [
+        {
+          "id": "m10",
+          "expected": {
+            "about_user": true,
+            "supported": false
+          },
+          "answer": {
+            "about_user": false,
+            "supported": false
+          },
+          "failure": null
+        },
+        {
+          "id": "m23",
+          "expected": {
+            "about_user": false,
+            "supported": false
+          },
+          "answer": null,
+          "failure": {
+            "code": "model_transport_or_timeout"
+          }
+        },
+        {
+          "id": "m24",
+          "expected": {
+            "about_user": false,
+            "supported": false
+          },
+          "answer": null,
+          "failure": {
+            "code": "model_transport_or_timeout"
+          }
+        },
+        {
+          "id": "m25",
+          "expected": {
+            "about_user": true,
+            "supported": true
+          },
+          "answer": null,
+          "failure": {
+            "code": "model_transport_or_timeout"
+          }
+        },
+        {
+          "id": "m26",
+          "expected": {
+            "about_user": true,
+            "supported": false
+          },
+          "answer": null,
+          "failure": {
+            "code": "model_transport_or_timeout"
+          }
+        }
+      ],
+      "question_correct": {
+        "about_user": 21,
+        "supported": 22
+      }
+    }
+  },
+  "notes": [
+    "Model identity uses Owner-confirmed DSH default; existing endpoint does not expose model/usage metadata.",
+    "Four model transport failures have unknown upstream outcome and were not retried.",
+    "Only approved synthetic samples; no expected/reason sent to either channel."
+  ]
+}

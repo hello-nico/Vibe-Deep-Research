@@ -1,0 +1,324 @@
+{
+  "status": "draft_labels_pending_claude_review",
+  "provenance": "Codex 编写的合成样本与预标注，非真实用户资料，尚未经 Claude 或 Owner 核定，不能称为人工金标。",
+  "purpose": "比较晋升前复核的两个问题；次数、明确要求、污染和墓碑由独立代码闸门判断，不交给复核器决定。",
+  "questions_draft": {
+    "about_user": "这条候选记忆描述的是用户本人吗？用户本人指他的背景、水平、表达偏好、持仓或关注、投资风格与约束。公司或行业的事实、别人的情况、只针对这一轮的操作步骤，都不算。",
+    "supported": "只看给出的用户原话：原话是否支持候选的全部内容？把假设、否定、转述别人、过去的状态或单纯的提问当成用户当前的情况，都算不支持；候选里只要有一部分原话没说，也算不支持。"
+  },
+  "cases": [
+    {
+      "id": "m01",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "用户偏好先给结论，再解释依据。",
+      "user_quote": "以后请先给结论，再解释依据。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "用户直接表达回复偏好。"
+    },
+    {
+      "id": "m02",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "用户不是财务专业背景，需要解释财务术语。",
+      "user_quote": "我不是财务专业的，财务术语请解释一下。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "背景和表达需求都有原话支持。"
+    },
+    {
+      "id": "m03",
+      "target": "soul",
+      "category": "持仓与关注",
+      "candidate": "用户持有甲公司股票。",
+      "user_quote": "记住，我现在持有甲公司的股票。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "明确持仓陈述；是否命中记住闸门另测。"
+    },
+    {
+      "id": "m04",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "用户近期关注储能行业。",
+      "user_quote": "最近我一直在关注储能行业。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "关注被准确保留，没有推断为持仓。"
+    },
+    {
+      "id": "m05",
+      "target": "soul",
+      "category": "投资风格与约束",
+      "candidate": "用户不使用融资杠杆。",
+      "user_quote": "我的约束是不用融资杠杆。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "用户直接陈述投资约束。"
+    },
+    {
+      "id": "m06",
+      "target": "soul",
+      "category": "纠正",
+      "candidate": "用户只关注乙公司，没有持有其股票。",
+      "user_quote": "纠正一下，我只关注乙公司，没有持有它的股票。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "纠正明确区分关注和持有。"
+    },
+    {
+      "id": "m07",
+      "target": "soul",
+      "category": "持仓与关注",
+      "candidate": "用户持有乙公司股票。",
+      "user_quote": "我没有持有乙公司的股票。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "候选反转否定。"
+    },
+    {
+      "id": "m08",
+      "target": "soul",
+      "category": "持仓与关注",
+      "candidate": "用户持有丙公司股票。",
+      "user_quote": "帮我看看丙公司这份报告。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "提问不能证明持仓。"
+    },
+    {
+      "id": "m09",
+      "target": "soul",
+      "category": "持仓与关注",
+      "candidate": "用户持有丁公司股票。",
+      "user_quote": "假如我持有丁公司的股票，这个事件会有什么影响？",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "条件问题不等于实际状态。"
+    },
+    {
+      "id": "m10",
+      "target": "soul",
+      "category": "投资风格与约束",
+      "candidate": "用户偏好短线交易。",
+      "user_quote": "我朋友喜欢短线交易，我不打算照他的方式做。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "第三方偏好不能归给用户。"
+    },
+    {
+      "id": "m11",
+      "target": "soul",
+      "category": "持仓与关注",
+      "candidate": "用户现在持有戊公司股票。",
+      "user_quote": "我去年持有戊公司，现在已经全部卖掉了。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "过去持仓不能当成当前持仓。"
+    },
+    {
+      "id": "m12",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "用户偏好简短回答且拥有十年金融从业经验。",
+      "user_quote": "我偏好简短回答。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "复合候选只有一半获支持。"
+    },
+    {
+      "id": "m13",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "甲公司三季度收入同比增长。",
+      "user_quote": "甲公司三季度收入同比增长。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "原话支持公司事实，但内容不关于用户。"
+    },
+    {
+      "id": "m14",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "乙公司主营业务是铝加工。",
+      "user_quote": "乙公司的主营业务是铝加工。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "主营业务属于公司知识。"
+    },
+    {
+      "id": "m15",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "铜价上涨会提高丙公司的原料成本。",
+      "user_quote": "铜价上涨会提高丙公司的原料成本。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "公司成本机制不是用户画像。"
+    },
+    {
+      "id": "m16",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "储能行业近期新增产能较多。",
+      "user_quote": "储能行业近期新增产能较多。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "行业认识不进入用户记忆。"
+    },
+    {
+      "id": "m17",
+      "target": "soul",
+      "category": "投资风格与约束",
+      "candidate": "用户的朋友偏好短线交易。",
+      "user_quote": "我朋友喜欢短线交易。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "第三方情况有证据，但不是用户本人的风格。"
+    },
+    {
+      "id": "m18",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "本轮先读取财报，再计算同比。",
+      "user_quote": "本轮请先读取财报，再计算同比。",
+      "expected": {
+        "about_user": false,
+        "supported": true
+      },
+      "reason": "本轮任务步骤不等于持久用户偏好。"
+    },
+    {
+      "id": "m19",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "甲公司的利润率提高了。",
+      "user_quote": "甲公司的利润率是多少？",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "关于公司，提问也不支持增长结论。"
+    },
+    {
+      "id": "m20",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "乙公司明年会扩大产能。",
+      "user_quote": "还没有看到乙公司明年的产能计划。",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "公司未来结论无原话支持。"
+    },
+    {
+      "id": "m21",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "储能行业库存已经回到正常水平。",
+      "user_quote": "帮我核实储能行业的库存数据。",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "核实请求不证明行业结论。"
+    },
+    {
+      "id": "m22",
+      "target": "soul",
+      "category": "投资风格与约束",
+      "candidate": "用户的朋友从不使用杠杆。",
+      "user_quote": "我朋友最近在学财务知识。",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "第三方约束未被提及。"
+    },
+    {
+      "id": "m23",
+      "target": "recent",
+      "category": "持仓与关注",
+      "candidate": "丙公司是行业成本最低的企业。",
+      "user_quote": "我不知道丙公司的成本在行业里排第几。",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "不能把未知补成公司排名。"
+    },
+    {
+      "id": "m24",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "本轮必须只读取英文年报。",
+      "user_quote": "请对照中文年报。",
+      "expected": {
+        "about_user": false,
+        "supported": false
+      },
+      "reason": "本轮指令而非画像，且反转原话要求。"
+    },
+    {
+      "id": "m25",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "用户不喜欢固定格式、逐项罗列的回答，希望按问题组织。",
+      "user_quote": "我不想要固定死的答案流程，我希望的是他可以有一套思维框架。",
+      "expected": {
+        "about_user": true,
+        "supported": true
+      },
+      "reason": "真实说法的改写，表达偏好被准确保留。"
+    },
+    {
+      "id": "m26",
+      "target": "soul",
+      "category": "水平与表达偏好",
+      "candidate": "用户接受大致数字，但要求每个数字都注明来源。",
+      "user_quote": "拿不到数据可以检索，模糊的正确胜过精确的错误。",
+      "expected": {
+        "about_user": true,
+        "supported": false
+      },
+      "reason": "原话支持接受约数，但没有说要注明来源，复合候选只有一半获支持。"
+    }
+  ],
+  "reviewed_by": "Claude 10-29：标签逐条核对无误；提问措辞已改定；补 m25、m26 两条真实说法改写；模型用 DeepSeek-V4.1-Flash（与产品默认一致）。"
+}
