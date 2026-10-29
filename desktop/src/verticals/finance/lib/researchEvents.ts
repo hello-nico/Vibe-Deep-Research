@@ -2,6 +2,7 @@ import { api } from './api';
 import { researchRead } from './research';
 import { qualifiedWatch } from './trackingVariables';
 import { localService } from './localService';
+import { readObject } from './readRequest';
 
 /**
  * 对话里调整研究（变量取值、论点与支柱、对话里提到的因素）留下的记录：Backend `GET /feed/research-events`。
@@ -37,6 +38,9 @@ export function writebackEvents(events: readonly ResearchEvent[], names: Record<
 
 /** 关注公司的写回记录（只读 GET）；公司名取行情。 */
 export async function loadResearchEvents(signal?: AbortSignal): Promise<WritebackEvent[]> {
+  return readObject('/finance-research/feed/research-events', () => readEvents(signal));
+}
+async function readEvents(signal?: AbortSignal): Promise<WritebackEvent[]> {
   const { symbols } = await localService.clientWatch();
   const qualified = qualifiedWatch(symbols);
   if (!qualified.length) return [];

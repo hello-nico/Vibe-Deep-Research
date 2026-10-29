@@ -1,4 +1,5 @@
 /** 本机数据服务（orchestrator）客户端：Client 选择与偏好。行情与资讯走 Backend。与 Stock Backend 客户端 `research.ts` 区分。 */
+import { readRequest } from './readRequest.ts';
 
 export class ApiError extends Error {
   readonly status: number;
@@ -18,7 +19,7 @@ export class ApiError extends Error {
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let res: Response;
   try {
-    res = await fetch(`/finance-api${path}`, {
+    res = await readRequest(`/finance-api${path}`, {
       ...init,
       headers: {
         Accept: "application/json",

@@ -1,6 +1,7 @@
 import { researchRead, aShareQualified } from './research';
 import { dayLabel } from './utils';
 import { localService } from './localService';
+import { readObject } from './readRequest';
 import { plainNumber, yiText, type LivePrice } from './companyNarrative';
 
 /**
@@ -45,6 +46,9 @@ export function qualifiedWatch(symbols: readonly string[]): string[] {
 }
 
 export async function loadTrackingVariables(signal?: AbortSignal): Promise<TrackingVariables | null> {
+  return readObject('/finance-api/client/watch', () => readVariables(signal));
+}
+async function readVariables(signal?: AbortSignal): Promise<TrackingVariables | null> {
   const { symbols } = await localService.clientWatch();
   const qualified = qualifiedWatch(symbols);
   if (!qualified.length) return null;

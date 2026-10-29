@@ -1,7 +1,7 @@
 // 自选股快照轮询，不是逐笔实时行情。
 //
 // 几个刻意的选择：
-// - 报价来自 Backend 的 /market/quotes，自带 3 秒共享缓存；上游仍可能延迟。
+// - 报价来自 Backend 的 /market/quotes，自带 15 秒共享缓存；上游仍可能延迟。
 // - 请求完成后等 3 秒再取，不承诺数据每 3 秒更新。
 // - **递归 setTimeout 而不是 setInterval**：单次请求实测 ~750ms，网络一慢 setInterval
 //   会让请求首尾叠在一起。改成「上一次结束后再等 N 秒」，永远不会堆叠。
@@ -73,8 +73,8 @@ export function useLiveQuotes(codes: string[], enabled: boolean): LiveQuotesStat
       return true;
     } catch {
       failuresRef.current += 1;
-      // 第一次失败先不打扰用户（可能只是一次网络抖动），连续失败才提示
-      if (failuresRef.current >= 2) setError("行情获取失败，正在重试…");
+      // 共用读取层已经自动重试一次；页面提供手动重试。
+      setError("暂时读取不到");
       return false;
     } finally {
       inFlightRef.current = false;

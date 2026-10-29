@@ -1,4 +1,5 @@
 import { researchRead } from './research';
+import { readRequest } from './readRequest';
 import { gradeLabel } from './companyNarrative';
 
 /**
@@ -20,7 +21,7 @@ export async function loadResearchTasks(query: { symbol?: string; limit?: number
   const params = new URLSearchParams();
   if (query.symbol) params.set('symbol', query.symbol);
   if (query.limit) params.set('limit', String(query.limit));
-  const response = await fetch(`/finance-research-tasks${params.size ? `?${params}` : ''}`, { signal });
+  const response = await readRequest(`/finance-research-tasks${params.size ? `?${params}` : ''}`, { signal });
   const payload = await response.json().catch(() => null) as { items?: ResearchRecord[] } | null;
   if (!response.ok || !Array.isArray(payload?.items)) throw new Error('研究记录读取失败');
   if (payload.items.some(item => !STATUSES.has(item.status) || !Array.isArray(item.steps))) throw new Error('研究记录读取失败');

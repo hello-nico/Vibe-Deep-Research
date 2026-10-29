@@ -2,6 +2,7 @@ import type { Quote } from './api';
 import type { ReportCalendar } from './companyNarrative';
 import type { DataPacket, PacketThreshold, ScenarioTableData } from './companyPacket';
 import { CLIENT_OUTDATED, SERVER_OUTDATED } from './researchSymbol.ts';
+import { readObject, shareObjectRead } from './readRequest.ts';
 
 export const COMPANY_PAGE_BLOCKS = [
   ['business', '商业模式'],
@@ -116,8 +117,10 @@ export class CompanyPageStore {
   private services: CompanyPageServices;
   private symbol: string;
   private name: string;
+  private readRoute: string;
   constructor(services: CompanyPageServices, symbol: string, name: string) {
     this.services = services; this.symbol = symbol; this.name = name;
+    this.readRoute = `/finance-research/wiki/companies/${symbol}/page-research`;
   }
   /** The roster may know only the code at first; a later real name is used for the task title. */
   rename(name: string) { if (name && name !== this.symbol) this.name = name; }
@@ -145,22 +148,24 @@ export class CompanyPageStore {
     this.timer = setTimeout(() => { this.timer = undefined; void this.refresh(); }, 3000);
   }
   refresh = (): Promise<void> => {
-    if (this.reading) return this.reading;
-    this.reading = this.read().finally(() => {
+    const reading = shareObjectRead(this, this.readRoute, () => this.read());
+    this.reading = reading;
+    void reading.finally(() => {
+      if (this.reading !== reading) return;
       this.reading = undefined;
       if (companyPageTaskActive(this.state.task)) this.schedule();
       else { clearTimeout(this.timer); this.timer = undefined; }
-    });
-    return this.reading;
+    }).catch(() => {});
+    return reading;
   };
   private async read() {
     this.lastRead = Date.now();
     try {
-      let value = await this.services.readResearch(this.symbol);
+      let value = await readObject(this.readRoute, () => this.services.readResearch(this.symbol));
       if (value.task?.status === 'completed' && this.completedSession !== value.task.sessionId) {
         this.completedSession = value.task.sessionId;
         // The first read may precede the DSH save receipt; read after observing completion.
-        value = await this.services.readResearch(this.symbol);
+        value = await readObject(this.readRoute, () => this.services.readResearch(this.symbol));
       }
       this.basisVersion = value.basisVersion;
       const task = value.task ?? (companyPageTaskActive(this.state.task) ? this.state.task : undefined);

@@ -131,6 +131,6 @@ test("首次发起先查归档；候选和读取失败都不会 POST", async (t)
     });
   };
   await assert.rejects(() => startResearchTopic(topicRouteRequest(question)), /archive unavailable/);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2, '归档读取失败自动重试一次，不重放 POST');
   assert.equal(calls[0]?.init?.method, undefined);
 });

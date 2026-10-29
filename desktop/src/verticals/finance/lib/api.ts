@@ -4,6 +4,7 @@ import {
   type CurrencyCode, type MarketCode,
 } from "./marketSymbol.ts";
 import { ApiError } from "./localService.ts";
+import { readRequest } from './readRequest.ts';
 
 export { ApiError };
 
@@ -57,10 +58,11 @@ export function qualified(code: string): string | null {
 }
 
 /** 经宿主代理读 Backend；失败带状态码抛 ApiError，页面据此区分“没数据”和“读不到”。 */
-async function read<T>(route: string, params: Record<string, string>): Promise<T> {
+async function read<T>(route: string, params: Record<string, string>, signal?: AbortSignal): Promise<T> {
+  const url = `/finance-research${route}?${new URLSearchParams(params)}`;
   let response: Response;
   try {
-    response = await fetch(`/finance-research${route}?${new URLSearchParams(params)}`);
+    response = await readRequest(url, { signal });
   } catch (error) {
     throw new ApiError(`连不上研究服务（${error instanceof Error ? error.message : String(error)}）`, 0, "network");
   }
@@ -78,7 +80,7 @@ async function read<T>(route: string, params: Record<string, string>): Promise<T
   return body as T;
 }
 
-async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
+async function quoteMap(codes: string[], signal?: AbortSignal): Promise<Record<string, Quote>> {
   const requested = new Map<string, string>();
   for (const code of codes) {
     const symbol = normalizeMarketSymbol(code);
@@ -86,7 +88,7 @@ async function quoteMap(codes: string[]): Promise<Record<string, Quote>> {
     if (symbol && full) requested.set(full, symbol);
   }
   if (!requested.size) return {};
-  const body = await read<{ quotes: QuoteRow[]; missing: string[] }>("/market/quotes", { symbols: [...requested.keys()].join(",") });
+  const body = await read<{ quotes: QuoteRow[]; missing: string[] }>("/market/quotes", { symbols: [...requested.keys()].join(",") }, signal);
   const out: Record<string, Quote> = {};
   for (const row of body.quotes ?? []) {
     const symbol = requested.get(row.symbol);
@@ -148,8 +150,8 @@ async function feedItems<T>(route: "/feed/announcements" | "/feed/news", codes: 
 }
 
 export const api = {
-  /** 报价；Backend 自带 3 秒共享缓存，不需要也不支持强制刷新。 */
-  quote: (codes: string) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean)),
+  /** 报价；Backend 自带 15 秒共享缓存，不需要也不支持强制刷新。 */
+  quote: (codes: string, signal?: AbortSignal) => quoteMap(codes.split(",").map((c) => c.trim()).filter(Boolean), signal),
   announcements: (codes: string[], limit = 20, options?: FeedOptions) => feedItems<Announcement>("/feed/announcements", codes, limit, options),
   news: (codes: string[], limit = 20, options?: FeedOptions) => feedItems<NewsItem>("/feed/news", codes, limit, options),
 };

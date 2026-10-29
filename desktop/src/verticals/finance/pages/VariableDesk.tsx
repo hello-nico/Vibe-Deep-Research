@@ -2,6 +2,7 @@ import { Fragment, useCallback, useContext, useEffect, useMemo, useRef, useState
 import { Link } from "react-router-dom";
 import { Card, Metric } from "../components/ui/Card";
 import { LoadingCard } from "../components/ui/LoadingCard";
+import { ReadFailure } from '../components/ui/ReadFailure';
 import { useAiPage, useAiQuestion } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import {
@@ -27,27 +28,35 @@ const codeOf = (symbol: string) => symbol.split(".")[0]!;
 
 /** 动态页「关键变量」：价格动了，对你关注的公司意味着什么。每张卡一件事，金额点「展开」才看。变量总表在「跟踪」页。 */
 /** 取得关注公司的跳档提醒；失败当没有，不影响其余卡片。 */
-export function useFlipCards(data: TrackingVariables | null | undefined, loadFlips: typeof loadFlipCards = loadFlipCards): FlipCard[] {
+export function useFlipCards(data: TrackingVariables | null | undefined, loadFlips: typeof loadFlipCards = loadFlipCards) {
   const [flips, setFlips] = useState<FlipCard[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [revision, setRevision] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     setFlips([]);
-    if (data) loadFlips(data, controller.signal).then(cards => { if (!controller.signal.aborted) setFlips(cards); }, error => { if (!controller.signal.aborted) console.warn("[finance/flip-cards] unavailable", error); });
+    setLoading(!!data); setFailed(false);
+    if (data) loadFlips(data, controller.signal).then(cards => { if (!controller.signal.aborted) setFlips(cards); }, error => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/flip-cards] unavailable", error); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [data, loadFlips]);
-  return flips;
+  }, [data, loadFlips, revision]);
+  return { cards: flips, loading, failed, retry: () => setRevision(value => value + 1) };
 }
 
 /** 新季报的对账卡；失败当没有，不影响其余卡片。 */
-export function useReconCards(data: TrackingVariables | null | undefined, loadRecon: typeof loadReconCards = loadReconCards, revision = 0): ReconCard[] {
+export function useReconCards(loadRecon: typeof loadReconCards = loadReconCards, revision = 0, onFailure?: (failed: boolean) => void) {
   const [cards, setCards] = useState<ReconCard[]>([]);
+  const [loading, setLoading] = useState(true);
   useEffect(() => {
     const controller = new AbortController();
     setCards([]);
-    if (data) loadRecon(data, controller.signal, undefined, items => { if (!controller.signal.aborted) setCards(items); }).then(items => { if (!controller.signal.aborted) setCards(items); }, error => { if (!controller.signal.aborted) console.warn("[finance/recon-cards] unavailable", error); });
+    setLoading(true);
+    onFailure?.(false);
+    const failed = (error: unknown) => { if (!controller.signal.aborted) { onFailure?.(true); console.warn("[finance/recon-cards] unavailable", error); } };
+    loadRecon(controller.signal, undefined, items => { if (!controller.signal.aborted) setCards(items); }, failed).then(items => { if (!controller.signal.aborted) setCards(items); }, failed).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [data, loadRecon, revision]);
-  return cards;
+  }, [loadRecon, revision, onFailure]);
+  return { cards, loading };
 }
 
 export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFlipCards, loadRecon = loadReconCards, loadFilings = loadFilingRows, loadResults = loadReconResults, loadEvents = loadResearchEvents, filter = "全部" }: { load?: Loader; loadFlips?: typeof loadFlipCards; loadRecon?: typeof loadReconCards; loadFilings?: typeof loadFilingRows; loadResults?: typeof loadReconResults; loadEvents?: typeof loadResearchEvents; filter?: StreamFilter }) {
@@ -55,15 +64,20 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
   const [data, setData] = useState<TrackingVariables | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const flips = useFlipCards(data, loadFlips);
+  const flipRead = useFlipCards(data, loadFlips);
+  const flips = flipRead.cards;
   const [reconRevision, setReconRevision] = useState(0);
+  const [reconFailed, setReconFailed] = useState(false);
   const refreshRecon = useCallback(() => setReconRevision(value => value + 1), []);
-  const recon = useReconCards(data, loadRecon, reconRevision);
+  const reconRead = useReconCards(loadRecon, reconRevision, setReconFailed);
+  const recon = reconRead.cards;
   const [resultsRevision, setResultsRevision] = useState(0);
-  const results = useReconResults(recon, loadResults, resultsRevision, refreshRecon);
+  const resultRead = useReconResults(recon, loadResults, resultsRevision, refreshRecon);
+  const results = resultRead.results;
   const [showAll, setShowAll] = useState(false);
   const [eventsKey, setEventsKey] = useState(0);
-  const events = useWritebackEvents(loadEvents, eventsKey);
+  const eventRead = useWritebackEvents(loadEvents, eventsKey);
+  const events = eventRead.events;
   const sessions = useContext(ResearchSessionContext);
   const researchServices = useMemo(() => sessions ? createCompanyPageServices(sessions) : null, [sessions]);
   const startResearch = async (company: NonNullable<StreamCard['research']>) => {
@@ -79,22 +93,22 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
   useEffect(() => {
     const controller = new AbortController();
     setData(undefined); setFailed(false);
-    load(controller.signal).then(setData, error => {
+    load(controller.signal).then(value => { if (!controller.signal.aborted) setData(value); }, error => {
       if (controller.signal.aborted) return;
       console.warn("[finance/variable-desk] unavailable", error);
       setFailed(true);
     });
     return () => controller.abort();
   }, [load, attempt]);
-  const all = useMemo(() => data ? [
-    ...flips.map(flip => flipStream(flip, data.as_of)),
+  const all = useMemo(() => [
+    ...(data ? flips.map(flip => flipStream(flip, data.as_of)) : []),
     ...recon.map(card => reconStream(card, results[reconResultKey(card)])),
-    ...data.cards.map(priceStream),
+    ...(data?.cards ?? []).map(priceStream),
     ...events.map(writebackStream),
     ...filingStreams(filings.rows, filter === "全部"),
-  ] : [], [data, flips, recon, results, filings.rows, events, filter]);
+  ], [data, flips, recon, results, filings.rows, events, filter]);
   const stream = useMemo(() => streamOf(all, filter), [all, filter]);
-  useAiPage({ key: "feed:variables", title: "动态", context: data
+  useAiPage({ key: "feed:variables", title: "动态", context: data || all.length
     ? `关注公司的动态，按时间倒序。\n${streamOf(all, "全部").slice(0, 30).map(card => `${card.type}：${card.title.map(piece => piece.text).join("")}（${card.involved.map(piece => piece.text).join("")}）`).join("\n") || "最近没有动态"}` : "动态正在读取",
     suggestions: ["最近哪条动态对我关注的公司影响最大？"] });
   // 「讨论」打开问助手面板：卡片标题和第二行作为本轮引用，输入框预填问句；不新开深度对话。
@@ -102,13 +116,18 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
     ask?.(card.discuss.question, { title: card.discuss.title, text: card.discuss.text }, card.discuss.question);
   }, [ask]);
 
-  if (failed) return <p role="alert" className="variable-desk-note">动态暂时读取不到。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>;
-  if (data === undefined) return <div className="variable-desk-cards"><LoadingCard /><LoadingCard /><LoadingCard /></div>;
-  if (data === null) return <p className="variable-desk-note">关注公司后，这里会汇总它们的财报、价格变动和公告。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
+  const loading = (data === undefined && !failed) || flipRead.loading || reconRead.loading || filings.loading || eventRead.loading;
+  const partialFailed = failed || flipRead.failed || filings.failed || eventRead.failed || reconFailed || resultRead.failed;
+  if (data === null && !all.length && !loading && !partialFailed) return <p className="variable-desk-note">关注公司后，这里会汇总它们的财报、价格变动和公告。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
   return <div className="variable-desk" data-feed-stream="">
+    {partialFailed && <ReadFailure retry={() => {
+      if (failed) setAttempt(value => value + 1);
+      if (flipRead.failed) flipRead.retry();
+      filings.retry(); eventRead.retry(); setReconRevision(value => value + 1); setResultsRevision(value => value + 1);
+    }} />}
     {filter === "公告" && (filings.hidden > 0 || showAll) && <button type="button" className="btn btn-sm variable-desk-routine" data-show-all="" aria-pressed={showAll} onClick={() => setShowAll(value => !value)}>{showAll ? "只看重要的" : `查看全部（另有 ${filings.hidden} 条例行）`}</button>}
     {stream.length === 0
-      ? <p className="variable-desk-empty">{filter === "全部" ? "最近没有需要看的动态" : `最近没有${filter}类的动态`}</p>
+      ? loading ? <div className="variable-desk-cards"><LoadingCard /><LoadingCard /><LoadingCard /></div> : !partialFailed && <p className="variable-desk-empty">{filter === "全部" ? "最近没有需要看的动态" : `最近没有${filter}类的动态`}</p>
       : <div className="variable-desk-cards">{stream.map(card => <StreamItem key={card.key} card={card} onDiscuss={discuss} onResearch={researchServices ? startResearch : undefined} onOpenSession={sessions ? id => void sessions.openSession(id).catch(() => {}) : undefined} onRevert={async item => { await revertWriteback(item); setEventsKey(value => value + 1); }} />)}</div>}
   </div>;
 }
@@ -117,6 +136,7 @@ const RESULT_POLL_MS = 15_000;
 /** 财报卡的重研结论；有研究在进行时每 15 秒刷新进度，失败当没有。 */
 function useReconResults(recon: ReconCard[], loadResults: typeof loadReconResults, revision: number, onSettled: () => void) {
   const [results, setResults] = useState<Awaited<ReturnType<typeof loadReconResults>>>({});
+  const [failed, setFailed] = useState(false);
   const lastRevision = useRef(revision);
   const key = recon.map(card => `${card.symbol}:${card.period}:${card.arrival?.id || ''}`).join(",");
   useEffect(() => {
@@ -124,39 +144,51 @@ function useReconResults(recon: ReconCard[], loadResults: typeof loadReconResult
     let timer: number | undefined;
     let wasActive = revision !== lastRevision.current;
     lastRevision.current = revision;
-    const run = () => loadResults(recon, controller.signal).then(value => {
+    setFailed(false);
+    const fail = (error: unknown) => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/recon-results] unavailable", error); } };
+    const run = () => loadResults(recon, controller.signal, fail).then(value => {
       if (controller.signal.aborted) return;
       setResults(value);
       const active = Object.values(value).some(item => item && !item.changed && item.text.startsWith("重新研究中"));
       if (active) { wasActive = true; timer = window.setTimeout(() => { void run(); }, RESULT_POLL_MS); }
       else if (wasActive) { wasActive = false; onSettled(); }
-    }, error => { if (!controller.signal.aborted) console.warn("[finance/recon-results] unavailable", error); });
+    }, fail);
     void run();
     return () => { controller.abort(); window.clearTimeout(timer); };
   }, [key, loadResults, revision, onSettled]); // eslint-disable-line react-hooks/exhaustive-deps
-  return results;
+  return { results, failed };
 }
 
 /** 对话里调整的记录；失败当没有，不影响其余卡片。`key` 变化时重读（撤回之后）。 */
 function useWritebackEvents(loadEvents: typeof loadResearchEvents, key: number) {
   const [events, setEvents] = useState<Awaited<ReturnType<typeof loadResearchEvents>>>([]);
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    loadEvents(controller.signal).then(value => { if (!controller.signal.aborted) setEvents(value); }, error => { if (!controller.signal.aborted) console.warn("[finance/research-events] unavailable", error); });
+    setFailed(false);
+    setLoading(true);
+    loadEvents(controller.signal).then(value => { if (!controller.signal.aborted) setEvents(value); }, error => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/research-events] unavailable", error); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [loadEvents, key]);
-  return events;
+  }, [loadEvents, key, attempt]);
+  return { events, failed, loading, retry: () => setAttempt(value => value + 1) };
 }
 
 /** 取得关注公司的公告；失败当没有，不影响其余卡片。 */
 function useFilingRows(loadFilings: typeof loadFilingRows, showAll: boolean) {
   const [state, setState] = useState<{ rows: FilingRow[]; hidden: number }>({ rows: [], hidden: 0 });
+  const [failed, setFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
-    loadFilings(showAll, controller.signal).then(value => { if (!controller.signal.aborted) setState(value); }, error => { if (!controller.signal.aborted) console.warn("[finance/filings] unavailable", error); });
+    setFailed(false);
+    setLoading(true);
+    loadFilings(showAll, controller.signal).then(value => { if (!controller.signal.aborted) setState(value); }, error => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/filings] unavailable", error); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [loadFilings, showAll]);
-  return state;
+  }, [loadFilings, showAll, attempt]);
+  return { ...state, failed, loading, retry: () => setAttempt(value => value + 1) };
 }
 
 const DATA_ATTR: Record<string, string> = { 价格: "data-variable-card", 财报: "data-recon-card", 估值: "data-flip-card", 公告: "data-filing-card", 对话: "data-writeback-card" };

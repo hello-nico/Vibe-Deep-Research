@@ -201,6 +201,48 @@ async function mountPage(fixture: ReturnType<typeof companyPageFixture>) {
     React.createElement(ui.CompanyPage, { key: fixture.services, symbol: '600863', name: '华能蒙电（夹具）', services: fixture.services }))));
 }
 
+test('返回按钮不补全关注名称；仅聚焦公司切换器读取其余名称，离开即取消', async () => {
+  const fixture = companyPageFixture();
+  const roster = await server.ssrLoadModule('/src/verticals/finance/lib/researchRoster.ts');
+  const local = await server.ssrLoadModule('/src/verticals/finance/lib/localService.ts');
+  const before = roster.loadRoster();
+  const original = local.localService.clientResearch;
+  const originalFetch = globalThis.fetch;
+  const requested: string[] = [];
+  let pendingSignal: AbortSignal | null | undefined;
+  try {
+    local.localService.clientResearch = async () => ({ symbols: ['600863', '000933'] });
+    await roster.hydrateRoster();
+    globalThis.fetch = async (url, init) => {
+      if (String(url).includes('/market/quotes')) {
+        requested.push(String(url));
+        if (String(url).includes('000933')) {
+          pendingSignal = init?.signal;
+          return new Promise((_resolve, reject) => pendingSignal?.addEventListener('abort', () => reject(pendingSignal?.reason)));
+        }
+        return Response.json({ quotes: [{ symbol: '600863.SH', name: '华能蒙电' }], missing: [] });
+      }
+      return Response.json({ items: [], total: 0 });
+    };
+    await React.act(async () => root.render(null));
+    await React.act(async () => root.render(React.createElement(sessionModule.ResearchSessionContext.Provider, { value: {} },
+      React.createElement(ui.CompanyPageServicesContext.Provider, { value: fixture.services },
+        React.createElement(router.MemoryRouter, { initialEntries: ['/watch/600863'] }, React.createElement(router.Routes, null,
+          React.createElement(router.Route, { path: '/watch/:symbol', element: React.createElement(routeModule.CompanyWiki) })))))));
+    await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === '关注')!.focus());
+    assert.equal(requested.some(url => url.includes('000933')), false);
+    await React.act(async () => (container.querySelector('[aria-label="切换公司"]') as HTMLButtonElement).focus());
+    assert.equal(requested.filter(url => url.includes('000933')).length, 1);
+    await React.act(async () => root.render(null));
+    assert.equal(pendingSignal?.aborted, true);
+  } finally {
+    globalThis.fetch = originalFetch;
+    local.localService.clientResearch = async () => ({ symbols: before });
+    await roster.hydrateRoster();
+    local.localService.clientResearch = original;
+  }
+});
+
 test('数据截至只读保存的研究期：当前包已更新也不提前切换，无研究或缺期不显示', async () => {
   for (const research of [{ ...fixtureResearch, report_period: '2026H1' }, { ...fixtureResearch, report_period: null }, null]) {
     const fixture = companyPageFixture({ research, new_material: null, basisVersion: 'v1' });
@@ -722,8 +764,9 @@ test('完成后的补读失败保留旧判断并显示研究暂不可用，不�
   let pageReads = 0, starts = 0;
   globalThis.fetch = async url => {
     if (isTasksUrl(url)) return Response.json({ items: [record] });
+    if (!String(url).includes('/page-research')) return Response.json({ entries: [] });
     pageReads++;
-    return pageReads === 3 ? Response.json({ detail: 'fixture readback outage' }, { status: 503 }) : Response.json(fixturePageResearch);
+    return pageReads >= 3 ? Response.json({ detail: 'fixture readback outage' }, { status: 503 }) : Response.json(fixturePageResearch);
   };
   try {
     const services = serviceModule.createCompanyPageServices({
@@ -737,8 +780,8 @@ test('完成后的补读失败保留旧判断并显示研究暂不可用，不�
     record = taskRecord({ status: 'completed', current_step: 6 });
     const model = await server.ssrLoadModule('/src/verticals/finance/lib/companyPage.ts');
     await React.act(async () => model.companyPageStore(fixture.services, '600863', '华能蒙电（夹具）').refresh());
-    assert.equal(pageReads, 3);
-    assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /煤价与电价的价差决定利润.*研究读取失败/);
+    assert.equal(pageReads, 4, '完成后的补读失败自动重试一次，仍失败则保留旧判断');
+    assert.match(container.querySelector('[data-company-section="thesis"]')!.textContent!, /煤价与电价的价差决定利润.*暂时读取不到 · 重试/);
     assert.equal(starts, 0);
   } finally { globalThis.fetch = originalFetch; }
 });
@@ -775,8 +818,11 @@ test('数据包未到时估值节保留骨架；读取失败时不把缺口写�
   const failed = companyPageFixture({ research: null, new_material: null, basisVersion: 'v1' });
   failed.services.data.packet = async () => { throw new Error('fixture packet outage'); };
   await mountPage(failed);
-  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /读取失败/);
+  assert.match(container.querySelector('[data-company-section="valuation"]')!.textContent!, /暂时读取不到 · 重试/);
   assert.doesNotMatch(container.textContent!, /0\.00 倍/);
+  failed.services.data.packet = async () => fixturePacket;
+  await React.act(async () => (container.querySelector('[data-company-section="valuation"] button') as HTMLButtonElement).click());
+  assert.doesNotMatch(container.querySelector('[data-company-section="valuation"]')!.textContent!, /暂时读取不到/);
 });
 
 test('会话列表频繁变动：没有进行中的研究时 15 秒内不重读；有进行中的研究照常刷新', async () => {

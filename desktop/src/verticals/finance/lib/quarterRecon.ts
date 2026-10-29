@@ -2,7 +2,7 @@ import { researchRead } from './research';
 import { api } from './api';
 import { localService } from './localService';
 import { plainNumber, yiText } from './companyNarrative';
-import { qualifiedWatch, toNumber, type TrackingVariables } from './trackingVariables';
+import { qualifiedWatch, toNumber } from './trackingVariables';
 import { disclosedDay, shanghaiToday } from './utils';
 import { loadReportArrivals, matchesArrival, type ReportArrival } from './reportArrival';
 
@@ -142,28 +142,26 @@ export function reconCards(items: readonly Reconciliation[], names: Record<strin
 
 /** 并发读各关注公司的对账；任何一家读不到当没有。没有研究、数据不全时 Backend 返回 gap。
  *  Backend 每家要现拉价格序列，慢的要十几秒：每到一家就用 `onProgress` 交出当前已有的卡（按关注顺序），不等全部读完。 */
-export async function loadReconCards(data: TrackingVariables | null, signal?: AbortSignal, now = new Date(), onProgress?: (cards: ReconCard[]) => void): Promise<ReconCard[]> {
-  if (!data) return [];
+export async function loadReconCards(signal?: AbortSignal, now = new Date(), onProgress?: (cards: ReconCard[]) => void, onError?: (error: unknown) => void): Promise<ReconCard[]> {
   const { symbols } = await localService.clientWatch();
-  const skip = new Set(data.coverage.unresearched);
   const watched = qualifiedWatch(symbols);
-  const targets = watched.filter(symbol => !skip.has(symbol));
-  const names = new Map(data.variables.flatMap(variable => variable.companies.map(company => [company.symbol, company.name] as const)));
-  // 变量接口里没有名字的公司，一次行情请求补名字，与对账请求同时进行。
+  const targets = watched;
+  const names = new Map<string, string>();
+  // 当前简称与对账并行读取；卡片先显示，简称到达后补上。
   const nameless = watched.filter(symbol => !names.has(symbol)).map(symbol => symbol.split('.')[0]!).join(',');
-  const quoted = nameless ? api.quote(nameless).catch(() => ({} as Record<string, { name?: string }>)) : Promise.resolve({} as Record<string, { name?: string }>);
+  const quoted = nameless ? api.quote(nameless, signal).catch(() => ({} as Record<string, { name?: string }>)) : Promise.resolve({} as Record<string, { name?: string }>);
   const order = new Map(targets.map((symbol, index) => [symbol, index]));
   const arrived: Reconciliation[] = [];
   let reminders: ReportArrival[] = [];
-  const reminderJob = loadReportArrivals(watched, signal).then(async items => {
-    reminders = items;
-    if (items.length && onProgress && !signal?.aborted) onProgress(await current());
+  const current = () => withReportReminders(reconCards([...arrived].sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0)), Object.fromEntries(names), now), reminders.map(item => ({ ...item, company: names.get(item.symbol) || item.company })));
+  const quoteJob = quoted.then(quotes => {
+    for (const symbol of watched) { const quote = quotes[symbol.split('.')[0]!]; if (quote?.name) names.set(symbol, quote.name); }
+    if (!signal?.aborted && names.size && (arrived.length || reminders.length)) onProgress?.(current());
   });
-  const current = async () => {
-    const quotes = await quoted;
-    for (const symbol of watched) { const quote = quotes[symbol.split('.')[0]!]; if (!names.has(symbol) && quote?.name) names.set(symbol, quote.name); }
-    return withReportReminders(reconCards([...arrived].sort((a, b) => (order.get(a.symbol) ?? 0) - (order.get(b.symbol) ?? 0)), Object.fromEntries(names), now), reminders.map(item => ({ ...item, company: names.get(item.symbol) || item.company })));
-  };
+  const reminderJob = loadReportArrivals(watched, signal, onError).then(items => {
+    reminders = items;
+    if (items.length && onProgress && !signal?.aborted) onProgress(current());
+  });
   let next = 0;
   await Promise.all(Array.from({ length: Math.min(4, targets.length) }, async () => {
     while (next < targets.length) {
@@ -172,10 +170,11 @@ export async function loadReconCards(data: TrackingVariables | null, signal?: Ab
         const item = await researchRead<Reconciliation>(`/wiki/companies/${symbol}/quarter-reconciliation`, { signal });
         if (item.status !== 'ok' || signal?.aborted) continue;
         arrived.push(item);
-        if (onProgress) onProgress(await current());
-      } catch { /* 读不到的公司不出卡 */ }
+        if (onProgress) onProgress(current());
+      } catch (error) { if (!signal?.aborted) onError?.(error); }
     }
   }));
+  void quoteJob;
   await reminderJob;
   return current();
 }

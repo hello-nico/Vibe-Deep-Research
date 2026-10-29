@@ -130,26 +130,24 @@ test('动态流：估值卡置顶，财报按披露日排在价格卡之前，�
   assert.ok(container.querySelector('[data-variable-card]'), '价格变动卡照常');
 });
 
-test('loadReconCards：并发读各关注公司，跳过没研究的，读不到的公司不出卡，名字取自变量接口或行情', async () => {
+test('loadReconCards：不依赖跟踪变量，并发读全部关注公司，gap 不出卡，名字取自行情', async () => {
   const requested: string[] = [];
   globalThis.fetch = (async (url: string) => {
     const path = String(url);
     requested.push(path);
     if (path.includes('client/watch')) return Response.json({ symbols: ['000933', '300750', '601288', '601899'] });
+    if (path.includes('/market/quotes?')) return Response.json({ quotes: [{ symbol: '000933.SZ', name: '神火股份' }, { symbol: '601288.SH', name: '农业银行' }], missing: [] });
     if (path.endsWith('/000933.SZ/quarter-reconciliation')) return Response.json(shenhuo);
     if (path.endsWith('/300750.SZ/quarter-reconciliation')) return Response.json({ symbol: '300750.SZ', status: 'gap', reason: '还没有研究' });
     if (path.endsWith('/601288.SH/quarter-reconciliation')) return Response.json({ ...nongxing, symbol: '601288.SH' });
     return Response.json({ detail: 'x' }, { status: 404 });
   }) as typeof fetch;
-  const data = structuredClone(trackingFixture);
-  data.coverage.unresearched = ['601899.SH'];
-  const result = await lib.loadReconCards(data, undefined, NOW);
+  const result = await lib.loadReconCards(undefined, NOW);
   assert.deepEqual(result.map((card: any) => card.symbol), ['000933.SZ', '601288.SH']);
-  assert.equal(requested.some(path => path.endsWith('/601899.SH/quarter-reconciliation')), false, '无敏感性模型的公司不请求昂贵对账');
+  assert.equal(requested.some(path => path.endsWith('/601899.SH/quarter-reconciliation')), true, '不等跟踪变量判断是否有研究，Backend 缓存稳定 gap');
   assert.equal(requested.some(path => path.endsWith('/601899.SH/page-research')), true, '全部关注公司仍读取唯一新资料字段');
   assert.ok(requested.every(path => !/ensure|startResearch|POST/.test(path)), '只读');
   assert.equal(result[0].headline.startsWith('神火股份三季报'), true);
-  assert.equal(await lib.loadReconCards(null, undefined, NOW).then((items: unknown[]) => items.length), 0);
 });
 
 test('已有研究但无敏感性模型也提醒，动态结果消费卡片快照，不重复扫描公告或单公司任务', async () => {
@@ -163,15 +161,14 @@ test('已有研究但无敏感性模型也提醒，动态结果消费卡片快�
     return Response.json({});
   }) as typeof fetch;
   try {
-    const data = { as_of: '2026-10-28', variables: [], cards: [], coverage: { unresearched: ['600011.SH'], uncovered: [] } };
-    const cards = await lib.loadReconCards(data, undefined, NOW);
+    const cards = await lib.loadReconCards(undefined, NOW);
     assert.equal(cards.length, 1);
     assert.match(cards[0].headline, /减值公告已出/);
     const module = await server.ssrLoadModule('/src/verticals/finance/lib/reconResult.ts');
     const results = await module.loadReconResults(cards);
     assert.equal(Object.values(results)[0].text, '减值公告已出');
     assert.equal(requested.filter(path => path.includes('/page-research')).length, 1);
-    assert.equal(requested.some(path => /quarter-reconciliation|symbol=600011/.test(path)), false);
+    assert.equal(requested.some(path => /symbol=600011/.test(path)), false);
   } finally { globalThis.fetch = original; }
 });
 
@@ -230,10 +227,8 @@ test('loadReconCards 逐家到达就交出当前已有的卡，不等最慢的�
     if (route.endsWith('/300750.SZ/quarter-reconciliation')) return Response.json({ symbol: '300750.SZ', status: 'gap', reason: '还没有研究' });
     return Response.json({ detail: 'x' }, { status: 404 });
   }) as typeof fetch;
-  const data = structuredClone(trackingFixture);
-  data.coverage.unresearched = [];
   const seen: string[][] = [];
-  const done = lib.loadReconCards(data, undefined, NOW, (cards: any[]) => seen.push(cards.map(card => card.symbol)));
+  const done = lib.loadReconCards(undefined, NOW, (cards: any[]) => seen.push(cards.map(card => card.symbol)));
   await new Promise(resolve => setTimeout(resolve, 20));
   assert.deepEqual(seen, [['601288.SH']], '慢的神火还没回来，先出农行');
   gates['000933.SZ']!();
@@ -243,10 +238,34 @@ test('loadReconCards 逐家到达就交出当前已有的卡，不等最慢的�
   // 已取消：不再回调。
   const controller = new AbortController();
   const late: string[][] = [];
-  const pending = lib.loadReconCards(data, controller.signal, NOW, (cards: any[]) => late.push(cards.map(card => card.symbol)));
+  const pending = lib.loadReconCards(controller.signal, NOW, (cards: any[]) => late.push(cards.map(card => card.symbol)));
   controller.abort();
   await pending;
   assert.deepEqual(late, []);
+});
+
+test('对账完成不等简称，简称晚到仅补名', async () => {
+  let quote!: (value: Response) => void;
+  const quoted = new Promise<Response>(resolve => { quote = resolve; });
+  globalThis.fetch = (async (url: string) => {
+    const path = String(url);
+    if (path.includes('client/watch')) return Response.json({ symbols: ['000933'] });
+    if (path.includes('/market/quotes?')) return quoted;
+    if (path.endsWith('/quarter-reconciliation')) return Response.json(live);
+    return Response.json({ research: null });
+  }) as typeof fetch;
+  const seen: any[][] = [];
+  let completed = false;
+  const pending = lib.loadReconCards(undefined, NOW, (cards: any[]) => seen.push(cards)).then((cards: any[]) => { completed = true; return cards; });
+  try {
+    await new Promise(resolve => setTimeout(resolve, 20));
+    assert.equal(completed, true, '简称尚未返回，对账已完成');
+    assert.equal((await pending).length, 1);
+  } finally {
+    quote(Response.json({ quotes: [{ symbol: '000933.SZ', name: '神火股份' }], missing: [] }));
+  }
+  await new Promise(resolve => setTimeout(resolve, 20));
+  assert.equal(seen.at(-1)![0].company, '神火股份');
 });
 
 // ------------------------------------------------------------------ 卡片主体全部来自利润表（毛利变化、费用、减值、投资收益、公允价值变动、税、少数股东），其他 = 环比 − 合计；价格单列不相加

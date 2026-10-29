@@ -11,6 +11,7 @@ import { SectionLabel, Sparkline, StatusPill, TableWrap } from "../components/ui
 import { ObjectCard } from "../components/ui/ObjectCard";
 import { type StatusTone } from "../components/ui/StatusDot";
 import { LoadingCard } from "../components/ui/LoadingCard";
+import { ReadFailure } from '../components/ui/ReadFailure';
 import { ResultCard } from "../components/ResearchResult";
 import { addCodes, addWatch, loadWatch, removeWatch } from "../lib/watchlist";
 import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/researchRoster";
@@ -154,6 +155,7 @@ export function Watch() {
   };
   const [revision, setRevision] = useState(0);
   const [pages, setPages] = useState<WikiItem[]>([]);
+  const [pagesFailed, setPagesFailed] = useState(false);
   const [chains, setChains] = useState<Chain[] | undefined>(undefined);
   const [chainsFailed, setChainsFailed] = useState(false);
   const [chainsAttempt, setChainsAttempt] = useState(0);
@@ -171,7 +173,8 @@ export function Watch() {
   const { quotes, loading, updatedAt, polling, error, refresh } = useLiveQuotes(symbols, live);
   useEffect(() => {
     const controller = new AbortController();
-    void wikiPages("companies", controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => {});
+    setPagesFailed(false);
+    void wikiPages("companies", controller.signal).then(value => { if (!controller.signal.aborted) setPages(value); }).catch(() => { if (!controller.signal.aborted) setPagesFailed(true); });
     return () => controller.abort();
   }, [revision]);
   useEffect(() => {
@@ -237,7 +240,7 @@ export function Watch() {
       <PageHeader title="关注" />
       <KindTabs value="chains" onChange={setKind} />
       {chains === undefined ? <LoadingCard />
-        : chainsFailed ? <p role="alert" className="text-sm text-[var(--text-2)]">读取失败<button type="button" className="btn btn-text btn-sm" onClick={() => setChainsAttempt(value => value + 1)}>重试</button></p>
+        : chainsFailed ? <ReadFailure retry={() => setChainsAttempt(value => value + 1)} />
         : !chains.length ? <p className="text-sm text-[var(--text-2)]" data-chains-empty="">在公司页或对话里新建产业链</p>
         : <div className="object-grid">{chains.map(chain => {
           const n = chainCompanyCount(chain);
@@ -249,7 +252,7 @@ export function Watch() {
   }
   if (!rows.length && !needle) return <div><PageHeader title="关注" /><KindTabs value="stocks" onChange={setKind} /><FirstOpen pages={pages} onStart={startFirst} /><Disclaimer /></div>;
   const stamp = updatedAt ? `行情时点 ${new Date(updatedAt).toLocaleString("zh-CN", { hour12: false })}` : "";
-  const liveNote = error ? error : polling ? "自动刷新" : live && symbols.length ? (isTradingHours(symbols) ? "已暂停" : "休市") : "";
+  const liveNote = polling ? "自动刷新" : live && symbols.length ? (isTradingHours(symbols) ? "已暂停" : "休市") : "";
   return <div>
     <PageHeader title="关注"
       search={<WorkspaceSearch aria-label="搜索关注" placeholder="搜索名称或代码" value={query} onChange={value => { const next = new URLSearchParams(params); if (value) next.set("q", value); else next.delete("q"); setParams(next, { replace: true }); }} />}
@@ -268,6 +271,7 @@ export function Watch() {
     <SectionLabel aside={<span className="inline-flex items-center gap-1">
       {[stamp, liveNote].filter(Boolean).join(" · ")}
       <button type="button" className={cn("btn btn-text btn-sm", live && "!bg-[var(--fill-2)] !text-foreground")} aria-pressed={live} onClick={toggleLive} title="交易时段每 3 秒刷新">自动刷新</button>
+      {(error || pagesFailed) && <ReadFailure retry={() => { refresh(); setRevision(value => value + 1); }} />}
       <button type="button" className="btn btn-icon" disabled={loading} onClick={refresh} aria-label="刷新行情" title="刷新"><RefreshCw className={cn(loading && "animate-spin")} /></button>
       <span role="tablist" aria-label="关注视图" className="segmented">{([["list", List, "表格"], ["grid", LayoutGrid, "卡片"]] as const).map(([id, Icon, label]) => <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} onClick={() => setView2(id)}><Icon size={14} /></button>)}</span>
     </span>}>{needle ? `匹配 ${visible.length} / ${rows.length}` : `共 ${rows.length} 家`}</SectionLabel>

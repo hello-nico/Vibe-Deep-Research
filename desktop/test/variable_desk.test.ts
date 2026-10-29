@@ -44,7 +44,7 @@ async function show(load: () => Promise<unknown>) {
   const Probe = () => { asked = pageContext.useAiQuestion().question; return null; };
   await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
     React.createElement(sessionModule.ResearchSessionContext.Provider, { value: sessions },
-      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load, loadFilings: async () => ({ rows: [], hidden: 0 }) }))))));
+      React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load, loadFlips: async () => [], loadRecon: async () => [], loadResults: async () => ({}), loadEvents: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) }))))));
   await React.act(async () => {});
 }
 

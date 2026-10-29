@@ -21,7 +21,7 @@ export const matchesArrival = (card: { symbol: string; period: string }, arrival
   && (card.period === arrival.period || arrival.material.kind === 'report' && reportName(card.period) === arrival.material.name);
 
 /** 只读公司研究的新资料字段；不再查询财务报告期或公司任务取名。 */
-export async function loadReportArrivals(symbols: readonly string[], signal?: AbortSignal): Promise<ReportArrival[]> {
+export async function loadReportArrivals(symbols: readonly string[], signal?: AbortSignal, onError?: (error: unknown) => void): Promise<ReportArrival[]> {
   const targets = [...new Set(symbols.map(symbol => /^\d{6}\.(SH|SZ|BJ)$/i.test(symbol)
     ? symbol.toUpperCase() : aShareQualified(symbol)).filter((value): value is string => !!value))];
   const entries = await Promise.all(targets.map(async symbol => {
@@ -29,7 +29,7 @@ export async function loadReportArrivals(symbols: readonly string[], signal?: Ab
       const page = await researchRead<{ new_material: NewMaterial | null }>(`/wiki/companies/${symbol}/page-research`, { signal });
       if (!page.new_material) return null;
       return reportArrival(symbol, page.new_material);
-    } catch { return null; }
+    } catch (error) { if (!signal?.aborted) onError?.(error); return null; }
   }));
   return signal?.aborted ? [] : entries.filter((entry): entry is ReportArrival => entry !== null);
 }
@@ -46,11 +46,11 @@ export function reportName(period: string | null | undefined): string {
   return NAMES[/(Q[123]|H1)$/.exec(text)?.[1] ?? ''] ?? '定期报告';
 }
 
-export async function readGradeInfo(symbol: string, signal?: AbortSignal): Promise<GradeInfo | null> {
+export async function readGradeInfo(symbol: string, signal?: AbortSignal, onError?: (error: unknown) => void): Promise<GradeInfo | null> {
   try {
     const page = await researchRead<{ research?: { valuation?: { grade?: string }; researchedAt?: string } | null; previousGrade?: string | null }>(`/wiki/companies/${symbol}/page-research`, { signal });
     return { grade: page.research?.valuation?.grade ?? null, previousGrade: page.previousGrade ?? null, researchedAt: page.research?.researchedAt ?? null };
-  } catch { return null; }
+  } catch (error) { if (!signal?.aborted) onError?.(error); return null; }
 }
 
 /** 已看状态沿用原圆点的本机存储键。 */

@@ -1,6 +1,7 @@
 import { aShareQualified, companySlug, researchRead } from './research';
 import type { ResearchSessions } from '../dsh/research-session';
 import { api } from './api';
+import { readRequest } from './readRequest';
 import { packetNeedsEnsure, scenarioTable, shanghaiDay, type DataPacket } from './companyPacket';
 import { parseReportCalendar } from './companyNarrative';
 import { companyPageTaskOf, type CompanyPageResearchRead, type CompanyPageServices, type ResearchTaskRecord } from './companyPage';
@@ -56,7 +57,7 @@ async function openPacket(symbol: string, signal?: AbortSignal) {
 
 /** The host keeps the research-task record; the page only reads the newest one for the company. */
 async function latestTask(code: string) {
-  const response = await fetch(`/finance-research-tasks?symbol=${encodeURIComponent(code)}&limit=1`);
+  const response = await readRequest(`/finance-research-tasks?symbol=${encodeURIComponent(code)}&limit=1`);
   const payload = await response.json().catch(() => null) as { items?: ResearchTaskRecord[] } | null;
   if (!response.ok || !Array.isArray(payload?.items)) throw new Error('研究记录读取失败');
   return payload.items[0] ? companyPageTaskOf(payload.items[0]) : undefined;

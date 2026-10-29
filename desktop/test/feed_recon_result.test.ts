@@ -29,6 +29,48 @@ before(async () => {
 after(async () => { await React.act(async () => root?.unmount()); await server?.close(); win?.happyDOM.abort(); Object.assign(globalThis, previous); });
 
 const card = (symbol: string, company: string, date: string, extra: Record<string, unknown> = {}) => ({ symbol, company, period: '2026Q3', date, headline: `${company}三季报：单季净利润 27.05 亿元，比上季多 2.14 亿元`, explain: '沪铝变化约带来 +1.20 亿元', details: ['明细'], ...extra });
+
+for (const outcome of ['success', 'failure'] as const) test(`公告和对账先到先显示，跟踪变量 ${outcome} 不挡住其余卡片`, async () => {
+  let finish!: (value: any) => void, fail!: (error: Error) => void;
+  const pending = new Promise((resolve, reject) => { finish = resolve; fail = reject; });
+  let finishRecon!: (value: any[]) => void;
+  const reconPending = new Promise<any[]>(resolve => { finishRecon = resolve; });
+  const tracking = JSON.parse(readFileSync(new URL('./fixtures/tracking_variables.json', import.meta.url), 'utf8'));
+  const props = { load: () => pending, loadRecon: () => reconPending, loadFlips: async () => [],
+    loadFilings: async () => ({ rows: [{ symbol: '000933.SZ', name: '神火股份', title: '收购进展公告', when: '2026-10-28 09:00', url: 'https://example.com/a', industry: '工业金属' }], hidden: 0 }),
+    loadEvents: async () => [], loadResults: async () => ({}) };
+  await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+    React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, props)))));
+  assert.ok(container.querySelector('[data-filing-card]'), '变量和对账均未返回时公告先显示');
+  assert.equal(container.querySelector('[data-variable-card]'), null);
+  await React.act(async () => finishRecon([card('000933.SZ', '神火股份', '2026-10-28')]));
+  assert.ok(container.querySelector('[data-recon-card]'), '变量仍未返回时对账独立显示');
+  await React.act(async () => outcome === 'success' ? finish(tracking) : fail(new Error('tracking temporarily unavailable')));
+  assert.ok(container.querySelector('[data-filing-card]'));
+  assert.ok(container.querySelector('[data-recon-card]'));
+  assert.equal(!!container.querySelector('[data-variable-card]'), outcome === 'success');
+  assert.equal(!!container.querySelector('[role="alert"]'), outcome === 'failure');
+});
+
+test('跳档未完成不显示空态，失败可重试', async () => {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  const tracking = JSON.parse(readFileSync(new URL('./fixtures/tracking_variables.json', import.meta.url), 'utf8'));
+  let reads = 0;
+  const props = { load: async () => ({ ...tracking, cards: [] }),
+    loadFlips: async () => { reads++; if (reads === 1) { await pending; throw new Error('flip unavailable'); } return []; },
+    loadRecon: async () => [], loadResults: async () => ({}), loadEvents: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) };
+  await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+    React.createElement(pageContext.AiPageProvider, {}, React.createElement(desk.VariableDesk, props)))));
+  assert.equal(container.querySelector('.variable-desk-empty'), null);
+  assert.ok(container.querySelector('[aria-busy="true"]'));
+  await React.act(async () => release());
+  assert.ok(container.querySelector('[role="alert"]'));
+  await React.act(async () => (container.querySelector('[role="alert"] button') as HTMLButtonElement).click());
+  assert.equal(reads, 2);
+  assert.equal(container.querySelector('[role="alert"]'), null);
+  assert.ok(container.querySelector('.variable-desk-empty'));
+});
 const info = (grade: string | null, previousGrade: string | null, researchedAt = '2026-10-26T01:00:00Z') => ({ grade, previousGrade, researchedAt });
 const running = { task_id: 't', symbol: '300750.SZ', status: 'running', current_step: 3, steps: [1, 2, 3, 4, 5, 6].map(i => ({ key: `s${i}`, label: 's', status: 'pending' })) };
 
@@ -198,7 +240,7 @@ test('小圆点：有未看的判断变化亮（无数字）；进入动态页�
   const render = async (path: string, ids: string[]) => {
     await React.act(async () => root.render(null));
     await React.act(async () => root.render(React.createElement('div', null,
-      React.createElement('a', { 'aria-label': '动态' }, React.createElement(dotModule.FeedDot, { pathname: path, load: async () => ids })),
+      React.createElement('a', { 'aria-label': '动态' }, React.createElement(dotModule.FeedDot, { pathname: path, load: async () => ids, peek: () => ids, delayMs: 0 })),
       React.createElement('a', { 'aria-label': '跟踪' }))));
     await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 30)); });
   };
@@ -223,4 +265,42 @@ test('编号：跳档卡与写回的编号稳定；Layout 只在「动态」挂�
   const layout = readFileSync(new URL('../src/verticals/finance/components/layout/Layout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /to === "\/feed" && <FeedDot/);
   assert.doesNotMatch(layout, /ArrivalDot|"\/tracking" && </);
+});
+
+test('个股详情的小圆点只消费已有缓存，不启动全关注读取', async () => {
+  win.localStorage.clear();
+  let calls = 0;
+  await React.act(async () => root.render(null));
+  await React.act(async () => root.render(React.createElement(dotModule.FeedDot, {
+    pathname: '/watch/600011', delayMs: 0, peek: () => ['report:new'],
+    load: async () => { calls++; return ['report:new']; },
+  })));
+  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  assert.equal(calls, 0);
+  assert.ok(container.querySelector('.status-dot'));
+});
+
+for (const failure of ['recon', 'results']) test(`动态 ${failure} 部分失败显示重试、保留已到卡片，重试后清除提示`, async () => {
+  let broken = true;
+  const recon = card('600011.SH', '华能国际', '2026-10-27');
+  const props = {
+    load: async () => ({ as_of: '2026-10-27', variables: [], cards: [], coverage: { unresearched: [], uncovered: [] } }),
+    loadFlips: async () => [], loadEvents: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }),
+    loadRecon: async (_signal: AbortSignal, _now: unknown, progress: any, failed: any) => {
+      progress?.([recon]);
+      if (broken && failure === 'recon') failed?.(new Error('fixture partial failure'));
+      return [recon];
+    },
+    loadResults: async (_cards: unknown, _signal: AbortSignal, failed: any) => {
+      if (broken && failure === 'results') failed?.(new Error('fixture result failure'));
+      return {};
+    },
+  };
+  await React.act(async () => root.render(null));
+  await React.act(async () => root.render(React.createElement(router.MemoryRouter, null, React.createElement(desk.VariableDesk, props))));
+  assert.match(container.querySelector('[role="alert"]')?.textContent ?? '', /暂时读取不到 · 重试/);
+  assert.ok(container.querySelector('[data-recon-card]'), '成功卡片不因另一项失败而消失');
+  broken = false;
+  await React.act(async () => (container.querySelector('[role="alert"] button') as HTMLButtonElement).click());
+  assert.equal(container.querySelector('[role="alert"]'), null);
 });

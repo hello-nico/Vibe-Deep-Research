@@ -159,7 +159,7 @@ test('产业链分段只列用户链：没有时一句话说怎么建，不展�
   userChains = [chainFixture]; chainsDown = true;
   await showWatch('/watch?kind=chains');
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 60)); });
-  assert.match(container.querySelector('[role=alert]')?.textContent ?? '', /读取失败重试/);
+  assert.match(container.querySelector('[role=alert]')?.textContent ?? '', /暂时读取不到 · 重试/);
   chainsDown = false;
   await React.act(async () => { (container.querySelector('[role=alert] button') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 40)); });

@@ -25,13 +25,13 @@ export function reconResult(card: Pick<ReconCard, 'symbol' | 'date' | 'period'>,
 }
 
 /** 读各财报卡公司的研究任务与档位（只读 GET）；读不到的公司当没有。 */
-export async function loadReconResults(cards: readonly ReconCard[], signal?: AbortSignal): Promise<Record<string, ReconResult | null>> {
+export async function loadReconResults(cards: readonly ReconCard[], signal?: AbortSignal, onError?: (error: unknown) => void): Promise<Record<string, ReconResult | null>> {
   if (!cards.length) return {};
   let records: ResearchRecord[] = [];
-  try { records = await loadResearchTasks({ limit: 50 }, signal); } catch { /* 读不到当没有进行中的任务 */ }
+  try { records = await loadResearchTasks({ limit: 50 }, signal); } catch (error) { if (!signal?.aborted) onError?.(error); }
   const entries = await Promise.all(cards.map(async card => {
     const active = records.find(record => record.symbol === card.symbol && researchActive(record));
-    const info = active || card.arrival ? null : await readGradeInfo(card.symbol, signal);
+    const info = active || card.arrival ? null : await readGradeInfo(card.symbol, signal, onError);
     return [reconResultKey(card), reconResult(card, active, info, card.arrival)] as const;
   }));
   return Object.fromEntries(entries);

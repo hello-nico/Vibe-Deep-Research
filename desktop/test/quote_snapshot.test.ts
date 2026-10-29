@@ -124,7 +124,7 @@ test("资讯缓存：30 分钟内命中不再请求，过期重取，force 绕�
   fail = false;
   assert.equal(feedCachedAt("/feed/news", ["600519"], 50), null);
   await api.news(["600519"], 50);
-  assert.equal(calls, 5);
+  assert.equal(calls, 6, '失败自动重试一次；后续成功读取未命中失败缓存');
 });
 
 test("全局聚焦规则不使用品牌色", () => {

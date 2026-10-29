@@ -2,6 +2,7 @@ import { useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 import { ArrowLeft, Eye, RefreshCw, Star, X } from 'lucide-react';
 import { Disclaimer } from '../components/ui/Disclaimer';
+import { ReadFailure } from '../components/ui/ReadFailure';
 import { WorkspaceSelect } from '../components/ui/WorkspaceSelect';
 import { WorkspaceMoreMenu } from '../components/ui/WorkspaceMoreMenu';
 import { useConfirm } from '../components/ui/ConfirmDialog';
@@ -33,20 +34,33 @@ export function CompanyWiki() {
   const backTo = (location.state as { from?: string } | null)?.from || '/watch';
   const [, setRevision] = useState(0);
   const [names, setNames] = useState<Record<string, string>>({});
+  const [namesFailed, setNamesFailed] = useState(false);
+  const [namesAttempt, setNamesAttempt] = useState(0);
   const [error, setError] = useState('');
   const [confirmElement, ask] = useConfirm();
   const roster = loadRoster();
   const watched = new Set(loadWatch());
   const slug = companySlug(symbol) || symbol;
-  const codes = [...new Set([symbol, ...roster, ...watched])];
-  const codesKey = codes.join(',');
+  const selectorRead = useRef(new AbortController());
+  useEffect(() => {
+    selectorRead.current = new AbortController();
+    return () => selectorRead.current.abort();
+  }, [symbol]);
   useEffect(() => {
     let alive = true;
-    if (codes.length) void api.quote(codes.join(',')).then(quotes => {
+    setNamesFailed(false);
+    void api.quote(symbol).then(quotes => {
       if (alive) setNames(previous => ({ ...previous, ...Object.fromEntries(Object.entries(quotes).filter(([, quote]) => quote.name).map(([code, quote]) => [code, quote.name])) }));
-    }).catch(() => {});
+    }).catch(() => { if (alive) setNamesFailed(true); });
     return () => { alive = false; };
-  }, [codesKey]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [symbol, namesAttempt]);
+  const loadSelectorNames = () => {
+    const missing = [...new Set([...roster, ...watched])].filter(code => !names[code]);
+    const signal = selectorRead.current.signal;
+    if (missing.length) void api.quote(missing.join(','), signal).then(quotes => {
+      if (!signal.aborted) setNames(previous => ({ ...previous, ...Object.fromEntries(Object.entries(quotes).filter(([, quote]) => quote.name).map(([code, quote]) => [code, quote.name])) }));
+    }).catch(() => {});
+  };
   const titleOf = (code: string) => names[code] || code;
   const title = titleOf(symbol);
   const rows = [...new Set([...roster, ...watched])].filter(code => /^\d{6}$/.test(code));
@@ -99,8 +113,8 @@ export function CompanyWiki() {
   return <div>
     <div className="object-toolbar"><div className="object-toolbar-group">
       <button type="button" className="btn" onClick={() => navigate(backTo)}><ArrowLeft />关注</button>
-      <WorkspaceSelect aria-label="切换公司" value={symbol} onChange={code => navigate(watchPath(code), { state: location.state, replace: true })} searchPlaceholder="搜索关注的公司" emptyText="关注里没有匹配的公司"
-        options={[...rows, ...(rows.includes(symbol) ? [] : [symbol])].map(code => ({ value: code, label: titleOf(code), meta: code }))} />
+      <div onFocusCapture={loadSelectorNames}><WorkspaceSelect aria-label="切换公司" value={symbol} onChange={code => navigate(watchPath(code), { state: location.state, replace: true })} searchPlaceholder="搜索关注的公司" emptyText="关注里没有匹配的公司"
+        options={[...rows, ...(rows.includes(symbol) ? [] : [symbol])].map(code => ({ value: code, label: titleOf(code), meta: code }))} /></div>
     </div><div className="object-toolbar-group object-toolbar-actions">
       <CompanyPageProgress state={page} location="toolbar" onOpen={openTask} />
       {!watching && <button type="button" className="btn btn-primary" onClick={() => void follow()}><Star />添加关注</button>}
@@ -108,6 +122,7 @@ export function CompanyWiki() {
       <AssistantSlot />
     </div></div>
     {error && <p role="alert" className="mb-3 text-sm text-[var(--text-2)]">{error}</p>}
+    {namesFailed && <ReadFailure retry={() => setNamesAttempt(value => value + 1)} />}
     <CompanyPage key={symbol} symbol={symbol} name={title} services={services} onSnapshot={sections => setSnapshot({ symbol, sections })} />
     {confirmElement}
     <Disclaimer />

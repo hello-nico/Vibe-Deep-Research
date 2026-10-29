@@ -20,6 +20,7 @@ import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
 import type { SnapshotSection } from '../assistant/snapshot';
 import { Metric, MetricTag, Panel, Tag } from '../components/ui/Card';
 import { LoadingCard } from '../components/ui/LoadingCard';
+import { ReadFailure } from '../components/ui/ReadFailure';
 import './company-page.css';
 
 export const CompanyPageServicesContext = createContext<CompanyPageServices | null>(null);
@@ -193,6 +194,8 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   const research = useCompanyPageState(services, symbol, name);
   const store = useMemo(() => companyPageStore(services, symbol, name), [services, symbol, name]);
   const [data, setData] = useState<DataState>(initialData);
+  const [readAttempt, setReadAttempt] = useState(0);
+  const retryRead = () => { setReadAttempt(value => value + 1); void store.refresh(); };
   const [storedScenarios, setScenarios] = useState<ScenarioTableData | null>(null);
   const [evaluation, setEvaluation] = useState<Awaited<ReturnType<NonNullable<CompanyPageServices['evaluateResearch']>>> | null>(null);
   const [calcs, setCalcs] = useState<Record<string, unknown>>({});
@@ -211,7 +214,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       });
     }
     return () => controller.abort();
-  }, [services, symbol]);
+  }, [services, symbol, readAttempt]);
   // R6: the first packet is shown at once; when the background ensure finishes the packet is re-read without a loading state.
   useEffect(() => {
     if (!services.subscribePacket) return;
@@ -337,7 +340,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       falsifiers: matching.map(item => [fill(item.text), thresholdText(item.threshold), item.window].filter(Boolean).join(' · ')),
     };
   });
-  const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <p className="company-page-gap">读取失败</p> : null;
+  const loadingBody = (title: string) => data.packet.loading ? <DataLoading label={title} /> : data.packet.error ? <ReadFailure retry={retryRead} /> : null;
   const block = (id: 'business' | 'cash' | 'valuation') => saved?.sections?.[id];
   // 小节标题：「影响因素」一节用前两个因素名，其余是固定问句。
   const titles = { ...QUESTIONS, variables: variablesQuestion(model?.variables.map(item => item.name)) };
@@ -409,7 +412,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     <section className="card company-page-hero">
       <header className="company-page-header"><div><h1 className="workspace-title">{name}</h1><p className="company-page-code">{[symbol, saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : ''].filter(Boolean).join(' · ')}</p>
         <ChainRecommendations symbol={symbol} services={chainServices} /></div>
-        <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">无行情</p>}</div>
+        <div className="company-page-price">{data.quote.loading ? <DataLoading label="行情" /> : data.quote.error ? <ReadFailure retry={retryRead} /> : quote?.price != null ? <><strong>{financialNumber(quote.price)} <small>{currencyLabel(quote.currency)}</small></strong>{quote.fetched_at && <small className="company-page-quote-time">行情 {periodLabel(quote.fetched_at)}</small>}{quote.change_pct != null && <span className={quote.change_pct > 0 ? 'is-up' : quote.change_pct < 0 ? 'is-down' : undefined} title={quote.fetched_at ? `行情时点 ${quote.fetched_at}` : undefined}>{quote.change_pct > 0 ? '+' : ''}{financialNumber(quote.change_pct)}%</span>}</> : <p className="company-page-gap">无行情</p>}</div>
       </header>
       <section className="company-page-lead" data-company-section="thesis"><p className="company-page-label">论点</p>
         {inherited && <p data-inherited-sensitivity="">影响利润的因素沿用 {saved?.sensitivity_inherited_from || '报告期未记录'}</p>}
@@ -436,7 +439,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
         {!saved && research.loaded && !research.error && !companyPageTaskActive(research.task) && <p className="company-page-stale">
           <button type="button" className="company-page-link" onClick={() => void store.restart()}>研究</button>
         </p>}
-        {research.error && saved && <p className="company-page-gap" role="status">{research.error}</p>}
+        {research.error && <ReadFailure retry={retryRead} />}
       </section>
     </section>
     {showSection.business && section('business', block('business')?.summary, <SegmentNumbers summary={segments} packet={packet} />, businessKeys, moreOf('business', [...segmentIds, ...businessAll, ...(block('business')?.fieldIds ?? [])], businessKeys, segmentGapText(segments)), saved?.changes?.business, segments.period ? sectionMeta(packet, { period: segments.period }) : metaOf(packet, businessKeys))}
@@ -484,7 +487,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       saved?.changes?.tracking)}
     {!gapOnly && saved && <ConversationFactors symbol={symbol} researching={companyPageTaskActive(research.task)} onResearch={() => void store.restart()} />}
     <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无研究关联</p>}</Panel>
-    <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <p className="company-page-gap">资料读取失败</p> : <SourceTimeline content={data.documents.value} />}</Panel>
+    <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <ReadFailure retry={retryRead} /> : <SourceTimeline content={data.documents.value} />}</Panel>
   </article>;
 }
 function Thesis({ research, state, packet, calcs, livePrice }: { research: CompanyPageResearch | null; state: CompanyPageState; packet?: DataPacket; calcs: Record<string, unknown>; livePrice?: number | null }) {
