@@ -1,13 +1,13 @@
 {
-  "round": 40,
+  "round": 58,
   "period": "2026Q3",
-  "started_at": "2026-10-28T23:01:41+08:00",
-  "finished_at": "2026-10-28T23:04:14+08:00",
-  "elapsed_s": 153.1,
+  "started_at": "2026-10-29T21:49:36+08:00",
+  "finished_at": "2026-10-29T21:52:01+08:00",
+  "elapsed_s": 145.1,
   "n": 46,
-  "n_cninfo_posted": 30,
-  "n_sina": 30,
-  "n_eastmoney": 30,
+  "n_cninfo_posted": 37,
+  "n_sina": 37,
+  "n_eastmoney": 37,
   "n_errors": 0,
   "skipped_sources": [],
   "boards": {
@@ -24,14 +24,14 @@
       "board": "深市主板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:49:54+08:00",
+        "sina": "2026-10-29T21:49:54+08:00",
+        "eastmoney": "2026-10-29T21:49:54+08:00"
       }
     },
     {
@@ -56,14 +56,14 @@
       "board": "深市主板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:49:59+08:00",
+        "sina": "2026-10-29T21:49:59+08:00",
+        "eastmoney": "2026-10-29T21:49:59+08:00"
       }
     },
     {
@@ -200,14 +200,14 @@
       "board": "深市主板",
       "in_watch": true,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:50:35+08:00",
+        "sina": "2026-10-29T21:50:35+08:00",
+        "eastmoney": "2026-10-29T21:50:35+08:00"
       }
     },
     {
@@ -264,14 +264,14 @@
       "board": "深市创业板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:50:44+08:00",
+        "sina": "2026-10-29T21:50:44+08:00",
+        "eastmoney": "2026-10-29T21:50:44+08:00"
       }
     },
     {
@@ -296,14 +296,14 @@
       "board": "深市创业板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:50:49+08:00",
+        "sina": "2026-10-29T21:50:49+08:00",
+        "eastmoney": "2026-10-29T21:50:49+08:00"
       }
     },
     {
@@ -408,14 +408,14 @@
       "board": "沪市主板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:51:09+08:00",
+        "sina": "2026-10-29T21:51:09+08:00",
+        "eastmoney": "2026-10-29T21:51:09+08:00"
       }
     },
     {
@@ -488,14 +488,14 @@
       "board": "沪市主板",
       "in_watch": false,
       "appoint": "2026-10-30",
-      "cninfo_posted": false,
-      "cninfo_earliest": null,
-      "sina": false,
-      "eastmoney": false,
+      "cninfo_posted": true,
+      "cninfo_earliest": "2026-10-30T00:00:00+08:00",
+      "sina": true,
+      "eastmoney": true,
       "first_seen": {
-        "cninfo": null,
-        "sina": null,
-        "eastmoney": null
+        "cninfo": "2026-10-29T21:51:22+08:00",
+        "sina": "2026-10-29T21:51:22+08:00",
+        "eastmoney": "2026-10-29T21:51:22+08:00"
       }
     },
     {
