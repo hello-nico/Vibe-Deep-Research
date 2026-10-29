@@ -13,12 +13,13 @@ const previous = { window: globalThis.window, document: globalThis.document, fet
 const puts: any[] = [];
 const docs: Record<string, any> = {
   soul: { kind: 'soul', version: 3, title: '', entries: [
-    { id: 'a', stance: 'stated', text: '回答先给结论', updated_at: '2026-10-02T08:00:00Z' },
-    { id: 'b', stance: 'stated', text: '认为煤炭业务会继续拖累利润', source_session: 's1', updated_at: '2026-10-14T08:00:00Z' },
+    { id: 'a', stance: 'stated', category: '水平与表达偏好', text: '回答先给结论', updated_at: '2026-10-02T08:00:00Z' },
+    { id: 'b', stance: 'stated', category: '持仓与关注', text: '认为煤炭业务会继续拖累利润', source_session: 's1', updated_at: '2026-10-14T08:00:00Z' },
   ] },
   recent: { kind: 'recent', version: 7, title: '', entries: [
-    { id: 'c', stance: 'inferred', text: '关心有色金属和电力', updated_at: '2026-10-10T08:00:00Z' },
+    { id: 'c', stance: 'inferred', category: '投资风格与约束', text: '关心有色金属和电力', updated_at: '2026-10-10T08:00:00Z' },
     { id: 'd', stance: 'corrected', text: '金额默认用亿元' },
+    { id: 'e', stance: 'corrected', category: '纠正', text: '不要把收入写成利润', updated_at: '2026-10-01T08:00:00Z' },
   ] },
 };
 
@@ -31,7 +32,7 @@ before(async () => {
         const doc = docs[body.kind];
         for (const op of body.operations) {
           if (op.op === 'delete') doc.entries = doc.entries.filter((entry: any) => entry.id !== op.id);
-          else doc.entries = [...doc.entries, { id: 'new', stance: op.stance, text: op.text, updated_at: '2026-10-20T08:00:00Z' }];
+          else doc.entries = [...doc.entries, { id: 'new', stance: op.stance, category: op.category, text: op.text, updated_at: '2026-10-20T08:00:00Z' }];
         }
         doc.version += 1;
         return Response.json(doc);
@@ -65,24 +66,54 @@ async function type(value: string) {
 const submit = () => React.act(async () => { (container.querySelector('button[type=submit]') as HTMLElement).click(); await new Promise(resolve => setTimeout(resolve, 20)); });
 
 test('画像与近期合成一列，按更新时间倒序，没有时间的排最后', () => {
-  assert.deepEqual(lib.aboutMeItems(docs.soul, docs.recent).map((item: any) => item.id), ['b', 'c', 'a', 'd']);
+  assert.deepEqual(lib.aboutMeItems(docs.soul, docs.recent).map((item: any) => item.id), ['b', 'c', 'a', 'e', 'd']);
   assert.deepEqual(lib.aboutMeItems(null, null), []);
 });
 
-test('来源文案：自己填写、对话里说的、从对话中推断、自己改过', () => {
-  assert.equal(lib.aboutMeSource({ stance: 'stated' }), '自己填写');
-  assert.equal(lib.aboutMeSource({ stance: 'stated', source_session: 's1' }), '对话里说的');
-  assert.equal(lib.aboutMeSource({ stance: 'inferred' }), '从对话中推断');
-  assert.equal(lib.aboutMeSource({ stance: 'corrected' }), '自己改过');
+test('旧记忆只在展示副本清理叙述前缀并改句首用户为我', () => {
+  const original = { kind: 'soul', version: 1, title: '', entries: [
+    { id: 'p1', stance: 'stated', text: '用户要求：回答先给结论' },
+    { id: 'p2', stance: 'inferred', text: '用户表达对甲公司的判断：利润承压' },
+    { id: 'p3', stance: 'stated', text: '用户偏好简短回答，也会询问其他用户的需求' },
+  ] };
+  const snapshot = structuredClone(original);
+  assert.deepEqual(lib.aboutMeItems(original, null).map((item: any) => item.text), [
+    '回答先给结论',
+    '我对甲公司的判断：利润承压',
+    '我偏好简短回答，也会询问其他用户的需求',
+  ]);
+  assert.deepEqual(original, snapshot);
 });
 
-test('列表按序显示，来源与日期在下一行，对话里说的可点开那次对话', async () => {
+test('四类按固定顺序分组、类内按时间排序，旧条目无分类放在末尾', () => {
+  assert.deepEqual(lib.aboutMeSections(docs.soul, docs.recent).map((section: any) => ({
+    category: section.category,
+    ids: section.items.map((item: any) => item.id),
+  })), [
+    { category: '水平与表达偏好', ids: ['a'] },
+    { category: '持仓与关注', ids: ['b'] },
+    { category: '投资风格与约束', ids: ['c'] },
+    { category: '纠正', ids: ['e'] },
+    { category: undefined, ids: ['d'] },
+  ]);
+});
+
+test('来源文案统一为我说的、从对话中记下', () => {
+  assert.equal(lib.aboutMeSource({ stance: 'stated' }), '我说的');
+  assert.equal(lib.aboutMeSource({ stance: 'stated', source_session: 's1' }), '我说的');
+  assert.equal(lib.aboutMeSource({ stance: 'inferred' }), '从对话中记下');
+  assert.equal(lib.aboutMeSource({ stance: 'corrected' }), '我说的');
+});
+
+test('一张列表按四类显示，旧条目无标题放末尾，来源会话可点开', async () => {
   await show();
-  assert.deepEqual(texts(), ['认为煤炭业务会继续拖累利润', '关心有色金属和电力', '回答先给结论', '金额默认用亿元']);
+  assert.deepEqual(texts(), ['回答先给结论', '认为煤炭业务会继续拖累利润', '关心有色金属和电力', '不要把收入写成利润', '金额默认用亿元']);
+  assert.deepEqual([...container.querySelectorAll('[data-memory-category]')].map(node => node.textContent),
+    ['水平与表达偏好', '持仓与关注', '投资风格与约束', '纠正']);
   const descriptions = [...container.querySelectorAll('.group-row-desc')].map(node => node.textContent);
-  assert.match(descriptions[0]!, /^对话里说的 · 10月14日$/);
-  assert.match(descriptions[1]!, /^从对话中推断 · 10月10日$/);
-  assert.equal(descriptions[3], '自己改过');
+  assert.match(descriptions[1]!, /^我说的 · 10月14日$/);
+  assert.match(descriptions[2]!, /^从对话中记下 · 10月10日$/);
+  assert.equal(descriptions[4], '我说的');
   await React.act(async () => { (container.querySelector('.group-row-desc button') as HTMLElement).click(); });
   assert.deepEqual(opened, ['s1']);
   assert.match(container.textContent!, /不对的直接删掉，助手以后不再按它来。/);
@@ -96,13 +127,17 @@ test('空输入不提交', async () => {
   assert.deepEqual(puts, []);
 });
 
-test('记下：写入 soul，stated 且 user_authorized，新条目出现在最上面，输入框清空', async () => {
+test('记下：显式选择四类之一，写入 soul 的 stated 与 user_authorized，类内置顶', async () => {
   puts.length = 0;
+  const category = container.querySelector('select[aria-label="关于我的类别"]') as HTMLSelectElement;
+  const setter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, 'value')!.set!;
+  await React.act(async () => { setter.call(category, '持仓与关注'); category.dispatchEvent(new win.Event('change', { bubbles: true })); });
   await type('我持有神火，偏中长线');
   await submit();
-  assert.deepEqual(puts, [{ kind: 'soul', version: 3, operations: [{ op: 'upsert', stance: 'stated', text: '我持有神火，偏中长线', user_authorized: true }] }]);
-  assert.equal(texts()[0], '我持有神火，偏中长线');
+  assert.deepEqual(puts, [{ kind: 'soul', version: 3, operations: [{ op: 'upsert', stance: 'stated', category: '持仓与关注', text: '我持有神火，偏中长线', user_authorized: true }] }]);
+  assert.deepEqual(texts().slice(0, 3), ['回答先给结论', '我持有神火，偏中长线', '认为煤炭业务会继续拖累利润']);
   assert.equal((container.querySelector('input[aria-label="补充关于我"]') as HTMLInputElement).value, '');
+  assert.equal(category.value, '持仓与关注');
 });
 
 test('删除：按条目所属文档的版本发 delete，立即生效，不弹确认', async () => {

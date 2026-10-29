@@ -144,18 +144,18 @@ const MAX_FILINGS = 50;
 export async function loadFilingRows(showAll: boolean, signal?: AbortSignal): Promise<{ rows: FilingRow[]; hidden: number }> {
   const codes = loadWatch().filter(code => /^\d{6}$/.test(code));
   if (!codes.length) return { rows: [], hidden: 0 };
+  const pagesJob = wikiPages('companies', signal).catch(() => []);
   const items = await api.announcements(codes, MAX_FILINGS, { all: showAll });
   const hidden = feedHidden(codes, MAX_FILINGS);
   const names = new Map<string, string>();
-  try { const quotes = await api.quote(codes.join(',')); for (const code of codes) if (quotes[code]?.name) names.set(code, quotes[code].name); } catch { /* 无公司名退回代码 */ }
-  let industries = new Map<string, string>();
-  try {
-    industries = new Map((await wikiPages('companies', signal)).flatMap(item => {
-      const code = /^companies\/(\d{6})-/.exec(item.slug)?.[1];
-      const label = companyIndustryLabel(item.summary);
-      return code && label ? [[code, label] as const] : [];
-    }));
-  } catch { /* 没有行业就只写公司 */ }
+  const industries = new Map<string, string>();
+  for (const item of await pagesJob) {
+    const code = /^companies\/(\d{6})-/.exec(item.slug)?.[1];
+    if (!code) continue;
+    if (item.title) names.set(code, item.title);
+    const label = companyIndustryLabel(item.summary);
+    if (label) industries.set(code, label);
+  }
   const rows = items.map((item): FilingRow => {
     const code = item.symbol.slice(0, 6);
     return { symbol: item.symbol, name: names.get(code) ?? code, title: item.title, when: (item.published_at ?? '').replace('T', ' '), url: item.url ?? '', industry: industries.get(code) ?? '', routine: item.routine === true };

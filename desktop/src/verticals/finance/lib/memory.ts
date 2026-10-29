@@ -1,9 +1,13 @@
 import { researchRead, type ResearchTopicRouteCandidate, type ResearchTopicRouteResult } from "./research";
 
+export const MEMORY_CATEGORIES = ["水平与表达偏好", "持仓与关注", "投资风格与约束", "纠正"] as const;
+export type MemoryCategory = typeof MEMORY_CATEGORIES[number];
+
 export interface MemoryEntry {
   id: string;
   stance: "stated" | "inferred" | "corrected";
   text: string;
+  category?: MemoryCategory;
   source_session?: string;
   source_turn?: number;
   updated_at?: string;

@@ -11,6 +11,9 @@ import { Window } from 'happy-dom';
 import { companyPageFixture, fixtureData } from './fixtures/company_page.ts';
 
 const futures = JSON.parse(readFileSync(new URL('./fixtures/futures_al_ao.json', import.meta.url), 'utf8'));
+// 2026-10-29 从 Stock codex1-chain 冻结画像提取 cycle，未调用模型或行情服务。
+const profiles = JSON.parse(readFileSync(new URL('./fixtures/chain_cycle_profiles.json', import.meta.url), 'utf8'));
+const aluminumMetric = () => lib.cycleMetric(profiles['801055.SI'].cycle);
 const contract = JSON.parse(readFileSync(new URL('./fixtures/chain_coal_power_aluminum.json', import.meta.url), 'utf8'));
 const real = JSON.parse(readFileSync(new URL('./fixtures/t73_real.json', import.meta.url), 'utf8'));
 const shenhuo = real.shenhuo, huaneng = real.huaneng;
@@ -90,7 +93,7 @@ test('纯函数：共同驱动按价格合并并列出影响的环节；箭头�
   assert.deepEqual(drivers[2].nodes, ['工业金属']);
   assert.equal(lib.arrowLabel(chain, 0), '煤价');
   assert.equal(lib.arrowLabel(chain, 1), '电价');
-  assert.equal(lib.nodeIndex(chain, '801160'), 1, '传导里写行业代码也认');
+  assert.equal(lib.nodeIndex(chain, '801161.SI'), 1, '传导里写行业代码也认');
   const tiers = [{ name: '悲观', price: 3 }, { name: '中性', price: 5 }, { name: '乐观', price: 7 }];
   assert.deepEqual([2, 4, 5, 6, 8].map(price => lib.positionText(price, tiers)), ['低于悲观价', '在悲观价与中性价之间', '在中性价', '在中性价与乐观价之间', '高于乐观价']);
   assert.equal(lib.positionText(null, tiers), '');
@@ -180,9 +183,9 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   assert.ok(container.querySelector('[data-chain]'));
   // 一个环节的框架缺：该环节写“估值方法暂缺”，其余照常。
-  await show(services({ '/wiki/industries/801160/valuation-framework': new Error('404') }));
-  assert.match(text('[data-node="801160"]'), /缺估值方法/);
-  assert.match(text('[data-node="801050"]'), /商品周期市盈率/);
+  await show(services({ '/wiki/industries/801161.SI/valuation-framework': new Error('404') }));
+  assert.match(text('[data-node="801161.SI"]'), /缺估值方法/);
+  assert.match(text('[data-node="801055.SI"]'), /商品周期市盈率/);
   assert.match(text('[data-gap="framework"]'), /部分估值方法读取失败/);
   // 神火股份的三档价与凭据都读不到：仍显示档位，区间条与隐含价各写缺什么。
   await show(services({ [`/research-results/${SENS}`]: new Error('x'), [`/research-results/${SCEN}`]: new Error('x') }));
@@ -253,22 +256,22 @@ test('个股页推荐所在链：读推荐接口，已建的进你的链，未�
 
 test('同环节还可关注：展开读候选（整条链最多 8 家）按环节分开，点「关注」即关注并加入本链，带版本与已关注列表；读不到写一句话加重试', async () => {
   const service = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: { items: [
-    { symbol: '600900.SH', industry_code: '801160', industry_name: '电力', role: 'midstream' },
-    { symbol: '000807.SZ', industry_code: '801050', industry_name: '工业金属', role: 'downstream' },
+    { symbol: '600900.SH', industry_code: '801161.SI', industry_name: '电力', role: 'midstream' },
+    { symbol: '000807.SZ', industry_code: '801055.SI', industry_name: '工业金属', role: 'downstream' },
   ], limit: 8 } });
   await show(service);
   assert.equal(service.requested.some((route: string) => route.includes('/candidates')), false, '展开前不读候选');
   const stage = (code: string) => container.querySelector(`[data-stage="${code}"]`) as HTMLElement;
-  const details = stage('801160').querySelector('details') as HTMLDetailsElement;
+  const details = stage('801161.SI').querySelector('details') as HTMLDetailsElement;
   assert.equal(details.querySelector('summary')!.textContent, '同环节还可关注');
   await React.act(async () => { details.open = true; details.dispatchEvent(new win.Event('toggle') as unknown as Event); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   assert.equal(service.requested.filter((route: string) => route.includes('/candidates')).length, 1);
-  assert.deepEqual([...stage('801160').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['600900.SH'], '只列本环节的候选');
-  assert.match(stage('801160').querySelector('[data-candidate]')!.textContent!, /长江电力|600900/);
-  assert.deepEqual([...stage('801050').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['000807.SZ'], '另一环节只有自己的候选');
+  assert.deepEqual([...stage('801161.SI').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['600900.SH'], '只列本环节的候选');
+  assert.match(stage('801161.SI').querySelector('[data-candidate]')!.textContent!, /长江电力|600900/);
+  assert.deepEqual([...stage('801055.SI').querySelectorAll('[data-candidate]')].map(item => item.getAttribute('data-candidate')), ['000807.SZ'], '另一环节只有自己的候选');
   // 点「关注」：先关注，再带版本号与已关注列表加进链；随后重读。
-  await React.act(async () => { (stage('801160').querySelector('[data-candidate] button') as HTMLButtonElement).click(); });
+  await React.act(async () => { (stage('801161.SI').querySelector('[data-candidate] button') as HTMLButtonElement).click(); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   assert.deepEqual(service.writes.map((item: any) => [item.method, item.route, item.body]), [
     ['FOLLOW', '600900', undefined],
@@ -277,14 +280,14 @@ test('同环节还可关注：展开读候选（整条链最多 8 家）按环�
   // 候选读不到：一句话加重试。
   const down = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: new Error('500') });
   await show(down);
-  const det = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
+  const det = container.querySelector('[data-stage="801161.SI"] details') as HTMLDetailsElement;
   await React.act(async () => { det.open = true; det.dispatchEvent(new win.Event('toggle') as unknown as Event); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   assert.match(text('[data-gap="candidates"]'), /读取失败重试/);
   // 候选为空。
   const none = services({ [`${UROUTE}/candidates?watched=000933.SZ,600011.SH,601288.SH`]: { items: [], limit: 8 } });
   await show(none);
-  const det2 = container.querySelector('[data-stage="801160"] details') as HTMLDetailsElement;
+  const det2 = container.querySelector('[data-stage="801161.SI"] details') as HTMLDetailsElement;
   await React.act(async () => { det2.open = true; det2.dispatchEvent(new win.Event('toggle') as unknown as Event); });
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
   assert.match(text('[data-candidates-empty]'), /暂无推荐/);
@@ -367,7 +370,7 @@ test('试算纯函数：沪铝拖到 25,465 元/吨，神火股份利润 +19.92 
   const noAnchor = structuredClone(view.companies.find((item: any) => item.symbol === '000933.SZ'));
   noAnchor.model.variables.find((item: any) => item.id === 'cmdty:SHFE.AL').anchor = null;
   assert.deepEqual(lib.calcRows([noVar, noAnchor], setup, 25000).map((item: any) => item.state), ['novar', 'noanchor']);
-  assert.equal(lib.calcSetup([noVar]), null, '没有任何模型带沪铝就没有试算节');
+  assert.notEqual(lib.calcSetup([noVar])?.id, 'cmdty:SHFE.AL', '没有沪铝时改用其余价格变量');
   assert.equal(lib.calcSetup(view.companies.filter((item: any) => item.status === 'none')), null);
   // 基数利润非正：不给占比。
   const loss = structuredClone(view.companies.find((item: any) => item.symbol === '000933.SZ'));
@@ -415,16 +418,21 @@ test('试算页：链上没有任何已研究的利润模型，整节不出现�
 
 // ---------------------------------------------------------------- 周期位置：沪铝 − 1.93 × 氧化铝 的价差分位
 
-const cycleServices = (daily: unknown = futures, overrides: Record<string, unknown> = {}) => services({ [lib.cycleRoute]: daily, ...overrides });
+const cycleServices = (daily: unknown = futures, overrides: Record<string, unknown> = {}) => services({
+  [lib.cycleRoute(aluminumMetric())]: daily,
+  '/industries/profiles/current?industry_code=801055.SI': profiles['801055.SI'],
+  '/industries/profiles/current?industry_code=801161.SI': profiles['801161.SI'],
+  ...overrides,
+});
 
 test('周期位置纯函数：真实日线（Stock 接口实取 2026-10-20）806 个共同交易日，现价差 17,884 元/吨处在 79% 分位 → 高位；氧化铝 2023 年 6 月才有日线，写明只有 3.3 年', () => {
-  const cycle = lib.cyclePosition(futures);
+  const cycle = lib.cyclePosition(futures, aluminumMetric());
   assert.equal(cycle.state, 'ok');
   const p = cycle.position;
   assert.deepEqual([p.days, p.from, p.asOf, p.percentile, p.zone], [806, '2023-06-19', '2026-10-19', 79, '高位']);
   assert.ok(Math.abs(p.spread - 17884.45) < 1e-6 && Math.abs(p.low - 9970.79) < 1e-6 && Math.abs(p.high - 20265.74) < 1e-6);
-  assert.match(p.short, /氧化铝期货 2023 年 6 月才有日线，只能按可得的 3\.3 年算/);
-  assert.equal(lib.cycleSentence(p), '铝价减去氧化铝成本的价差处在近 3.3 年的 79% 分位，在高位区间');
+  assert.match(p.short, /共同可得历史不足 10 年，只能按 3\.3 年算/);
+  assert.equal(lib.cycleSentence(p, aluminumMetric()), '价差处在近 3.3 年的 79% 分位，在高位区间（约）');
   assert.deepEqual([0, 24, 25, 50, 75, 76, 100].map(lib.cycleZone), ['底部', '底部', '中位', '中位', '中位', '高位', '高位']);
 });
 
@@ -433,16 +441,16 @@ test('周期位置纯函数：整十年写“近 10 年”不加说明；现值�
   const mk = (n: number, al: (i: number) => number, ao = (_i: number) => 1000) => ({ series: [
     { id: 'cmdty:SHFE.AL', points: Array.from({ length: n }, (_, i) => [day(i), String(al(i))]) },
     { id: 'cmdty:SHFE.AO', first_day: day(0), points: Array.from({ length: n }, (_, i) => [day(i), String(ao(i))]) }] });
-  const ten = lib.cyclePosition(mk(3651, i => 20000 - i)).position;
+  const ten = lib.cyclePosition(mk(3651, i => 20000 - i), aluminumMetric()).position;
   assert.equal(ten.short, '');
   assert.equal(ten.percentile, 0, '现值是历史最低：0%（只有它自己，算半格也不到 1%）');
-  assert.equal(lib.cycleSentence(ten), '铝价减去氧化铝成本的价差处在近 10 年的 0% 分位，在底部区间');
-  assert.equal(lib.cyclePosition(mk(3651, i => 10000 + i)).position.percentile, 100);
-  assert.deepEqual(lib.cyclePosition({ series: [mk(300, () => 1).series[0]] }), { state: 'gap', reason: '氧化铝日线取不到' });
-  assert.deepEqual(lib.cyclePosition(null), { state: 'gap', reason: '沪铝日线取不到' });
-  assert.match(lib.cyclePosition(mk(100, () => 20000)).reason, /只有 100 天，不够算分位/);
+  assert.equal(lib.cycleSentence(ten, aluminumMetric()), '价差处在近 10 年的 0% 分位，在底部区间（约）');
+  assert.equal(lib.cyclePosition(mk(3651, i => 10000 + i), aluminumMetric()).position.percentile, 100);
+  assert.deepEqual(lib.cyclePosition({ series: [mk(300, () => 1).series[0]] }, aluminumMetric()), { state: 'gap', reason: 'cmdty:SHFE.AO日线取不到' });
+  assert.deepEqual(lib.cyclePosition(null, aluminumMetric()), { state: 'gap', reason: 'cmdty:SHFE.AL日线取不到' });
+  assert.match(lib.cyclePosition(mk(100, () => 20000), aluminumMetric()).reason, /只有 100 天，不够算分位/);
   const bad = mk(400, () => 20000); bad.series[0]!.points[5] = [day(5), 'oops'];
-  assert.equal(lib.cyclePosition(bad).position.days, 399, '坏数字那天跳过，不当 0');
+  assert.equal(lib.cyclePosition(bad, aluminumMetric()).position.days, 399, '坏数字那天跳过，不当 0');
 });
 
 test('周期位置页：一句话加底部—中位—高位刻度，现价差点在 79%；说明里写价差公式、期间与不含电价吨成本；只此一个橙点之外不新增橙色', async () => {
@@ -450,24 +458,24 @@ test('周期位置页：一句话加底部—中位—高位刻度，现价差�
   await show(service);
   const panel = container.querySelector('[data-chain-section="cycle"]') as HTMLElement;
   assert.ok(panel);
-  assert.equal(text('[data-cycle-line]'), '铝价减去氧化铝成本的价差处在近 3.3 年的 79% 分位，在高位区间');
+  assert.equal(text('[data-cycle-line]'), '价差处在近 3.3 年的 79% 分位，在高位区间（约）');
   assert.equal((container.querySelector('[data-cycle-dot]') as HTMLElement).style.left, '79%');
   assert.deepEqual([...panel.querySelectorAll('.chain-cycle-scale > span')].map(item => item.textContent), ['底部', '中位', '高位']);
-  assert.match(text('[data-cycle-note]'), /价差 = 沪铝 − 1\.93 × 氧化铝.*现在 17,884 元\/吨，历史最低 9,971、最高 20,266.*2023-06-19 至 2026-10-19 共 806 个交易日。氧化铝期货 2023 年 6 月才有日线.*不含电价和吨成本/);
-  assert.ok(service.requested.includes(lib.cycleRoute));
-  assert.match(lib.cycleRoute, /^\/market\/futures-daily\?ids=cmdty%3ASHFE\.AL,cmdty%3ASHFE\.AO&years=10$/);
+  assert.match(text('[data-cycle-note]'), /1\.93.*现在 17,884\.45.*2023-06-19 至 2026-10-19.*806 个交易日.*未扣除其余成本/);
+  assert.ok(service.requested.includes(lib.cycleRoute(aluminumMetric())));
+  assert.match(lib.cycleRoute(aluminumMetric()), /^\/market\/futures-daily\?ids=cmdty%3ASHFE\.AL,cmdty%3ASHFE\.AO&years=10$/);
   // 周期位置排在共同驱动之后、试算之前。
   const order = [...container.querySelectorAll('[data-chain-section]')].map(item => item.getAttribute('data-chain-section'));
-  assert.deepEqual(order, ['nodes', 'drivers', 'cycle', 'calc', 'companies']);
+  assert.deepEqual(order, ['cycle', 'nodes', 'drivers', 'companies', 'calc']);
   assert.doesNotMatch(panel.textContent!, /买入|卖出|建议|undefined|NaN|null/);
 });
 
 test('周期位置页：日线读不到只那一节写缺口加重试，其余照常；重试后补上；链上没有铝价与氧化铝驱动就没有这一节', async () => {
   let fail = true;
   const base = cycleServices();
-  const service = { ...base, read: async (route: string, signal?: AbortSignal) => { if (route === lib.cycleRoute && fail) throw new Error('502'); return base.read(route, signal); } };
+  const service = { ...base, read: async (route: string, signal?: AbortSignal) => { if (route === lib.cycleRoute(aluminumMetric()) && fail) throw new Error('502'); return base.read(route, signal); } };
   await show(service);
-  assert.match(text('[data-gap="cycle"]'), /沪铝与氧化铝日线暂时读取不到。重试/);
+  assert.match(text('[data-gap="cycle"]'), /日线暂时读取不到。重试/);
   assert.ok(container.querySelector('[data-chain-section="companies"]') && container.querySelector('[data-chain-section="calc"]'));
   fail = false;
   await React.act(async () => { (container.querySelector('[data-gap="cycle"] button') as HTMLElement).click(); });
@@ -475,8 +483,89 @@ test('周期位置页：日线读不到只那一节写缺口加重试，其余�
   assert.match(text('[data-cycle-line]'), /79% 分位/);
   // 部分合约失败：Stock 的 failed 里有氧化铝，series 只有沪铝。
   await show(cycleServices({ series: [futures.series[0]], failed: [{ id: 'cmdty:SHFE.AO', message: 'x' }] }));
-  assert.equal(text('[data-gap="cycle"]').startsWith('氧化铝日线取不到'), true);
+  assert.equal(text('[data-gap="cycle"]').startsWith('cmdty:SHFE.AO日线取不到'), true);
   const noDrivers = structuredClone(contract.chain); noDrivers.transmission = noDrivers.transmission.filter((item: any) => item.driver !== '氧化铝');
   await show(cycleServices(futures, { [UROUTE]: userRaw(noDrivers) }));
-  assert.equal(container.querySelector('[data-chain-section="cycle"]'), null);
+  assert.match(text('[data-cycle-line]'), /79% 分位/, '画像周期不再依赖驱动名');
+});
+
+test('水泥、电力缺序列；成长型与缺失画像；出处使用固定版本原文，检索标约，公司带环节位置', async () => {
+  const chain = structuredClone(contract.chain);
+  chain.nodes = [
+    { industry_code: '801711.SI', industry_name: '水泥', companies: [] },
+    { industry_code: '801161.SI', industry_name: '电力', companies: [] },
+    { industry_code: '801081.SI', industry_name: '半导体', companies: ['000933.SZ'] },
+    { industry_code: 'missing', industry_name: '未知行业', companies: [] },
+  ];
+  const service = services({ [UROUTE]: userRaw(chain), ...Object.fromEntries(Object.entries(profiles).map(([code, value]) => [`/industries/profiles/current?industry_code=${code}`, value])), '/industries/profiles/current?industry_code=missing': {} });
+  await show(service);
+  assert.match(text('[data-cycle-stage="801711.SI"]'), /没有序列，看 数字水泥网/);
+  assert.match(text('[data-cycle-stage="801161.SI"]'), /没有序列，看 公司发电量/);
+  assert.match(text('[data-cycle-stage="801081.SI"]'), /景气阶段：.*瓶颈在：/);
+  assert.match(text('[data-cycle-stage="missing"]'), /这个行业的周期资料还没整理/);
+  assert.match(row('000933.SZ').textContent!, /瓶颈环节/);
+  assert.ok(container.querySelector('a[href^="/my-reports/read/"][href*="revision="][href*="hash="][href*="block="]'));
+  assert.match(text('[data-cycle-stage="801711.SI"]'), /（约）/);
+  assert.equal(container.querySelector('[data-profit-concentration]'), null, '没有利润数据不作利润集中判断');
+});
+
+test('画像价差缺失时改用已登记单指标；季节性不把历史年份外推；历史只选最近明确顶底', async () => {
+  const knowledge = structuredClone(profiles['801055.SI'].cycle);
+  knowledge.margin_logic = [];
+  const metric = lib.cycleMetric(knowledge);
+  assert.equal(metric.a, 'cmdty:SHFE.AL');
+  assert.equal(metric.margin, false);
+  const single = lib.cyclePosition(futures, metric);
+  assert.equal(single.state, 'ok');
+  const points = futures.series.find((item: any) => item.id === metric.a).points;
+  const now = Number(points.at(-1)[1]);
+  const expected = Math.round(points.reduce((sum: number, item: any) => sum + (Number(item[1]) < now ? 1 : Number(item[1]) === now ? .5 : 0), 0) / points.length * 100);
+  assert.equal(single.position.percentile, expected);
+  assert.match(lib.seasonalityLine(profiles['801711.SI'].cycle.seasonality[0], 10), /10 月，旺季/);
+  assert.match(lib.seasonalityLine(profiles['801711.SI'].cycle.seasonality[0], 1), /1 月，淡季/);
+  assert.match(lib.seasonalityLine(profiles['801161.SI'].cycle.seasonality[0], 3), /3 月，枯水期/);
+  for (const month of [1, 2, 3, 4, 12]) assert.match(lib.seasonalityLine(profiles['801161.SI'].cycle.seasonality[0], month), new RegExp(`${month} 月，枯水期`));
+  for (const month of [5, 11]) assert.match(lib.seasonalityLine(profiles['801161.SI'].cycle.seasonality[0], month), new RegExp(`${month} 月，平水期`));
+  for (const month of [6, 7, 8, 9, 10]) assert.match(lib.seasonalityLine(profiles['801161.SI'].cycle.seasonality[0], month), new RegExp(`${month} 月，丰水期`));
+  assert.match(lib.seasonalityLine(profiles['801055.SI'].cycle.seasonality[0], 10), /未给统一旺淡季月历/);
+  assert.equal(lib.nearestTurningPoint(knowledge, new Date('2026-10-29')).item.year, '2021');
+  assert.equal(lib.nearestTurningPoint(profiles['801161.SI'].cycle, new Date('2026-10-29')).item.year, '2021', '修复描述提及往年底部，不把修复年当成新顶底');
+});
+
+test('分位出处对应本次实际日线：两序列、截止日收盘、口径、来源时间及下载均保留原输入，不重新取价', async () => {
+  const service = cycleServices();
+  await show(service);
+  const sources = container.querySelector('[data-cycle-inputs]')!;
+  assert.match(sources.textContent!, /2023-06-19 至 2026-10-19，806 个共同交易日/);
+  assert.match(sources.textContent!, /sina.domestic.*AO0/);
+  for (const series of futures.series) {
+    const source = sources.querySelector(`[data-cycle-source="${series.id}"]`)!;
+    assert.ok(source.textContent!.includes(series.points.find(([day]: string[]) => day === '2026-10-19')[1]));
+    assert.ok(source.textContent!.includes(series.basis));
+    assert.ok(source.textContent!.includes(series.source.fetched_at));
+    assert.equal(source.querySelector('a')!.getAttribute('href'), series.source.urls[0]);
+    assert.equal(source.querySelector('a')!.textContent, '行情提供方接口', '提供方裸接口不声称能直接回放具体合约');
+  }
+  const csv = decodeURIComponent(sources.querySelector('[data-cycle-download]')!.getAttribute('href')!.split(',').slice(1).join(','));
+  for (const series of futures.series) for (const [day, close] of series.points) assert.ok(csv.includes(`"${series.id}","${series.name}","${day}","${close}"`));
+  assert.equal(service.requested.filter((route: string) => route.startsWith('/market/futures-daily')).length, 1);
+});
+
+test('利润集中：缺一环指标、省略；同日可比且分位唯一最高时才输出；单价格、日期不同或并列均省略', () => {
+  const chain = { nodes: [{ industry_code: 'a', industry_name: '上游' }, { industry_code: 'b', industry_name: '下游' }] };
+  const stage = (percentile: number, extra = {}) => ({ metric: { margin: true }, cycle: { state: 'ok', position: { percentile, asOf: '2026-10-19' } }, ...extra });
+  assert.equal(lib.profitConcentration(chain, { a: stage(80) }), '');
+  assert.match(lib.profitConcentration(chain, { a: stage(80), b: stage(20) }), /利润现在集中在上游环节/);
+  assert.equal(lib.profitConcentration(chain, { a: stage(80), b: stage(20, { metric: { margin: false } }) }), '');
+  assert.equal(lib.profitConcentration(chain, { a: stage(80), b: stage(80) }), '');
+  assert.equal(lib.profitConcentration(chain, { a: stage(80), b: stage(20, { cycle: { state: 'ok', position: { percentile: 20, asOf: '2026-10-18' } } }) }), '');
+});
+
+test('试算变量按使用公司数选价格；并列保留原序；百分比、产量不参与', () => {
+  const variable = (id: string, unit = '元/吨') => ({ id, name: id, unit, current: 10, min: 1, max: 20, step: 1 });
+  const company = (variables: any[]) => ({ model: { variables } });
+  const a = variable('price:a'), b = variable('price:b'), percentage = variable('pct', '%'), volume = variable('volume', '万吨');
+  assert.equal(lib.calcSetup([company([a, b]), company([b])]).id, 'price:b');
+  assert.equal(lib.calcSetup([company([a, b])]).id, 'price:a');
+  assert.equal(lib.calcSetup([company([percentage, volume])]), null);
 });

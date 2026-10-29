@@ -66,3 +66,26 @@ test('「全部」里同公司同日公告合并：非例行优先作第一句�
   assert.equal(stream.filingStreams(rows, false).length, 5, '公告筛选不合并');
   assert.equal(stream.filingStreams(rows.slice(0, 1), true)[0].title[0].text, '例行：关于召开会议', '全是例行时取第一份');
 });
+
+test('公告卡公司名与行业来自 Wiki 列表，不请求行情', async (t) => {
+  const watch = await server.ssrLoadModule('/src/verticals/finance/lib/watchlist.ts');
+  const apiMod = await server.ssrLoadModule('/src/verticals/finance/lib/api.ts');
+  watch.replaceWatchCache(['600011']);
+  apiMod.clearFeedCache();
+  const seen: string[] = [];
+  t.mock.method(globalThis, 'fetch', async (input: string | URL | Request) => {
+    const url = String(input);
+    seen.push(url);
+    if (url.includes('/feed/announcements')) {
+      return Response.json({ items: [{ symbol: '600011.SH', title: '华能国际：进展公告', published_at: '2026-10-26T09:30:00', url: 'https://example.com/a', document_id: null }] });
+    }
+    if (url.includes('/wiki/pages')) {
+      return Response.json({ items: [{ slug: 'companies/600011-sh', title: '华能国际', summary: { industry: '火力发电' } }], total: 1 });
+    }
+    throw new Error('unexpected ' + url);
+  });
+  const { rows } = await stream.loadFilingRows(false);
+  assert.equal(rows[0].name, '华能国际');
+  assert.equal(rows[0].industry, '火力发电');
+  assert.equal(seen.some(url => url.includes('/market/quotes')), false);
+});

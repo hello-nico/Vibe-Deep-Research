@@ -65,7 +65,7 @@ test('匹配规则：公司名、去掉「股份」的简称、6 位代码都算
   assert.deepEqual(ids('长江电力', '600900.SH'), []);
 });
 
-test('页面：论点下面出现「我的看法：原句」加灰字来源与日期；对话里说的与自己填写分开写；系统判断不被改动', async () => {
+test('页面：论点下面出现「我的看法：原句」加灰字来源与日期；明确表达统一为我说的；系统判断不被改动', async () => {
   docs = {
     soul: doc('soul', [entry('b', '认为神火的煤炭业务会继续拖累利润', { source_session: 's1', updated_at: '2026-10-14T08:00:00Z' }), entry('x', '回答先给结论')]),
     recent: doc('recent', [entry('d', '神火股份我打算拿到明年', { updated_at: '2026-10-10T08:00:00Z' }), entry('i', '神火可能被低估', { stance: 'inferred', updated_at: '2026-10-18T08:00:00Z' })]),
@@ -73,7 +73,7 @@ test('页面：论点下面出现「我的看法：原句」加灰字来源与�
   await open();
   const lead = container.querySelector('[data-company-section="thesis"]')!;
   assert.ok(lead.querySelector('[data-company-opinion]'), '看法在论点区块里，论点下面');
-  assert.deepEqual(lines(), ['我的看法：认为神火的煤炭业务会继续拖累利润对话里说的 · 10月14日', '我的看法：神火股份我打算拿到明年自己填写 · 10月10日'], '时间倒序；推断的不出现');
+  assert.deepEqual(lines(), ['我的看法：认为神火的煤炭业务会继续拖累利润我说的 · 10月14日', '我的看法：神火股份我打算拿到明年我说的 · 10月10日'], '时间倒序；推断的不出现');
   assert.equal(container.querySelector('[data-opinion-more]'), null);
   assert.doesNotMatch(lead.querySelector('[data-company-opinion]')!.textContent!, /对错|正确|买入|卖出|建议/);
   const css = readFileSync(new URL('../src/verticals/finance/components/company-opinion.css', import.meta.url), 'utf8');
@@ -100,7 +100,7 @@ test('没有看法整行不出现；别家的看法不串；记忆读取失败�
   assert.equal(container.querySelector('[role="alert"]'), null);
   docs = { recent: doc('recent', [entry('r', '神火的煤炭业务会继续拖累利润')]) };
   await open();
-  assert.deepEqual(lines(), ['我的看法：神火的煤炭业务会继续拖累利润自己填写']);
+  assert.deepEqual(lines(), ['我的看法：神火的煤炭业务会继续拖累利润我说的']);
   assert.deepEqual(await lib.loadOpinions({ name: '神火', symbol: '000933' }, async () => { throw new Error('down'); }), [], '纯函数层两份都读不到返回空');
 });
 

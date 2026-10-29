@@ -1,0 +1,987 @@
+{
+  "801055.SI": {
+    "cycle": {
+      "kind": "cyclical",
+      "seasonality": [
+        {
+          "text": "云南水电铝：枯水期电力紧张、高耗能限电。报道称约 2022 年 9 月至 2023 年 5 月枯水期相关产业遭遇限电。",
+          "precision": "约（报道区间）",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://www.sohu.com/a/773438912_121123885",
+              "title": "资讯 | 云南缺电危机：电解铝企业备受冲击，生产链陷入深度挑战",
+              "published_at": "2023-11",
+              "quote": "在2022年9月到2023年5月枯水期，受干旱的影响，云南的相关产业就遭遇限电的冲击。",
+              "precision": "约（报道月份）",
+              "origin": "web_search"
+            }
+          ]
+        }
+      ],
+      "cycle_drivers": [
+        {
+          "text": "电解铝与煤炭均受益于供给侧结构性改革。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p1:b9",
+              "quote": "供给侧结构性改革，处于行业景气周",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "利润对铝价、氧化铝采购价敏感。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p1:b9",
+              "quote": "氧化铝涨价风险，铝价下跌风险，煤炭价",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "watch_indicators": [
+        {
+          "text": "沪铝。",
+          "where": "cmdty:SHFE.AL",
+          "series_id": "cmdty:SHFE.AL",
+          "history": "新浪主力连续约 2005-01-04 至 2026-10-28",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p1:b9",
+              "quote": "铝价下跌风险，煤",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "氧化铝。",
+          "where": "cmdty:SHFE.AO",
+          "series_id": "cmdty:SHFE.AO",
+          "history": "新浪主力连续约 2023-06-19 至 2026-10-28（期货上市晚，长周期对照不够）",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p1:b9",
+              "quote": "氧化铝涨价风险，",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "云南电价 / 自备电成本。",
+          "where": "公司假设与电价披露",
+          "series_id": null,
+          "history": "系统未登记云南电价序列",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p1:b9",
+              "quote": "云南用电含税价格为 0.42 元/度",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "margin_logic": [
+        {
+          "text": "吨铝成本看铝价、氧化铝、预焙阳极和电。检索称约 1.93 吨氧化铝 / 吨铝。",
+          "precision": "约 1.93",
+          "spread": {
+            "a": "cmdty:SHFE.AL",
+            "b": "cmdty:SHFE.AO",
+            "ratio": "1.93"
+          },
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://www.sohu.com/a/921433598_121123901",
+              "title": "2025年电解铝行业深度报告：成本下行盈利修复，紧平衡格局延续（附下载）",
+              "published_at": "2025",
+              "quote": "生产 1 吨电解 铝需要约 1.93 吨氧化铝、0.45-0.5 吨预焙阳极和 13,500 度电力。",
+              "precision": "约",
+              "origin": "web_search"
+            },
+            {
+              "document_id": "228ce6c5b81047e98c39154feab83b5b",
+              "parse_revision_id": "r-ae868300901841d0",
+              "parsed_content_sha256": "48cb781296eb7492044617ff62c07427d503424fb364d58a92b84b7e077c31ee",
+              "block_id": "r-ae868300901841d0:p3:b22",
+              "quote": "氧化铝价格为 2700 元/吨，预焙阳极价格为 6000 元/吨（前值 ",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "year": "2015",
+          "mark": "沪铝主力连续约 9710 元/吨（2015-11-24），近年低位。读数来自系统序列 cmdty:SHFE.AL。",
+          "precision": "约",
+          "origin": "system_series",
+          "series_id": "cmdty:SHFE.AL",
+          "refs": [
+            {
+              "origin": "system_series",
+              "series_id": "cmdty:SHFE.AL",
+              "quote": "2015-11-24 收盘约 9710 元/吨（新浪主力连续 AL0）"
+            }
+          ]
+        },
+        {
+          "year": "2021",
+          "mark": "沪铝主力连续约 24695 元/吨（2021-10-18），近年高位。读数来自系统序列 cmdty:SHFE.AL。",
+          "precision": "约",
+          "origin": "system_series",
+          "series_id": "cmdty:SHFE.AL",
+          "refs": [
+            {
+              "origin": "system_series",
+              "series_id": "cmdty:SHFE.AL",
+              "quote": "2021-10-18 收盘约 24695 元/吨（新浪主力连续 AL0）"
+            }
+          ]
+        },
+        {
+          "year": "2022-2023",
+          "mark": "云南枯水期限电冲击电解铝相关产业。",
+          "precision": "约",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://www.sohu.com/a/773438912_121123885",
+              "title": "资讯 | 云南缺电危机：电解铝企业备受冲击，生产链陷入深度挑战",
+              "published_at": "2023-11",
+              "quote": "在2022年9月到2023年5月枯水期，受干旱的影响，云南的相关产业就遭遇限电的冲击。",
+              "precision": "约（报道月份）",
+              "origin": "web_search"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "801161.SI": {
+    "cycle": {
+      "kind": "cyclical",
+      "seasonality": [
+        {
+          "text": "四川水电分时电价：丰水期约 6–10 月合同电价下浮，枯水期约 1–4 月与 12 月上浮，平水期 5 月与 11 月执行批复电价。",
+          "precision": "约（表格被解析拆行）",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p17:b7",
+              "quote": "四川执行分时电价政策，丰水期（6",
+              "origin": "library"
+            },
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p17:b7",
+              "quote": "枯水期（1-4 月、12 月）电",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "调节能力较弱的水电：枯水期担任峰荷，丰水期担任基荷。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "54316bb81c0543c9837cff66660b89a7",
+              "parse_revision_id": "r-e2a9e330271e48c8",
+              "parsed_content_sha256": "119ba29532247afff7bc683d0f4bf5d37c6b1cd578a57993df8d527303fa8311",
+              "block_id": "r-e2a9e330271e48c8:p11:b6",
+              "quote": "枯水期担任峰荷，丰水期担任基荷。",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "迎峰度夏是水电保供高峰。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "ff075c786e0542768784de8c7765c026",
+              "parse_revision_id": "r-1c5f3a320910402f",
+              "parsed_content_sha256": "4ed3a7393e845bb1d0c43baceff62db200df8be11d6e1a33a2306c909fdfff55",
+              "block_id": "r-1c5f3a320910402f:p12:b14",
+              "quote": "迎峰度夏时期保供能力可达 503 亿",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "云南电力高度依赖水电，枯水期市场化电价上涨。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "0694da4ecff445d59bd431369fc2f896",
+              "parse_revision_id": "r-3c1262ebc5ff4bc1",
+              "parsed_content_sha256": "d0ad6cad62836b4496a76c7086a7c8eb863f5d69fef4097e261e6fd9ebf819ee",
+              "block_id": "r-3c1262ebc5ff4bc1:p1:b20",
+              "quote": "枯水期云南省内清洁能源市场化电价上涨持续兑现。云南省高耗 能行业用电需求",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "cycle_drivers": [
+        {
+          "text": "水电电量看来水与联调。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "54316bb81c0543c9837cff66660b89a7",
+              "parse_revision_id": "r-e2a9e330271e48c8",
+              "parsed_content_sha256": "119ba29532247afff7bc683d0f4bf5d37c6b1cd578a57993df8d527303fa8311",
+              "block_id": "r-e2a9e330271e48c8:p1:b21",
+              "quote": "来水及利用小时数",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "来水偏枯压低利用小时。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "0694da4ecff445d59bd431369fc2f896",
+              "parse_revision_id": "r-3c1262ebc5ff4bc1",
+              "parsed_content_sha256": "d0ad6cad62836b4496a76c7086a7c8eb863f5d69fef4097e261e6fd9ebf819ee",
+              "block_id": "r-3c1262ebc5ff4bc1:p1:b18",
+              "quote": "来水偏枯影响，23 年水电机组平均 利用小时数同比-136 小时，全年发",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "火电：长协煤覆盖与容量电价；由电量电源转向容量保障和灵活调节。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p1:b16",
+              "quote": "长协煤覆盖比例超 90%，燃料成本 及价格波动显著低于同业，2023-2025 年火电 ROE ",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "煤价回落改善火电盈利。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p1:b16",
+              "quote": "随着煤价 回落、水风光业务占比提升，",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "watch_indicators": [
+        {
+          "text": "来水与水电利用小时。",
+          "where": "公司发电量/利用小时披露",
+          "series_id": null,
+          "history": "系统未登记流域来水序列",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "0694da4ecff445d59bd431369fc2f896",
+              "parse_revision_id": "r-3c1262ebc5ff4bc1",
+              "parsed_content_sha256": "d0ad6cad62836b4496a76c7086a7c8eb863f5d69fef4097e261e6fd9ebf819ee",
+              "block_id": "r-3c1262ebc5ff4bc1:p1:b18",
+              "quote": "利用小时数同比-136 小时，全年发",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "动力煤现货价（水泥窑和火电锅炉用动力煤，不是炼钢焦煤）。",
+          "where": "秦皇岛港 5500 大卡现货或 CCI 动力煤指数",
+          "series_id": null,
+          "history": "系统未登记动力煤序列",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://caifuhao.eastmoney.com/news/20260524081408097786880",
+              "title": "行业周期洞察17｜水泥建材周期：淡旺季界限分明，区域需求锁定周期高度",
+              "published_at": "2026-05-24",
+              "quote": "煤炭是水泥生产核心燃料，煤价波动直接牵动生产成本。",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        },
+        {
+          "text": "煤机度电利润。",
+          "where": "公司火电分部",
+          "series_id": null,
+          "history": "随公司报告期",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "5cf5cd289f5c454fa68aa8bfe8111705",
+              "parse_revision_id": "r-85ca612736ca447c",
+              "parsed_content_sha256": "a3f0e3788eb6014530af1f95a70c715b3a230abcf9e130a0698b2a4439a0279c",
+              "block_id": "r-85ca612736ca447c:p1:b12",
+              "quote": "煤机度电利润 3.9分/千瓦时，",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "丰水期水能利用率 / 弃水。",
+          "where": "流域水能利用率披露",
+          "series_id": null,
+          "history": "随公司报告期",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p16:b11",
+              "quote": "难以充分消纳。2",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "margin_logic": [
+        {
+          "text": "火电看煤价与电价：长协煤降燃料波动，煤机度电利润衡量盈利。",
+          "spread": {
+            "price": "上网电价",
+            "cost_proxy": null,
+            "note": "燃料是动力煤现货，系统未登记该序列，未用焦煤期货代理"
+          },
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p1:b16",
+              "quote": "长协煤覆盖比例超 90%，燃料成本 及价格波动显著低于同",
+              "origin": "library"
+            },
+            {
+              "document_id": "5cf5cd289f5c454fa68aa8bfe8111705",
+              "parse_revision_id": "r-85ca612736ca447c",
+              "parsed_content_sha256": "a3f0e3788eb6014530af1f95a70c715b3a230abcf9e130a0698b2a4439a0279c",
+              "block_id": "r-85ca612736ca447c:p1:b12",
+              "quote": "煤机度电利润 3.9分/千瓦时，",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "水电看来水与分时电价：枯水期合同电价上浮、丰水期下浮；丰水期消纳不足会弃水。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p17:b7",
+              "quote": "枯水期（1-4 月、12 月）电",
+              "origin": "library"
+            },
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p16:b11",
+              "quote": "难以充分消纳。2",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "year": "2021",
+          "mark": "火电利润底部：五大发电上市平台预告合计亏损约 275–313 亿元。原因是煤价高位、煤电矛盾。",
+          "precision": "约",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://m.thepaper.cn/baijiahao_16629588",
+              "title": "比惨大会开始！五大火电去年合计亏损超270亿元",
+              "published_at": "2022-02-09",
+              "quote": "2021年煤炭供需偏紧，价格高位运行，煤、电矛盾加剧，火电上市公司大面积亏损，净利润同比大幅下滑。号称中国“五大”的发电集团，其旗下上市公司近日纷纷预告2021年的业绩，合计亏损274.85亿-312.58亿元。",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        },
+        {
+          "year": "2023",
+          "mark": "水电：来水偏枯，利用小时下降。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "0694da4ecff445d59bd431369fc2f896",
+              "parse_revision_id": "r-3c1262ebc5ff4bc1",
+              "parsed_content_sha256": "d0ad6cad62836b4496a76c7086a7c8eb863f5d69fef4097e261e6fd9ebf819ee",
+              "block_id": "r-3c1262ebc5ff4bc1:p1:b18",
+              "quote": "来水偏枯影响，23 年水电机组平均 利用小时数同比-136 小时，全年发",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "year": "2025",
+          "mark": "煤价回落、火电盈利修复。作为 2021 年底部之后的修复，不是精确新高。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "d9af8d13d07b4f738f326f42dd233a19",
+              "parse_revision_id": "r-eff9402dbf6a4f5b",
+              "parsed_content_sha256": "9aa2f621f01d9ca7d5e3ca9aa3e634df776c2510333387f53047e10b91c4d69e",
+              "block_id": "r-eff9402dbf6a4f5b:p1:b16",
+              "quote": "随着煤价 回落、水风光业务占比提升，",
+              "origin": "library"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "801711.SI": {
+    "cycle": {
+      "kind": "cyclical",
+      "seasonality": [
+        {
+          "text": "全国施工节奏（检索，约）：春季旺季约 3–6 月复工，秋季旺季约 9–11 月赶工；7–8 月高温暴雨、12–2 月严寒为淡季。",
+          "precision": "约",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://caifuhao.eastmoney.com/news/20260524081408097786880",
+              "title": "行业周期洞察17｜水泥建材周期：淡旺季界限分明，区域需求锁定周期高度",
+              "published_at": "2026-05-24",
+              "quote": "春季旺季（3-6月）：开春冰雪消融，工程集中复工，全年第一波需求高峰 - 秋季旺季（9-11月）：避开酷暑汛期，项目赶工期收尾，第二波行情高点 - 淡季（7-8月、12-2月）：高温暴雨、严寒冻土，户外施工停滞，需求跌入低谷",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        },
+        {
+          "text": "华东高标水泥价：9 月底可为全年最低，12 月下旬可为全年最高后淡季回落。三季度价格可以落到全年低点。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "淡季回落，这个价格也是全年最 高价，比 9 月底的 275 元/t 高出 100 元，9 月底也是全年的最低点。",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "广东金九银十为需求旺季；粤东约 9 月到次年春节前为销售旺季。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "ec06e2c1a87d42f4bfa4ad4619809790",
+              "parse_revision_id": "r-18f1c26a231a4827",
+              "parsed_content_sha256": "30157cb8f6a8346cda719a278d564914b0c2c8de71128ed91b38ef635498b837",
+              "block_id": "r-18f1c26a231a4827:p5:b1",
+              "quote": "金九银十，广东市场需求旺季来临，也将有利于推动未来几个 月广东地区的水泥价格回暖",
+              "origin": "library"
+            },
+            {
+              "document_id": "ec06e2c1a87d42f4bfa4ad4619809790",
+              "parse_revision_id": "r-18f1c26a231a4827",
+              "parsed_content_sha256": "30157cb8f6a8346cda719a278d564914b0c2c8de71128ed91b38ef635498b837",
+              "block_id": "r-18f1c26a231a4827:p9:b14",
+              "quote": "销售旺季。旺季来",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "cycle_drivers": [
+        {
+          "text": "需求下行：产量与价格齐跌。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "量价齐跌。根据国家统计局数据，全年水泥产量 18",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "错峰生产停窑约束供给，各省停窑天数不同。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p20:b30",
+              "quote": "停窑 45 天，江西全年要求停产 120 天，浙江、江苏全年不少于 80 天，川渝停窑 140 天以",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "产能置换与查超产政策。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b24",
+              "quote": "产能置换实施办法（2024年本）》，",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "供给自律与龙头提价。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "b7986dfa08884e0f9e0da5c795c587a0",
+              "parse_revision_id": "r-908f5000814d4a80",
+              "parsed_content_sha256": "bfca369f59e1ed9e746ddf04ef7b0180223f82255f5dc7d6a8194fb095afa42a",
+              "block_id": "r-908f5000814d4a80:p1:b14",
+              "quote": "长三角两轮提价顺利落地。在去年历",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "基建（专项债、三大工程）与地产需求。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "ec06e2c1a87d42f4bfa4ad4619809790",
+              "parse_revision_id": "r-18f1c26a231a4827",
+              "parsed_content_sha256": "30157cb8f6a8346cda719a278d564914b0c2c8de71128ed91b38ef635498b837",
+              "block_id": "r-18f1c26a231a4827:p5:b1",
+              "quote": "三大工程\"与重点工程有望 加速推进，基建投资有望",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "watch_indicators": [
+        {
+          "text": "高标水泥均价。",
+          "where": "数字水泥网",
+          "series_id": null,
+          "history": "系统未登记水泥价格指数",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "数字水泥 网，全年高标水泥均价为 384 元/吨，同比下降 3.03%。 202",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "全国水泥产量。",
+          "where": "国家统计局",
+          "series_id": null,
+          "history": "系统未登记产量序列",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "国家统计局数据，全年水泥产量 18.25 亿吨，同比 下降 9.5%，其",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "吨均价 / 吨毛利 / 吨净利 / 吨成本。",
+          "where": "公司定期报告",
+          "series_id": null,
+          "history": "海螺数据包单季营收约 2022Q3–2026Q3",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "b7986dfa08884e0f9e0da5c795c587a0",
+              "parse_revision_id": "r-908f5000814d4a80",
+              "parsed_content_sha256": "bfca369f59e1ed9e746ddf04ef7b0180223f82255f5dc7d6a8194fb095afa42a",
+              "block_id": "r-908f5000814d4a80:p1:b11",
+              "quote": "吨均价/吨毛利/吨净利 246 元/59 元/2",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "动力煤现货价（水泥窑和火电锅炉用动力煤，不是炼钢焦煤）。",
+          "where": "秦皇岛港 5500 大卡现货或 CCI 动力煤指数",
+          "series_id": null,
+          "history": "系统未登记动力煤序列",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://caifuhao.eastmoney.com/news/20260524081408097786880",
+              "title": "行业周期洞察17｜水泥建材周期：淡旺季界限分明，区域需求锁定周期高度",
+              "published_at": "2026-05-24",
+              "quote": "煤炭是水泥生产核心燃料，煤价波动直接牵动生产成本。",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        }
+      ],
+      "margin_logic": [
+        {
+          "text": "吨盈利按吨均价、吨毛利、吨净利拆解；吨成本随煤价与替代燃料变动。",
+          "spread": {
+            "price": "吨均价",
+            "cost_proxy": null,
+            "note": "燃料是动力煤现货，系统未登记该序列，未用焦煤期货代理"
+          },
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "b7986dfa08884e0f9e0da5c795c587a0",
+              "parse_revision_id": "r-908f5000814d4a80",
+              "parsed_content_sha256": "bfca369f59e1ed9e746ddf04ef7b0180223f82255f5dc7d6a8194fb095afa42a",
+              "block_id": "r-908f5000814d4a80:p1:b11",
+              "quote": "吨成本得益于加快替代燃料使用、优化原燃材料的采购等成本 管控举措以及煤价下降，同比压缩 18 元至 187 元",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "year": "2015",
+          "mark": "产量同比约 -5.3%，为 1991 年以来首次负增长；量价齐跌、行业效益大幅收窄。",
+          "precision": "约",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://www.ccement.com/news/content/8054029657457.html",
+              "title": "原创 2015年水泥行业运行分析与展望-水泥网",
+              "published_at": "2016",
+              "quote": "同比下降5.3%，为自1991年以来的负增长，熟料产量6.31亿吨，同比下降8.77%。",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        },
+        {
+          "year": "2016-2021",
+          "mark": "2016—2021 年价格上行周期（来源称约四年涨势），2021 年到高点，此后一路下行。",
+          "precision": "约",
+          "origin": "web_search",
+          "refs": [
+            {
+              "url": "https://caifuhao.eastmoney.com/news/20240802172738691026310",
+              "title": "2016年至2021年水泥价格经历长达4年的上涨周期，2021达高点，自此，水泥",
+              "published_at": "2024-08-02",
+              "quote": "2016年至2021年水泥价格经历长达4年的上涨周期，2021达高点，自此，水泥价格是一路下行，偶有调头，了无用处，水泥行业的调整已经整整过去4个年头。",
+              "precision": "约",
+              "origin": "web_search"
+            }
+          ]
+        },
+        {
+          "year": "2023",
+          "mark": "行业利润约 320 亿元，报道称近 16 年最低。",
+          "precision": "约",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "ec06e2c1a87d42f4bfa4ad4619809790",
+              "parse_revision_id": "r-18f1c26a231a4827",
+              "parsed_content_sha256": "30157cb8f6a8346cda719a278d564914b0c2c8de71128ed91b38ef635498b837",
+              "block_id": "r-18f1c26a231a4827:p4:b20",
+              "quote": "320 亿元，同比下跌约 50%，行业利润已 下滑至近 16 年最低水平",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "year": "2024",
+          "mark": "国内水泥量价齐跌；华东南京 9 月底价为全年最低、12 月下旬为全年最高。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "量价齐跌。根据国家统计局数据，全",
+              "origin": "library"
+            },
+            {
+              "document_id": "e42db223c298470e952491a78e0e108a",
+              "parse_revision_id": "r-1b27a0cc2e1c4b2c",
+              "parsed_content_sha256": "9afe10510e3294bdcbcfefd3b25f5aaa868b19bb554bf3ef8585175255149659",
+              "block_id": "r-1b27a0cc2e1c4b2c:p16:b23",
+              "quote": "全年的最低点。",
+              "origin": "library"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "801081.SI": {
+    "cycle": {
+      "kind": "growth",
+      "scope": "AI 算力链视角，挂在半导体画像下；海光是链上 CPU/DCU 一例，不是整条链。",
+      "bottlenecks": [
+        {
+          "text": "高带宽存储：原厂产能向 HBM 倾斜，传统 DRAM 供给收紧。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "5fbd9a483c654690b9079f2276c520f0",
+              "parse_revision_id": "r-289188c7f4014035",
+              "parsed_content_sha256": "047ea209f8619f68394c6eaf2ff62a0a0c5cbe0b2fc844692c62181c5cda34c8",
+              "block_id": "r-289188c7f4014035:p10:b10",
+              "quote": "向 HBM 等高端型号倾斜，导致传统 DRAM 产品供给收紧，推动价格持续上行。",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "海外头部厂商聚焦 HBM、DDR5 等高阶产品。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "531bc6a5599843ceb93c1289907cba22",
+              "parse_revision_id": "r-1f4a59f356324f7f",
+              "parsed_content_sha256": "d9f0021878232693ce44b607d211f905445ddb6f639b21b43488081c8faa5601",
+              "block_id": "r-1f4a59f356324f7f:p6:b25",
+              "quote": "聚焦 HBM、DDR5 等",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "先进封装在逻辑/存储制造中的重要性上升（含面向 HBM 的封装）。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "09076992cfa143b3a4273f19141d15d0",
+              "parse_revision_id": "r-7c7c58a213814d30",
+              "parsed_content_sha256": "dbbf79b45e1bcd7b2d400b0b24c43976c5bef415b3c2ceed8907465839858178",
+              "block_id": "r-7c7c58a213814d30:p1:b5",
+              "quote": "先进封装在逻辑/存储集成电路制造过程中的重要性增加，此举或完善公 司产品",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "电互连带宽、距离和能效成为瓶颈，数据中心转向光互连与光模块。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "1e38a2cc8dac472a880016c0d2bf6ee5",
+              "parse_revision_id": "r-f672203153d24544",
+              "parsed_content_sha256": "52cccca07d9ca837bcdd2ebb5e4eff0d9769ab0495a632be6786a42ca179d473",
+              "block_id": "r-f672203153d24544:p29:b3",
+              "quote": "电互连在带宽、传输距离和能效方面的瓶颈，是数据 中心、5G 通信及云计算的核心技",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "主机与加速卡之间的带宽瓶颈，需 PCIe/交换芯片连接多块 GPU/AI 加速卡。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "1e38a2cc8dac472a880016c0d2bf6ee5",
+              "parse_revision_id": "r-f672203153d24544",
+              "parsed_content_sha256": "52cccca07d9ca837bcdd2ebb5e4eff0d9769ab0495a632be6786a42ca179d473",
+              "block_id": "r-f672203153d24544:p23:b9",
+              "quote": "带宽瓶颈问题，在数据中心和云计算中，PCIe Switch 芯片可以连接多块 GPU/AI 加速卡进",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "12 英寸先进制程产能供不应求。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "08dbc007838d4c0086dc02a12de09dd5",
+              "parse_revision_id": "r-5e44108889af4ca1",
+              "parsed_content_sha256": "ecbce1b96fbfd9e3b717dcf3431f9d21aa2bafc4aa77472e5604743923c07aa0",
+              "block_id": "r-5e44108889af4ca1:p1:b8",
+              "quote": "先进制程产能供不应求。25H1 ",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "举例（海光）：代工厂封装测试产能紧张推升加工费用、压制毛利率。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "6bb4ab2f0aba4498b7a3d88b5f8ef731",
+              "parse_revision_id": "r-53fd55570fe74980",
+              "parsed_content_sha256": "abd5768c96fa831443f41523c1bd5e9c14015d1ff3c1dd54b4ef198a19b177ac",
+              "block_id": "r-53fd55570fe74980:p1:b16",
+              "quote": "封装测试产能紧张及产品结构变化等",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "breakthrough_signals": [
+        {
+          "text": "存储原厂把产能转向 HBM 等高端型号，是算力链放量的上游信号。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "5fbd9a483c654690b9079f2276c520f0",
+              "parse_revision_id": "r-289188c7f4014035",
+              "parsed_content_sha256": "047ea209f8619f68394c6eaf2ff62a0a0c5cbe0b2fc844692c62181c5cda34c8",
+              "block_id": "r-289188c7f4014035:p10:b10",
+              "quote": "向 HBM 等高端型号倾斜，导致传统 DRAM 产品供给收紧，推动价格持续上行。",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "光互连规模部署和迭代，带动光芯片/光模块量价。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "1e38a2cc8dac472a880016c0d2bf6ee5",
+              "parse_revision_id": "r-f672203153d24544",
+              "parsed_content_sha256": "52cccca07d9ca837bcdd2ebb5e4eff0d9769ab0495a632be6786a42ca179d473",
+              "block_id": "r-f672203153d24544:p29:b3",
+              "quote": "光模块在数据中心的规模化部署和迭代，有望带动相关芯片量价齐升。光互连通过",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "举例（海光）：DCU 导入主流服务器供应链，支持主流大模型训练与推理。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "6bacb56621d34bbfab502c65abd1656b",
+              "parse_revision_id": "r-97aabf331a254fe6",
+              "parsed_content_sha256": "d27af7e8bcfeb9abd36bc1f8237e07b8331a86a4ae4ca355bea1499321d14479",
+              "block_id": "r-97aabf331a254fe6:p1:b9",
+              "quote": "导入主流服务器供应链，并能支持国内外主流大模型的训练与推",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "adoption": [
+        {
+          "text": "AI 对先进逻辑、存储及先进封装的拉动，后道设备扩张。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "e1e5b1e25d0b46fd9aac239bb1f7fe16",
+              "parse_revision_id": "r-21571cfe5f344b87",
+              "parsed_content_sha256": "12bf52a8f5717c29cd8fb5e0c68c0ecb21350d200e80e514c40646c96e199c4c",
+              "block_id": "r-21571cfe5f344b87:p10:b15",
+              "quote": "先进封装技术的强劲拉动，全球半导体制造设备 市场正迎来新",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "DRAM 供不应求、价格自 2025 年下半年大幅上涨（存储紧缺向算力整机传导）。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "5fbd9a483c654690b9079f2276c520f0",
+              "parse_revision_id": "r-289188c7f4014035",
+              "parsed_content_sha256": "047ea209f8619f68394c6eaf2ff62a0a0c5cbe0b2fc844692c62181c5cda34c8",
+              "block_id": "r-289188c7f4014035:p6:b16",
+              "quote": "供不应求，价格自 2025 年下半年以来持续呈现大幅上涨趋势，同时，随着",
+              "origin": "library"
+            }
+          ]
+        }
+      ],
+      "history": [
+        {
+          "text": "存储原厂转向 HBM 后，传统 DRAM 供给收紧、价格上行，是本轮算力扩张向上游传导的一段时间差。",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "5fbd9a483c654690b9079f2276c520f0",
+              "parse_revision_id": "r-289188c7f4014035",
+              "parsed_content_sha256": "047ea209f8619f68394c6eaf2ff62a0a0c5cbe0b2fc844692c62181c5cda34c8",
+              "block_id": "r-289188c7f4014035:p10:b10",
+              "quote": "向 HBM 等高端型号倾斜，导致传统 DRAM 产品供给收紧，推动价格持续上行。",
+              "origin": "library"
+            }
+          ]
+        },
+        {
+          "text": "举例（海光）：2025 年营收首次突破百亿，是国产算力芯片兑现的一例，不是整条链的时间表。",
+          "years": "至 2025",
+          "origin": "library",
+          "refs": [
+            {
+              "document_id": "6bacb56621d34bbfab502c65abd1656b",
+              "parse_revision_id": "r-97aabf331a254fe6",
+              "parsed_content_sha256": "d27af7e8bcfeb9abd36bc1f8237e07b8331a86a4ae4ca355bea1499321d14479",
+              "block_id": "r-97aabf331a254fe6:p1:b7",
+              "quote": "首次突破百亿大 关；归母净利",
+              "origin": "library"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

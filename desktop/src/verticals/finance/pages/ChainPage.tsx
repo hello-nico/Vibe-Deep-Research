@@ -9,9 +9,9 @@ import { useAiPage } from "../../../core/ai/pageContext";
 import { watchPath } from "../lib/routes";
 import { gradeLabel, plainNumber, yiText } from "../lib/companyNarrative";
 import {
-  addToChain, arrowLabel, calcRows, calcSetup, chainDrivers, chainHeadline, CYCLE, cycleSentence, defaultChainServices, deleteChain, hasCycle, isChainConflict, loadCandidates, loadChainView, loadCycle,
-  removeFromChain, revertChain, roleText,
-  type CalcRow, type CalcSetup, type Candidate, type ChainCompany, type ChainNode, type ChainServices, type ChainView, type Cycle,
+  addToChain, approximate, arrowLabel, calcRows, calcSetup, chainDrivers, chainHeadline, cycleSentence, defaultChainServices, deleteChain, isChainConflict, loadCandidates, loadChainView, loadStageCycle,
+  nearestTurningPoint, profitConcentration, removeFromChain, revertChain, roleText, seasonalityLine, stageLabel,
+  type CalcRow, type CalcSetup, type Candidate, type ChainCompany, type ChainNode, type ChainServices, type ChainView, type CycleItem, type CycleRef, type StageCycle,
 } from "../lib/chainPage";
 import "./chain-page.css";
 
@@ -96,9 +96,23 @@ function ChainBody({ view, services, run, busy }: { view: ChainView; services: C
   const { chain, frameworks, companies, failed } = view;
   const { pool, ensure } = useCandidatePool(chain.chain_id, view.version, services);
   const drivers = chainDrivers(chain);
+  const [stages, setStages] = useState<Record<string, StageCycle>>({});
+  const [cycleAttempt, setCycleAttempt] = useState(0);
+  useEffect(() => {
+    const controller = new AbortController();
+    setStages({});
+    for (const node of chain.nodes) void loadStageCycle(node.industry_code, services, controller.signal).then(stage => {
+      if (!controller.signal.aborted) setStages(previous => ({ ...previous, [stage.code]: stage }));
+    });
+    return () => controller.abort();
+  }, [chain, services, cycleAttempt]);
+  const concentration = profitConcentration(chain, stages);
   return <div className="chain" data-chain={chain.chain_id}>
     <p className="chain-headline" data-chain-headline="">{chainHeadline(view)}</p>
-    <Panel title="链条" className="chain-section" data-chain-section="nodes">
+    <Panel title="行业现在在哪？" className="chain-section" data-chain-section="cycle">
+      {chain.nodes.map(node => <StageCycleRow key={node.industry_code} node={node} stage={stages[node.industry_code]} retry={() => setCycleAttempt(value => value + 1)} />)}
+    </Panel>
+    <Panel title="上下游和利润在哪？" className="chain-section" data-chain-section="nodes">
       <ol className="chain-nodes">{chain.nodes.map((node, index) => {
         const framework = frameworks[node.industry_code];
         const method = framework?.template ? [framework.template.name, framework.template.method].filter(Boolean).join("：") : "";
@@ -114,26 +128,29 @@ function ChainBody({ view, services, run, busy }: { view: ChainView; services: C
         </Fragment>;
       })}</ol>
       {failed.frameworks && <p className="chain-gap" data-gap="framework">部分估值方法读取失败</p>}
-    </Panel>
-    {drivers.length > 0 && <Panel title="共同驱动" className="chain-section" data-chain-section="drivers">
+    {drivers.length > 0 && <div data-chain-section="drivers">
       <ul className="chain-drivers">{drivers.map(item => <li key={item.driver} data-driver={item.driver}>
         <b>{item.driver}</b>
         <span>{item.texts.join("；")}</span>
         <span className="chain-chips">{item.nodes.map(name => <Tag key={name}>{name}</Tag>)}</span>
       </li>)}</ul>
-    </Panel>}
-    {hasCycle(chain) && <CyclePanel services={services} />}
-    <ChainCalc view={view} />
-    <Panel title="链上公司" className="chain-section" data-chain-section="companies">
-      {chain.nodes.map(node => <StageGroup key={node.industry_code} node={node} companies={companies.filter(company => company.industry_code === node.industry_code)}
-        view={view} pool={pool} ensure={ensure} run={run} busy={busy} services={services} />)}
+    </div>}
+      {concentration && <p className="chain-cycle-line" data-profit-concentration="">{concentration}</p>}
+      {chain.nodes.map(node => stages[node.industry_code]?.knowledge?.kind === 'growth' && <div key={node.industry_code}>
+        {stages[node.industry_code]!.knowledge!.bottlenecks?.map((item, index) => <KnowledgeLine key={index} item={item} prefix={`${node.industry_name}，瓶颈在：`} />)}
+      </div>)}
     </Panel>
+    <Panel title="重点公司有哪些？" className="chain-section" data-chain-section="companies">
+      {chain.nodes.map(node => <StageGroup key={node.industry_code} node={node} companies={companies.filter(company => company.industry_code === node.industry_code)}
+        view={view} pool={pool} ensure={ensure} run={run} busy={busy} services={services} label={stageLabel(stages[node.industry_code])} />)}
+    </Panel>
+    <ChainCalc view={view} />
   </div>;
 }
 
 /** 一个环节：你关注的公司一家一行（可移出），末尾「同环节还可关注」展开候选，点「关注」即关注并放进这条链。 */
-function StageGroup({ node, companies, view, pool, ensure, run, busy, services }: {
-  node: ChainNode; companies: ChainCompany[]; view: ChainView; pool: { items?: Candidate[]; failed?: boolean }; ensure: (force?: boolean) => void; run: Run; busy: string; services: ChainServices;
+function StageGroup({ node, companies, view, pool, ensure, run, busy, services, label }: {
+  node: ChainNode; companies: ChainCompany[]; view: ChainView; pool: { items?: Candidate[]; failed?: boolean }; ensure: (force?: boolean) => void; run: Run; busy: string; services: ChainServices; label: string;
 }) {
   const [open, setOpen] = useState(false);
   useEffect(() => { if (open) ensure(); }, [open, ensure]);
@@ -142,7 +159,7 @@ function StageGroup({ node, companies, view, pool, ensure, run, busy, services }
   return <div className="chain-stage" data-stage={node.industry_code}>
     <p className="chain-stage-name">{node.industry_name}</p>
     {companies.length ? <div className="chain-companies" role="table" aria-label={`${node.industry_name}链上公司`}>
-      {companies.map(company => <CompanyRow key={company.symbol} company={company} node={node.industry_name} disabled={Boolean(busy)}
+      {companies.map(company => <CompanyRow key={company.symbol} company={company} node={node.industry_name} label={label} disabled={Boolean(busy)}
         onRemove={() => void run(`remove:${company.symbol}`, () => removeFromChain(chainId, view.version, company.symbol, services), "没成功")} />)}
     </div> : <p className="chain-gap" data-stage-empty="">暂无关注公司</p>}
     <details className="chain-candidates" open={open} onToggle={event => setOpen((event.currentTarget as HTMLDetailsElement).open)}>
@@ -158,29 +175,64 @@ function StageGroup({ node, companies, view, pool, ensure, run, busy, services }
   </div>;
 }
 
-/** 周期位置：一句话加底部—中位—高位刻度，现在的价差是橙色点（图表里的当前值）。日线读不到只写缺口，可单独重试。 */
-function CyclePanel({ services }: { services: ChainServices }) {
-  const [cycle, setCycle] = useState<Cycle | null>(null);
-  const [attempt, setAttempt] = useState(0);
-  useEffect(() => {
-    const controller = new AbortController();
-    setCycle(null);
-    loadCycle(services, controller.signal).then(result => { if (!controller.signal.aborted) setCycle(result); });
-    return () => controller.abort();
-  }, [services, attempt]);
-  return <Panel title="现在在周期什么位置" className="chain-section" data-chain-section="cycle">
-    {!cycle ? <LoadingCard bare />
-      : cycle.state === "gap" ? <p className="chain-gap" data-gap="cycle">{cycle.reason}。<button type="button" className="btn btn-text btn-sm" onClick={() => setAttempt(value => value + 1)}>重试</button></p>
-      : <>
-        <p className="chain-cycle-line" data-cycle-line="">{cycleSentence(cycle.position)}</p>
-        <div className="chain-cycle-scale" role="img" aria-label={`价差在历史的 ${cycle.position.percentile}% 分位，${cycle.position.zone}`}>
-          <i className="chain-cycle-track" /><i className="chain-cycle-edge" style={{ left: "25%" }} /><i className="chain-cycle-edge" style={{ left: "75%" }} />
-          <i className="chain-cycle-dot" style={{ left: `${cycle.position.percentile}%` }} data-cycle-dot="" title={`现在的价差 ${plainNumber(cycle.position.spread, 0)} 元/吨`} />
-          <span style={{ left: "12.5%" }}>底部</span><span style={{ left: "50%" }}>中位</span><span style={{ left: "87.5%" }}>高位</span>
-        </div>
-        <p className="chain-gap" data-cycle-note="">价差 = 沪铝 − {CYCLE.ratio} × 氧化铝（每吨铝约耗 {CYCLE.ratio} 吨氧化铝，行业参考值），现在 {plainNumber(cycle.position.spread, 0)} 元/吨，历史最低 {plainNumber(cycle.position.low, 0)}、最高 {plainNumber(cycle.position.high, 0)}；主力连续合约日收盘，{cycle.position.from} 至 {cycle.position.asOf} 共 {plainNumber(cycle.position.days)} 个交易日。{cycle.position.short ? `${cycle.position.short}。` : ""}不含电价和吨成本，只是铝价与氧化铝之间的空间。</p>
+function Sources({ refs }: { refs: CycleRef[] }) {
+  return <details className="chain-sources"><summary>出处</summary>{refs.map((ref, index) => {
+    const query = new URLSearchParams({ revision: ref.parse_revision_id ?? '', hash: ref.parsed_content_sha256 ?? '', block: ref.block_id ?? '' });
+    const document = ref.document_id && ref.parse_revision_id && ref.parsed_content_sha256 && ref.block_id;
+    return <p key={index}>{ref.quote}{' '}{document
+      ? <Link to={`/my-reports/read/${encodeURIComponent(ref.document_id!)}?${query}`}>查看原文</Link>
+      : ref.url && /^https?:\/\//.test(ref.url) ? <a href={ref.url} target="_blank" rel="noreferrer">{ref.title || '查看原文'}</a>
+      : ref.series_id ? <span>系统日线：{ref.series_id}</span> : null}</p>;
+  })}</details>;
+}
+function KnowledgeLine({ item, prefix = '' }: { item: CycleItem; prefix?: string }) {
+  return <div className="chain-knowledge"><p>{prefix}{(item.text || item.mark || '').replace(/[。.]$/, '')}{approximate(item) ? '（约）' : ''}。</p><Sources refs={item.refs ?? []} /></div>;
+}
+/** 展开的是本次计算收到的日线，下载也使用同一份输入，不另取最新行情冒充原始依据。 */
+function DailySources({ stage }: { stage: StageCycle }) {
+  const { daily, metric, cycle } = stage;
+  if (!daily || !metric || cycle?.state !== 'ok') return null;
+  const { position } = cycle;
+  const series = [metric.a, metric.b].flatMap(id => daily.series.filter(item => item.id === id));
+  const cell = (value: string) => `"${value.replaceAll('"', '""')}"`;
+  const csv = [['序列', '名称', '日期', '收盘价', '单位', '口径', '来源', '来源合约', '读取时间', '来源网址'],
+    ...series.flatMap(item => item.points.map(([day, close]) => [item.id, item.name ?? '', day, close, item.unit ?? '', item.basis ?? '', item.source?.provider ?? '', item.source?.source_symbol ?? '', item.source?.fetched_at ?? '', item.source?.urls?.join(' ') ?? '']))]
+    .map(row => row.map(cell).join(',')).join('\r\n');
+  return <details className="chain-sources" data-cycle-inputs=""><summary>日线与计算依据</summary>
+    <p>本次计算：{position.from} 至 {position.asOf}，{position.days} 个{metric.b ? '共同' : ''}交易日。分位 =（低于现值的天数 + 等于现值天数的一半）÷ 样本天数，四舍五入至整数百分比。</p>
+    {series.map(item => <div key={item.id} data-cycle-source={item.id}>
+      <p>{item.name || item.id}（{item.id}），{item.unit || '单位未提供'}；{item.basis || '口径未提供'}。计算截止日 {position.asOf} 的收盘价：{item.points.find(([day]) => day === position.asOf)?.[1]}。</p>
+      <p>来源：{item.source?.provider || '未提供'}；合约：{item.source?.source_symbol || '未提供'}；本次读取时间：{item.source?.fetched_at || '未提供'}。</p>
+      {item.source?.urls?.filter(url => /^https?:\/\//.test(url)).map(url => <p key={url}><a href={url} target="_blank" rel="noreferrer">行情提供方接口</a>（具体合约见上方，本次日线见下方下载）</p>)}
+    </div>)}
+    <a download={`周期日线_${position.asOf}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent('\uFEFF' + csv)}`} data-cycle-download="">下载本次计算的日线输入</a>
+  </details>;
+}
+function StageCycleRow({ node, stage, retry }: { node: ChainNode; stage?: StageCycle; retry: () => void }) {
+  const knowledge = stage?.knowledge, cycle = stage?.cycle, metric = stage?.metric;
+  const history = knowledge && nearestTurningPoint(knowledge);
+  return <div className="chain-stage-cycle" data-cycle-stage={node.industry_code}>
+    <b>{node.industry_name}</b>
+    {!stage ? <LoadingCard bare /> : !knowledge ? <p className="chain-gap">{stage.failed ? '周期资料暂时读取不到' : '这个行业的周期资料还没整理'}{stage.failed && <button className="btn btn-text btn-sm" onClick={retry}>重试</button>}</p>
+      : knowledge.kind === 'growth' ? <>
+        {knowledge.scope && <p className="chain-gap">{knowledge.scope}</p>}
+        {knowledge.adoption?.slice(0, 1).map((item, index) => <KnowledgeLine key={index} item={item} prefix="景气阶段：" />)}
+        {knowledge.bottlenecks?.slice(0, 1).map((item, index) => <KnowledgeLine key={index} item={item} prefix="瓶颈在：" />)}
+      </> : <>
+        {!metric ? <div className="chain-knowledge"><p className="chain-gap">这个环节的周期指标系统里暂时没有序列，看 {knowledge.watch_indicators?.[0]?.where || '行业报告'}</p><Sources refs={knowledge.watch_indicators?.[0]?.refs ?? []} /></div>
+          : cycle?.state === 'ok' ? <>
+            <p className="chain-cycle-line" data-cycle-line="">{cycleSentence(cycle.position, metric)}</p><Sources refs={metric.refs} /><DailySources stage={stage!} />
+            <div className="chain-cycle-scale" role="img" aria-label={`${metric.label}在历史的 ${cycle.position.percentile}% 分位，${cycle.position.zone}`}>
+              <i className="chain-cycle-track" /><i className="chain-cycle-edge" style={{ left: '25%' }} /><i className="chain-cycle-edge" style={{ left: '75%' }} />
+              <i className="chain-cycle-dot" style={{ left: `${cycle.position.percentile}%` }} data-cycle-dot="" />
+              <span style={{ left: '12.5%' }}>底部</span><span style={{ left: '50%' }}>中位</span><span style={{ left: '87.5%' }}>高位</span>
+            </div>
+            <p className="chain-gap" data-cycle-note="">{metric.b ? `${stage?.daily?.series.find(item => item.id === metric.a)?.name || metric.a} − ${metric.ratio} × ${stage?.daily?.series.find(item => item.id === metric.b)?.name || metric.b}；` : ''}现在 {plainNumber(cycle.position.spread, 2)}，历史最低 {plainNumber(cycle.position.low, 2)}、最高 {plainNumber(cycle.position.high, 2)}；主力连续日收盘，{cycle.position.from} 至 {cycle.position.asOf}，共 {cycle.position.days} 个交易日。{cycle.position.short && `${cycle.position.short}。`}{metric.margin ? '价差仅为利润空间代理，未扣除其余成本。' : '价格分位不等于利润分位。'}</p>
+          </> : <p className="chain-gap" data-gap="cycle">{cycle?.state === 'gap' ? cycle.reason : '日线读取中'}。<button className="btn btn-text btn-sm" onClick={retry}>重试</button></p>}
+        {knowledge.seasonality?.slice(0, 1).map((item, index) => <KnowledgeLine key={index} item={item} prefix={seasonalityLine(item, new Date().getMonth() + 1)} />)}
+        {history && <KnowledgeLine item={history.item} prefix={`距最近记录的历史顶底约 ${history.years} 年（${history.item.year}）：`} />}
       </>}
-  </Panel>;
+  </div>;
 }
 
 const signed = (text: string, value: number) => `${value > 0 ? "+" : value < 0 ? "−" : ""}${text}`;
@@ -189,7 +241,7 @@ const CALC_GAP: Record<Exclude<CalcRow["state"], "ok">, string> = { none: "未�
 /** 试算：一个滑块调共同驱动，每家一行看利润变动。只用各家已存的利润模型，没有研究的写「未研究」，不估。 */
 function ChainCalc({ view }: { view: ChainView }) {
   const setup = calcSetup(view.companies);
-  return setup ? <CalcPanel view={view} setup={setup} /> : null;
+  return setup ? <CalcPanel key={`${view.chain.chain_id}:${setup.id}:${setup.current}`} view={view} setup={setup} /> : null;
 }
 function CalcPanel({ view, setup }: { view: ChainView; setup: CalcSetup }) {
   const [value, setValue] = useState(setup.current);
@@ -218,10 +270,10 @@ function CalcPanel({ view, setup }: { view: ChainView; setup: CalcSetup }) {
   </Panel>;
 }
 
-function CompanyRow({ company, node, onRemove, disabled }: { company: ChainCompany; node: string; onRemove: () => void; disabled: boolean }) {
+function CompanyRow({ company, node, label, onRemove, disabled }: { company: ChainCompany; node: string; label: string; onRemove: () => void; disabled: boolean }) {
   const code = company.symbol.split(".")[0]!;
   return <div className="chain-company" role="row" data-company={company.symbol} data-status={company.status}>
-    <span className="chain-company-name" role="cell"><Link to={watchPath(code)}>{company.name}</Link><small>{node}</small></span>
+    <span className="chain-company-name" role="cell"><Link to={watchPath(code)}>{company.name}</Link><small>{node}</small>{label && <Tag>{label}</Tag>}</span>
     {company.status === "none" ? <span className="chain-company-none" role="cell">未研究</span> : <>
       <span role="cell" className="chain-company-grade"><Tag>{gradeLabel(company.grade)}</Tag></span>
       <span role="cell" className="chain-company-band">{company.tiers && company.tiers.length === 3 && company.price != null

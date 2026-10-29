@@ -11,7 +11,8 @@ import { maintenanceDefinition, researchStatusDefinition } from '../src/vertical
 const requireRuntime = createRequire(new URL('../dsh/runtime/package.json', import.meta.url));
 const runtime = async (name: string) => import(requireRuntime.resolve(`@deepseek-ai/${name}`));
 const { Context } = await runtime('cordis');
-const { LlmAdapter } = await runtime('dsh-llm');
+const { LlmAdapter, createUserMessage } = await runtime('dsh-llm');
+const { compactCheckpointSource, CompactionId } = await runtime('dsh-compaction');
 const checkout = path.resolve(import.meta.dirname, '../..');
 const stockRoot = path.resolve(checkout, '../Stock-Research');
 // The sibling link under .worktrees points at Stock main; use the paired checkout
@@ -27,7 +28,7 @@ registerHooks({ resolve(specifier, context, nextResolve) {
   }
   return nextResolve(specifier, context);
 } });
-const { runBackgroundReview, listBackgroundTasks } = await import(new URL('background-review.mjs', stock).href);
+const { runBackgroundReview } = await import(new URL('background-review.mjs', stock).href);
 const { installResearchTools } = await import(new URL('research-tools.mjs', stock).href);
 const snapshot = {
   questionIdentity: 'first-question', question: '第一题材料快照', reviewed_as_of: '2026-09-15',
@@ -63,14 +64,19 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     async *stream(options: any) {
       requests.push(options);
       const packed = JSON.stringify(options.messages);
-      const child = packed.includes('Settle knowledge after the main answer');
-      if (child) {
+      const legacyChild = packed.includes('Settle knowledge after the main answer');
+      const memoryChild = packed.includes('Extract durable memories about the user');
+      if (legacyChild || memoryChild) {
         childStarted();
         const names = (options.toolHistory.tools || []).map((tool: any) => tool.name);
         assert.ok(!names.includes('generate_market_result'));
         assert.ok(!names.includes('topic_update'));
-        assert.ok(names.includes('source_read_blocks'));
-        assert.ok(names.includes('stage_extraction'));
+        if (legacyChild) {
+          assert.ok(names.includes('source_read_blocks'));
+          assert.ok(names.includes('stage_extraction'));
+        } else {
+          assert.deepEqual(names, ['structured_output']);
+        }
         await new Promise<void>((resolve, reject) => {
           releaseChild = resolve;
           if (options.signal.aborted) reject(new Error('aborted'));
@@ -78,7 +84,9 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
         });
         if (mode === 'fail') throw new Error('controlled failure');
         yield { type: 'block-start', index: 0, blockType: 'tool-call' };
-        const result = mode === 'draft' ? { decision: 'update', wikiUpdates: [{
+        const result = memoryChild ? { candidates: [{
+          target: 'soul', category: '水平与表达偏好', text: '先给结论', excerpt: '先给结论',
+        }] } : mode === 'draft' ? { decision: 'update', wikiUpdates: [{
           slug: 'companies/test', kind: 'operating_model',
           content: '材料支持的经营模式草案', refs: ['source:doc:rev:' + 'b'.repeat(64) + ':b2'], rationale: '新增原文',
         }] } : emptyResult;
@@ -157,23 +165,25 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     mode = 'draft';
     const mainReady = new Promise<void>(resolve => { mainStarted = resolve; });
     const reviewReady = new Promise<void>(resolve => { childStarted = resolve; });
+    const candidateBodies: any[] = [];
+    let phaseMemoryReads = 0;
     t.mock.method(globalThis, 'fetch', async (url: any, options: any) => {
       const pathname = new URL(url).pathname;
       let value;
       if (pathname.endsWith('/wiki/research-memory')) {
+        phaseMemoryReads++;
         value = { version: 9, entries: [{ stance: 'corrected', text: '本轮更正的偏好' }] };
+      } else if (pathname.endsWith('/wiki/research-memory/candidates')) {
+        candidateBodies.push(JSON.parse(options.body));
+        value = { accepted: 1 };
       } else if (pathname.endsWith('/wiki/page-drafts/research')) {
-        value = options.method === 'POST' ? { draft_token: 'controlled-draft', published: false }
-          : { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64), base_research_hash: 'c'.repeat(64) };
-      } else if (pathname.endsWith('/wiki/extractions/finalize')) {
-        const body = JSON.parse(options.body);
-        value = { results: body.candidates.map(() => ({ outcome: 'accepted' })) };
+        value = { spec: { slug: 'companies/test', type: 'company', research_blocks: [] }, base_input_hash: 'a'.repeat(64), base_research_hash: 'c'.repeat(64) };
       } else if (/\/blocks\/b[12]$/.test(pathname)) {
         value = { document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64), block_id: pathname.split('/').at(-1), text: '原文材料' };
       } else throw new Error(`Unexpected Backend request ${pathname}`);
       return new Response(JSON.stringify(value));
     });
-    parent.followup({ content: [{ type: 'text', text: '读取原文并回答' }], source: { kind: 'user' } });
+    parent.followup({ content: [{ type: 'text', text: '记住以后先给结论' }], source: { kind: 'user' } });
     await mainReady;
     for (const [name, args] of [
       ['wiki_read', { slug: 'companies/test' }],
@@ -186,30 +196,23 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     await parent.whenIdle();
     await reviewReady;
     const handedOff = JSON.stringify(requests.at(-1));
-    assert.match(handedOff, /本轮更正的偏好/);
-    assert.match(handedOff, /sourceTurn\\?":6/);
-    assert.match(handedOff, /finalAnswer\\?":\\?"主回答完成/);
+    assert.match(handedOff, /记住以后先给结论/);
+    assert.doesNotMatch(handedOff, /本轮更正的偏好/);
+    assert.equal(phaseMemoryReads, 0, 'ordinary turns must keep the initial stage memory snapshot');
     const settlementChild = ctx.agents.list().find((agent: any) => agent.id !== parent.id);
-    const childRead = await ctx.tools.execute({ agent: settlementChild, name: 'source_read_blocks', arguments: {
-      sources: [{ documentId: 'doc', parseRevisionId: 'rev', parsedContentSha256: 'b'.repeat(64), blockIds: ['b2'] }],
-    }, callId: 'child-read', signal: new AbortController().signal });
-    assert.ok(!childRead.isError, JSON.stringify(childRead.content));
-    const staged = await ctx.tools.execute({ agent: settlementChild, name: 'stage_extraction', arguments: {
-      document_id: 'doc', parse_revision_id: 'rev', parsed_content_sha256: 'b'.repeat(64), block_id: 'b2', candidate_kind: 'entity',
-      entities: [{ key: 'company', entity_type: 'Company', canonical_name: '原文材料', entity_id: 'company:600011.SH' }],
-      supports: [{ block_id: 'b2', role: 'entity:company' }],
-    }, callId: 'child-stage', signal: new AbortController().signal });
-    assert.ok(!staged.isError, JSON.stringify(staged.content));
+    assert.ok(settlementChild);
+    assert.equal(ctx.tools.get('source_read_blocks', settlementChild), undefined);
+    assert.equal(ctx.tools.get('stage_extraction', settlementChild), undefined);
     assert.equal(parent.inbox.hasPending, false);
     const requestCount = requests.length;
     const reviewDone = new Promise<void>((resolve, reject) => {
       ctx.on('session/event', (session: any, event: any) => {
         if (session.id === parent.id && event.type === 'plugin:stock-research/maintenance') {
           try {
-          assert.equal(event.data.status, 'awaiting_authorization');
-          assert.equal(event.data.question, '读取原文并回答');
-          assert.equal(event.data.extraction.accepted, 1);
-          assert.ok(maintenanceDefinition.match(event));
+          assert.equal(event.data.status, 'completed');
+          assert.equal(event.data.question, undefined);
+          assert.equal(event.data.memoryCandidates[0].text, '先给结论');
+          assert.equal(maintenanceDefinition.match(event), null);
           resolve();
           } catch (error) { reject(error); }
         }
@@ -217,16 +220,32 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     });
     releaseChild();
     await reviewDone;
-    const saved = listBackgroundTasks().find((task: any) => task.id === settlementChild.session.id);
-    assert.equal(saved.extraction.accepted, 1);
-    assert.equal(saved.draft_token, 'controlled-draft');
-    assert.equal(saved.parent_session_id, parent.session.id);
+    assert.equal(candidateBodies.length, 1);
+    assert.equal(candidateBodies[0].source_session, parent.session.id);
+    assert.equal(candidateBodies[0].source_turn, 6);
+    assert.equal(candidateBodies[0].user_text, '记住以后先给结论');
+    assert.equal(candidateBodies[0].external_contaminated, true);
     assert.equal(requests.length, requestCount);
     assert.equal(parent.inbox.hasPending, false);
     assert.equal(parent.session.snapshotEvents().filter((event: any) => event.type === 'turn/start').length, 6);
 
-    // 2026-09-24（公司研究任务修复 §2）：本轮出现过的工具失败不再否决整理；
-    // 整理只能引用快照内成功读取的材料，失败的读取不进入依据。
+    // A positional compact checkpoint starts a new memory stage; only then may version 9 appear.
+    const nodes = [...parent.session.surface.nodes].slice(1); // Preserve the system head.
+    parent.session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: '压缩后的会话摘要' }],
+      source: compactCheckpointSource(CompactionId('memory-stage-2')),
+    }), {
+      surfaceOp: { op: 'replace', startSeq: nodes[0], endSeq: nodes.at(-1) },
+      sourceEventSeqs: nodes,
+    });
+    mode = 'complete';
+    parent.followup({ content: [{ type: 'text', text: '压缩后的下一问' }], source: { kind: 'user' } });
+    await parent.whenIdle();
+    assert.equal(phaseMemoryReads, 2);
+    assert.match(JSON.stringify(requests.at(-1)), /本轮更正的偏好/);
+
+    // A4: materials and tool failures alone do not launch another background child.
+    mode = 'draft';
     const failedTurnReady = new Promise<void>(resolve => { mainStarted = resolve; });
     parent.followup({ content: [{ type: 'text', text: '来源失败后仍按已读材料维护' }], source: { kind: 'user' } });
     await failedTurnReady;
@@ -240,14 +259,11 @@ test('native spawn isolates requests, tools, completion and cancellation from pa
     const failed = await ctx.tools.execute({ agent: parent, name: 'search_external', arguments: { query: '来源请求失败' }, callId: 'failed-search', signal: new AbortController().signal });
     assert.equal(failed.isError, true);
     const beforeFailedClose = requests.length;
-    const failedReviewReady = new Promise<void>(resolve => { childStarted = resolve; });
     releaseMain();
     await parent.whenIdle();
-    await failedReviewReady;
-    assert.equal(requests.length, beforeFailedClose + 1, 'a failed tool no longer prevents the maintenance model call');
-    const lastReview = requests.at(-1);
-    assert.doesNotMatch(JSON.stringify(lastReview), /来源请求失败/, 'the failed search result must not enter the settlement snapshot');
-    releaseChild();
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(requests.length, beforeFailedClose, 'materials without a memory hint must not launch settlement');
+    assert.deepEqual(ctx.agents.list().map((agent: any) => agent.id), [parent.id]);
     await handle.dispose();
   } finally { await ctx.fiber.dispose(); }
 });

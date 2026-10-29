@@ -217,15 +217,19 @@ export async function deleteChain(chainId: string, version: number, services: Ch
 
 // ---------------------------------------------------------------- 试算：共同驱动变一下，链上各家利润怎么动
 
-/** 试算的共同驱动：沪铝主力（敏感度模型里的变量编号）。链上没有一家的模型带这个变量就不出试算节。 */
-export const CALC_VAR = 'cmdty:SHFE.AL';
 export interface CalcSetup { id: string; name: string; unit: string; current: number; min: number; max: number; step: number }
-/** 滑块：默认取第一份模型里的现价，范围取各家模型区间的并集；没有模型带这个变量返回 null。 */
+/** 按使用价格变量的公司数选共同驱动；并列沿公司及变量原顺序，百分比和量不参与。 */
 export function calcSetup(companies: readonly ChainCompany[]): CalcSetup | null {
-  const vars = companies.flatMap(company => { const found = company.model?.variables.find(item => item.id === CALC_VAR); return found ? [found] : []; });
+  const counts = new Map<string, number>();
+  const price = (item: SensitivityModel['variables'][number]) => /^(元|分|美元|美分)\//.test(item.unit);
+  for (const company of companies) {
+    for (const id of new Set(company.model?.variables.filter(price).map(item => item.id) ?? [])) counts.set(id, (counts.get(id) ?? 0) + 1);
+  }
+  const id = [...counts].sort((a, b) => b[1] - a[1])[0]?.[0];
+  const vars = companies.flatMap(company => { const found = company.model?.variables.find(item => item.id === id && price(item)); return found ? [found] : []; });
   const first = vars[0];
   if (!first) return null;
-  return { id: CALC_VAR, name: first.name, unit: first.unit, current: first.current, min: Math.min(...vars.map(item => item.min)), max: Math.max(...vars.map(item => item.max)), step: Math.min(...vars.map(item => item.step)) };
+  return { id: first.id, name: first.name, unit: first.unit, current: first.current, min: Math.min(...vars.map(item => item.min)), max: Math.max(...vars.map(item => item.max)), step: Math.min(...vars.map(item => item.step)) };
 }
 /** none = 尚未研究；nomodel = 已研究但没存敏感度；novar = 模型里没有这个价格；noanchor = 模型缺对比期均价，不可算。 */
 export interface CalcRow { symbol: string; name: string; industry_code: string; state: 'ok' | 'none' | 'nomodel' | 'novar' | 'noanchor'; delta?: number; share?: number | null; baseLabel?: string }
@@ -244,15 +248,24 @@ export function calcRows(companies: readonly ChainCompany[], setup: CalcSetup, v
   });
 }
 
-// ---------------------------------------------------------------- 周期位置：沪铝 − 1.93 × 氧化铝 的价差在近十年里的分位
+// ---------------------------------------------------------------- 行业画像与周期位置
 
-/** 每吨电解铝约耗 1.93 吨氧化铝（行业参考值，评估 README 已登记），价差 = 铝价 − 单耗 × 氧化铝价，当成冶炼的毛利空间。 */
-export const CYCLE = { aluminum: 'cmdty:SHFE.AL', alumina: 'cmdty:SHFE.AO', ratio: 1.93, years: 10, minDays: 250 } as const;
-/** 链上同时有「铝价」「氧化铝」两个驱动才出周期位置节，不按链编号写死。 */
-export const hasCycle = (chain: Chain) => { const names = chainDrivers(chain).map(item => item.driver); return names.includes('铝价') && names.includes('氧化铝'); };
-export const cycleRoute = `/market/futures-daily?ids=${encodeURIComponent(CYCLE.aluminum)},${encodeURIComponent(CYCLE.alumina)}&years=${CYCLE.years}`;
+export interface CycleRef { document_id?: string; parse_revision_id?: string; parsed_content_sha256?: string; block_id?: string; url?: string; title?: string; quote?: string; origin?: string; series_id?: string }
+export interface CycleItem { text?: string; year?: string; mark?: string; where?: string; series_id?: string | null; origin?: string; precision?: string; refs?: CycleRef[]; spread?: { a?: string; b?: string; ratio?: string | number } }
+export interface CycleKnowledge { kind: 'cyclical' | 'growth'; scope?: string; seasonality?: CycleItem[]; watch_indicators?: CycleItem[]; margin_logic?: CycleItem[]; history?: CycleItem[]; adoption?: CycleItem[]; bottlenecks?: CycleItem[] }
+export interface CycleMetric { a: string; b?: string; ratio: number; label: string; refs: CycleRef[]; approximate: boolean; margin: boolean }
+export interface StageCycle { code: string; knowledge: CycleKnowledge | null; metric?: CycleMetric; cycle?: Cycle; daily?: FuturesDaily; failed?: boolean }
+const CYCLE_YEARS = 10, MIN_DAYS = 250;
+export const approximate = (item: CycleItem) => item.origin === 'web_search' || Boolean(item.precision);
+export function cycleMetric(knowledge: CycleKnowledge): CycleMetric | undefined {
+  const spread = knowledge.margin_logic?.find(item => item.spread?.a && item.spread.b && num(item.spread.ratio) != null);
+  if (spread?.spread) return { a: spread.spread.a!, b: spread.spread.b!, ratio: Number(spread.spread.ratio), label: '价差', refs: spread.refs ?? [], approximate: approximate(spread), margin: true };
+  const indicator = knowledge.watch_indicators?.find(item => item.series_id);
+  if (indicator) return { a: indicator.series_id!, ratio: 0, label: indicator.text?.replace(/[。；]$/, '') || '指标', refs: indicator.refs ?? [], approximate: approximate(indicator), margin: false };
+}
+export const cycleRoute = (metric: CycleMetric) => `/market/futures-daily?ids=${[metric.a, metric.b].filter(Boolean).map(id => encodeURIComponent(id!)).join(',')}&years=${CYCLE_YEARS}`;
 
-export interface FuturesSeries { id: string; name?: string; first_day?: string; points: [string, string][] }
+export interface FuturesSeries { id: string; name?: string; unit?: string; basis?: string; first_day?: string; points: [string, string][]; source?: { provider?: string; source_symbol?: string; urls?: string[]; fetched_at?: string } }
 export interface FuturesDaily { series: FuturesSeries[]; failed?: { id: string; message?: string }[] }
 export type CycleZone = '底部' | '中位' | '高位';
 export interface CyclePosition {
@@ -269,27 +282,73 @@ export const cycleZone = (percentile: number): CycleZone => percentile < ZONE_ED
 const quantile = (sorted: number[], q: number) => { const at = (sorted.length - 1) * q, lo = Math.floor(at), hi = Math.ceil(at); return sorted[lo]! + (sorted[hi]! - sorted[lo]!) * (at - lo); };
 
 /** 两条日线按交易日对齐算价差，现值（最后一个共同交易日）的分位 = 价差不高于现值的天数占比（相等算半格）。样本不足或日线缺失返回缺口。 */
-export function cyclePosition(daily: FuturesDaily | null | undefined): Cycle {
+export function cyclePosition(daily: FuturesDaily | null | undefined, metric: CycleMetric): Cycle {
   const by = new Map((daily?.series ?? []).map(item => [item.id, item]));
-  const al = by.get(CYCLE.aluminum), ao = by.get(CYCLE.alumina);
-  if (!al || !ao) return { state: 'gap', reason: `${!al ? '沪铝' : '氧化铝'}日线取不到` };
-  const alumina = new Map(ao.points.map(([day, close]) => [day, num(close)]));
-  const rows = al.points.flatMap(([day, close]) => { const a = num(close), b = alumina.get(day); return a != null && b != null ? [{ day, spread: a - CYCLE.ratio * b }] : []; }).sort((x, y) => x.day.localeCompare(y.day));
-  if (rows.length < CYCLE.minDays) return { state: 'gap', reason: `沪铝与氧化铝同时有价的交易日只有 ${rows.length} 天，不够算分位` };
+  const al = by.get(metric.a), ao = metric.b ? by.get(metric.b) : undefined;
+  if (!al || (metric.b && !ao)) return { state: 'gap', reason: `${!al ? metric.a : metric.b}日线取不到` };
+  const other = new Map(ao?.points.map(([day, close]) => [day, num(close)]) ?? []);
+  const rows = al.points.flatMap(([day, close]) => { const a = num(close), b = metric.b ? other.get(day) : 0; return a != null && b != null ? [{ day, spread: a - metric.ratio * b }] : []; }).sort((x, y) => x.day.localeCompare(y.day));
+  if (rows.length < MIN_DAYS) return { state: 'gap', reason: `可用交易日只有 ${rows.length} 天，不够算分位` };
   const last = rows[rows.length - 1]!;
   const sorted = rows.map(row => row.spread).sort((x, y) => x - y);
   const below = sorted.filter(value => value < last.spread).length, equal = sorted.filter(value => value === last.spread).length;
   const percentile = Math.round(((below + equal / 2) / sorted.length) * 100);
   const years = (Date.parse(last.day) - Date.parse(rows[0]!.day)) / (365.25 * 86400000);
-  const short = years < CYCLE.years - 0.1 ? `氧化铝期货 ${ao.first_day ? `${ao.first_day.slice(0, 4)} 年 ${Number(ao.first_day.slice(5, 7))} 月` : '上市较晚'}才有日线，只能按可得的 ${years.toFixed(1)} 年算` : '';
+  const short = years < CYCLE_YEARS - 0.1 ? `共同可得历史不足 ${CYCLE_YEARS} 年，只能按 ${years.toFixed(1)} 年算` : '';
   return { state: 'ok', position: { percentile, zone: cycleZone(percentile), spread: last.spread, low: sorted[0]!, median: quantile(sorted, 0.5), high: sorted[sorted.length - 1]!, asOf: last.day, from: rows[0]!.day, days: rows.length, years, short } };
 }
 /** 一句话：价差在近 N 年的第几分位。 */
-export function cycleSentence(position: CyclePosition): string {
-  const span = position.years >= CYCLE.years - 0.1 ? `${CYCLE.years}` : position.years.toFixed(1);
-  return `铝价减去氧化铝成本的价差处在近 ${span} 年的 ${position.percentile}% 分位，${position.zone === '中位' ? '在中位区间' : `在${position.zone}区间`}`;
+export function cycleSentence(position: CyclePosition, metric: CycleMetric): string {
+  const span = position.years >= CYCLE_YEARS - 0.1 ? `${CYCLE_YEARS}` : position.years.toFixed(1);
+  return `${metric.label}处在近 ${span} 年的 ${position.percentile}% 分位，在${position.zone}区间${metric.approximate ? '（约）' : ''}`;
 }
-export async function loadCycle(services: ChainServices, signal?: AbortSignal): Promise<Cycle> {
-  try { return cyclePosition(await services.read<FuturesDaily>(cycleRoute, signal)); }
-  catch { return { state: 'gap', reason: '沪铝与氧化铝日线暂时读取不到' }; }
+export async function loadStageCycle(code: string, services: ChainServices, signal?: AbortSignal): Promise<StageCycle> {
+  let knowledge: CycleKnowledge | null;
+  try { knowledge = (await services.read<{ cycle?: CycleKnowledge }>(`/industries/profiles/current?industry_code=${encodeURIComponent(code)}`, signal)).cycle ?? null; }
+  catch (error) { return { code, knowledge: null, failed: !(error instanceof ResearchError && error.status === 404) }; }
+  if (!knowledge || knowledge.kind !== 'cyclical') return { code, knowledge };
+  const metric = cycleMetric(knowledge);
+  if (!metric) return { code, knowledge };
+  try {
+    const daily = await services.read<FuturesDaily>(cycleRoute(metric), signal);
+    return { code, knowledge, metric, daily, cycle: cyclePosition(daily, metric) };
+  }
+  catch { return { code, knowledge, metric, cycle: { state: 'gap', reason: '日线暂时读取不到' } }; }
+}
+
+/** 只选资料明确说到的历史顶底；修复或限电事件不冒充顶底。 */
+export function nearestTurningPoint(knowledge: CycleKnowledge, now = new Date()): { item: CycleItem; years: number } | undefined {
+  return knowledge.history?.flatMap(item => {
+    const year = /^\d{4}$/.test(item.year ?? '') ? Number(item.year) : NaN;
+    return /底部|顶部|低位|高位/.test((item.mark ?? '').split(/[。；]/)[0]!) && year <= now.getFullYear() ? [{ item, years: now.getFullYear() - year }] : [];
+  }).sort((a, b) => a.years - b.years)[0];
+}
+export function stageLabel(stage?: StageCycle): string {
+  if (stage?.knowledge?.kind === 'growth' && stage.knowledge.bottlenecks?.length) return '瓶颈环节';
+  return stage?.cycle?.state === 'ok' ? `周期${stage.cycle.position.zone}` : '';
+}
+/** 识别明确月份区间及并列单月；带年份的历史事件不能外推成每年季节。 */
+export function seasonalityLine(item: CycleItem, month: number): string {
+  const text = item.text ?? '';
+  if (/\d{4}\s*年/.test(text)) return `${month} 月，资料未给统一旺淡季月历。季节性参考：`;
+  for (const clause of text.split(/[；。，]/)) {
+    const season = clause.match(/旺季|淡季|丰水期|枯水期|平水期/)?.[0];
+    if (!season) continue;
+    const months = [...clause.matchAll(/(\d{1,2})(?:\s*[–—至\-]\s*(\d{1,2}))?\s*月/g)];
+    for (const match of months) {
+      const start = Number(match[1]), end = Number(match[2] ?? match[1]);
+      if (start >= 1 && start <= 12 && end >= 1 && end <= 12 && (start <= end ? month >= start && month <= end : month >= start || month <= end)) return `${month} 月，${season}（按资料月历）。季节性参考：`;
+    }
+  }
+  return `${month} 月，资料未给本月统一旺淡季结论。季节性参考：`;
+}
+/** 全链同日且各环节都有利润代理才比较；价格指标不可当成利润，缺一环也不外推。 */
+export function profitConcentration(chain: Chain, stages: Record<string, StageCycle>): string {
+  const rows = chain.nodes.map(node => ({ node, stage: stages[node.industry_code] }));
+  if (rows.length < 2 || rows.some(({ stage }) => !stage?.metric?.margin || stage.cycle?.state !== 'ok')) return '';
+  const values = rows.map(({ node, stage }) => ({ node, position: (stage!.cycle as Extract<Cycle, { state: 'ok' }>).position }));
+  if (new Set(values.map(item => item.position.asOf)).size !== 1) return '';
+  values.sort((a, b) => b.position.percentile - a.position.percentile);
+  if (values[0]!.position.percentile === values[1]!.position.percentile) return '';
+  return `按各环节价差或毛利指标的历史分位比较，利润现在集中在${values[0]!.node.industry_name}环节（${values[0]!.position.asOf}，仅为利润空间代理）。`;
 }

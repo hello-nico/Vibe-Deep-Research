@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { objectLabel, resolveObjectLabels } from "../lib/objectRegistry";
-import { loadMemory, saveMemory, type MemoryDoc } from "../lib/memory";
-import { aboutMeDate, aboutMeItems, aboutMeSource, forgetOps, rememberOps, type AboutMeItem } from "../lib/aboutMe";
+import { loadMemory, MEMORY_CATEGORIES, saveMemory, type MemoryCategory, type MemoryDoc } from "../lib/memory";
+import { aboutMeDate, aboutMeSections, aboutMeSource, forgetOps, rememberOps, type AboutMeItem } from "../lib/aboutMe";
 import { GroupCard, GroupRow } from "./ui/Card";
 import { LoadingCard } from "./ui/LoadingCard";
 
@@ -28,6 +28,7 @@ function TopicRefText({ text }: { text: string }) {
 export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) => void }) {
   const [soul, setSoul] = useState<MemoryDoc | null>(null);
   const [recent, setRecent] = useState<MemoryDoc | null>(null);
+  const [category, setCategory] = useState<MemoryCategory>(MEMORY_CATEGORIES[0]);
   const [input, setInput] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -47,9 +48,9 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
   };
   const remember = async () => {
     if (!input.trim()) return;
-    if (await apply("soul", rememberOps(input), "没记上")) setInput("");
+    if (await apply("soul", rememberOps(input, category), "没记上")) setInput("");
   };
-  const items = aboutMeItems(soul, recent);
+  const sections = aboutMeSections(soul, recent);
   const source = (item: AboutMeItem) => {
     const label = aboutMeSource(item);
     const date = aboutMeDate(item.updated_at);
@@ -59,18 +60,24 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
     </>;
   };
   return <div className="grid max-w-3xl gap-3">
-    <form className="flex items-center gap-2" onSubmit={event => { event.preventDefault(); void remember(); }}>
+    <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); void remember(); }}>
+      <select value={category} onChange={event => setCategory(event.target.value as MemoryCategory)} aria-label="关于我的类别" className="workspace-select" disabled={busy}>
+        {MEMORY_CATEGORIES.map(option => <option key={option} value={option}>{option}</option>)}
+      </select>
       <input value={input} onChange={event => setInput(event.target.value)} aria-label="补充关于我" placeholder="补充一句，比如：我持有神火，偏中长线，回答先给结论"
-        className="workspace-field workspace-field-single flex-1" />
+        className="workspace-field workspace-field-single min-w-0 flex-1" />
       <button type="submit" className="btn" disabled={busy || !soul}>记下</button>
     </form>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {!soul && !recent && !error && <LoadingCard />}
-    {(soul || recent) && (items.length === 0
+    {(soul || recent) && (sections.length === 0
       ? <p className="text-sm text-[var(--text-3)]">补充一句，或在对话里说“记住：回答先给结论”</p>
-      : <GroupCard>{items.map(item => <GroupRow key={`${item.kind}:${item.id}`} title={<TopicRefText text={item.text} />} description={source(item)}>
-          <button type="button" className="btn btn-text btn-sm" disabled={busy} onClick={() => void apply(item.kind, forgetOps(item.id), "没删掉")}>删除</button>
-        </GroupRow>)}</GroupCard>)}
+      : <GroupCard>{sections.map((section, index) => <Fragment key={section.category ?? "uncategorized"}>
+          {section.category && <p data-memory-category={section.category} className={`px-[18px] pb-1 text-xs text-[var(--text-3)] ${index === 0 ? "pt-3" : "pt-4"}`}>{section.category}</p>}
+          {section.items.map(item => <GroupRow key={`${item.kind}:${item.id}`} title={<TopicRefText text={item.text} />} description={source(item)}>
+            <button type="button" className="btn btn-text btn-sm" disabled={busy} onClick={() => void apply(item.kind, forgetOps(item.id), "没删掉")}>删除</button>
+          </GroupRow>)}
+        </Fragment>)}</GroupCard>)}
     <p className="text-xs text-[var(--text-3)]">不对的直接删掉，助手以后不再按它来。</p>
   </div>;
 }
