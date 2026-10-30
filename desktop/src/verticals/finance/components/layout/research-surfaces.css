@@ -161,3 +161,11 @@ body.finance-side-resizing .finance-side-resize::after { opacity: 1; background:
   font-size: 0.75rem;
   color: hsl(var(--muted-foreground));
 }
+/* 手机上右侧面板（问助手、依据、任务过程）铺满整屏并盖住底栏，不和底栏叠成两层。 */
+@media (max-width: 767px) {
+  .finance-assistant-panel,
+  .finance-side-panel { inset: 0; width: 100vw; z-index: 70; }
+  .finance-evidence-panel { z-index: 72; }
+  .finance-wiki-drawer { z-index: 73; }
+  .finance-assistant-panel > aside, aside.finance-side-panel { border: 0; border-radius: 0; }
+}

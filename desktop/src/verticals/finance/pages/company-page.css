@@ -72,6 +72,16 @@
 .narrative-flowbar > .is-rest { background: var(--fill-1); }
 .narrative-flow-note { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--text-3); font-variant-numeric: tabular-nums; }
 .narrative-flow-note .is-gap { color: var(--text-4); }
+.narrative-flow-legend { display: none; }
+@media (max-width: 767px) {
+  .narrative-flowbar { height: 12px; font-size: 0; }
+  .narrative-flowbar > span { padding: 0; }
+  .narrative-flow-legend { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .narrative-flow-legend > span::before { content: ""; display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 2px; }
+  .narrative-flow-legend > .is-lead::before { background: var(--fill-3); }
+  .narrative-flow-legend > .is-mid::before { background: var(--fill-2); }
+  .narrative-flow-legend > .is-rest::before { background: var(--fill-1); outline: 1px solid var(--line-2); }
+}
 .narrative-formula { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: baseline; font-size: 13px; color: var(--text-2); }
 .narrative-chip { display: inline-flex; flex-direction: column; padding: 4px 10px; border-radius: 8px; background: var(--fill-1); color: hsl(var(--foreground)); font-size: 12px; }
 .narrative-chip small { color: var(--text-3); font-size: 11px; font-variant-numeric: tabular-nums; }
@@ -181,3 +191,12 @@
 .watch-add-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .watch-add-sub { font-size: 12px; color: var(--text-3); overflow-wrap: anywhere; }
 .watch-add-error { grid-column: 1 / -1; margin: 0; font-size: 12px; color: var(--text-3); }
+.watch-toolbar { display: inline-flex; align-items: center; gap: 4px; }
+.watch-toolbar .segmented { flex-wrap: nowrap; }
+/* 手机上：「共 N 家」和操作按钮同一行，行情时点折到下一行小字。 */
+@media (max-width: 767px) {
+  .section-label:has(.watch-toolbar) { flex-wrap: wrap; align-items: center; row-gap: 2px; }
+  .section-label > span:has(> .watch-toolbar), .watch-toolbar { display: contents; }
+  .watch-toolbar > .btn-text { margin-left: auto; }
+  .watch-stamp { order: 1; flex-basis: 100%; }
+}

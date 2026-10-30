@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis';
 import type { CompanySnapshotQuote } from '../../../core/ai/pageContext.tsx';
 import type { ResearchSessions, StartSessionResult } from '../dsh/research-session.tsx';
-import { assistantUserMessage, bindAssistantPrompt } from './prompt.ts';
+import { assistantReferenceIds, assistantUserMessage, bindAssistantPrompt } from './prompt.ts';
 import { researchObjectSource } from '../dsh/research-input.ts';
 import { assistantBindingForPage, type AssistantPlugin } from './binding.ts';
 import {
@@ -179,8 +179,8 @@ export function createAssistantHost(deps: AssistantHostDeps): AssistantMethods {
               detail: item.detail,
             })),
           });
-          const references = await Promise.all((input.objects || []).map(item =>
-            researchObjectSource.codec!.serialize(item.id, AbortSignal.timeout(15_000))));
+          const references = await Promise.all(assistantReferenceIds(input.objects || []).map(ref =>
+            researchObjectSource.codec!.serialize(ref, AbortSignal.timeout(15_000))));
           const message = assistantUserMessage(input.prompt, references);
           // Stage while the session is retained: the host only accepts page context for a live session.
           await withSession(id, async face => {

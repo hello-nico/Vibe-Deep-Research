@@ -14,6 +14,13 @@
 #dsh-conversation [data-slot="conversation.session.header.corner"],
 #dsh-conversation [data-conversation-header-corner] { display: none; }
 #dsh-conversation { border: 1px solid hsl(var(--border)); border-radius: 16px; overflow: hidden; }
+/* 手机上对话框贴满内容面，不再套第二层边框；用量一行放不下时折行，不截成省略号。 */
+@media (max-width: 767px), (max-height: 500px) {
+  #dsh-conversation { border: 0; border-radius: 0; }
+  /* 手机上对话框本就占满一屏，「展开窗口」没有作用，隐藏后会话标题不被挤掉。 */
+  #dsh-conversation .finance-window-action { display: none; }
+  #dsh-conversation div:has(> [data-slot="conversation.composer.dock"]) { flex-wrap: wrap; row-gap: 2px; }
+}
 /* Native :empty does not see through an empty display:contents slot. These
    product nodes deliberately return null when an inline result supersedes them. */
 #dsh-conversation [data-chat-flow-kind^="finance-"]:has(> [data-slot="conversation.chat.node"]:empty) {
@@ -267,6 +274,9 @@ body.vibe-dsh-host > div:has(> [role="dialog"] > nav) [role="dialog"] button[ari
 }
 #dsh-conversation:has(.finance-recent) .pXSMma_root {
   height: auto;
+}
+@media (max-width: 767px) {
+  #dsh-conversation:has(.finance-recent) [class*="composerHero"] { padding: 24px 12px 16px; }
 }
 .finance-session-action {
   display: inline-flex;

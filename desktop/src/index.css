@@ -195,11 +195,18 @@
   }
   @media (max-width: 767px) {
     .workspace-shell { flex-direction: column-reverse; }
-    .workspace-rail { flex-direction: row; width: 100%; height: 56px; padding: 4px 8px; justify-content: space-around; }
-    .workspace-rail-brand { display: none; }
-    .workspace-rail-nav { flex-direction: row; justify-content: space-around; overflow: visible; }
-    .workspace-nav-link { width: 48px; height: 46px; }
-    .workspace-stage { padding: 6px 6px 0; }
+    /* 手机底栏：悬浮胶囊，入口均分、只留图标（名称在 aria-label 里）；栏尾的状态与设置座位不占横向空间。 */
+    .workspace-rail { flex-direction: row; width: 100%; padding: 6px 12px 8px; }
+    .workspace-rail-brand, .workspace-rail-foot { display: none; }
+    .workspace-rail-nav {
+      flex-direction: row; justify-content: space-between; gap: 0; overflow: visible; padding: 5px;
+      border: 1px solid var(--line-2); border-radius: 999px; background: hsl(var(--raised));
+    }
+    .workspace-nav-link { flex: 1; width: auto; max-width: 72px; height: 44px; border-radius: 999px; }
+    .workspace-nav-link svg { width: 21px; height: 21px; }
+    .workspace-nav-link > span:not([class]) { display: none; }
+    .workspace-nav-link .workspace-nav-dot { top: 9px; right: calc(50% - 15px); }
+    .workspace-stage { min-height: 0; padding: 6px 6px 0; }
   }
 
   /* ---------- 输入类：搜索全圆、下拉 8 圆角，12% 描边加白底 ---------- */
@@ -304,6 +311,16 @@
     .conversation-workspace[data-expanded="true"] { --conversation-pad-top: 12px; --conversation-pad-x: 12px; }
     .conversation-resize { display: none; }
   }
+  /* 手机竖屏或横屏：对话框占满一屏、框内滚动，输入框始终在底部；会话标题栏已写会话名，页首大标题不再占高度。 */
+  @media (max-width: 767px), (max-height: 500px) {
+    .conversation-workspace, .conversation-workspace[data-expanded="true"] { min-height: 0; --conversation-pad-top: 0px; --conversation-pad-x: 0px; padding-bottom: 0; }
+    .conversation-workspace .conversation-heading-slot, .conversation-workspace .conversation-window-actions { display: none; }
+    .conversation-window { min-height: 0; }
+    .conversation-footer .workspace-footnote { margin: 4px 12px 6px; }
+  }
+  @media (max-height: 500px) {
+    .conversation-footer .workspace-footnote { display: none; }
+  }
   .conversation-footer > .workspace-page-enter { height: 100%; min-height: 0; }
 
   /* ---------- 页首、区块组名 ---------- */
@@ -368,8 +385,17 @@
     .workspace-nav-link[aria-current="page"] { outline: 1px solid Highlight; outline-offset: -1px; }
   }
   @media (max-width: 767px) {
-    .workspace-content { padding: 20px 14px; }
+    .workspace-content { padding: 16px 12px; }
     .workspace-panel-head { padding: 14px; }
+    /* 手机页首：标题小一号、下边距收紧；页首里的搜索框吃满剩余宽度。 */
+    .workspace-title { font-size: 22px; }
+    .page-head { gap: 10px 12px; margin-bottom: 16px; }
+    .section-label { margin-top: 20px; }
+    .page-head-actions { flex: 1 1 auto; justify-content: flex-end; }
+    .page-head-actions > label:has(> .workspace-search) { flex: 1 1 10rem; width: auto; }
+    /* 手机上表格不折字，整表在框内横向滑动；单行摘要列给固定宽度。 */
+    .data-table td { padding: 10px 12px; white-space: nowrap; }
+    .data-table td .line-clamp-1 { display: -webkit-box; width: 16rem; white-space: normal; }
   }
 }
 /* Citation focus marks the exact row, including keyboard-driven navigation. */

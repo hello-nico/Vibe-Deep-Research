@@ -74,3 +74,13 @@
 .loading-card.is-bare { padding: 8px 0; max-width: 400px; }
 .loading-card-title { font-size: 14px; font-weight: 600; }
 .loading-card .skeleton:last-child { width: 65%; }
+/* 手机上：控件放不下时整块折到说明下面，不把说明挤成竖条。 */
+@media (max-width: 767px) {
+  .group-row { flex-wrap: wrap; padding: 12px 14px; }
+  .group-row-text { flex: 1 1 12rem; }
+  .group-row-control { max-width: 100%; flex-wrap: wrap; }
+  /* 卡片右上角：价格与「…」并排，不让菜单单独占一行。 */
+  .object-card-key:has(> .object-card-menu) { display: grid; grid-template-columns: auto auto; column-gap: 2px; align-items: start; }
+  .object-card-key:has(> .object-card-menu) > :not(.object-card-menu) { grid-column: 1; }
+  .object-card-key > .object-card-menu { grid-column: 2; grid-row: 1 / span 2; margin-top: -4px; }
+}

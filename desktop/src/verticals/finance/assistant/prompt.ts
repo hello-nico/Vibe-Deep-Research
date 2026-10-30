@@ -2,6 +2,7 @@ import { ResearchError, researchRead, type ResearchTopic, type WikiPage } from '
 import { citedWikiVersionFailure, clipPageSnapshot, formatSnapshotSection, formatCompanyFromSnapshot } from './snapshot.ts';
 import { parseDocumentRef, documentRef, type LibraryDocument } from '../lib/library.ts';
 import type { AssistantObjectRef, CompanySnapshotQuote } from '../../../core/ai/pageContext.tsx';
+import { researchTarget } from '../lib/researchTarget.ts';
 
 const READ_TEXT_LIMIT = 24_000;
 const BIND_TIMEOUT_MS = 15_000;
@@ -263,6 +264,14 @@ export async function bindAssistantPrompt(input: {
       `当前页面：${input.title}`,
     ]),
   ].filter(Boolean).join('\n\n');
+}
+
+/** 用户消息里要读取的引用：只取能按身份读取的研究对象。摘录、依据等页面对象的内容已随页面快照送出。 */
+export function assistantReferenceIds(objects: { id: string }[]): string[] {
+  return objects.map(item => item.id).filter(id => {
+    const target = researchTarget(id);
+    return target != null && target.kind !== 'evidence';
+  });
 }
 
 export function assistantUserMessage(prompt: string, references: string[]): string {

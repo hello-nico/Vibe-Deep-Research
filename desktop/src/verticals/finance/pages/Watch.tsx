@@ -302,8 +302,8 @@ export function Watch() {
         {rowError[row.key] && <p role="status" className="watch-add-error">{rowError[row.key]}</p>}
       </div>)}
     </section>}
-    <SectionLabel aside={<span className="inline-flex items-center gap-1">
-      {[stamp, liveNote].filter(Boolean).join(" · ")}
+    <SectionLabel aside={<span className="watch-toolbar">
+      {(stamp || liveNote) && <span className="watch-stamp">{[stamp, liveNote].filter(Boolean).join(" · ")}</span>}
       <button type="button" className={cn("btn btn-text btn-sm", live && "!bg-[var(--fill-2)] !text-foreground")} aria-pressed={live} onClick={toggleLive} title="交易时段每 3 秒刷新">自动刷新</button>
       {(error || pagesFailed) && <ReadFailure retry={() => { refresh(); setRevision(value => value + 1); }} />}
       <button type="button" className="btn btn-icon" disabled={loading} onClick={refresh} aria-label="刷新行情" title="刷新"><RefreshCw className={cn(loading && "animate-spin")} /></button>

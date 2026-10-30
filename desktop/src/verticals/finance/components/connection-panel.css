@@ -2,3 +2,9 @@
 .connection-input:focus-visible { border-color: var(--line-3); }
 .connection-input::placeholder { color: var(--text-3); }
 .connection-message { font-size: 13px; font-weight: 400; color: var(--text-2); }
+@media (max-width: 767px) {
+  .group-row-control:has(> .connection-input) { flex: 1 1 100%; }
+  .connection-input { width: 100%; }
+}
+/* 按钮那一行的状态提示通常为空，手机上不单独占一行。 */
+@media (max-width: 767px) { .group-row-text:has(.connection-message) { flex-basis: auto; } }

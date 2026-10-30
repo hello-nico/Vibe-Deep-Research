@@ -10,9 +10,15 @@ import {
 
 /** 回答句：句中 {占位} 由页面按字段或计算凭据填入；缺口显示灰色「暂缺」。 */
 export function AnswerSentence({ text, packet, calcs, id, livePrice }: { text: string; packet?: DataPacket; calcs: Record<string, unknown>; id: string; livePrice?: number | null }) {
-  return <p className="company-page-conclusion" data-company-summary={id}>{splitSentence(text).map((part, index) => {
-    if (part.kind === 'text') return part.text;
-    const slot = resolveSlot(part.token, packet, calcs, livePrice);
+  const parts = splitSentence(text);
+  const slots = parts.map(part => part.kind === 'text' ? null : resolveSlot(part.token, packet, calcs, livePrice));
+  return <p className="company-page-conclusion" data-company-summary={id}>{parts.map((part, index) => {
+    if (part.kind === 'text') {
+      // 槽位已带单位（如「1.77 倍」），模型在槽位后又写了同一单位时只留一个。
+      const unit = slots[index - 1]?.text.match(/[^\d\s.%-]+$|%$/)?.[0];
+      return unit && part.text.startsWith(unit) ? part.text.slice(unit.length) : part.text;
+    }
+    const slot = slots[index];
     return slot
       ? <strong key={index} className="narrative-slot" title={slot.title}>{slot.text}</strong>
       : <span key={index} className="narrative-slot is-gap" title="读取失败">暂缺</span>;
@@ -56,6 +62,10 @@ export function FlowBar({ packet }: { packet?: DataPacket }) {
       {operating!.value != null ? <span data-flow="operating_cash_flow">经营现金流 {yuanText(operating!.value)}</span> : <span data-flow="operating_cash_flow" className="is-gap">经营现金流 —</span>}
       {gaps.filter(item => item.key !== 'operating_cash_flow').map(item => <span key={item.key} data-flow={item.key} className="is-gap">{item.label} 暂缺</span>)}
     </p>
+    {/* 手机上条太窄放不下文字：条只画比例，各段金额列在下面。 */}
+    {operating!.value != null && drawn.length > 0 && <p className="narrative-flow-legend" aria-hidden="true">
+      {drawn.map(item => <span key={item.key} className={item.key === 'residual_cash' ? 'is-rest' : item.key === 'dividend_paid' ? 'is-mid' : 'is-lead'}>{item.label} {yuanText(item.value!)}</span>)}
+    </p>}
   </div>;
 }
 
