@@ -1,4 +1,5 @@
 import { addWatch } from '../lib/watchlist';
+import type { ObservationMetric, ObservationConditions } from '../lib/trackingItems';
 import {
   ResearchError,
   researchRead,
@@ -21,8 +22,8 @@ export interface TrackingSuggestion {
   tracking_key: string;
   hypothesis: string;
   baseline: { as_of: string; known_at: string; basis_refs: string[] };
-  observables: string[];
-  conditions: { strengthen: string[]; weaken: string[]; overturn: string[] };
+  observables: (string | Pick<ObservationMetric, 'text' | 'var_id'>)[];
+  conditions: ObservationConditions;
   next_source: string;
   last_assessment: null;
 }

@@ -5,6 +5,14 @@ import { trendOf, TREND_H, TREND_W } from '../src/verticals/finance/lib/trendCha
 
 const series = [['2026-10-01', '100'], ['2026-10-02', '110'], ['2026-10-03', '90'], ['2026-10-04', '105']];
 
+test('观察阈值都在同一纵轴内；空阈值不改变原价格图几何', () => {
+  const trend = trendOf(series, { lines: [10, 100, 200] })!;
+  assert.equal(trend.linesY.length, 3);
+  assert.ok(trend.linesY.every(y => y >= 0 && y <= TREND_H));
+  assert.ok(trend.linesY[0]! > trend.linesY[1]! && trend.linesY[1]! > trend.linesY[2]!);
+  assert.equal(trendOf(series, { lines: [] })!.points, trendOf(series)!.points);
+});
+
 test('走势：点数与序列一致，最后一天是现在的点，提醒日画空心点（最后一天不重复）', () => {
   const trend = trendOf(series, { alertDates: ['2026-10-02', '2026-10-04', '2026-09-01'] })!;
   assert.equal(trend.points.split(' ').length, 4);

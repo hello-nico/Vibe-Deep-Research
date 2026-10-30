@@ -85,17 +85,21 @@ test('旧记忆只在展示副本清理叙述前缀并改句首用户为我', ()
   assert.deepEqual(original, snapshot);
 });
 
-test('四类按固定顺序分组、类内按时间排序，旧条目无分类放在末尾', () => {
+test('四类按固定顺序始终分组、类内按时间排序，旧条目无分类放进末尾「其他」', () => {
   assert.deepEqual(lib.aboutMeSections(docs.soul, docs.recent).map((section: any) => ({
-    category: section.category,
+    category: section.label,
     ids: section.items.map((item: any) => item.id),
   })), [
     { category: '水平与表达偏好', ids: ['a'] },
     { category: '持仓与关注', ids: ['b'] },
     { category: '投资风格与约束', ids: ['c'] },
     { category: '纠正', ids: ['e'] },
-    { category: undefined, ids: ['d'] },
+    { category: '其他', ids: ['d'] },
   ]);
+  assert.deepEqual(lib.aboutMeSections(null, { kind: 'recent', version: 1, title: '', entries: [{ id: 'x', stance: 'stated', text: '旧条目' }] }).map((section: any) => section.label),
+    ['其他', '水平与表达偏好', '持仓与关注', '投资风格与约束', '纠正'], '有记忆的组排前，空组排后');
+  assert.deepEqual(lib.aboutMeSections(null, null).map((section: any) => [section.label, section.items.length, Boolean(section.hint)]),
+    [['水平与表达偏好', 0, true], ['持仓与关注', 0, true], ['投资风格与约束', 0, true], ['纠正', 0, true]], '没有记忆时四类仍在，各带说明');
 });
 
 test('来源文案统一为我说的、从对话中记下', () => {
@@ -105,11 +109,13 @@ test('来源文案统一为我说的、从对话中记下', () => {
   assert.equal(lib.aboutMeSource({ stance: 'corrected' }), '我说的');
 });
 
-test('一张列表按四类显示，旧条目无标题放末尾，来源会话可点开', async () => {
+test('一张列表按四类显示，旧条目放进「其他」，来源会话可点开', async () => {
   await show();
   assert.deepEqual(texts(), ['回答先给结论', '认为煤炭业务会继续拖累利润', '关心有色金属和电力', '不要把收入写成利润', '金额默认用亿元']);
   assert.deepEqual([...container.querySelectorAll('[data-memory-category]')].map(node => node.textContent),
-    ['水平与表达偏好', '持仓与关注', '投资风格与约束', '纠正']);
+    ['水平与表达偏好', '持仓与关注', '投资风格与约束', '纠正', '其他']);
+  assert.equal(container.querySelector('[data-memory-empty]'), null, '每类都有记忆时不出说明');
+  assert.doesNotMatch(container.querySelector('.grid')!.className, /max-w-/, '和其他页面一样铺满内容区');
   const descriptions = [...container.querySelectorAll('.group-row-desc')].map(node => node.textContent);
   assert.match(descriptions[1]!, /^我说的 · 10月14日$/);
   assert.match(descriptions[2]!, /^从对话中记下 · 10月10日$/);

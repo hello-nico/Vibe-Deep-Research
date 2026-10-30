@@ -60,7 +60,7 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
       {date && ` · ${date}`}
     </>;
   };
-  return <div className="grid max-w-3xl gap-3">
+  return <div className="grid gap-3">
     <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); void remember(); }}>
       <WorkspaceSelect aria-label="关于我的类别" value={category} onChange={setCategory} disabled={busy}
         options={MEMORY_CATEGORIES.map(option => ({ value: option, label: option }))} />
@@ -70,14 +70,13 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
     </form>
     {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
     {!soul && !recent && !error && <LoadingCard />}
-    {(soul || recent) && (sections.length === 0
-      ? <p className="text-sm text-[var(--text-3)]">补充一句，或在对话里说“记住：回答先给结论”</p>
-      : <GroupCard>{sections.map((section, index) => <Fragment key={section.category ?? "uncategorized"}>
-          {section.category && <p data-memory-category={section.category} className={`px-[18px] pb-1 text-xs text-[var(--text-3)] ${index === 0 ? "pt-3" : "pt-4"}`}>{section.category}</p>}
-          {section.items.map(item => <GroupRow key={`${item.kind}:${item.id}`} title={<TopicRefText text={item.text} />} description={source(item)}>
-            <button type="button" className="btn btn-text btn-sm" disabled={busy} onClick={() => void apply(item.kind, forgetOps(item.id), "没删掉")}>删除</button>
-          </GroupRow>)}
-        </Fragment>)}</GroupCard>)}
+    {(soul || recent) && <GroupCard>{sections.map((section, index) => <Fragment key={section.label}>
+      <p data-memory-category={section.label} className={`px-[18px] pb-1 text-xs text-[var(--text-3)] ${index === 0 ? "pt-3" : "pt-4"}`}>{section.label}</p>
+      {section.items.length === 0 && <p data-memory-empty={section.label} className="px-[18px] pb-3 text-sm text-[var(--text-3)]">还没有。{section.hint}</p>}
+      {section.items.map(item => <GroupRow key={`${item.kind}:${item.id}`} title={<span className="block max-w-[60em]"><TopicRefText text={item.text} /></span>} description={source(item)}>
+        <button type="button" className="btn btn-text btn-sm" disabled={busy} onClick={() => void apply(item.kind, forgetOps(item.id), "没删掉")}>删除</button>
+      </GroupRow>)}
+    </Fragment>)}</GroupCard>}
     <p className="text-xs text-[var(--text-3)]">不对的直接删掉，助手以后不再按它来。</p>
   </div>;
 }

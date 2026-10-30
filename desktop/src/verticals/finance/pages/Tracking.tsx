@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, Plus } from "lucide-react";
 import { Link } from "react-router-dom";
 import { PageHeader } from "../components/ui/PageHeader";
@@ -10,8 +10,9 @@ import { WorkspaceSelect } from "../components/ui/WorkspaceSelect";
 import { useAiPage } from "../../../core/ai/pageContext";
 import { orderedCompanies, priceText, recentCards, sensitivityStep, signedPriceText, variableLine, type TrackedVariable } from "../lib/trackingVariables";
 import {
-  KIND_LABEL, SIGNAL_KINDS, TIMELINE_H, TIMELINE_W, addPrice, asTrackingVariables, loadCatalog, loadNextReports, loadTrackingItems, nextReportSummary, nextReportWhen, observationGroups, priceVariable, reportActual, reportThreshold, setMuted, setSignalKind, summaryOf, timelineOf,
-  type CatalogPrice, type NextReport, type ReportCheck, type ObservationItem, type PriceItem, type SignalKind, type TrackingItem, type TrackingList,
+  KIND_LABEL, SIGNAL_KINDS, TIMELINE_H, TIMELINE_W, addPrice, asTrackingVariables, loadCatalog, loadNextReports, loadTrackingItems, nextReportSummary, nextReportWhen, CONDITION_LABEL, observationGroups, priceVariable, reportActual, reportThreshold, setMuted, setSignalKind, summaryOf, timelineOf,
+  conditionText, observationAlert, observationLineLabel,
+  type CatalogPrice, type NextReport, type ReportCheck, type ObservationItem, type ObservationMetric, type PriceItem, type SignalKind, type TrackingItem, type TrackingList,
 } from "../lib/trackingItems";
 import { Detail, toneClass } from "./VariableDesk";
 import { loadFlipLines, type FlipLine } from "../lib/flipCards";
@@ -179,14 +180,15 @@ function NextReports() {
   </section>;
 }
 
-function Trend({ item, variable, line }: { item: PriceItem; variable: TrackedVariable; line?: FlipLine }) {
-  const trend = trendOf(item.series ?? [], { line: line?.value, alertDates: item.cards.map(card => card.date), startedAt: item.started_at });
+function Trend({ item, variable, line, thresholds = [] }: { item: Pick<PriceItem, 'series' | 'var_id' | 'name' | 'started_at' | 'cards'>; variable: Pick<TrackedVariable, 'latest'>; line?: FlipLine; thresholds?: { value: number; text: string }[] }) {
+  const trend = trendOf(item.series ?? [], { line: line?.value, lines: thresholds.map(entry => entry.value), alertDates: item.cards.map(card => card.date), startedAt: item.started_at });
   if (!trend) return null;
   const first = item.series![0]![0]!, last = item.series![item.series!.length - 1]![0]!;
   return <div className="tracking-trend" data-trend={item.var_id}>
     <svg width={TREND_W} height={TREND_H} viewBox={`0 0 ${TREND_W} ${TREND_H}`} role="img" aria-label={`${item.name} ${first} 至 ${last} 收盘走势，最新 ${priceText(variable.latest)}`}>
       {trend.startX != null && <line className="tracking-trend-start" x1={trend.startX} x2={trend.startX} y1={0} y2={TREND_H} />}
       {trend.lineY != null && <line className="tracking-trend-flip" x1={0} x2={TREND_W} y1={trend.lineY} y2={trend.lineY} />}
+      {trend.linesY.map((y, index) => <g key={index} data-observation-threshold=""><line className="tracking-trend-flip" x1={0} x2={TREND_W} y1={y} y2={y} /><text className="tracking-trend-label" x={6} y={Math.max(11, y - 3)}>{thresholds[index]!.text}</text></g>)}
       <polyline className="tracking-trend-line" points={trend.points} />
       {trend.alerts.map(dot => <circle key={dot.date} className="tracking-trend-alert" cx={dot.x} cy={dot.y} r={3.5} />)}
       <circle className="tracking-trend-now" cx={trend.end.x} cy={trend.end.y} r={3.5} />
@@ -241,18 +243,33 @@ function Timeline({ item }: { item: ObservationItem }) {
 
 function ObservationRow({ item, expanded, onToggle, onMute, onKind }: { item: ObservationItem; expanded: boolean; onToggle: () => void; onMute: () => void; onKind: (signalId: string, kind: SignalKind) => void }) {
   const summary = summaryOf(item.signals);
+  const alert = observationAlert(item);
   return <div className="tracking-item" data-observing-row={item.id} data-item-id={item.id}>
     <div className="tracking-line">
       <button type="button" className="tracking-row" aria-expanded={expanded} onClick={onToggle}>
+        <StatusDot tone={alert ? 'info' : 'off'} label={alert ? '已越线' : '观察中'} />
         <span className="tracking-text">
-          <span className="tracking-name"><b>{item.name}</b><Tag item={item} /></span>
+          <span className="tracking-name"><b>{item.name}</b></span>
           {item.hypothesis && item.hypothesis !== item.name && <span>{item.hypothesis}</span>}
+          {alert && <span data-observation-alert="">{alert}</span>}
         </span>
         <span className="tracking-tilt" data-summary="">{summary}</span>
         <ChevronDown className="tracking-chevron" size={16} aria-hidden="true" />
       </button>
     </div>
     {expanded && <div className="tracking-detail">
+      <dl className="tracking-watch" data-observation-detail="">
+        {!!item.observables?.length && <><dt>盯什么</dt><dd>{item.observables.map(metric => typeof metric === "string" ? metric : metric.text).join("；")}</dd></>}
+        {CONDITION_LABEL.map(([key, label]) => item.conditions?.[key]?.length ? <Fragment key={key}><dt>{label}</dt><dd>{item.conditions[key].map(conditionText).join("；")}</dd></Fragment> : null)}
+        {item.next_source && <><dt>下次看</dt><dd>{item.next_source}</dd></>}
+      </dl>
+      {item.observables?.filter((metric): metric is ObservationMetric => typeof metric !== "string").map(metric => <div className="tracking-observable" key={metric.var_id} data-observable="">
+        <p>{metric.text}</p>
+        {metric.status === "ok" && metric.series?.length
+          ? <Trend item={{ name: metric.text, var_id: metric.var_id, series: metric.series, started_at: item.started_at, cards: [] }} variable={{ latest: metric.latest }} thresholds={metric.checks.map(check => ({ value: Number(check.value), text: observationLineLabel(check) }))} />
+          : <p className="tracking-legend">{metric.reason ?? "暂无日线"}</p>}
+      </div>)}
+      {item.signals.length === 0 && <p className="tracking-legend">还没有相关消息</p>}
       {item.signals.length > 0 && <>
         <Timeline item={item} />
         <p className="tracking-legend">▲ 支持　▼ 不利　○ 无关</p>

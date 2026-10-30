@@ -55,7 +55,7 @@ function itemsOf(extra: unknown[] = [], over: Record<string, unknown> = {}) {
     series: item.series, status: 'ok', cards: data.cards.filter((card: any) => card.var_id === item.var_id), flips: [], companies: item.companies, muted_at: null }));
   return { as_of: data.as_of, items: [...prices, ...extra], muted: [], ...over };
 }
-const observation = (over: Record<string, unknown> = {}) => ({ id: 'obs:topic:abc:nickel', topic_id: 'topic:abc', tracking_key: 'nickel', topic_title: '华友钴业利润来源', kind: 'observation', name: '华友：镍环节还算不算利润支柱', hypothesis: '镍价下行时利润支柱可能转移', source: 'user', started_at: '2026-10-20', muted_at: null,
+const observation = (over: Record<string, unknown> = {}) => ({ id: 'obs:topic:abc:nickel', topic_id: 'topic:abc', tracking_key: 'nickel', topic_title: '华友钴业利润来源', kind: 'observation', name: '华友：镍环节还算不算利润支柱', hypothesis: '镍价下行时利润支柱可能转移', conditions: { strengthen: ['镍价回升至成本线以上'], weaken: ['镍价跌破成本线'], overturn: ['镍业务连续亏损'] }, next_source: '下一份三季报', source: 'user', started_at: '2026-10-20', muted_at: null,
   signals: [{ id: 's1', date: '2026-10-21', text: '印尼镍产量上调', kind: '削弱', by: 'jev' }, { id: 's2', date: '2026-10-24', text: '镍价跌破成本线', kind: '削弱', by: 'jev' }, { id: 's3', date: '2026-10-25', text: '公司披露钴业务扩产', kind: '无关', by: 'jev' }], ...over });
 function mockFetch(options: { reports?: unknown; catalogFail?: boolean; items?: any; itemsFail?: boolean; postFail?: boolean; records?: unknown[] | 'fail'; variables?: unknown; grades?: Record<string, string | null>; previous?: Record<string, string | null>; topics?: unknown[] | 'fail' }) {
   const requested: string[] = [];
@@ -218,6 +218,9 @@ test('观察项：一行写名称、为什么重要和倾向；展开看时间�
   assert.equal(row.querySelector('.tracking-detail'), null);
   assert.deepEqual([...container.querySelectorAll('[data-tracking="watching"] .tracking-item')].map(item => item.getAttribute('data-item-id')).slice(-1), ['obs:topic:abc:nickel'], '观察项排在价格后面');
   await React.act(async () => (row.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.deepEqual([...row.querySelectorAll('[data-observation-detail] dt')].map(node => node.textContent), ['判断变强', '判断变弱', '判断推翻', '下次看']);
+  assert.match(text('[data-observation-detail]'), /镍价回升至成本线以上.*镍价跌破成本线.*镍业务连续亏损.*下一份三季报/s);
+  assert.equal(row.querySelector('.tracking-tag'), null, '观察项不标「我添加的」');
   assert.match(text('.tracking-legend'), /▲ 支持　▼ 不利　○ 无关/);
   const timeline = row.querySelector('.tracking-timeline')!;
   assert.equal(timeline.querySelectorAll('polygon.is-weak').length, 2);
@@ -247,16 +250,49 @@ test('观察项汇总：两种都有、只有一种、都没有；时间轴居�
   assert.deepEqual(lib2.timelineOf([{ ...sig('加强'), date: '2026-10-21' }]).map((dot: any) => dot.x), [210], '只有一个日期居中');
 });
 
-test('用户观察按同一研究分组，组名只出现一次', async () => {
+test('绑定序列的观察项复用走势，三档虚线带文字；越线提示、提醒点及纯文字量并存', async () => {
+  const check = (kind: string, value: string, direction: string, triggered: boolean) => ({ text: `收益率${value}%`, var_id: 'macro:UST10Y', unit: '%', kind, value, direction, triggered });
+  const checks = [check('strengthen', '4.7', 'down', false), check('weaken', '5', 'up', true), check('overturn', '5.3', 'up', true)];
+  const item = observation({ name: '美债利率', signals: [], observables: [{ text: '10年期美债收益率', var_id: 'macro:UST10Y', unit: '%', status: 'ok', latest: '5.4', series: [['2026-10-28','4.9'],['2026-10-29','5.2'],['2026-10-30','5.4']], checks }, '创业板相对沪深300表现'],
+    conditions: { strengthen: [checks[0]], weaken: [checks[1]], overturn: [checks[2], '订单增速转负'] } });
+  mockFetch({ items: itemsOf([item]) });
+  await render(h(page.Tracking));
+  const row = container.querySelector(`[data-observing-row="${item.id}"]`)!;
+  assert.equal(row.querySelector('[data-observation-alert]')!.textContent, '突破 5.3%：判断推翻', '行上只写越过的最严重一档');
+  assert.ok(row.querySelector('.status-dot.tone-info'));
+  await React.act(async () => (row.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.equal(row.querySelectorAll('[data-trend="macro:UST10Y"] polyline').length, 1);
+  assert.deepEqual([...row.querySelectorAll('[data-observation-threshold] text')].map(node => node.textContent), ['4.7%', '5%', '5.3%'], '图上只标数值');
+  assert.equal(row.querySelectorAll('[data-observation-threshold] line').length, 3);
+  assert.match(row.textContent!, /创业板相对沪深300表现/);
+  assert.doesNotMatch(row.textContent!, /\[object Object\]/);
+  const gap = structuredClone(item);
+  Object.assign(gap.observables[0], { status: 'gap', series: null, latest: null, checks: checks.map(entry => ({ ...entry, triggered: null })) });
+  mockFetch({ items: itemsOf([gap]) });
+  await render(h(page.Tracking));
+  assert.equal(container.querySelector('[data-observation-alert]'), null);
+  assert.equal(container.querySelector('[data-trend="macro:UST10Y"]'), null);
+});
+
+test('用户观察按同一研究分组，组名只出现一次，只取冒号前短名', async () => {
   mockFetch({ items: itemsOf([
     observation(), observation({ id: 'obs:topic:abc:cobalt', tracking_key: 'cobalt', name: '钴业务的利润来源' }),
-    observation({ id: 'obs:topic:def:cash', topic_id: 'topic:def', topic_title: '现金与分红', tracking_key: 'cash', name: '现金覆盖投资' }),
+    observation({ id: 'obs:topic:def:cash', topic_id: 'topic:def', topic_title: '现金与分红：经营现金能否覆盖资本开支', tracking_key: 'cash', name: '现金覆盖投资' }),
   ]) });
   await render(h(page.Tracking));
   const groups = [...container.querySelectorAll('[data-observation-group]')];
   assert.deepEqual(groups.map(group => group.querySelector('.tracking-observation-title')!.textContent), ['华友钴业利润来源', '现金与分红']);
   assert.deepEqual(groups.map(group => group.querySelectorAll('[data-observing-row]').length), [2, 1]);
   assert.equal(container.querySelectorAll('.tracking-observation-title').length, 2);
+});
+
+test('观察项没有消息时展开里写一句，不画时间轴', async () => {
+  mockFetch({ items: itemsOf([observation({ signals: [] })]) });
+  await render(h(page.Tracking));
+  const row = container.querySelector('[data-observing-row]') as HTMLElement;
+  await React.act(async () => (row.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.match(row.textContent!, /还没有相关消息/);
+  assert.equal(row.querySelector('.tracking-timeline'), null);
 });
 
 test('沪铜多公司按影响绝对值排序、前三家与另外 N 家展开，统一整档不把非零影响写成零', async () => {
@@ -393,7 +429,9 @@ test('设置页分段「关于我 / 模型 / 连接」，默认「关于我」�
   assert.equal(container.querySelector('[data-assistant-slot]'), null, '设置页没有助手落点');
   const layoutSource = readFileSync(new URL('../src/verticals/finance/components/layout/Layout.tsx', import.meta.url), 'utf8');
   assert.match(layoutSource, /pathname !== "\/settings"/, '设置页不显示「问助手」');
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 50)); });
+  for (let attempt = 0; attempt < 100 && !container.querySelector('input[aria-label="补充关于我"]'); attempt++) {
+    await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
+  }
   assert.ok(container.querySelector('input[aria-label="补充关于我"]'));
   assert.doesNotMatch(container.textContent!, /打开模型设置/);
   await React.act(async () => ([...container.querySelectorAll('.segmented [role="tab"]')].find(tab => tab.textContent === '模型') as HTMLElement).click());
@@ -541,4 +579,15 @@ test('价格目录读接口：读不到写一句话加重试', async () => {
   await React.act(async () => ([...container.querySelectorAll('button')].find(button => button.textContent === '添加') as HTMLButtonElement).click());
   assert.match(text('[data-tracking-add]'), /读取失败/);
   assert.ok([...container.querySelectorAll('[data-tracking-add] button')].some(button => button.textContent === '重试'));
+});
+
+test('旧观察项的「盯什么」与三档条件在同一张列表里对齐，纯文字的量不单独占块', async () => {
+  mockFetch({ items: itemsOf([observation({ signals: [], observables: ['美国十年期国债收益率最新读数', '创业板指相对沪深300的超额表现'] })]) });
+  await render(h(page.Tracking));
+  const row = container.querySelector('[data-observing-row]') as HTMLElement;
+  await React.act(async () => (row.querySelector('button.tracking-row') as HTMLButtonElement).click());
+  const terms = [...row.querySelectorAll('[data-observation-detail] dt')].map(node => node.textContent);
+  assert.equal(terms[0], '盯什么');
+  assert.equal(row.querySelector('[data-observation-detail] dd')!.textContent, '美国十年期国债收益率最新读数；创业板指相对沪深300的超额表现');
+  assert.equal(row.querySelectorAll('[data-observable]').length, 0);
 });

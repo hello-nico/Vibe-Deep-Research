@@ -22,6 +22,9 @@
 .tracking-trend svg { max-width: 100%; flex: none; }
 .tracking-trend-line { fill: none; stroke: var(--text-2); stroke-width: 1.6; }
 .tracking-trend-flip { stroke: hsl(var(--foreground)); stroke-width: 1; stroke-dasharray: 4 4; }
+.tracking-trend-label { fill: hsl(var(--foreground)); font-size: 11px; }
+.tracking-observable { margin-bottom: 16px; }
+.tracking-observable > p { margin: 0 0 8px; font-size: 13px; color: var(--text-2); overflow-wrap: anywhere; }
 .tracking-trend-alert { fill: hsl(var(--background)); stroke: hsl(var(--foreground)); stroke-width: 1.5; }
 .tracking-trend-now { fill: hsl(var(--brand)); }
 .tracking-trend-text { display: flex; flex: 1 1 240px; min-width: 0; flex-direction: column; gap: 6px; font-size: 13px; color: var(--text-3); }
@@ -82,3 +85,6 @@
 .tracking-report-checks { width: 100%; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
 .tracking-report-checks p { margin: 0; line-height: 1.7; overflow-wrap: anywhere; }
 .tracking-report-checks p + p { color: var(--text-3); font-size: 12px; }
+.tracking-watch { width: 100%; display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 0; font-size: 13px; line-height: 1.7; }
+.tracking-watch dt { color: var(--text-3); }
+.tracking-watch dd { margin: 0; overflow-wrap: anywhere; }

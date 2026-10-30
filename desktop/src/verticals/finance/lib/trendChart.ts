@@ -8,12 +8,13 @@ export interface Trend {
   points: string; end: { x: number; y: number };
   /** 跳档线的 y；没有跳档价或离走势区间太远（超过一个区间高度）时为 null。 */
   lineY: number | null;
+  linesY: number[];
   /** 开始盯的位置：序列里第一个不早于开始日的点；开始在序列之前或之后（还没有收盘）时为 null。 */
   startX: number | null;
   alerts: { x: number; y: number; date: string }[];
 }
 
-export function trendOf(series: readonly (readonly string[])[], opts: { line?: number | null; alertDates?: readonly string[]; startedAt?: string | null } = {}): Trend | null {
+export function trendOf(series: readonly (readonly string[])[], opts: { line?: number | null; lines?: readonly number[]; alertDates?: readonly string[]; startedAt?: string | null } = {}): Trend | null {
   const rows = series.flatMap(row => { const value = toNumber(row[1]); return row[0] && value != null ? [{ date: row[0], value }] : []; });
   if (rows.length < 2) return null;
   const values = rows.map(row => row.value);
@@ -22,6 +23,8 @@ export function trendOf(series: readonly (readonly string[])[], opts: { line?: n
   const line = opts.line ?? null;
   const lineIn = line != null && line >= low - span && line <= high + span;
   if (lineIn) { low = Math.min(low, line); high = Math.max(high, line); }
+  const lines = (opts.lines ?? []).filter(Number.isFinite);
+  if (lines.length) { low = Math.min(low, ...lines); high = Math.max(high, ...lines); }
   const range = high - low || 1;
   const x = (index: number) => PAD + index / (rows.length - 1) * (TREND_W - 2 * PAD);
   const y = (value: number) => TREND_H - PAD - (value - low) / range * (TREND_H - 2 * PAD);
@@ -33,6 +36,7 @@ export function trendOf(series: readonly (readonly string[])[], opts: { line?: n
     points: rows.map((row, index) => `${round(x(index))},${round(y(row.value))}`).join(' '),
     end: { x: round(x(last)), y: round(y(rows[last]!.value)) },
     lineY: lineIn ? round(y(line!)) : null,
+    linesY: lines.map(value => round(y(value))),
     startX: from > 0 ? round(x(from)) : null,
     alerts: rows.flatMap((row, index) => dots.has(row.date) && index !== last ? [{ x: round(x(index)), y: round(y(row.value)), date: row.date }] : []),
   };

@@ -29,6 +29,21 @@ const tracking = {
   next_source: '下一期行情成果', last_assessment: null,
 };
 
+test('开始观察原样保存序列绑定与结构化条件，再登记用户选择', async () => {
+  const { startSuggestedIndicator } = await actionsModule;
+  const bound = { ...tracking, observables: [{ text: '10年期美债收益率', var_id: 'macro:UST10Y' }, '相对表现'],
+    conditions: { ...tracking.conditions, strengthen: [{ text: '低于4.7%', var_id: 'macro:UST10Y', direction: 'down', value: '4.7', unit: '%' }] } };
+  const writes: any[] = [];
+  await startSuggestedIndicator('美债利率与成长股估值', bound, undefined, async (path: string, init?: RequestInit) => {
+    if (path.endsWith('/route')) return { action: 'created', topic: { topic_id: 'topic:aaaaaaaaaaaa' } };
+    if (!init) return { revision: 1, tracking_items: [] };
+    writes.push({ path, body: JSON.parse(String(init.body)) });
+    return {};
+  });
+  assert.deepEqual(writes[0].body.tracking_items, [bound]);
+  assert.deepEqual(writes[1].body, { kind: 'observation', source: 'user', topic_id: 'topic:aaaaaaaaaaaa', tracking_key: tracking.tracking_key });
+});
+
 test('相关问题只在空闲且无草稿时写入并提交', async () => {
   const { sendSuggestedQuestion } = await actionsModule;
   const calls: string[] = [];
