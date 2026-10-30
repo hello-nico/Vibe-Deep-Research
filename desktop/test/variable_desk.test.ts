@@ -89,7 +89,8 @@ test('卡片标题写事情本身，第二行写碰到哪些关注公司和方�
 
 test('跟踪页一行的最新情况：有卡片写日期方向幅度，没有写平静，没有行情与取不到各一句', () => {
   const [al, ao, coal] = trackingFixture.variables;
-  assert.equal(lib.variableLine(al, trackingFixture.cards), '10-08 跌 445 元/吨');
+  assert.equal(lib.variableLine(al, trackingFixture.cards), '最近一次大幅变动：10-08 跌 445 元/吨');
+  assert.equal(lib.variableLine({ ...al, series: [...al.series, ...['10-13', '10-14', '10-15'].map(day => [`2026-${day}`, '23500'])] }, trackingFixture.cards), '', '超过 5 个交易日的提醒不再写在行上');
   assert.equal(lib.variableLine(ao, []), '');
   assert.equal(lib.lastCloseLabel(al), '10-12 收盘 23,465');
   assert.equal(lib.lastCloseLabel(coal), '');

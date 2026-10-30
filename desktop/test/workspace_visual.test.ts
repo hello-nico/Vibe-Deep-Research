@@ -207,13 +207,14 @@ test("资料共用对象卡；关注用表格加个股卡；页面不再引用�
   assert.doesNotMatch(stock, /DashboardPanel|DashboardCard|view=report|WikiReader|资料待补充|图文报告/);
   assert.doesNotMatch(watch, /\/sectors\//);
   assert.match(read("verticals/finance/components/layout/Layout.tsx"), /TaskNotices/);
-  // 页面和公共组件不再使用玻璃卡类、光晕、私有阴影。
+  // 页面和公共组件不再使用玻璃卡类、光晕、私有阴影；下拉一律用 WorkspaceSelect。
   const dir = new URL("../src/verticals/finance/", import.meta.url);
   for (const folder of ["pages", "components"]) {
     for (const file of readdirSync(new URL(`${folder}/`, dir), { recursive: true }) as string[]) {
       if (!/\.tsx$/.test(file)) continue;
       const source = readFileSync(new URL(`${folder}/${file}`, dir), "utf8");
       assert.doesNotMatch(source, /className="[^"]*\bglass\b|glass-glow|shadow-glow|text-glow|workspace-kicker/, `${folder}/${file}`);
+      assert.doesNotMatch(source, /<select\b/, `${folder}/${file} 下拉用 WorkspaceSelect`);
     }
   }
 });

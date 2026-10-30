@@ -13,7 +13,7 @@ import {
 } from '../lib/companyNarrative';
 import type { SnapshotSection } from './snapshot';
 
-export type CompanySectionId = 'thesis' | 'business' | 'variables' | 'cash' | 'valuation' | 'tracking' | 'related';
+export type CompanySectionId = 'thesis' | 'business' | 'variables' | 'cash' | 'valuation' | 'tracking';
 type NarrativeId = 'business' | 'variables' | 'cash' | 'valuation' | 'tracking';
 
 /** 回答句：占位按页面规则填值，缺口写「暂缺」，与页面所见一致。 */
@@ -103,7 +103,6 @@ export interface CompanySnapshotInput {
   /** 估值节的三方预期三行与分歧一句（页面所见）。 */
   expectLines?: readonly string[];
   watch: readonly WatchItem[]; segments: SegmentSummary;
-  related: readonly { title: string }[];
 }
 
 function part(id: CompanySectionId, title: string, lines: (string | undefined | false)[]): SnapshotSection {
@@ -164,6 +163,5 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
     ]));
   }
   if (input.show.tracking) out.push(narrative('tracking', ready ? watchLines(input.watch) : []));
-  if (input.related.length) out.push(part('related', '关联', input.related.map(item => `- ${item.title}`)));
   return out;
 }

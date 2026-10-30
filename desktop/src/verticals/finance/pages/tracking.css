@@ -76,6 +76,9 @@
 .tracking-muted-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 4px; font-size: 13px; color: var(--text-2); }
 .tracking-reports { margin-top: 12px; }
 .tracking-observation-title { margin: 0; padding: 14px 20px 4px; color: var(--text-2); font-size: 13px; }
-.tracking-report { display: flex; align-items: center; gap: 12px; padding: 14px 20px; }
 .tracking-report .tracking-text { flex-direction: row; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; }
-.tracking-report time { flex: none; max-width: none; font-size: 14px; color: hsl(var(--foreground)); font-variant-numeric: tabular-nums; }
+.tracking-report time { flex: none; white-space: nowrap; font-size: 13px; font-variant-numeric: tabular-nums; }
+.tracking-report .tracking-detail { padding-left: 20px; }
+.tracking-report-checks { width: 100%; list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+.tracking-report-checks p { margin: 0; line-height: 1.7; overflow-wrap: anywhere; }
+.tracking-report-checks p + p { color: var(--text-3); font-size: 12px; }

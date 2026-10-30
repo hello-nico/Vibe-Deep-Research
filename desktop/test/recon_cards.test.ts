@@ -368,7 +368,7 @@ test('利润桥：没有科目的卡（价格模型、只有差额）不出桥�
   assert.ok(card.details.length > 0, '文字明细照旧');
 });
 
-test('展开：先是瀑布图，首末实心条，增减项条形，口径说明，逐项文字收进「看数据」且措辞不变', async () => {
+test('展开：中线左右条，首句写上季到本季；增加向右、减少向左；口径与看数据不变', async () => {
   const [card] = lib.reconCards([{ ...huayou, reported_on: '2026-10-24' }], { '603799.SH': '华友' }, NOW_OCT26);
   await show(async () => [card]);
   const scope = '[data-recon-card="603799.SH"]';
@@ -378,18 +378,31 @@ test('展开：先是瀑布图，首末实心条，增减项条形，口径说�
   assert.ok(effects.firstElementChild!.hasAttribute('data-profit-bridge'), '瀑布图是展开后的第一块');
   const rows = [...effects.querySelectorAll('[data-bridge-kind]')];
   const kinds = rows.map(row => row.getAttribute('data-bridge-kind'));
-  assert.equal(kinds[0], 'total');
-  assert.equal(kinds.at(-1), 'total');
-  assert.equal(rows.length, card.bridge.steps.length + 2);
-  assert.equal(rows[0]!.querySelector('.profit-bridge-name')!.textContent, '上季');
-  assert.equal(rows.at(-1)!.querySelector('.profit-bridge-name')!.textContent, '本季');
+  assert.ok(kinds.every(kind => kind === 'up' || kind === 'down'));
+  assert.equal(rows.length, card.bridge.steps.length);
+  assert.equal(effects.querySelector('.profit-bridge-summary')!.textContent, lib.bridgeSummary(card.bridge));
+  const max = Math.max(...card.bridge.steps.map((step: any) => Math.abs(step.impact)));
+  rows.forEach((row, index) => {
+    const step = card.bridge.steps[index], bar = row.querySelector('.profit-bridge-bar') as HTMLElement;
+    const width = Number.parseFloat(bar.style.width), left = Number.parseFloat(bar.style.left);
+    assert.equal(width, Math.abs(step.impact) / max * 50);
+    assert.equal(left, step.impact >= 0 ? 50 : 50 - width);
+    assert.equal(row.getAttribute('data-bridge-kind'), step.impact >= 0 ? 'up' : 'down');
+  });
   assert.match(rows[1]!.querySelector('.profit-bridge-value')!.textContent!, /^[+-]\d/);
   assert.match(effects.querySelector('.profit-bridge-note')!.textContent!, /科目取自利润表，单季 = 累计值相减/);
   const data = effects.querySelector('[data-bridge-data]')!;
   assert.equal(data.querySelector('summary')!.textContent, '看数据');
   assert.equal(data.querySelectorAll('p').length, card.details.length, '逐项文字全部在「看数据」里');
   assert.match(data.textContent!, /毛利变化：本季 .+亿元，上季 .+亿元，对净利润的影响 -13\.04 亿元/);
-  assert.equal(effects.querySelectorAll('p').length - 1, card.details.length, '图外只多一行口径说明');
+  assert.equal(effects.querySelectorAll(':scope > p').length, 1, '图外只多一行口径说明');
+});
+
+test('紫金三季报真实数据：利润桥首句写上季、本季与少多少，所有科目含其他按绝对值排序', () => {
+  const [card] = lib.reconCards([zijinItems], { '601899.SH': '紫金矿业' }, NOW_OCT26);
+  assert.equal(lib.bridgeSummary(card.bridge), '上季 190.90 亿元 → 本季 183.56 亿元（少 7.35 亿元）');
+  const sizes = card.bridge.steps.map((step: any) => Math.abs(step.impact));
+  assert.deepEqual(sizes, [...sizes].sort((a, b) => b - a));
 });
 
 test('展开：没有桥的财报卡仍是原来的逐项文字', async () => {

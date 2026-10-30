@@ -1,20 +1,23 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { ChevronDown, Plus } from "lucide-react";
+import { Link } from "react-router-dom";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { LoadingCard } from "../components/ui/LoadingCard";
 import { SectionLabel } from "../components/ui/Card";
 import { StatusDot, type StatusTone } from "../components/ui/StatusDot";
+import { WorkspaceSelect } from "../components/ui/WorkspaceSelect";
 import { useAiPage } from "../../../core/ai/pageContext";
-import { orderedCompanies, priceText, sensitivityStep, signedPriceText, variableLine, type TrackedVariable } from "../lib/trackingVariables";
+import { orderedCompanies, priceText, recentCards, sensitivityStep, signedPriceText, variableLine, type TrackedVariable } from "../lib/trackingVariables";
 import {
-  KIND_LABEL, SIGNAL_KINDS, TIMELINE_H, TIMELINE_W, addPrice, asTrackingVariables, loadCatalog, loadNextReports, loadTrackingItems, nextReportWhen, observationGroups, priceVariable, setMuted, setSignalKind, summaryOf, timelineOf,
-  type CatalogPrice, type NextReport, type ObservationItem, type PriceItem, type SignalKind, type TrackingItem, type TrackingList,
+  KIND_LABEL, SIGNAL_KINDS, TIMELINE_H, TIMELINE_W, addPrice, asTrackingVariables, loadCatalog, loadNextReports, loadTrackingItems, nextReportSummary, nextReportWhen, observationGroups, priceVariable, reportActual, reportThreshold, setMuted, setSignalKind, summaryOf, timelineOf,
+  type CatalogPrice, type NextReport, type ReportCheck, type ObservationItem, type PriceItem, type SignalKind, type TrackingItem, type TrackingList,
 } from "../lib/trackingItems";
 import { Detail, toneClass } from "./VariableDesk";
 import { loadFlipLines, type FlipLine } from "../lib/flipCards";
 import { TREND_H, TREND_W, trendOf } from "../lib/trendChart";
 import { storageGet, storageSet } from "../lib/storage";
+import { watchPath } from "../lib/routes";
 import "./tracking.css";
 
 /** 跟踪：「正在盯的」是研究带出的、你自己加的价格，和对话里「开始观察」的判断。默认折叠一行一项，走势与信号在展开里。研究进度在关注页的「研究」列。 */
@@ -32,8 +35,8 @@ function Note({ children }: { children: ReactNode }) { return <p className="trac
 function Retry({ onClick }: { onClick: () => void }) { return <button type="button" className="btn btn-text btn-sm" onClick={onClick}>重试</button>; }
 
 const OPEN_KEY = "finance.trackingOpen";
-const readOpen = (): Set<string> => {
-  try { const raw = JSON.parse(storageGet(OPEN_KEY) ?? "[]"); return new Set(Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string") : []); } catch { return new Set(); }
+const readOpen = (key = OPEN_KEY): Set<string> => {
+  try { const raw = JSON.parse(storageGet(key) ?? "[]"); return new Set(Array.isArray(raw) ? raw.filter((item): item is string => typeof item === "string") : []); } catch { return new Set(); }
 };
 const mmdd = (date: string) => date.slice(5);
 
@@ -41,7 +44,7 @@ function Watching({ children }: { children?: ReactNode }) {
   const [list, setList] = useState<TrackingList | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const [open, setOpen] = useState<Set<string>>(readOpen);
+  const [open, setOpen] = useState<Set<string>>(() => readOpen());
   const [all, setAll] = useState(false);
   const [lines, setLines] = useState<FlipLine[]>([]);
   const [notice, setNotice] = useState("");
@@ -86,7 +89,7 @@ function Watching({ children }: { children?: ReactNode }) {
   else {
     const prices = list.items.filter((item): item is PriceItem => item.kind === "price");
     // 有提醒的价格排前，其余保持原顺序；观察项排在价格后面。
-    const alerted = (item: PriceItem) => item.cards.length > 0;
+    const alerted = (item: PriceItem) => recentCards(priceVariable(item), item.cards).length > 0;
     const rows: TrackingItem[] = [...prices.filter(alerted), ...prices.filter(item => !alerted(item)), ...list.items.filter(item => item.kind === "observation")];
     const shown = all ? rows : rows.slice(0, VISIBLE);
     body = <>
@@ -137,21 +140,42 @@ function AddPanel({ taken, onAdd }: { taken: ReadonlySet<string>; onAdd: (varId:
   </div>;
 }
 
-/** 下次报告要验什么：每家已研究公司一行，不折叠、没有按钮；没有、读不到时整组不出现。 */
+const REPORT_OPEN_KEY = "finance.trackingReportsOpen";
+const checkLine = (check: ReportCheck) => [reportThreshold(check), check.window_label ? `看${/^\d/.test(check.window_label) ? ' ' : ''}${check.window_label}` : '', reportActual(check)].filter(Boolean).join(' · ');
+/** 下次财报：有日期的排前（Backend 排序），默认五家；原证伪条件与核对结果收进展开。 */
 function NextReports() {
   const [rows, setRows] = useState<NextReport[]>([]);
+  const [all, setAll] = useState(false);
+  const [open, setOpen] = useState<Set<string>>(() => readOpen(REPORT_OPEN_KEY));
   useEffect(() => {
     const controller = new AbortController();
     loadNextReports(controller.signal).then(value => { if (!controller.signal.aborted) setRows(value); }, () => {});
     return () => controller.abort();
   }, []);
   if (!rows.length) return null;
+  const shown = all ? rows : rows.slice(0, 5);
+  const toggle = (symbol: string) => setOpen(current => {
+    const next = new Set(current);
+    if (!next.delete(symbol)) next.add(symbol);
+    storageSet(REPORT_OPEN_KEY, JSON.stringify([...next]));
+    return next;
+  });
   return <section className="tracking-reports" data-tracking="next-reports">
     <SectionLabel>{`下次财报 · ${rows.length} 家`}</SectionLabel>
-    <div className="card tracking-card">{rows.map(row => <div key={row.symbol} className="tracking-item tracking-report" data-report-row={row.symbol}>
-      <span className="tracking-text"><b>{row.name}</b>{row.checks.length > 0 && <span>{row.checks.join("、")}</span>}</span>
-      <time>{nextReportWhen(row)}</time>
-    </div>)}</div>
+    <div className="card tracking-card">{shown.map(row => <div key={row.symbol} className="tracking-item tracking-report" data-report-row={row.symbol}>
+      <button type="button" className="tracking-row" aria-expanded={open.has(row.symbol)} onClick={() => toggle(row.symbol)}>
+        <span className="tracking-text"><b>{row.name}</b><span>{nextReportSummary(row)}</span></span>
+        <time dateTime={row.date || row.deadline}>{nextReportWhen(row)}</time><ChevronDown className="tracking-chevron" size={16} aria-hidden="true" />
+      </button>
+      {open.has(row.symbol) && <div className="tracking-detail" data-report-detail="">
+        <p className="tracking-report-label">改判断的条件</p>
+        <ul className="tracking-report-checks">{row.checks.map((check, index) => <li key={index}>
+          <p>{check.text}</p>
+          {checkLine(check) && <p>{checkLine(check)}</p>}
+        </li>)}</ul>
+        <Link className="btn btn-sm" to={watchPath(row.symbol.split('.')[0]!)}>{`看${row.name}`}</Link>
+      </div>}
+    </div>)}{rows.length > shown.length && <button type="button" className="tracking-more" onClick={() => setAll(true)}>另外 {rows.length - shown.length} 家</button>}</div>
   </section>;
 }
 
@@ -182,7 +206,7 @@ function PriceRow({ item, line, expanded, onToggle, onMute }: { item: PriceItem;
   const companies = useMemo(() => orderedCompanies(item.companies), [item.companies]);
   const step = sensitivityStep(variable);
   const plain = item.status !== "ok" || !item.series?.length;
-  const alerted = !plain && item.cards.length > 0;
+  const alerted = !plain && recentCards(variable, item.cards).length > 0;
   const tone: StatusTone = alerted ? "info" : item.status === "gap" ? "wait" : "off";
   return <div className="tracking-item" data-variable-row={item.var_id} data-item-id={item.id}>
     <div className="tracking-line">
@@ -234,8 +258,8 @@ function ObservationRow({ item, expanded, onToggle, onMute, onKind }: { item: Ob
         <p className="tracking-legend">▲ 支持　▼ 不利　○ 无关</p>
         <ul className="tracking-signals">{item.signals.map(signal => <li key={signal.id} data-signal={signal.id}>
           <time>{mmdd(signal.date)}</time>
-          <select className="tracking-signal-kind" aria-label={`改类型：${signal.text}`} value={signal.kind} onChange={event => onKind(signal.id, event.target.value as SignalKind)}>
-            {SIGNAL_KINDS.map(kind => <option key={kind} value={kind}>{KIND_LABEL[kind]}</option>)}</select>
+          <WorkspaceSelect className="tracking-signal-kind" aria-label={`改类型：${signal.text}`} value={signal.kind} onChange={kind => onKind(signal.id, kind)}
+            options={SIGNAL_KINDS.map(kind => ({ value: kind, label: KIND_LABEL[kind] }))} />
           <span>{signal.text}</span>
         </li>)}</ul></>}
       <MuteButton name={item.name} onMute={onMute} />

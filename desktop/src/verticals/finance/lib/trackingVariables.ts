@@ -209,13 +209,19 @@ export function lastCloseLabel(variable: TrackedVariable): string {
   const price = priceText(variable.latest);
   return price === '—' ? `${when} 收盘` : `${when} 收盘 ${price}`;
 }
-/** 跟踪页「价格」一行的最新情况：最近 20 个交易日有卡片就写那一次（如「10-26 跌 2,280 元/吨」），平稳时为空。 */
+/** 跟踪页一行只看最近 5 个交易日的提醒；更早的只留在走势图的空心圆点上。 */
+export const LINE_DAYS = 5;
+export function recentCards(variable: TrackedVariable, cards: readonly VariableCard[]): VariableCard[] {
+  const since = variable.series?.at(-LINE_DAYS)?.[0];
+  return since ? cards.filter(card => card.var_id === variable.var_id && card.date >= since) : [];
+}
+/** 跟踪页「价格」一行的最新情况：最近 5 个交易日有提醒就写最近一次（如「最近一次大幅变动：10-26 跌 2,280 元/吨」），平稳时为空。 */
 export function variableLine(variable: TrackedVariable, cards: readonly VariableCard[]): string {
   if (variable.status === 'no_data') return '无行情';
   if (variable.status === 'gap') return '无行情';
-  const card = cards.filter(item => item.var_id === variable.var_id).sort((a, b) => b.date.localeCompare(a.date))[0];
+  const card = recentCards(variable, cards).sort((a, b) => b.date.localeCompare(a.date))[0];
   if (!card) return '';
-  return `${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}`;
+  return `最近一次大幅变动：${dayLabel(card.date)} ${directionOf(card.change)} ${sizeOf(card)}`;
 }
 /** 有卡片的变量排前，其余保持原顺序（no_data 本来就在最后）。 */
 export function orderWatching(variables: readonly TrackedVariable[], cards: readonly VariableCard[]): TrackedVariable[] {

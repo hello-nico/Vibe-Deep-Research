@@ -404,7 +404,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     formulaSentence, formula, quarterBars: bars, model, values, price, tiers, adjusted,
     expectLines: saved && !gapOnly ? [...expectation.rows.map(row => row.pieces.map(piece => piece.text).join('')), ...(expectation.difference ? [expectation.difference] : [])] : [],
     impliedText: verdict.implied ? `${verdict.label}：${verdict.implied}${verdict.flip ? `，${verdict.flip}` : ''}` : undefined,
-    watch, segments, related: saved?.related ?? [],
+    watch, segments,
   }) : [];
   const snapshotKey = JSON.stringify(snapshotSections);
   useEffect(() => { onSnapshot?.(snapshotSections); }, [snapshotKey]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -486,7 +486,6 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
       </Detail> : null,
       saved?.changes?.tracking)}
     {!gapOnly && saved && <ConversationFactors symbol={symbol} researching={companyPageTaskActive(research.task)} onResearch={() => void store.restart()} />}
-    <Panel className="company-page-section" title="关联">{saved?.related?.length ? <div className="company-page-relations">{saved.related.map(item => <Link key={item.topicId} className="btn btn-sm" to={`/insights/topics/${encodeURIComponent(item.topicId.replace(/^topic:/, ''))}`}>{item.title} · 证据墙 ↗</Link>)}</div> : <p className="company-page-gap">暂无研究关联</p>}</Panel>
     <Panel className="company-page-section" title="资料">{data.documents.loading ? <DataLoading label="资料" /> : data.documents.error ? <ReadFailure retry={retryRead} /> : <SourceTimeline content={data.documents.value} />}</Panel>
   </article>;
 }

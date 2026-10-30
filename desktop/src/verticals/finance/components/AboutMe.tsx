@@ -5,6 +5,7 @@ import { loadMemory, MEMORY_CATEGORIES, saveMemory, type MemoryCategory, type Me
 import { aboutMeDate, aboutMeSections, aboutMeSource, forgetOps, rememberOps, type AboutMeItem } from "../lib/aboutMe";
 import { GroupCard, GroupRow } from "./ui/Card";
 import { LoadingCard } from "./ui/LoadingCard";
+import { WorkspaceSelect } from "./ui/WorkspaceSelect";
 
 const TOPIC_REF = /topic:[0-9a-f]{12}/g;
 
@@ -61,9 +62,8 @@ export function AboutMe({ onOpenSource }: { onOpenSource: (sessionId: string) =>
   };
   return <div className="grid max-w-3xl gap-3">
     <form className="flex flex-wrap items-center gap-2" onSubmit={event => { event.preventDefault(); void remember(); }}>
-      <select value={category} onChange={event => setCategory(event.target.value as MemoryCategory)} aria-label="关于我的类别" className="workspace-select" disabled={busy}>
-        {MEMORY_CATEGORIES.map(option => <option key={option} value={option}>{option}</option>)}
-      </select>
+      <WorkspaceSelect aria-label="关于我的类别" value={category} onChange={setCategory} disabled={busy}
+        options={MEMORY_CATEGORIES.map(option => ({ value: option, label: option }))} />
       <input value={input} onChange={event => setInput(event.target.value)} aria-label="补充关于我" placeholder="补充一句，比如：我持有神火，偏中长线，回答先给结论"
         className="workspace-field workspace-field-single min-w-0 flex-1" />
       <button type="submit" className="btn" disabled={busy || !soul}>记下</button>

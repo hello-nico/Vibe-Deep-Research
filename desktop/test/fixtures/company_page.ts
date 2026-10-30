@@ -31,7 +31,6 @@ export const fixtureResearch: CompanyPageResearch = {
   catalysts: [{ date: '2026-10-30', event: '三季报预约披露' }],
   valuation: { grade: '偏高', basis: ['同业位置'], conditions: '来水转枯或利率上行，判断会改档。', scenarioRef: 'result:' + 'ab'.repeat(16) },
   changes: { thesis: '最新定期报告后更新' },
-  related: [{ topicId: 'topic:123456abcdef', title: '电价与煤价传导' }],
 };
 export const fixturePageResearch: Omit<CompanyPageResearchRead, 'task'> = { research: fixtureResearch, new_material: null, basisVersion: fixtureResearch.basisVersion };
 

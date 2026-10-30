@@ -315,7 +315,8 @@ test('页面按方法论模板渲染数据包、情景表、变化悬停、资�
   assert.doesNotMatch(container.textContent!, /生成报告|开始研究|历史分位|field_id|packet_field|scenarioRef|basisVersion|valuation_percentile|hithink/);
   assert.equal(container.querySelector('[data-change-hint]')?.getAttribute('title'), '最新定期报告后更新');
   assert.ok([...container.querySelectorAll('details')].every(detail => !detail.open));
-  assert.ok(container.querySelector('a[href^="/insights/topics/"]'));
+  assert.equal(container.querySelector('a[href^="/insights/topics/"]'), null);
+  assert.doesNotMatch(container.textContent!, /暂无研究关联|证据墙/);
   assert.ok(container.querySelector('a[href^="/my-reports/read/"]'));
   const lead = container.querySelector('[data-company-section="thesis"]')!;
   assert.match([...lead.querySelectorAll('p')].find(element => element.textContent?.includes('更新：'))?.textContent ?? '', /10-10 更新：最新定期报告后更新$/);

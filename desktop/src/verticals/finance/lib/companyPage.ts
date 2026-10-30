@@ -29,7 +29,6 @@ export interface CompanyPageResearch {
   catalysts?: { date: string; event: string }[];
   valuation?: { grade?: ValuationGrade; basis?: string[]; conditions?: string; scenarioRef?: string | null };
   changes?: Partial<Record<CompanyPageBlockId | 'thesis', string>>;
-  related?: { topicId: string; title: string }[];
   /** T7.3：关键变量的敏感性凭据与变量来源（公司自述或对话确认）。 */
   sensitivity?: { resultRef?: string | null; drivers?: SensitivityDriver[] } | null;
   /** 对话写回带来的来源（来源会话、时间），供页面悬停与撤回。 */

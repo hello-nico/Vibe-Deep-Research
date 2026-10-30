@@ -1,5 +1,7 @@
 import { researchRead } from './research';
 import { localService } from './localService';
+import { formatFactValue } from './wikiFacts';
+import type { PacketThreshold } from './companyPacket';
 import { qualifiedWatch, toNumber, type TrackedVariable, type TrackingVariables, type VariableCard, type VariableCompany } from './trackingVariables';
 
 /**
@@ -97,8 +99,14 @@ export async function loadCatalog(signal?: AbortSignal): Promise<CatalogPrice[]>
   return rows.filter(row => row && typeof row.id === 'string' && typeof row.name === 'string');
 }
 
-/** 「下次报告要验什么」的一家：Backend `GET /tracking/next-reports?symbols=`；date 为 null 时用 date_note（预约日待公布）。 */
-export interface NextReport { symbol: string; name: string; report: string; date: string | null; date_note?: string | null; checks: string[]; researched_at?: string | null }
+/** Backend 拥有报告期、短名、截止日与阈值比较，页面只显示返回结果。 */
+export interface ReportCheck {
+  text: string; field_ids: string[]; names: string[]; threshold: PacketThreshold | null;
+  window: string; window_label: string; period: string | null;
+  actual: { value: string; unit: string; period: string; field_id: string } | null;
+  triggered: boolean | null; actual_reason: string;
+}
+export interface NextReport { symbol: string; name: string; report: string; date: string | null; deadline: string; checks: ReportCheck[]; researched_at?: string | null }
 export async function loadNextReports(signal?: AbortSignal): Promise<NextReport[]> {
   const { symbols } = await localService.clientWatch();
   const qualified = qualifiedWatch(symbols);
@@ -107,5 +115,21 @@ export async function loadNextReports(signal?: AbortSignal): Promise<NextReport[
   if (!rows) throw new Error('下次报告读取失败');
   return rows.filter(row => row && typeof row.symbol === 'string' && typeof row.report === 'string');
 }
-/** 右边一格：「三季报 · 10-30」；没有日期写「日期未定」。 */
-export const nextReportWhen = (row: NextReport) => `${row.report} · ${/^\d{4}-(\d{2})-(\d{2})$/.test(row.date ?? '') ? row.date!.slice(5) : row.date_note || '日期未定'}`;
+const reportDay = (value: string) => `${Number(value.slice(5, 7))}-${Number(value.slice(8, 10))}`;
+export const nextReportWhen = (row: NextReport) => `${row.report} · ${row.date ? reportDay(row.date) : `最晚 ${reportDay(row.deadline)}`}`;
+export function nextReportSummary(row: NextReport): string {
+  const names = [...new Set(row.checks.flatMap(check => check.names))];
+  return `${names.slice(0, 3).join('、')}${names.length > 3 ? `等 ${names.length} 项` : ''}`;
+}
+/** 阈值与实际值去掉无意义的尾零：55.00% → 55%，300.00 亿元 → 300 亿元。 */
+const plainValue = (fact: Record<string, unknown>) => formatFactValue(fact).replace(/(\d)\.(\d*?)0+(?!\d)/g, (_, int, dec) => dec ? `${int}.${dec}` : int);
+const checkIsYoy = (check: ReportCheck) => check.threshold?.kind === 'yoy_pct' || check.field_ids.some(id => id.startsWith('lens:ytd_yoy.'));
+export function reportThreshold(check: ReportCheck): string {
+  const threshold = check.threshold;
+  if (!threshold || !['up', 'down'].includes(threshold.direction ?? '') || !Number.isFinite(Number(threshold.value))) return '';
+  return `${checkIsYoy(check) ? '同比' : ''}${threshold.direction === 'down' ? '低于' : '高于'} ${plainValue({ value: threshold.value, unit: threshold.unit })}就改判断`;
+}
+export function reportActual(check: ReportCheck): string {
+  if (!check.actual || typeof check.triggered !== 'boolean') return '';
+  return `已出：${checkIsYoy(check) ? '同比 ' : ''}${plainValue(check.actual)}，${check.triggered ? '已触发' : '未触发'}`;
+}

@@ -353,7 +353,7 @@ function ThemeReport({ page }: { page: WikiPage }) {
       ['membership_rule', '成员规则'],
       ['members', '成员'],
       ['heterogeneity', '成员差异'],
-      ['catalysts_and_breakers', '催化与证伪'],
+      ['catalysts_and_breakers', '催化与改判断的条件'],
       ['attention', '当前关注点'],
     ] as const).map(([kind, title]) => {
       const block = blockOf(page, kind);

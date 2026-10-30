@@ -152,7 +152,7 @@ test('正在盯的：有提醒的排前并写那一次；点开看走势、开�
   await render(h(page.Tracking));
   const rows = [...container.querySelectorAll('[data-tracking="watching"] [data-variable-row]')] as HTMLElement[];
   assert.deepEqual(rows.map(row => row.dataset.variableRow), ['cmdty:SHFE.AL', 'cmdty:SHFE.AO']);
-  assert.match(rows[0]!.textContent!, /沪铝10-08 跌 445 元\/吨 · 神火/);
+  assert.match(rows[0]!.textContent!, /沪铝最近一次大幅变动：10-08 跌 445 元\/吨 · 神火/);
   assert.match(rows[1]!.textContent!, /^氧化铝神火股份/);
   assert.equal(rows[1]!.querySelector('.status-dot')!.getAttribute('aria-label'), '平稳');
   assert.equal(rows[0]!.querySelector('.tracking-price')!.textContent, '23,465−5', '一行里只有最新价与涨跌（从序列末尾取）');
@@ -223,13 +223,15 @@ test('观察项：一行写名称、为什么重要和倾向；展开看时间�
   assert.equal(timeline.querySelectorAll('polygon.is-weak').length, 2);
   assert.equal(timeline.querySelectorAll('circle.is-none').length, 1);
   const signals = [...row.querySelectorAll('[data-signal]')];
-  assert.deepEqual(signals.map(li => [li.querySelector('time')!.textContent, (li.querySelector('select') as HTMLSelectElement).selectedOptions[0]!.textContent, li.querySelector('span')!.textContent]), [
+  const kindOf = (li: Element) => li.querySelector('[role="combobox"]') as HTMLButtonElement;
+  assert.deepEqual(signals.map(li => [li.querySelector('time')!.textContent, kindOf(li).textContent, li.querySelector(':scope > span')!.textContent]), [
     ['10-21', '不利', '印尼镍产量上调'], ['10-24', '不利', '镍价跌破成本线'], ['10-25', '无关', '公司披露钴业务扩产']]);
-  assert.deepEqual([...signals[0]!.querySelectorAll('option')].map(option => option.textContent), ['支持', '不利', '无关', '未判断']);
   assert.doesNotMatch(container.textContent!, /加强|削弱|偏削弱|偏加强|方向不明/, '界面不出现倾向词');
-  const select = signals[2]!.querySelector('select') as HTMLSelectElement;
-  select.value = '加强'; // 选项的值仍是 Backend 的取值，显示的是「支持」
-  await React.act(async () => { select.dispatchEvent(new win.Event('change', { bubbles: true }) as unknown as Event); });
+  await React.act(async () => kindOf(signals[2]!).click());
+  const options = [...win.document.querySelectorAll('[role="option"]')] as unknown as HTMLElement[];
+  assert.deepEqual(options.map(option => option.textContent!.replace('✓', '')), ['支持', '不利', '无关', '未判断']);
+  // 选项的值仍是 Backend 的取值，显示的是「支持」
+  await React.act(async () => options[0]!.click());
   assert.ok(requested.some(entry => entry === 'PATCH /finance-research/tracking/items/obs%3Atopic%3Aabc%3Anickel/signals/s3 {"kind":"加强"}'));
   assert.equal(text('[data-summary]'), '支持 1 · 不利 2');
 });
@@ -450,11 +452,14 @@ test('状态点提示挂到 body、固定定位：任何容器裁切或贴边都
   assert.match(dot, /\.status-dot-tip \{ position: fixed;/);
 });
 
-test('下次报告要验什么：每家一行「要看：…」与「报告 · 日期」，不折叠没有按钮；预约日未公布写待公布；脚注一句', async () => {
+const reportCheck = (names: string[], extra: Record<string, unknown> = {}) => ({ text: '毛利率回落则价差逻辑弱化', field_ids: ['gross_margin'], names,
+  threshold: { kind: 'level', value: '13.6', unit: '%', direction: 'down' }, window: '2026年第三季度报告', window_label: '2026 三季报', period: '2026Q3', actual: null, triggered: null, actual_reason: '', ...extra });
+
+test('下次财报：短名最多三个，未预约写最晚截止日；整行展开原条件、阈值、窗口和核对，链接进入个股页', async () => {
   const reports = [
-    { symbol: '000807.SZ', name: '云铝股份', report: '三季报', date: '2026-10-30', date_note: '', checks: ['沪铝', '电力成本', '单季归母净利'], researched_at: '2026-10-20' },
-    { symbol: '601288.SH', name: '农业银行', report: '年报', date: null, date_note: '预约日待公布', checks: ['净息差', '不良率', '净资产收益率', '股息率'] },
-    { symbol: '000933.SZ', name: '神火股份', report: '三季报', date: '2026-10-31', checks: [] },
+    { symbol: '000807.SZ', name: '云铝股份', report: '三季报', date: '2026-10-30', deadline: '2026-10-31', checks: [reportCheck(['毛利率'], { actual: { value: '13.9', unit: '%', period: '2026Q3', field_id: 'gross_margin' }, triggered: false })] },
+    { symbol: '000933.SZ', name: '神火股份', report: '三季报', date: '2026-10-31', deadline: '2026-10-31', checks: [] },
+    { symbol: '601288.SH', name: '农业银行', report: '年报', date: null, deadline: '2027-04-30', checks: [reportCheck(['净息差', '不良率', '净资产收益率', '净利润'])] },
   ];
   const requested = mockFetch({ reports });
   await render(h(page.Tracking));
@@ -462,16 +467,62 @@ test('下次报告要验什么：每家一行「要看：…」与「报告 · �
   assert.equal(group.querySelector('.section-label')!.firstElementChild!.textContent, '下次财报 · 3 家');
   const rows = [...group.querySelectorAll('[data-report-row]')];
   assert.deepEqual(rows.map(row => [row.querySelector('b')!.textContent, row.querySelector('.tracking-text > span')?.textContent ?? '', row.querySelector('time')!.textContent]), [
-    ['云铝股份', '沪铝、电力成本、单季归母净利', '三季报 · 10-30'],
-    ['农业银行', '净息差、不良率、净资产收益率、股息率', '年报 · 预约日待公布'],
-    ['神火股份', '', '三季报 · 10-31']]);
-  assert.equal(group.querySelector('button'), null, '无按钮');
+    ['云铝股份', '毛利率', '三季报 · 10-30'],
+    ['神火股份', '', '三季报 · 10-31'],
+    ['农业银行', '净息差、不良率、净资产收益率等 4 项', '年报 · 最晚 4-30']]);
+  const button = rows[0]!.querySelector('button')!;
+  assert.equal(button.getAttribute('aria-expanded'), 'false');
+  await React.act(async () => button.click());
+  assert.equal(button.getAttribute('aria-expanded'), 'true');
+  assert.match(rows[0]!.textContent!, /毛利率回落则价差逻辑弱化.*低于 13.6%就改判断.*看 2026 三季报.*已出：13.9%，未触发/s);
+  assert.equal(rows[0]!.querySelector('a')!.textContent, '看云铝股份');
+  assert.equal(rows[0]!.querySelector('a')!.getAttribute('href'), '/watch/000807');
+  await React.act(async () => button.click());
+  assert.equal(rows[0]!.querySelector('[data-report-detail]'), null);
   assert.ok(requested.some(entry => /tracking\/next-reports\?symbols=000933\.SZ,601899\.SH$/.test(entry)));
   const order = [...container.querySelectorAll('[data-tracking]')].map(node => node.getAttribute('data-tracking'));
   assert.deepEqual(order, ['watching', 'next-reports'], '在「正在盯的」之后');
   assert.ok(container.querySelector('[data-tracking="watching"]')!.compareDocumentPosition(group) & 4 || container.querySelector('[data-tracking="watching"]')!.contains(group));
   assert.doesNotMatch(container.textContent!, /按报告检查/);
   assert.doesNotMatch(container.textContent!, /暂无数据源/);
+});
+
+test('下次财报：默认五家，另外 N 家展开全部；展开状态独立保存，重新进入恢复', async () => {
+  const previousStorage = globalThis.localStorage;
+  Object.assign(globalThis, { localStorage: win.localStorage });
+  win.localStorage.clear();
+  try {
+    const reports = Array.from({ length: 7 }, (_, index) => ({ symbol: `60000${index}.SH`, name: `公司${index}`, report: '半年报', date: null, deadline: '2027-08-31', checks: [] }));
+    mockFetch({ reports });
+    await render(h(page.Tracking));
+    const group = () => container.querySelector('[data-tracking="next-reports"]')!;
+    assert.equal(group().querySelectorAll('[data-report-row]').length, 5);
+    const more = group().querySelector('.tracking-more') as HTMLButtonElement;
+    assert.equal(more.textContent, '另外 2 家');
+    await React.act(async () => more.click());
+    assert.equal(group().querySelectorAll('[data-report-row]').length, 7);
+    const row = () => group().querySelector('[data-report-row="600000.SH"]')!;
+    await React.act(async () => (row().querySelector('button') as HTMLButtonElement).click());
+    assert.deepEqual(JSON.parse(win.localStorage.getItem('finance.trackingReportsOpen')!), ['600000.SH']);
+    assert.equal(win.localStorage.getItem('finance.trackingOpen'), null, '报告展开不覆盖价格行偏好');
+    await render(h(page.Tracking));
+    assert.equal(row().querySelector('button')!.getAttribute('aria-expanded'), 'true');
+  } finally { Object.assign(globalThis, { localStorage: previousStorage }); }
+});
+
+test('下次财报文案：上下方向、亿元、同比、已触发及缺实际值；前端不另算阈值是否触发', () => {
+  assert.equal(lib2.reportThreshold(reportCheck([])), '低于 13.6%就改判断');
+  assert.equal(lib2.reportThreshold(reportCheck([], { threshold: { kind: 'level', value: '2500000000', unit: '元', direction: 'up' } })), '高于 25 亿元就改判断');
+  assert.equal(lib2.reportThreshold(reportCheck([], { threshold: null })), '');
+  assert.equal(lib2.reportThreshold(reportCheck([], { threshold: { value: '5', unit: '%' } })), '');
+  assert.equal(lib2.reportActual(reportCheck([])), '');
+  assert.equal(lib2.reportActual(reportCheck([], { actual: { value: '12.8', unit: '%' }, triggered: true })), '已出：12.8%，已触发');
+  assert.equal(lib2.reportActual(reportCheck([], { actual: { value: '12.8', unit: '%' }, triggered: false })), '已出：12.8%，未触发', '只显示 Backend 比较结果');
+  assert.equal(lib2.reportThreshold(reportCheck([], { threshold: { kind: 'yoy_pct', value: '-5', unit: '%', direction: 'down' } })), '同比低于 -5%就改判断');
+  const lens = reportCheck(['营收'], { field_ids: ['lens:ytd_yoy.revenue'], threshold: { kind: 'level', value: '20', unit: '%', direction: 'down' }, actual: { value: '18', unit: '%', field_id: 'lens:ytd_yoy.revenue' }, triggered: true });
+  assert.equal(lib2.reportThreshold(lens), '同比低于 20%就改判断', '海光真实研究形状：同比镜头的 level 仍是同比数值');
+  assert.equal(lib2.reportActual(lens), '已出：同比 18%，已触发');
+  assert.equal(lib2.nextReportWhen({ report: '一季报', date: null, deadline: '2027-04-30' }), '一季报 · 最晚 4-30');
 });
 
 test('下次报告：没有或读不到时整组不出现，其余照常', async () => {

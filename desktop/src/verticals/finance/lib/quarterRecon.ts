@@ -56,6 +56,7 @@ export function withReportReminders(cards: ReconCard[], arrivals: readonly Repor
 const LABEL = ['', '一季报', '半年报', '三季报', '年报'];
 export const reconLabel = (period: string) => LABEL[Number(period.slice(-1))] ?? '季报';
 export const signedYi = (value: number) => `${value > 0 ? '+' : value < 0 ? '-' : ''}${yiText(Math.abs(value))}`;
+export const bridgeSummary = (bridge: ReconBridge) => `上季 ${yiText(bridge.start)} → 本季 ${yiText(bridge.end)}（${bridge.end >= bridge.start ? '多' : '少'} ${yiText(Math.abs(bridge.end - bridge.start))}）`;
 const dayDiff = (iso: string, now: Date) => Math.floor((now.getTime() - Date.parse(`${iso}T00:00:00+08:00`)) / 86400000);
 
 /** 所得税与少数股东损益是税前利润变化的机械结果，只在展开里列出，不做首句结论。 */

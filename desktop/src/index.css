@@ -345,7 +345,7 @@
   .row-actions { display: inline-flex; align-items: center; gap: 2px; opacity: 0; transition: opacity .15s; }
   tr:hover .row-actions, tr:focus-within .row-actions, .row-actions:focus-within { opacity: 1; }
   @media (hover: none) { .row-actions { opacity: 1; } }
-  .watch-chart-row > td { padding: 0 14px 12px; }
+  .watch-chart-row > td { padding: 12px 14px 14px; }
   .watch-chart-row > td > section { margin-top: 0; }
   .watch-market-notice { color: hsl(var(--foreground)); font-size: 12px; line-height: 1.4; white-space: nowrap; animation: watch-market-notice 2.4s ease forwards; }
   @keyframes watch-market-notice { 0% { opacity: 0; } 14% { opacity: 1; } 68% { opacity: 1; } 100% { opacity: 0; } }

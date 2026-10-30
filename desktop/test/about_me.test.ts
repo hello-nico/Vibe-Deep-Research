@@ -129,15 +129,17 @@ test('空输入不提交', async () => {
 
 test('记下：显式选择四类之一，写入 soul 的 stated 与 user_authorized，类内置顶', async () => {
   puts.length = 0;
-  const category = container.querySelector('select[aria-label="关于我的类别"]') as HTMLSelectElement;
-  const setter = Object.getOwnPropertyDescriptor(win.HTMLSelectElement.prototype, 'value')!.set!;
-  await React.act(async () => { setter.call(category, '持仓与关注'); category.dispatchEvent(new win.Event('change', { bubbles: true })); });
+  const category = container.querySelector('[role="combobox"][aria-label="关于我的类别"]') as HTMLButtonElement;
+  assert.equal(container.querySelector('select'), null, '用统一下拉，不用原生 select');
+  await React.act(async () => category.click());
+  const option = [...win.document.querySelectorAll('[role="option"]')].find(node => node.textContent!.includes('持仓与关注')) as unknown as HTMLElement;
+  await React.act(async () => option.click());
   await type('我持有神火，偏中长线');
   await submit();
   assert.deepEqual(puts, [{ kind: 'soul', version: 3, operations: [{ op: 'upsert', stance: 'stated', category: '持仓与关注', text: '我持有神火，偏中长线', user_authorized: true }] }]);
   assert.deepEqual(texts().slice(0, 3), ['回答先给结论', '我持有神火，偏中长线', '认为煤炭业务会继续拖累利润']);
   assert.equal((container.querySelector('input[aria-label="补充关于我"]') as HTMLInputElement).value, '');
-  assert.equal(category.value, '持仓与关注');
+  assert.match(category.textContent!, /持仓与关注/);
 });
 
 test('删除：按条目所属文档的版本发 delete，立即生效，不弹确认', async () => {
