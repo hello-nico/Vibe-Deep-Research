@@ -8,16 +8,40 @@ import { pickEnv, DSH_RUNTIME_ENV_KEYS, BASE_ENV_KEYS } from "../orchestrator/sr
 
 const DSH_PROXY_PREFIXES = ["/api", "/plugins", "/assets", "/finance-research", "/finance-notes", "/finance-note-digest", "/finance-topic-sessions", "/finance-assistant-sessions", "/finance-assistant-page-context", "/finance-report-tasks", "/finance-report-runs", "/finance-research-runs", "/finance-research-tasks", "/finance-backend-connection", "/finance-api", "/finance-background-tasks", "/finance-wiki-publish", "/finance-maintenance-refresh", "/finance-model", "/finance-host", "/finance-ui.css", "/finance-pdfium.wasm", "/finance-icon.svg", "/favicon.svg", "/manifest.webmanifest"] as const;
 
-/** Loopback Vite/DSH proxy: Host must match this origin. Missing Origin is allowed for same-host tools; a present Origin or Fetch site must be same-origin. Reachability is not authorization. */
-export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origin: string) {
+/** 额外信任的一个 Tailscale 来源。只经 `tailscale serve` 进来：它只在本 tailnet 可达，注入 Tailscale-User-Login 并剥掉客户端自带的同名头。 */
+export interface TrustedRemote { origin: string; host: string; user: string }
+
+/** 读 `<repo>/.local/trusted-remote.json`：`{"origin":"https://<机器>.<tailnet>.ts.net:8443","user":"<Tailscale 登录名>"}`。没有文件就只信本机；文件写错直接报错，不悄悄放宽。 */
+export function readTrustedRemote(repoRoot: string): TrustedRemote | null {
+  const file = path.join(repoRoot, ".local", "trusted-remote.json");
+  if (!fs.existsSync(file)) return null;
+  const raw = JSON.parse(fs.readFileSync(file, "utf8")) as { origin?: unknown; user?: unknown };
+  let url: URL;
+  try { url = new URL(String(raw.origin ?? "")); } catch { throw new Error("trusted-remote.json 的 origin 不是合法地址"); }
+  if (url.protocol !== "https:" || !url.hostname.endsWith(".ts.net") || url.pathname !== "/" || url.search || url.hash) {
+    throw new Error("trusted-remote.json 的 origin 必须是 https://<机器>.<tailnet>.ts.net[:端口]");
+  }
+  const user = typeof raw.user === "string" ? raw.user.trim() : "";
+  if (!user) throw new Error("trusted-remote.json 必须写明允许的 Tailscale 登录名 user");
+  return { origin: url.origin, host: url.host, user };
+}
+
+/**
+ * Loopback Vite/DSH proxy: Host must match this origin. Missing Origin is allowed for same-host tools; a present Origin or Fetch site must be same-origin. Reachability is not authorization.
+ * 另认一个 Tailscale 来源时：Host 与 Origin 必须是那个地址，且 Tailscale-User-Login 必须等于允许的登录名。
+ */
+export function isTrustedDevRequest(req: Pick<IncomingMessage, "headers">, origin: string, remote: TrustedRemote | null = null) {
   if (!origin) return false;
   let expected: URL;
   try { expected = new URL(origin); } catch { return false; }
-  if (req.headers.host !== expected.host) return false;
-  if (req.headers.origin && req.headers.origin !== origin) return false;
   const site = req.headers["sec-fetch-site"];
   if (site && !["same-origin", "none"].includes(String(site))) return false;
-  return true;
+  if (req.headers.host === expected.host) return !req.headers.origin || req.headers.origin === origin;
+  if (remote && req.headers.host === remote.host) {
+    if (req.headers.origin && req.headers.origin !== remote.origin) return false;
+    return req.headers["tailscale-user-login"] === remote.user;
+  }
+  return false;
 }
 
 export function isDshProxiedPath(pathname: string) {
@@ -56,7 +80,8 @@ export function dshDevelopment(repoRoot: string): { plugin: Plugin } {
   let cookie = "";
   let failure = "DSH 正在启动";
   let origin = "";
-  const trusted = (req: IncomingMessage) => isTrustedDevRequest(req, origin);
+  const remote = readTrustedRemote(repoRoot);
+  const trusted = (req: IncomingMessage) => isTrustedDevRequest(req, origin, remote);
 
   async function install(server: ViteDevServer | PreviewServer, development: boolean) {
     if (process.env.VRA_LAN === "1") throw new Error("研究工作台仅支持本机访问");

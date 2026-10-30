@@ -244,6 +244,40 @@ test('单季柱图兜底数据与去向条按数据包取值', () => {
   assert.equal(narrative.peerMedian(huaneng.packet, 'pe') != null, true);
 });
 
+test('火电公司变量按报告期拖动，煤电方向正确，股息率估值不随试算改变', async () => {
+  const ref = 'result:' + 'c'.repeat(32);
+  const raw = { payload: { calculation: { extra: {
+    model: 'thermal_power', base_profit: '13171458652', shares: '15698093359',
+    variables: [
+      { var_id: '600011.SH:standard_coal_price', name: '标煤单价', current: '891.02', anchor: '891.02', unit: '元/吨', coef_per_unit: '-50606408.747669', range: ['712.816', '1069.224'], step: '1', current_period: '2026H1' },
+      { var_id: '600011.SH:on_grid_tariff', name: '上网电价', current: '463.02', anchor: '463.02', unit: '元/兆瓦时', coef_per_unit: '229460112.481249', range: ['370.416', '555.624'], step: '0.1', current_period: '2026H1' },
+    ], scenarios: [], implied: null, flips: [],
+  } } } };
+  const model = narrative.parseSensitivity(raw);
+  assert.equal(model.variables[0].currentPeriod, '2026H1');
+  const initial = narrative.initialSliderValues(model);
+  assert.ok(narrative.profitAt(model, { ...initial, '600011.SH:standard_coal_price': 901.02 }) < model.baseProfit);
+  assert.ok(narrative.profitAt(model, { ...initial, '600011.SH:on_grid_tariff': 464.02 }) > model.baseProfit);
+  const research = directed(huaneng.research.research);
+  research.sensitivity = { resultRef: ref, drivers: [] };
+  const fixture = services({ packet: huaneng.packet, research, results: { [ref]: raw },
+    scenario: { mode: 'per_share', rows: [
+      { name: '悲观', price: '5', multiple: '0.05', reason: '股息率' },
+      { name: '中性', price: '6', multiple: '0.04', reason: '股息率' },
+      { name: '乐观', price: '7', multiple: '0.03', reason: '股息率' },
+    ] } });
+  await mount(fixture, '600011', '华能国际');
+  const panel = section('variables')!;
+  assert.match(panel.textContent!, /2026 半年报披露/);
+  assert.doesNotMatch(panel.textContent!, /今天/);
+  assert.match(panel.textContent!, /回到报告值/);
+  const valuationBefore = section('valuation')!.textContent;
+  const profitBefore = panel.querySelector('[data-profit]')!.textContent;
+  await slide(panel.querySelector('input[type="range"]')!, 901.02);
+  assert.notEqual(panel.querySelector('[data-profit]')!.textContent, profitBefore);
+  assert.equal(section('valuation')!.textContent, valuationBefore);
+});
+
 /** 真实夹具是 direction 出现之前保存的；按证伪句的意思补方向，模拟新保存的研究。 */
 function directed(research: any, direction: 'down' | 'up' = 'down') {
   const copy = structuredClone(research);
@@ -262,7 +296,7 @@ test('华能真实形态：五节先答问题；回答句、专用图、收起�
   await mount(fixture);
   assert.deepEqual([...container.querySelectorAll('[data-company-section]')].map(item => item.getAttribute('data-company-section')), ['thesis', 'business', 'variables', 'cash', 'valuation', 'tracking']);
   const titles = [...container.querySelectorAll('.company-page-section .panel-title')].slice(0, 5).map(item => item.textContent);
-  assert.deepEqual(titles, ['它靠什么赚钱', '价格动一下，利润变多少', '利润是不是真金白银', '现在的价格在赌什么', '接下来盯什么']);
+  assert.deepEqual(titles, ['它靠什么赚钱', '利润由什么决定', '利润是不是真金白银', '现在的价格在赌什么', '接下来盯什么']);
   // 页首：thesis、五档结论、判断变化行。
   const lead = section('thesis')!.textContent!;
   assert.match(lead, /量价成本差决定盈利/);
@@ -787,7 +821,7 @@ test('W1 倍数一位小数；W2 五档写完整；W5 同一句原话只出现�
   assert.deepEqual(['明显低估', '偏低', '合理', '偏高', '明显高估'].map(gradeLabel), ['估值明显低估', '估值偏低', '估值合理', '估值偏高', '估值明显高估']);
   assert.equal(gradeLabel('未知档'), '未知档');
   assert.equal(variablesQuestion(['铝价', '氧化铝', '电价']), '铝价、氧化铝动一下，利润变多少');
-  assert.equal(variablesQuestion([]), '价格动一下，利润变多少');
+  assert.equal(variablesQuestion([]), '利润由什么决定', '没有价格敏感性时不写「价格动一下」');
   const said = '受电解铝、煤炭产品售价同比上涨';
   assert.deepEqual(narrative.groupQuotes([{ name: '沪铝', quote: said }, { name: '氧化铝', quote: said }, { name: '电价', quote: '电价维持稳定' }, { name: '沪铝', quote: said }]),
     [{ quote: said, names: ['沪铝', '氧化铝'] }, { quote: '电价维持稳定', names: ['电价'] }], '同一句只留一次，前面列出对应的因素名');

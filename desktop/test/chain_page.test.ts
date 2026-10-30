@@ -203,7 +203,7 @@ test('接口缺口：链读不到整页一句话加重试；框架、研究、�
 
 test('个股页推荐所在链：读推荐接口，已建的进你的链，未建的点「建产业链」建好进入；读不到或没有推荐整段不出现；不再按申万自动挂链', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
-  for (const [method, path] of [['GET', '/wiki/user-chains'], ['GET', '/wiki/user-chains/recommendations'], ['POST', '/wiki/user-chains'], ['GET', '/wiki/user-chains/uchain:0123456789ab'], ['PATCH', '/wiki/user-chains/uchain:0123456789ab'], ['DELETE', '/wiki/user-chains/uchain:0123456789ab'], ['POST', '/wiki/user-chains/uchain:0123456789ab/revert'], ['GET', '/wiki/user-chains/uchain:0123456789ab/candidates']]) {
+  for (const [method, path] of [['GET', '/wiki/user-chains'], ['GET', '/wiki/user-chains/recommendations'], ['POST', '/wiki/user-chains'], ['GET', '/wiki/user-chains/uchain:0123456789ab'], ['PATCH', '/wiki/user-chains/uchain:0123456789ab'], ['DELETE', '/wiki/user-chains/uchain:0123456789ab'], ['POST', '/wiki/user-chains/uchain:0123456789ab/revert'], ['GET', '/wiki/user-chains/uchain:0123456789ab/candidates'], ['GET', '/market/futures-daily']]) {
     assert.equal(researchRoute(method, path), true, `${method} ${path}`);
   }
   assert.equal(lib.chainPath(UID), '/chains/uchain%3A0123456789ab');
@@ -464,9 +464,9 @@ test('周期位置页：一句话加底部—中位—高位刻度，现价差�
   assert.match(text('[data-cycle-note]'), /1\.93.*现在 17,884\.45.*2023-06-19 至 2026-10-19.*806 个交易日.*未扣除其余成本/);
   assert.ok(service.requested.includes(lib.cycleRoute(aluminumMetric())));
   assert.match(lib.cycleRoute(aluminumMetric()), /^\/market\/futures-daily\?ids=cmdty%3ASHFE\.AL,cmdty%3ASHFE\.AO&years=10$/);
-  // 周期位置排在共同驱动之后、试算之前。
+  // 概况卡在最前；周期位置排在上下游之前、试算之前。
   const order = [...container.querySelectorAll('[data-chain-section]')].map(item => item.getAttribute('data-chain-section'));
-  assert.deepEqual(order, ['cycle', 'nodes', 'drivers', 'companies', 'calc']);
+  assert.deepEqual(order, ['lead', 'cycle', 'nodes', 'drivers', 'companies', 'calc']);
   assert.doesNotMatch(panel.textContent!, /买入|卖出|建议|undefined|NaN|null/);
 });
 

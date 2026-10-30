@@ -3,7 +3,7 @@ import { Tag } from './ui/Card';
 import { bandTickGroups } from '../lib/bandTicks';
 import { scenarioPriceNumber, type DataPacket } from '../lib/companyPacket';
 import {
-  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, conversationOrigin, epsAt, flowItems, impliedPe, plainNumber, profitAt, quarterLabel,
+  GRADES, gradeLabel, groupQuotes, contributions, conversationHint, conversationOrigin, epsAt, flowItems, impliedPe, periodLabel, plainNumber, profitAt, quarterLabel,
   resolveSlot, ruleOfThumbText, sliderUnitText, splitSentence, yiText, yuanText,
   type Expectation, type QuarterBar, type SensitivityModel, type SliderValues, type WatchItem,
 } from '../lib/companyNarrative';
@@ -69,9 +69,10 @@ function Slider({ variable, value, onChange, origin }: {
   const gap = variable.anchor == null;
   const digits = variable.step < 1 ? 2 : 0;
   const diff = gap ? null : value - variable.anchor!;
+  const currentLabel = variable.currentPeriod ? `${periodLabel(variable.currentPeriod)}披露` : '今天';
   return <div className="narrative-slider" data-variable={variable.id} data-anchor-gap={gap ? '' : undefined}>
     <div className="narrative-slider-head">
-      <span><label htmlFor={id}>{variable.name}</label> <small>{[variable.sourceLabel, `今天 ${sliderUnitText(variable, variable.current)}`].filter(Boolean).join(' · ')}</small>{origin}</span>
+      <span><label htmlFor={id}>{variable.name}</label> <small>{[variable.sourceLabel, `${currentLabel} ${sliderUnitText(variable, variable.current)}`].filter(Boolean).join(' · ')}</small>{origin}</span>
       <span className="narrative-slider-value"><strong className="narrative-slot" title="滑块当前取值">{sliderUnitText(variable, value)}</strong>
         {gap ? <small>{variable.anchorLabel}暂缺，不可拖</small>
           : <small className={diff! > 0 ? 'is-up' : diff! < 0 ? 'is-down' : undefined}>{diff === 0 ? `与${variable.anchorLabel}持平` : `较${variable.anchorLabel} ${diff! > 0 ? '+' : '-'}${plainNumber(Math.abs(diff!), digits)}`}</small>}
@@ -80,7 +81,7 @@ function Slider({ variable, value, onChange, origin }: {
     <div className="narrative-rail">
       <input id={id} type="range" aria-label={`${variable.name}取值`} min={variable.min} max={variable.max} step={variable.step} value={value} disabled={gap} onChange={event => onChange(Number(event.target.value))} />
       {!gap && <span className="narrative-tick is-anchor" style={{ left: at(variable.anchor!) }} title={`${variable.anchorLabel} ${sliderUnitText(variable, variable.anchor!)}`} data-anchor="" />}
-      <span className="narrative-tick is-current" style={{ left: at(variable.current) }} title={`今天 ${sliderUnitText(variable, variable.current)}`} data-today="" />
+      <span className="narrative-tick is-current" style={{ left: at(variable.current) }} title={`${currentLabel} ${sliderUnitText(variable, variable.current)}`} data-today="" />
       {!gap && <span className="narrative-anchor-label" style={{ left: `${Math.min(86, Math.max(14, percent(variable.anchor!)))}%` }}>▲ {variable.anchorLabel} {sliderUnitText(variable, variable.anchor!)}</span>}
     </div>
     <div className="narrative-slider-foot"><span>{sliderUnitText(variable, variable.min)}</span><span>{sliderUnitText(variable, variable.max)}</span></div>
@@ -122,7 +123,7 @@ export function SensitivityPanel({ model, values, onChange, onReset, price, driv
               : <span className="narrative-origin" data-change-hint title={hint}>{conversationOrigin(note?.confirmedAt)}</span>) : undefined} />;
         })}
         <div className="narrative-slider-actions">
-          <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>回到今天</button>
+          <button type="button" className="btn btn-sm" data-reset="today" onClick={() => onReset('today')}>{model.model === 'thermal_power' ? '回到报告值' : '回到今天'}</button>
           <button type="button" className="btn btn-sm" data-reset="anchor" disabled={gaps.length === model.variables.length} onClick={() => onReset('anchor')}>回到对比期</button>
         </div>
       </div>

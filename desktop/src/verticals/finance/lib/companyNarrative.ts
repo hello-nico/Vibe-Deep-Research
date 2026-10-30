@@ -132,6 +132,7 @@ export function calculationExtra(raw: unknown): Record<string, unknown> | undefi
  *  anchor 为 null 表示凭据缺这个值：该变量不可拖，也不计入利润。 */
 export interface SensitivityVariable {
   currentDate?: string;
+  currentPeriod?: string;
   id: string; name: string; unit: string; current: number; anchor: number | null; anchorLabel: string;
   coef: number; min: number; max: number; step: number; sourceLabel?: string;
 }
@@ -159,6 +160,7 @@ export function parseSensitivity(raw: unknown): SensitivityModel | null {
       id: row.var_id, name: String(row.name ?? '').trim() || '价格', unit: String(row.unit ?? '').trim(),
       current, coef, min, max, step: num(row.step) ?? (max - min) / 100,
       currentDate: typeof row.current_date === 'string' ? row.current_date : undefined,
+      currentPeriod: typeof row.current_period === 'string' ? row.current_period : undefined,
       anchor: num(row.anchor) ?? num(record(row.anchor)?.value),
       anchorLabel: typeof row.anchor_label === 'string' && row.anchor_label.trim() ? row.anchor_label.trim().replace(/基数期/g, '对比期') : '对比期均价',
       sourceLabel: typeof row.source_label === 'string' ? row.source_label : undefined,
@@ -415,9 +417,10 @@ export function gradeLabel(grade: string | null | undefined): string {
   return (GRADE_NAMES as readonly string[]).includes(name) ? `估值${name}` : name;
 }
 /** 估值之前的小节标题：用前两个影响因素名，取不到时写「价格」。 */
+/** 有价格敏感性时问「X 动一下，利润变多少」；没有（运营商、银行、只写方向的公司）问「利润由什么决定」。 */
 export function variablesQuestion(names: readonly string[] | undefined): string {
   const lead = (names ?? []).map(item => item.trim()).filter(Boolean).slice(0, 2);
-  return `${lead.length ? lead.join('、') : '价格'}动一下，利润变多少`;
+  return lead.length ? `${lead.join('、')}动一下，利润变多少` : '利润由什么决定';
 }
 export const COMPANY_TYPE_NAME: Record<string, string> = {
   generic: '通用', commodity_cycle: '商品周期', leveraged_cyclical_utility: '高杠杆周期公用事业', scarce_asset_rent: '稀缺资产收租', bank: '银行',

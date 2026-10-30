@@ -108,7 +108,7 @@ function ChainBody({ view, services, run, busy }: { view: ChainView; services: C
   }, [chain, services, cycleAttempt]);
   const concentration = profitConcentration(chain, stages);
   return <div className="chain" data-chain={chain.chain_id}>
-    <p className="chain-headline" data-chain-headline="">{chainHeadline(view)}</p>
+    <section className="card chain-lead" data-chain-section="lead"><p className="chain-label">概况</p><p className="chain-headline" data-chain-headline="">{chainHeadline(view)}</p></section>
     <Panel title="行业现在在哪？" className="chain-section" data-chain-section="cycle">
       {chain.nodes.map(node => <StageCycleRow key={node.industry_code} node={node} stage={stages[node.industry_code]} retry={() => setCycleAttempt(value => value + 1)} />)}
     </Panel>

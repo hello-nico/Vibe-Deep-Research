@@ -108,7 +108,7 @@ type DataState = { [K in keyof CompanyPageData]: { loading: boolean; value?: Com
 const initialData = (): DataState => ({ quote: { loading: true }, packet: { loading: true }, documents: { loading: true } });
 
 const QUESTIONS = {
-  business: '它靠什么赚钱', variables: '价格动一下，利润变多少', cash: '利润是不是真金白银',
+  business: '它靠什么赚钱', variables: '利润由什么决定', cash: '利润是不是真金白银',
   valuation: '现在的价格在赌什么', tracking: '接下来盯什么',
 } as const;
 const DEFAULT_KEYS = {
@@ -312,7 +312,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   const price = inherited ? (evaluation?.status === 'sourced' ? Number(evaluation.price) : null) : typeof quote?.price === 'number' ? quote.price : numericValue(packet?.fields.price);
   const slotPrice = inherited ? quote?.price ?? null : price;
   const multiple = neutralMultiple(scenarios);
-  const adjusted = model && moved && multiple != null ? epsAt(model, profitAt(model, values)) * multiple : null;
+  const adjusted = model && model.model !== 'thermal_power' && moved && multiple != null ? epsAt(model, profitAt(model, values)) * multiple : null;
   const notes: Record<string, DriverNote> = Object.fromEntries((saved?.sensitivity?.drivers ?? []).map(item => [item.var_id, item]));
   const drivers = packet?.industry_drivers?.fields ?? {};
   const gapOnly = Boolean(saved?.gapNote);

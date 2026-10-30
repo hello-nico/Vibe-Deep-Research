@@ -1,6 +1,8 @@
 /* 只用令牌与公共组件；这里只补布局。橙色只出现在区间条里的现价点（图表当前值），其余强调只用墨色深浅。 */
 .chain { display: flex; flex-direction: column; gap: 20px; }
-.chain-headline { margin: 0; font-size: 15px; line-height: 1.7; color: hsl(var(--foreground)); }
+.chain-lead { padding: 20px 24px; display: grid; gap: 6px; }
+.chain-label { margin: 0; color: var(--text-3); font-size: 12px; }
+.chain-headline { margin: 0; font-size: 18px; font-weight: 500; line-height: 1.6; color: hsl(var(--foreground)); }
 .chain-stage-cycle { min-width: 0; font-size: 13px; line-height: 1.7; }
 .chain-stage-cycle + .chain-stage-cycle { border-top: 1px solid var(--line-1); margin-top: 16px; padding-top: 16px; }
 .chain-knowledge { margin-top: 8px; }
