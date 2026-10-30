@@ -1,6 +1,6 @@
 # 未签名 Windows 试编译，Mac 出包脚本可重复
 
-2026-10-26 claude 写定，交 codex2。在 deepseek-harness 与 Vibe 的独立 worktree 中实施；不签名、不公证、不上传、不提交、不 push、不读 `.env` 与证书、不碰用户正在用的工作台与 DSH_HOME。依据：todo §1.5 打包线；[插件装进桌面安装包](插件装进桌面安装包_Task_2026-10-14.md)（Mac 未签名品牌包已可出，R6 当时不做 Windows）。
+2026-10-26 claude 写定，交 codex2。在 deepseek-harness 与 Vibe 的独立 worktree 中实施；不签名、不公证、不上传、不提交、不 push、不读 `.env` 与证书、不碰用户正在用的工作台与 DSH_HOME。依据：todo §1.5 打包线；[插件装进桌面安装包](../archived/插件装进桌面安装包_Task_2026-10-14.md)（Mac 未签名品牌包已可出，R6 当时不做 Windows）。
 
 ## 1. 目标
 

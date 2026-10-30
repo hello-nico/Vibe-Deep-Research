@@ -13,7 +13,7 @@
 
 - 2026-10-09 完成并归档：T3 [外部价格进 Backend](docs/tasks/archived/外部价格进Backend_Task_2026-10-08.md)、[外部行情补修](docs/tasks/archived/外部行情补修_Task_2026-10-09.md)、[工具返回瘦身](docs/tasks/archived/工具返回瘦身与上下文成本_Task_2026-10-09.md)（同题 token −67%）、[S0 组件目录验证](docs/tasks/archived/研究组件目录S0验证_Task_2026-10-09.md)（七次真实运行，S1 定为正文组件加确定性校验）。
 - **S1** [研究组件目录实现](docs/tasks/archived/研究组件目录S1实现_Task_2026-10-09.md)：✅ 2026-10-10 验收归档（T1、T2 并入归档）；T4 读图经用户验收可用，结案。
-- **协议治理** [Checklist 收敛验收与补齐](docs/tasks/active/Checklist收敛验收与补齐_Task_2026-10-09.md)：已提交（2026-10-09）；剩用户配置 `CROSS_REPO_READ_TOKEN` 并推临时分支看 CI。后续另立：契约细节下沉、Stock Dreaming 清理。
+- **协议治理** [Checklist 收敛验收与补齐](docs/tasks/archived/Checklist收敛验收与补齐_Task_2026-10-09.md)：已提交（2026-10-09）；剩用户配置 `CROSS_REPO_READ_TOKEN` 并推临时分支看 CI。后续另立：契约细节下沉、Stock Dreaming 清理。
 - **个股页** [T7.2](docs/tasks/archived/T7.2个股页研究与情景估值_Task_2026-10-12.md) ✅ 2026-10-12 用户验收归档；真实运行修订见 [T7.2b](docs/tasks/archived/T7.2b真实运行修订_Task_2026-10-12.md)。下一步 T7.3：页面向原型靠拢（句中数字槽、每节先答问题、第一层减负、专用组件）。
   T7.3 之后的顺序（2026-10-12 用户确认）：先 T12 最小闭环（关键变量表 + 命中变量的动态卡），再 T12 第二步（财报预期差、候选纳入/排除/观察、动态初判），再 T7b 产业链页；产业链与跟踪原型方向已认可（Artifact「个股页 v2 · 产业链 · 跟踪原型」）。
   **数据层收口（2026-10-12 用户同意）**：T7.2b 后不再追求逐字段全部核对；有值即显示，拿不准标来源或缺口。银行股数提取、估值分位（D4）、行业驱动缺口等，等用户实际使用感到缺失再做。之后精力转向用户浏览器验收中的叙事、篇幅与布局。
@@ -63,7 +63,7 @@
 在做（按依赖排序；2026-10-19 更新，执行方：codex1、codex2、pi1、pi2、pi3、claude2，Cursor 不再参与）：
 1. ✅ 用户层迁移与按用户隔离（[Task](docs/tasks/archived/Backend按用户隔离_Task_2026-10-14.md)）：2026-10-14 Stock `620f198` 提交、两令牌真实运行通过、归档。Wiki 里 `local` 的旧研究块保留不读（不变量 19），以后正式发布时清理。
 2. 研究关键点第二步：修复轮已提交（Stock `8a3c213`）；10-19 用户研究神火，关键变量先算后存。待重跑神火 ×2、长江电力 ×1，Claude 判断。
-3. 打包线：[插件装进桌面安装包](docs/tasks/active/插件装进桌面安装包_Task_2026-10-14.md)（Codex）与[桌面壳品牌与更新源](docs/tasks/archived/桌面壳品牌与更新源_Task_2026-10-14.md)已完成未签名品牌包；[桌面首页两处修复](docs/tasks/archived/桌面首页两处修复_Task_2026-10-15.md)已提交归档。下一步随 6b 基于 rc.2 合成补丁 → 签名、公证、更新源 → Windows 包。
+3. 打包线：[插件装进桌面安装包](docs/tasks/archived/插件装进桌面安装包_Task_2026-10-14.md)（Codex）与[桌面壳品牌与更新源](docs/tasks/archived/桌面壳品牌与更新源_Task_2026-10-14.md)已完成未签名品牌包；[桌面首页两处修复](docs/tasks/archived/桌面首页两处修复_Task_2026-10-15.md)已提交归档。下一步随 6b 基于 rc.2 合成补丁 → 签名、公证、更新源 → Windows 包。
 4. [本机取数迁往 Backend 实施](docs/tasks/archived/本机取数迁往Backend实施_Task_2026-10-14.md)：A ✅ Stock `1cae4fc`；B ✅ Vibe `bc57db55` 及 10-19 验收修复（[验收修复](docs/tasks/archived/验收修复与取数B段收尾_Task_2026-10-19.md)、[聚焦与资讯缓存](docs/tasks/archived/聚焦配色与资讯缓存_Task_2026-10-19.md)）。C 段删除本机取数链（pi1）待派。
 5. ✅ 客户端与 Backend 版本校验：Vibe `46008ae1`、Stock `d2ac5e9` 提交。全局横幅另做。
 6. ✅ 0.2.1 前端完善：Vibe `7d21c313` 提交。
