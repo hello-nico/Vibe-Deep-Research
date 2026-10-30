@@ -30,6 +30,7 @@ export function researchRoute(method, pathname) {
     '/tracking/variables', '/tracking/items', '/tracking/next-reports', '/tracking/catalog',
     '/market/quotes', '/market/report-calendar', '/market/report-periods', '/feed/announcements', '/feed/news', '/feed/research-events',
     '/wiki/chains', '/wiki/user-chains', '/wiki/user-chains/recommendations',
+    '/securities/search',
   ].includes(pathname)) return true;
   if (method === 'GET' && /^\/wiki\/chains\/[A-Za-z0-9._-]+$/.test(pathname)) return true;
   if (method === 'GET' && (USER_CHAIN.test(pathname) || USER_CHAIN_ACTION.test(pathname))) return true;

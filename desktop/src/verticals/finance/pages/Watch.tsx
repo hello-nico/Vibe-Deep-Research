@@ -1,6 +1,6 @@
 import { Fragment, useContext, useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate, useSearchParams } from "react-router-dom";
-import { ChartCandlestick, GitBranch, LayoutGrid, List, Plus, RefreshCw, TrendingUp, X } from "lucide-react";
+import { ChartCandlestick, GitBranch, LayoutGrid, List, RefreshCw, TrendingUp, X } from "lucide-react";
 import { PageHeader } from "../components/ui/PageHeader";
 import { Disclaimer } from "../components/ui/Disclaimer";
 import { WorkspaceMoreMenu } from "../components/ui/WorkspaceMoreMenu";
@@ -13,10 +13,11 @@ import { type StatusTone } from "../components/ui/StatusDot";
 import { LoadingCard } from "../components/ui/LoadingCard";
 import { ReadFailure } from '../components/ui/ReadFailure';
 import { ResultCard } from "../components/ResearchResult";
-import { addCodes, addWatch, loadWatch, removeWatch } from "../lib/watchlist";
+import { addWatch, loadWatch, removeWatch } from "../lib/watchlist";
 import { addToRoster, loadRoster, removeFromRoster, touchRoster } from "../lib/researchRoster";
 import { aShareQualified, clipCompanyOneLiner, companyAsOfLabel, companyIndustryLabel, companySlug, wikiPages, type CompanyPageSummary, type WikiItem } from "../lib/research";
-import { marketOfSymbol } from "../lib/marketSymbol";
+import { marketOfSymbol, normalizeMarketSymbol } from "../lib/marketSymbol";
+import { hitSymbol, lonelyForeignCode, pastedCodes, searchSecurities, SECURITY_SEARCH_DELAY_MS, type SecurityHit } from "../lib/securitySearch";
 import { watchPath } from "../lib/routes";
 import { chainCompanyCount, chainPath, chainStages, loadUserChains, type Chain } from "../lib/chainPage";
 import { companyPageProgress, companyPageStore, companyPageTaskActive, researchCell, type CompanyPageServices, type CompanyPageState } from "../lib/companyPage";
@@ -161,9 +162,11 @@ export function Watch() {
   const [chainsAttempt, setChainsAttempt] = useState(0);
   const [view, setView] = useState<"grid" | "list">(() => prefGet(VIEW_KEY) === "grid" ? "grid" : "list");
   const [live, setLive] = useState(() => prefGet(LIVE_KEY) === "on");
-  const [adding, setAdding] = useState(false);
-  const [input, setInput] = useState("");
   const [hint, setHint] = useState("");
+  // 搜索框里的文字同时找「加入关注」的候选；候选换新结果前保留上一批，避免逐字闪烁。
+  const [found, setFound] = useState<{ q: string; items: SecurityHit[]; settled: boolean; ok: boolean }>({ q: "", items: [], settled: true, ok: true });
+  const [rowError, setRowError] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
   const [chartOpen, setChartOpen] = useState<string | null>(null);
   const [confirmElement, ask] = useConfirm();
   const overviewKey = `finance-watch-scroll:${query}`;
@@ -184,6 +187,19 @@ export function Watch() {
     return () => controller.abort();
   }, [chainsAttempt]);
   useEffect(() => {
+    const text = query.trim();
+    setHint("");
+    if (!text || pastedCodes(text).length) { setFound({ q: text, items: [], settled: true, ok: true }); return; }
+    const controller = new AbortController();
+    setFound(previous => ({ ...previous, settled: false }));
+    const timer = setTimeout(() => {
+      void searchSecurities(text, controller.signal)
+        .then(items => { if (!controller.signal.aborted) setFound({ q: text, items: items ?? [], settled: true, ok: items !== null }); })
+        .catch(() => {});
+    }, SECURITY_SEARCH_DELAY_MS);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [query]);
+  useEffect(() => {
     const top = Number(sessionStorage.getItem(overviewKey) || 0);
     const timer = requestAnimationFrame(() => document.getElementById("workspace-main")?.scrollTo(0, top));
     return () => cancelAnimationFrame(timer);
@@ -196,6 +212,24 @@ export function Watch() {
   });
   const needle = query.trim().toLowerCase();
   const visible = needle ? rows.filter(row => `${row.symbol} ${row.name}`.toLowerCase().includes(needle)) : rows;
+  const text = query.trim();
+  const known = new Set(symbols);
+  const pasted = pastedCodes(text);
+  const pending = pasted.filter(code => !known.has(code) || (marketOfSymbol(code) === "CN" && !roster.includes(code)));
+  const hits = text && !pasted.length ? found.items.map(hit => ({ hit, code: hitSymbol(hit) })).filter((entry): entry is { hit: SecurityHit; code: string } => !!entry.code && !known.has(entry.code)) : [];
+  const whole = !pasted.length ? normalizeMarketSymbol(text) : null;
+  const foreign = lonelyForeignCode(text);
+  // 名单没拉到时，输入的整串是一个 A 股代码也能直接加；拉到了就以候选为准。
+  const apiDown = found.q === text && found.settled && !found.ok;
+  // 纯字母可能是拼音也可能是美股代码：搜到了 A 股候选就按拼音处理，没有候选时才出「加入 AAPL」。
+  const settledEmpty = found.q === text && found.settled && hits.length === 0;
+  const loneCode = whole && !known.has(whole) && ((foreign === whole && settledEmpty) || (marketOfSymbol(whole) === "CN" && apiDown && !hits.some(entry => entry.code === whole))) ? whole : null;
+  const joinRows: { key: string; title: string; sub?: string; codes: string[] }[] = [
+    ...(pasted.length && pending.length ? [{ key: "batch", title: `加入这 ${pending.length} 只`, sub: pending.join("、"), codes: pending }] : []),
+    ...hits.map(({ hit, code }) => ({ key: code, title: hit.name, sub: `${hit.symbol} · ${hit.exchange}`, codes: [code] })),
+    ...(loneCode ? [{ key: loneCode, title: `加入 ${loneCode}`, sub: marketOfSymbol(loneCode) === "CN" ? undefined : "港股或美股只进关注，暂不支持研究", codes: [loneCode] }] : []),
+  ];
+  const searching = !!text && !(found.q === text && found.settled);
   const setView2 = (next: "grid" | "list") => { setView(next); void prefSet(VIEW_KEY, next); };
   const toggleLive = () => setLive(on => { void prefSet(LIVE_KEY, on ? "off" : "on"); return !on; });
   const open = (row: Row) => {
@@ -203,14 +237,14 @@ export function Watch() {
     void touchRoster(row.symbol).then(() => setRevision(value => value + 1)).catch(() => {});
     navigate(watchPath(row.symbol), { state: { from: `${location.pathname}${location.search}` } });
   };
-  const add = async () => {
+  /** 加入关注：A 股同时进研究名单，港股和美股只进自选；已在自选但不在研究名单的 A 股补进名单。 */
+  const join = async (key: string, codes: string[]) => {
+    if (busy) return;
+    setBusy(key);
+    setRowError(previous => { const { [key]: _gone, ...rest } = previous; return rest; });
     const known = new Set(symbols);
-    const parsed = addCodes([], input).next;
-    if (!parsed.length) { setHint(input.trim() ? "没识别到代码" : ""); return; }
-    // 已在自选但尚未进研究名单的 A 股也补进名单，保持两边一致。
-    const fresh = parsed.filter(code => !known.has(code));
-    const patch = parsed.filter(code => known.has(code) && marketOfSymbol(code) === "CN" && !roster.includes(code));
-    if (!fresh.length && !patch.length) { setHint("已在关注里"); setInput(""); return; }
+    const fresh = codes.filter(code => !known.has(code));
+    const patch = codes.filter(code => known.has(code) && marketOfSymbol(code) === "CN" && !roster.includes(code));
     try {
       for (const code of [...fresh, ...patch]) {
         if (!watched.includes(code)) await addWatch(code);
@@ -218,8 +252,9 @@ export function Watch() {
       }
       const skipped = fresh.filter(code => marketOfSymbol(code) !== "CN").length;
       setHint(`已关注 ${fresh.length + patch.length} 只${skipped ? `；其中 ${skipped} 只港股或美股暂不支持研究` : ""}`);
-      setInput(""); setRevision(value => value + 1);
-    } catch (reason) { setHint(`没保存上：${reason instanceof Error ? reason.message : String(reason)}`); setRevision(value => value + 1); }
+    } catch (reason) {
+      setRowError(previous => ({ ...previous, [key]: `没保存上：${reason instanceof Error ? reason.message : String(reason)}` }));
+    } finally { setBusy(null); setRevision(value => value + 1); }
   };
   const remove = async (row: Row) => {
     const ok = await ask({ title: "移出关注", kicker: "关注", body: <><p>{row.name}（{row.symbol}）将从关注里移出。</p><p className="refresh-dialog-scope">研究和资料会保留。</p></>, confirmLabel: "确认移出" });
@@ -256,18 +291,17 @@ export function Watch() {
   return <div>
     <PageHeader title="关注"
       search={<WorkspaceSearch aria-label="搜索关注" placeholder="搜索名称或代码" value={query} onChange={value => { const next = new URLSearchParams(params); if (value) next.set("q", value); else next.delete("q"); setParams(next, { replace: true }); }} />}
-      actions={<button type="button" className="btn btn-primary" aria-expanded={adding} onClick={() => setAdding(value => !value)}><Plus />添加关注</button>} />
+    />
     <KindTabs value="stocks" onChange={setKind} />
-    {adding && <div className="card mb-6 p-4">
-      <div className="flex items-center gap-2">
-        <textarea value={input} onChange={event => setInput(event.target.value)} rows={1} aria-label="添加关注" placeholder="600519  AAPL  00700.HK"
-          onKeyDown={event => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void add(); } }}
-          className="workspace-field workspace-field-single flex-1" />
-        <button type="button" className="btn" onClick={() => void add()}>添加</button>
-      </div>
-      <p className="mt-2 text-xs text-[var(--text-3)]">A 股 / 港股 / 美股，逗号、空格或换行均可；添加后同时进入自选与研究名单。{hint && <span className="ml-2 text-[var(--text-2)]">{hint}</span>}</p>
-    </div>}
-    {!adding && hint && <p role="status" className="mb-4 text-xs text-[var(--text-3)]">{hint}</p>}
+    {hint && <p role="status" className="mb-4 text-xs text-[var(--text-3)]">{hint}</p>}
+    {joinRows.length > 0 && <section className="watch-add card mb-6" aria-label="加入关注">
+      <p className="watch-add-title">加入关注</p>
+      {joinRows.map(row => <div key={row.key} className="watch-add-row" data-join={row.key}>
+        <div className="watch-add-main"><span className="font-medium">{row.title}</span>{row.sub && <span className="watch-add-sub">{row.sub}</span>}</div>
+        <button type="button" className="btn btn-sm" disabled={!!busy} onClick={() => void join(row.key, row.codes)}>加入关注</button>
+        {rowError[row.key] && <p role="status" className="watch-add-error">{rowError[row.key]}</p>}
+      </div>)}
+    </section>}
     <SectionLabel aside={<span className="inline-flex items-center gap-1">
       {[stamp, liveNote].filter(Boolean).join(" · ")}
       <button type="button" className={cn("btn btn-text btn-sm", live && "!bg-[var(--fill-2)] !text-foreground")} aria-pressed={live} onClick={toggleLive} title="交易时段每 3 秒刷新">自动刷新</button>
@@ -275,10 +309,9 @@ export function Watch() {
       <button type="button" className="btn btn-icon" disabled={loading} onClick={refresh} aria-label="刷新行情" title="刷新"><RefreshCw className={cn(loading && "animate-spin")} /></button>
       <span role="tablist" aria-label="关注视图" className="segmented">{([["list", List, "表格"], ["grid", LayoutGrid, "卡片"]] as const).map(([id, Icon, label]) => <button key={id} type="button" role="tab" aria-label={label} aria-selected={view === id} onClick={() => setView2(id)}><Icon size={14} /></button>)}</span>
     </span>}>{needle ? `匹配 ${visible.length} / ${rows.length}` : `共 ${rows.length} 家`}</SectionLabel>
-    {!visible.length ? <div className="card px-6 py-14 text-center">
-      <p className="text-sm text-[var(--text-2)]">{rows.length ? "没有匹配的公司" : "还没有关注的公司"}</p>
-      {!rows.length && <button type="button" className="btn btn-primary mt-4" onClick={() => setAdding(true)}><Plus />添加关注</button>}
-    </div> : view === "grid"
+    {!visible.length ? (joinRows.length ? null : <div className="card px-6 py-14 text-center">
+      <p className="text-sm text-[var(--text-2)]">{searching ? "加载中" : "没找到，试试代码或公司全称"}</p>
+    </div>) : view === "grid"
       ? <div className="object-grid">{visible.map(row => <Item key={row.symbol} row={row} view={view} services={services} chartOpen={false} onOpen={() => open(row)} onChart={() => {}} onRemove={() => void remove(row)} />)}</div>
       : <TableWrap><table className="data-table"><thead><tr>
           <th>名称</th><th className="col-num">现价</th><th className="col-num">涨跌%</th><th className="col-num">PE(TTM)</th><th>行业</th><th>研究判断</th><th>研究</th><th className="col-num">资料截至</th><th className="col-action"><span className="sr-only">操作</span></th>
