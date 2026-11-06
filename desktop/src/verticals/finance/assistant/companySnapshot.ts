@@ -88,7 +88,7 @@ export interface CompanySnapshotInput {
   name: string; symbol: string; typeName?: string;
   quote?: { price?: number | null; currencyLabel?: string; change_pct?: number | null; fetched_at?: string | null } | null;
   quoteLoading?: boolean;
-  thesis?: string; gapNote?: string; grade?: string; changeText?: string; report_period?: string | null;
+  thesis?: string; gapNote?: string; grade?: string; valuationLabel?: string; changeText?: string; report_period?: string | null;
   packet?: DataPacket; packetLoading?: boolean; packetError?: boolean;
   calcs: Record<string, unknown>;
   /** 页面当前显示的节（与页面 showSection 同口径）；没显示的节不进快照。 */
@@ -122,7 +122,7 @@ export function buildCompanySnapshotSections(input: CompanySnapshotInput): Snaps
       ? `行情：${plainNumber(quote.price, 2)}${quote.currencyLabel ? ` ${quote.currencyLabel}` : ''}${quote.change_pct != null ? `，${quote.change_pct > 0 ? '+' : ''}${plainNumber(quote.change_pct, 2)}%` : ''}${quote.fetched_at ? `（行情 ${periodLabel(quote.fetched_at)}）` : ''}`
       : '行情暂不可用。',
     input.gapNote ? `研究缺口：${input.gapNote}` : input.thesis ? `论点：${fillSentence(input.thesis, packet, calcs)}` : '尚无研究判断。',
-    !input.gapNote && input.grade ? `五档结论：${gradeLabel(input.grade)}` : '',
+    !input.gapNote && input.grade ? `五档结论：${input.valuationLabel || `${gradeLabel(input.grade)}（研究时）`}` : '',
     !input.gapNote && input.changeText ? input.changeText : '',
     pagePeriodText(input),
   ]));

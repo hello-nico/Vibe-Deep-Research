@@ -1,107 +1,48 @@
-import { researchRead } from './research';
-import { FLIP_NEAR, flipGrade, parseSensitivity, plainNumber, sliderUnitText, type SensitivityModel } from './companyNarrative';
-import { readValuationGrade } from './researchTasks';
-import { toNumber, type TrackingVariables } from './trackingVariables';
+import { wikiPages } from './research';
+import { priceText, type TrackingVariables } from './trackingVariables';
+import { loadWatchedValuations, nearText, valuationKey, type ValuationToday } from './valuationToday';
 
-/** 动态「行情」与跟踪页的跳档提醒：关注公司的主价格接近或越过研究里的跳档价。 */
 export interface FlipCard {
-  symbol: string; company: string; kind: 'crossed' | 'near'; text: string;
-  /** 越过：日线连续停在跳档价另一侧的第一天；只有盘中越过时没有，按当天。 */
-  date?: string;
+  key: string; symbol: string; company: string; kind: 'changed' | 'near'; text: string;
+  involved: string; date: string; pinned: boolean;
+}
+export interface FlipInput { valuations: readonly ValuationToday[]; names: Record<string, string> }
+
+export function flipCards({ valuations, names }: FlipInput): FlipCard[] {
+  return valuations.flatMap<FlipCard>(item => {
+    if (item.status !== 'sourced' || !item.grade || !item.as_of) return [];
+    const company = names[item.symbol] || item.symbol;
+    const primary = item.prices[0];
+    const involved = `${company} · 股价 ${priceText(item.close)}${primary ? `，${primary.name} ${priceText(primary.value)} ${primary.unit}` : ''}`;
+    if (item.grade !== item.research.grade) return [{
+      key: valuationKey(item), symbol: item.symbol, company, kind: 'changed',
+      text: `${company}现在估值${item.grade}（研究时${item.research.grade}）`, involved,
+      date: item.changed_on ?? item.as_of, pinned: item.changed_on != null,
+    }];
+    return item.near ? [{ key: `valuation-near:${item.symbol}:${item.near.var_id}:${item.research.grade}>${item.near.to_grade}`, symbol: item.symbol,
+      company, kind: 'near', text: nearText(item, company), involved, date: item.as_of, pinned: false }] : [];
+  });
 }
 
-export interface FlipInput { data: TrackingVariables; models: Record<string, SensitivityModel | null | undefined>; grades: Record<string, string | null | undefined> }
-
-/** 从最新一天往回数，日线一直停在跳档价另一侧（相对研究时价格）的最早一天。 */
-function crossedOn(series: string[][] | null | undefined, flip: number, from: number) {
-  let day: string | undefined;
-  for (const [date, close] of [...(series ?? [])].reverse()) {
-    const value = toNumber(close);
-    if (value == null || (value - flip) * (from - flip) > 0) break;
-    day = date;
-  }
-  return day;
-}
-
-/** 页面只按实时价比较研究里存的跳档价，不重新判断估值：原档取已存研究，新档由跳档边界推出。 */
-export function flipCards({ data, models, grades }: FlipInput): FlipCard[] {
-  const out: FlipCard[] = [];
-  const seen = new Set<string>();
-  for (const variable of data.variables) {
-    const live = toNumber(variable.latest);
-    if (variable.status !== 'ok' || live == null) continue;
-    for (const company of variable.companies) {
-      const model = models[company.result_ref];
-      const primary = model?.variables[0];
-      if (!model || !primary || primary.id !== variable.var_id || seen.has(company.symbol)) continue;
-      const flips = model.flips.filter(item => item.id === primary.id && !item.invalid);
-      if (!flips.length) continue;
-      const from = primary.current;
-      // 越过：跳档价落在研究时价格与现价之间；多个都越过时以离研究价最远的那个为准（最后跨过的边界）。
-      const crossed = flips.filter(item => (item.value - from) * (item.value - live) <= 0 && item.value !== from)
-        .sort((a, b) => Math.abs(b.value - from) - Math.abs(a.value - from))[0];
-      const old = grades[company.symbol]?.trim() || undefined;
-      const name = company.name;
-      const price = (value: number) => sliderUnitText(primary, value);
-      const verdict = (flip: typeof flips[number], will: boolean) => {
-        const to = flip.grade ?? flipGrade(flip, primary, old);
-        if (!to) return '估值判断会改变';
-        return old ? `估值${will ? '会' : ''}从${old}变为${to}` : `估值${will ? '会' : ''}变为${to}`;
-      };
-      if (crossed) {
-        seen.add(company.symbol);
-        const date = crossedOn(variable.series, crossed.value, from);
-        out.push({ symbol: company.symbol, company: name, kind: 'crossed', text: `${variable.name}${crossed.value < from ? '跌破' : '涨过'} ${price(crossed.value)}，${name}${verdict(crossed, false)}`, ...(date ? { date } : {}) });
-        continue;
-      }
-      const near = flips.map(item => ({ item, gap: live === 0 ? Infinity : Math.abs(item.value - live) / Math.abs(live) })).filter(entry => entry.gap <= FLIP_NEAR).sort((a, b) => a.gap - b.gap)[0];
-      if (near) {
-        seen.add(company.symbol);
-        out.push({ symbol: company.symbol, company: name, kind: 'near', text: `${variable.name}距 ${price(near.item.value)} 只差 ${plainNumber(near.gap * 100, 1)}%，越过后${name}${verdict(near.item, true)}` });
-      }
-    }
-  }
-  return [...out.filter(card => card.kind === 'crossed'), ...out.filter(card => card.kind === 'near')];
-}
-
-/** 跟踪页走势图上的跳档线：每个价格取一条（已越过的优先，否则离现价最近的）；value 是价格，text 是线旁的一句。 */
 export interface FlipLine { varId: string; value: number; text: string }
-export function flipLines({ data, models, grades }: FlipInput): FlipLine[] {
-  const out = new Map<string, FlipLine>();
-  for (const variable of data.variables) {
-    const live = toNumber(variable.latest);
-    if (variable.status !== 'ok' || live == null || out.has(variable.var_id)) continue;
-    for (const company of variable.companies) {
-      const model = models[company.result_ref];
-      const primary = model?.variables[0];
-      if (!model || !primary || primary.id !== variable.var_id) continue;
-      const flips = model.flips.filter(item => item.id === primary.id && !item.invalid);
-      const from = primary.current;
-      const pick = flips.filter(item => (item.value - from) * (item.value - live) <= 0 && item.value !== from)
-        .sort((a, b) => Math.abs(b.value - from) - Math.abs(a.value - from))[0]
-        ?? [...flips].sort((a, b) => Math.abs(a.value - live) - Math.abs(b.value - live))[0];
-      if (!pick) continue;
-      const old = grades[company.symbol]?.trim() || undefined;
-      const to = pick.grade ?? flipGrade(pick, primary, old);
-      const name = company.name;
-      const verdict = !to ? '估值判断会改变' : old ? `估值从${old}变为${to}` : `估值变为${to}`;
-      out.set(variable.var_id, { varId: variable.var_id, value: pick.value, text: `${pick.value < from ? '跌破' : '涨过'} ${sliderUnitText(primary, pick.value)}：${name}${verdict}` });
-      break;
-    }
+export function flipLines({ valuations, names }: FlipInput): FlipLine[] {
+  const lines = new Map<string, FlipLine>();
+  for (const item of valuations) {
+    if (item.status !== 'sourced' || !item.near || lines.has(item.near.var_id)) continue;
+    lines.set(item.near.var_id, { varId: item.near.var_id, value: Number(item.near.value), text: nearText(item, names[item.symbol] || item.symbol) });
   }
-  return [...out.values()];
+  return [...lines.values()];
 }
 
-/** 读各家公司已存的敏感性凭据与估值档；任何一项读不到就当没有，不出卡也不报错。 */
-async function loadFlipInput(data: TrackingVariables, signal?: AbortSignal): Promise<FlipInput> {
-  const companies = data.variables.filter(item => item.status === 'ok').flatMap(item => item.companies);
-  const refs = [...new Set(companies.map(company => company.result_ref).filter(ref => /^result:[0-9a-f]{32}$/i.test(ref)))];
-  const symbols = [...new Set(companies.map(company => company.symbol))];
-  const [models, grades] = await Promise.all([
-    Promise.all(refs.map(async ref => [ref, parseSensitivity(await researchRead(`/research-results/${ref}`, { signal }).catch(() => null))] as const)),
-    Promise.all(symbols.map(async symbol => [symbol, await readValuationGrade(symbol, signal)] as const)),
-  ]);
-  return { data, models: Object.fromEntries(models), grades: Object.fromEntries(grades) };
+async function loadFlipInput(data: TrackingVariables | null | undefined, signal?: AbortSignal): Promise<FlipInput> {
+  const [valuations, pages] = await Promise.all([loadWatchedValuations(signal), wikiPages('companies', signal).catch(() => [])]);
+  const names: Record<string, string> = {};
+  for (const variable of data?.variables ?? []) for (const company of variable.companies) names[company.symbol] = company.name;
+  for (const page of pages) {
+    const match = /^companies\/(\d{6})-(sh|sz|bj)$/i.exec(page.slug);
+    if (match && page.title) names[`${match[1]}.${match[2]!.toUpperCase()}`] = page.title;
+  }
+  return { valuations, names };
 }
-export async function loadFlipCards(data: TrackingVariables, signal?: AbortSignal): Promise<FlipCard[]> { return flipCards(await loadFlipInput(data, signal)); }
-export async function loadFlipLines(data: TrackingVariables, signal?: AbortSignal): Promise<FlipLine[]> { return flipLines(await loadFlipInput(data, signal)); }
+export async function loadFlipCards(data: TrackingVariables | null | undefined, signal?: AbortSignal): Promise<FlipCard[]> { return flipCards(await loadFlipInput(data, signal)); }
+export async function loadFlipLines(data: TrackingVariables | null | undefined, signal?: AbortSignal): Promise<FlipLine[]> { return flipLines(await loadFlipInput(data, signal)); }

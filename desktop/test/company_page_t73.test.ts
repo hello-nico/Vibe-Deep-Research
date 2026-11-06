@@ -704,7 +704,7 @@ test('神火估值：每档变量取值 → 利润 → 倍数 → 目标价；�
   // P2：估值节底部不再重复隐含价；页首第二行写完整判断 + 市场在赌的价格。
   assert.equal(valuation.querySelector('[data-implied]'), null);
   const verdict = container.querySelector('[data-verdict]')!;
-  assert.match(verdict.textContent!, /^估值合理：按现在的股价，大致对应 沪铝约 24,100 元\/吨（研究时 \d[\d,]* 元\/吨）/);
+  assert.match(verdict.textContent!, /^估值合理（研究时）：按现在的股价，大致对应 沪铝约 24,100 元\/吨（研究时 \d[\d,]* 元\/吨）/);
   assert.equal(verdict.querySelector('[data-valuation-grade]')!.getAttribute('data-valuation-grade'), '合理');
   assert.ok(container.querySelector('[data-change-line]'), 'P3：判断变化行保留在判断之后');
   assert.ok(verdict.compareDocumentPosition(container.querySelector('[data-change-line]')!) & 4, '判断变化行在这一行之后');
@@ -741,6 +741,28 @@ test('对话写回：变化处悬停显示来源对话与时间；撤回调用 r
   assert.deepEqual(versions, ['rv-7', 'rv-7'], '撤回带上读到的研究版本，防并发覆盖');
   assert.ok(reads > before, '撤回成功后重读研究');
   assert.doesNotMatch(line.textContent!, /没成功/);
+});
+
+test('页首与助手使用收盘档位，研究档和滑块保持原样；缺口明确标研究时', async () => {
+  const oldFetch = globalThis.fetch;
+  let status = 'sourced';
+  globalThis.fetch = (async url => String(url).includes('/tracking/valuation-today')
+    ? Response.json({ items: [{ symbol: '000933.SZ', status, grade: '偏高', as_of: '2026-11-05', research: { grade: '合理' } }] })
+    : Response.json({ items: [], total: 0 })) as typeof fetch;
+  try {
+    const fixture = shenhuoServices();
+    let snapshot: any[] = [];
+    await React.act(async () => root.render(null));
+    await React.act(async () => root.render(React.createElement(router.MemoryRouter, null,
+      React.createElement(ui.CompanyPage, { symbol: '000933', name: '神火股份', services: fixture.services, onSnapshot: (items: any[]) => { snapshot = items; } }))));
+    assert.equal(container.querySelector('[data-valuation-grade]')!.textContent, '估值偏高（研究时合理，11-05收盘）');
+    assert.match(JSON.stringify(snapshot), /估值偏高（研究时合理，11-05收盘）/);
+    assert.equal(container.querySelector('[data-grade-pills]')!.getAttribute('data-grade-pills'), '合理');
+    status = 'gap';
+    await React.act(async () => root.render(null));
+    await mount(shenhuoServices(), '000933', '神火股份');
+    assert.equal(container.querySelector('[data-valuation-grade]')!.textContent, '估值合理（研究时）');
+  } finally { globalThis.fetch = oldFetch; }
 });
 
 test('Backend 说没有上一版可恢复时不显示撤回', async () => {

@@ -107,7 +107,8 @@ async function show(loadRecon: () => Promise<unknown[]>, loadFlips: () => Promis
 
 test('动态流：估值卡置顶，财报按披露日排在价格卡之前，不描边；展开看逐项；没有新季报时整块不出现；读取失败不影响其余', async () => {
   const cards = lib.reconCards([shenhuo, nongxing], names, NOW);
-  const flip = { symbol: '000933.SZ', company: '神火', kind: 'near', text: '沪铝距 22,500 元/吨 只差 0.9%，越过后神火估值会从合理变为偏高' };
+  const changedOn = new Date(Date.now() + 8 * 3600_000).toISOString().slice(0, 10);
+  const flip = { key: `valuation:000933.SZ:${changedOn}:偏低>合理`, symbol: '000933.SZ', company: '神火', kind: 'changed', pinned: true, date: changedOn, text: '神火现在估值合理（研究时偏低）', involved: '神火 · 股价 25.33，沪铝 23,180 元/吨' };
   await show(async () => cards, async () => [flip]);
   const types = [...container.querySelectorAll('[data-stream-card]')].map(card => card.getAttribute('data-stream-type'));
   assert.deepEqual(types, ['估值', '财报', '财报', '价格']);

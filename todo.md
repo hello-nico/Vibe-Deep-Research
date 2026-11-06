@@ -11,6 +11,8 @@
 
 ## 1. 在途
 
+- **今天的估值**（2026-11-06 Owner 确认，[Task](docs/tasks/active/今天的估值_Task_2026-11-06.md)）：已合入主目录未提交，等用户验收。
+  遗留：①股息率模板的十二个月分红窗口滚动会让目标价突变（国电电力 10-28 到 11-05 股价几乎没动，基准从明显低估跳到明显高估，原因待核对），先查再决定改不改算法；②东财 `push2his` 11-06 持续 TLS 失败，股息率日线已改腾讯为主，其他用它的地方未查；③万华化学、国电电力要重新研究才算得出今天的估值；④orchestrator 有 9 项测试在干净 HEAD 上就失败。
 - 2026-10-09 完成并归档：T3 [外部价格进 Backend](docs/tasks/archived/外部价格进Backend_Task_2026-10-08.md)、[外部行情补修](docs/tasks/archived/外部行情补修_Task_2026-10-09.md)、[工具返回瘦身](docs/tasks/archived/工具返回瘦身与上下文成本_Task_2026-10-09.md)（同题 token −67%）、[S0 组件目录验证](docs/tasks/archived/研究组件目录S0验证_Task_2026-10-09.md)（七次真实运行，S1 定为正文组件加确定性校验）。
 - **S1** [研究组件目录实现](docs/tasks/archived/研究组件目录S1实现_Task_2026-10-09.md)：✅ 2026-10-10 验收归档（T1、T2 并入归档）；T4 读图经用户验收可用，结案。
 - **协议治理** [Checklist 收敛验收与补齐](docs/tasks/archived/Checklist收敛验收与补齐_Task_2026-10-09.md)：已提交（2026-10-09）；剩用户配置 `CROSS_REPO_READ_TOKEN` 并推临时分支看 CI。后续另立：契约细节下沉、Stock Dreaming 清理。

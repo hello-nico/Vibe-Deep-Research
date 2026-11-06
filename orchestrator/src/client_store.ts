@@ -9,7 +9,7 @@ import { DatabaseSync } from "node:sqlite";
 import { ServiceError, safePath, type ServiceContext } from "./service.ts";
 
 const SCHEMA_VERSION = "1";
-const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view", "vr-library-view"]);
+const PREF_KEYS = new Set(["vr-sidebar", "vr-intel-open2", "vr-signals-open2", "vr-theme", "vr-watchlist-live", "vr-company-roster-view", "vr-library-view", "finance.feed-unpinned"]);
 const SYMBOL_RE = /^(?:\d{6}|\d{5}\.HK|[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?)$/;
 
 const dbs = new Map<string, DatabaseSync>();
@@ -156,7 +156,7 @@ export function setPref(ctx: Pick<ServiceContext, "dataRoot">, key: unknown, val
   const name = String(key ?? "").trim();
   if (!PREF_KEYS.has(name)) throw new ServiceError("bad_pref", `不是可持久化的界面偏好：${name}`);
   if (typeof value !== "string") throw new ServiceError("bad_pref", "偏好值必须是字符串");
-  if (value.length > 64) throw new ServiceError("bad_pref", "偏好值过长");
+  if (value.length > (name === "finance.feed-unpinned" ? 16384 : 64)) throw new ServiceError("bad_pref", "偏好值过长");
   openDb(ctx).prepare("INSERT OR REPLACE INTO prefs(key, value, updated_at) VALUES (?, ?, ?)").run(name, value, nowIso());
   return listPrefs(ctx);
 }

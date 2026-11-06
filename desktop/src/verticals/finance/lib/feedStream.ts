@@ -19,7 +19,7 @@ export type StreamFilter = (typeof STREAM_FILTERS)[number];
 
 export interface StreamCard {
   key: string; type: StreamType;
-  /** YYYY-MM-DD，排序用；估值卡置顶不看它。 */
+  /** YYYY-MM-DD，排序与置顶有效期使用同一日期。 */
   date: string; pinned?: boolean;
   title: SentencePiece[]; involved: SentencePiece[];
   /** 展开后的内容，一行一段；没有就没有「展开」按钮。 */
@@ -57,7 +57,7 @@ export function priceStream(card: VariableCard): StreamCard {
 
 export function reconStream(card: ReconCard, result?: ReconResult | null): StreamCard {
   return {
-    key: `recon:${card.symbol}:${card.period}`, type: '财报', date: card.reminder ? '' : dateOf(card.date), pinned: result?.changed || undefined,
+    key: `recon:${card.symbol}:${card.period}`, type: '财报', date: card.reminder ? '' : dateOf(card.date),
     ...(result && !(result.pending && card.reminder) ? { result: { text: result.text, strong: result.changed } } : {}),
     ...(result?.pending ? { research: { symbol: card.symbol, name: card.company } } : {}),
     title: text(card.headline), involved: text([card.company, card.explain].filter(Boolean).join(' · ')),
@@ -67,13 +67,12 @@ export function reconStream(card: ReconCard, result?: ReconResult | null): Strea
   };
 }
 
-export function flipStream(flip: FlipCard, today: string): StreamCard {
-  const note = flip.kind === 'crossed' ? '越过跳档价' : '接近跳档价';
+export function flipStream(flip: FlipCard): StreamCard {
   return {
-    key: `flip:${flip.symbol}`, type: '估值', date: dateOf(flip.date ?? today), pinned: true,
-    title: text(flip.text), involved: text(`${flip.company} · ${note}`), details: [],
+    key: flip.key, type: '估值', date: dateOf(flip.date), pinned: flip.kind === 'changed' && flip.pinned,
+    title: text(flip.text), involved: text(flip.involved), details: [],
     companies: [{ symbol: flip.symbol, name: flip.company }],
-    discuss: { question: `${flip.company}的估值判断为什么会变？`, title: flip.text, text: `价格${note}。` },
+    discuss: { question: `${flip.company}的估值判断为什么会变？`, title: flip.text, text: flip.involved },
   };
 }
 
@@ -84,7 +83,7 @@ export const plainWritebackSummary = (summary: string) => summary.trim()
   .replace(/^候选因子：/, '新因素：').replace(/^(纳入|排除|观察)因子：/, '$1因素：').replace(/因子/g, '因素');
 /** 估值档位有变化（记录带前后档位且不同）。 */
 export const writebackGradeChanged = (event: Pick<WritebackEvent, 'grade_before' | 'grade_after'>) => !!event.grade_before && !!event.grade_after && event.grade_before !== event.grade_after;
-/** 对话里调整的记录卡（类型「对话」）：档位变了写「估值从 A 变为 B」并置顶，与财报卡同规则。 */
+/** 对话里调整的记录卡：档位变了才可置顶，有效期由 streamOf 统一处理。 */
 export function writebackStream(event: WritebackEvent): StreamCard {
   const changed = writebackGradeChanged(event);
   const summary = plainWritebackSummary(event.summary) || WRITEBACK_FALLBACK[event.kind] || '调整研究';
@@ -130,10 +129,16 @@ export function filingStreams(rows: readonly FilingRow[], merge: boolean): Strea
   });
 }
 
-/** 置顶在前，其余按日期倒序（同日保持原顺序）；估值卡由价格越过跳档价触发，筛选「价格」时也出现。 */
-export function streamOf(cards: readonly StreamCard[], filter: StreamFilter): StreamCard[] {
+export const shanghaiToday = () => shanghaiDate(new Date().toISOString());
+
+/** 只有估值变化和对话档位变化可置顶；满三个北京时间自然日或已取消时回归日期流。 */
+export function streamOf(cards: readonly StreamCard[], filter: StreamFilter, today = shanghaiToday(), unpinned: readonly string[] = []): StreamCard[] {
   const shown = cards.filter(card => filter === '全部' || card.type === filter || (card.type === '估值' && filter === '价格'));
-  const indexed = shown.map((card, index) => ({ card, index }));
+  const indexed = shown.map((card, index) => {
+    const age = (Date.parse(today) - Date.parse(card.date)) / 86400_000;
+    const pinned = !!card.pinned && (card.type === '估值' || card.type === '对话') && age >= 0 && age < 3 && !unpinned.includes(card.key);
+    return { card: { ...card, pinned }, index };
+  });
   indexed.sort((a, b) => Number(!!b.card.pinned) - Number(!!a.card.pinned) || b.card.date.localeCompare(a.card.date) || a.index - b.index);
   return indexed.map(item => item.card);
 }

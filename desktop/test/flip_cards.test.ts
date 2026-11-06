@@ -1,4 +1,4 @@
-// 动态「行情」与跟踪页的跳档提醒：越过、接近、远离、无 flips、无价格模型五种情形；档位以已存研究为准，新档由跳档边界推出。
+// Contract and DOM tests; fake API responses do not establish live product acceptance.
 import assert from 'node:assert/strict';
 import test, { before, after } from 'node:test';
 import { readFileSync } from 'node:fs';
@@ -9,22 +9,21 @@ import * as React from 'react';
 import { Window } from 'happy-dom';
 
 const fixture = JSON.parse(readFileSync(new URL('./fixtures/tracking_variables.json', import.meta.url), 'utf8'));
-const REF = fixture.variables[0].companies[0].result_ref as string;
 let server: Awaited<ReturnType<typeof createServer>>, win: Window, root: ReturnType<typeof import('react-dom/client')['createRoot']>, container: HTMLElement;
-let flipLib: Record<string, any>, narrative: Record<string, any>, desk: Record<string, any>, tracking: Record<string, any>, sessionModule: Record<string, any>, router: Record<string, any>, pageContext: Record<string, any>;
-const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
+let flip: any, stream: any, valuation: any, prefs: any, recon: any, desk: any, tracking: any, router: any, pageContext: any;
+const previous = { window: globalThis.window, document: globalThis.document, fetch: globalThis.fetch, localStorage: globalThis.localStorage, IS_REACT_ACT_ENVIRONMENT: globalThis.IS_REACT_ACT_ENVIRONMENT };
 before(async () => {
   win = new Window();
-  Object.assign(globalThis, { window: win, document: win.document, IS_REACT_ACT_ENVIRONMENT: true });
+  Object.assign(globalThis, { window: win, document: win.document, localStorage: win.localStorage, IS_REACT_ACT_ENVIRONMENT: true });
   server = await createServer({ configFile: false, root: fileURLToPath(new URL('../', import.meta.url)),
     resolve: { alias: { '@': fileURLToPath(new URL('../src/verticals/finance', import.meta.url)) } },
     server: { middlewareMode: true, hmr: { server: createHttpServer() }, watch: null }, appType: 'custom',
     ssr: { noExternal: ['react-router-dom', 'react-router'], resolve: { conditions: ['module-sync', 'node', 'import', 'development'] } } });
-  flipLib = await server.ssrLoadModule('/src/verticals/finance/lib/flipCards.ts');
-  narrative = await server.ssrLoadModule('/src/verticals/finance/lib/companyNarrative.ts');
-  desk = await server.ssrLoadModule('/src/verticals/finance/pages/VariableDesk.tsx');
-  tracking = await server.ssrLoadModule('/src/verticals/finance/pages/Tracking.tsx');
-  sessionModule = await server.ssrLoadModule('/src/verticals/finance/dsh/research-session.tsx');
+  const load = (path: string) => server.ssrLoadModule('/src/verticals/finance/' + path);
+  [flip, stream, valuation, prefs, recon, desk, tracking] = await Promise.all([
+    load('lib/flipCards.ts'), load('lib/feedStream.ts'), load('lib/valuationToday.ts'), load('lib/prefs.ts'),
+    load('lib/reconResult.ts'), load('pages/VariableDesk.tsx'), load('pages/Tracking.tsx'),
+  ]);
   router = await server.ssrLoadModule('react-router-dom');
   pageContext = await server.ssrLoadModule('/src/core/ai/pageContext.tsx');
   container = win.document.createElement('div') as unknown as HTMLElement;
@@ -33,135 +32,175 @@ before(async () => {
 });
 after(async () => { await React.act(async () => root?.unmount()); await server?.close(); win?.happyDOM.abort(); Object.assign(globalThis, previous); });
 
-/** 研究时沪铝 23,465，系数为正（价格涨、利润涨）；flips 按 Backend 形态：边界名 + value + valid。 */
-const flipsOf = (...rows: [string, number, boolean?][]) => rows.map(([boundary, value, valid]) => ({ boundary, var_id: 'cmdty:SHFE.AL', value: String(value), valid: valid ?? true }));
-function sensitivity(flips: unknown[]) {
-  return narrative.parseSensitivity({ body: { payload: { calculation: { extra: { base_profit: 1, shares: 1, flips,
-    variables: [{ var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: 23465, coef_per_unit: 827213.78, range: [18000, 28000], step: 10 }] } } } } });
-}
-/** 夹具里神火股份的沪铝实时价改成 live。 */
-function dataAt(live: number) {
-  const data = structuredClone(fixture);
-  data.variables[0].latest = String(live);
-  return data;
-}
-const cards = (live: number, flips: unknown[], grade: string | null = '合理', model = sensitivity(flips)) =>
-  flipLib.flipCards({ data: dataAt(live), models: { [REF]: model }, grades: { '000933.SZ': grade } });
-const NEUTRAL_PLUS = flipsOf(['neutral_plus_10_pct', 22500]);
+const value = (patch: Record<string, unknown> = {}) => ({ symbol: '000933.SZ', status: 'sourced', reason: null,
+  as_of: '2026-11-06', close: '25.33', prices: [{ var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', value: '23180', date: '2026-11-05' }],
+  research: { grade: '偏低', base_grade: '偏低', researched_at: '2026-10-26T09:00:05Z' },
+  grade_base: '合理', grade: '合理', changed_on: '2026-11-04', history: [], targets: null, near: null, ...patch });
+const input = (item = value()) => ({ valuations: [item], names: { '000933.SZ': '神火股份' } });
+const near = { var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', value: '23500', gap_pct: '1.4', to_grade: '合理' };
 
-test('越过的日期：日线连续停在跳档价另一侧的第一天；只有盘中越过时没有日期', () => {
-  const data = dataAt(22000);
-  data.variables[0].series = [['2026-10-20', '22400'], ['2026-10-21', '22600'], ['2026-10-22', '22450'], ['2026-10-23', '22300']];
-  const [card] = flipLib.flipCards({ data, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: { '000933.SZ': '合理' } });
-  assert.equal(card.date, '2026-10-22');
-  data.variables[0].series = [['2026-10-23', '22600']];
-  assert.equal(flipLib.flipCards({ data, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: { '000933.SZ': '合理' } })[0].date, undefined);
+test('档位变化卡只用 Backend 档位、连续日期和 key，回到研究档或 gap 不出卡', () => {
+  const card = flip.flipCards(input())[0];
+  assert.equal(card.text, '神火股份现在估值合理（研究时偏低）');
+  assert.equal(card.key, 'valuation:000933.SZ:2026-11-04:偏低>合理');
+  assert.equal(card.date, '2026-11-04');
+  assert.match(card.involved, /股价 25.33，沪铝 23,180/);
+  assert.deepEqual(flip.flipCards(input(value({ grade: '偏低' }))), []);
+  assert.deepEqual(flip.flipCards(input(value({ status: 'gap' }))), []);
+  assert.doesNotMatch(JSON.stringify(stream.flipStream(card)), /跳档价/);
+  assert.equal(flip.flipCards(input(value({ prices: [] })))[0].involved, '神火股份 · 股价 25.33');
 });
 
-test('越过：实时价跌破跳档价，写「跌破 X，公司估值从原档变为新档」；原档取已存研究，新档由边界推出', () => {
-  const [card] = cards(22000, NEUTRAL_PLUS);
-  assert.deepEqual([card.kind, card.symbol], ['crossed', '000933.SZ']);
-  assert.equal(card.text, '沪铝跌破 22,500 元/吨，神火股份估值从合理变为偏高');
-  // 涨过：研究时价在跳档价下方，实时价涨过它。利润变大 → 往低档走。
-  const up = cards(24100, flipsOf(['neutral_minus_10_pct', 23800]), '合理');
-  assert.equal(up[0].text, '沪铝涨过 23,800 元/吨，神火股份估值从合理变为偏低');
-  // 一路越过多个：以最后跨过的边界（离研究价最远）为准。
-  assert.equal(cards(20500, flipsOf(['neutral_plus_10_pct', 22500], ['optimistic_equal_spot', 21000]))[0].text, '沪铝跌破 21,000 元/吨，神火股份估值从合理变为明显高估');
+test('接近提醒只在档位未变时出现，不置顶；跟踪只画 near', () => {
+  const item = value({ grade: '偏低', near });
+  const card = flip.flipCards(input(item))[0];
+  assert.equal(card.kind, 'near');
+  assert.equal(card.text, '沪铝距 23,500 元/吨 只差 1.4%，越过后神火股份估值变为合理');
+  assert.equal(stream.flipStream(card).pinned, false);
+  assert.equal(flip.flipCards(input(value({ near })))[0].kind, 'changed');
+  assert.equal(flip.flipLines(input(item))[0].text, card.text);
+  assert.deepEqual(flip.flipLines(input()), []);
+  const nextDay = flip.flipCards(input({ ...item, as_of: '2026-11-09' }))[0];
+  assert.equal(nextDay.key, card.key, '交易日变化不重新点亮同一接近提醒');
+  assert.equal(nextDay.date, '2026-11-09');
 });
 
-test('接近：距最近的有效跳档价 ≤ 3% 写「距 X 只差 x%，越过后…会从原档变为新档」', () => {
-  const [card] = cards(22700, NEUTRAL_PLUS);
-  assert.deepEqual([card.kind, card.text], ['near', '沪铝距 22,500 元/吨 只差 0.9%，越过后神火股份估值会从合理变为偏高']);
-  assert.equal(cards(23300, NEUTRAL_PLUS).length, 0, '3% 以外（3.4%）不出');
-  assert.equal(cards(23100, NEUTRAL_PLUS).length, 1, '3% 以内（2.6%）算接近');
+test('连续首日未知时显示判定日并按日期排序，仍不置顶，key 保留 null', () => {
+  const card = stream.flipStream(flip.flipCards(input(value({ changed_on: null })))[0]);
+  assert.equal(card.date, '2026-11-06');
+  assert.equal(card.key, 'valuation:000933.SZ:null:偏低>合理');
+  assert.equal(card.pinned, false);
+  const older = { ...card, key: 'older', type: '公告', date: '2026-11-05' };
+  const shown = stream.streamOf([older, card], '全部', '2026-11-06');
+  assert.deepEqual(shown.map((row: any) => row.key), [card.key, 'older']);
+  assert.equal(shown[0].pinned, false);
 });
 
-test('远离、无 flips、无效跳档价、无价格模型、价格取不到、档位推不出：不出卡或只写「估值判断会改变」，不报错', () => {
-  assert.deepEqual(cards(25000, NEUTRAL_PLUS), []);
-  assert.deepEqual(cards(22000, []), []);
-  assert.deepEqual(cards(22000, flipsOf(['neutral_plus_10_pct', 22500, false])), [], '超出合理区间的根不展示');
-  assert.deepEqual(cards(22000, NEUTRAL_PLUS, '合理', null), [], '华能、农行这类没有价格模型的公司');
-  const noPrice = dataAt(22000); noPrice.variables[0].latest = null;
-  assert.deepEqual(flipLib.flipCards({ data: noPrice, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: {} }), []);
-  const gap = dataAt(22000); gap.variables[0].status = 'gap';
-  assert.deepEqual(flipLib.flipCards({ data: gap, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: {} }), []);
-  assert.equal(cards(22000, flipsOf(['unknown_edge', 22500]))[0].text, '沪铝跌破 22,500 元/吨，神火股份估值判断会改变', '边界认不出：不猜新档');
-  assert.equal(cards(22000, NEUTRAL_PLUS, null)[0].text, '沪铝跌破 22,500 元/吨，神火股份估值变为偏高', '没有已存档位：不编原档');
-  // 只比较主价格：研究的主价格不是这个变量时不出卡。
-  const other = dataAt(22000); other.variables[0].var_id = 'cmdty:SHFE.AO';
-  assert.deepEqual(flipLib.flipCards({ data: other, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: {} }), []);
+test('三天置顶：第 0、2 天置顶，第 3 天到期；取消、新 key、财报与日期排序', () => {
+  const card = stream.flipStream(flip.flipCards(input())[0]);
+  for (const [today, pinned] of [['2026-11-04', true], ['2026-11-06', true], ['2026-11-07', false]])
+    assert.equal(stream.streamOf([card], '全部', today)[0].pinned, pinned);
+  assert.equal(stream.streamOf([card], '全部', '2026-11-06', [card.key])[0].pinned, false);
+  const fresh = { ...card, key: card.key + ':new', date: '2026-11-06' };
+  assert.equal(stream.streamOf([fresh], '全部', '2026-11-06', [card.key])[0].pinned, true);
+  const report = { ...card, type: '财报', key: 'report', date: '2026-11-05', pinned: true };
+  const filing = { ...card, type: '公告', key: 'filing', date: '2026-11-06', pinned: false };
+  assert.deepEqual(stream.streamOf([report, filing, card], '全部', '2026-11-06').map((x: any) => x.key), [card.key, 'filing', 'report']);
+  assert.equal(stream.streamOf([report], '全部', '2026-11-06')[0].pinned, false);
 });
 
-test('越过排在接近之前，每家公司只出一张', () => {
-  const data = dataAt(22700);
-  const second = structuredClone(data.variables[0].companies[0]);
-  Object.assign(second, { symbol: '000807.SZ', name: '云铝股份', result_ref: 'result:' + '1'.repeat(32) });
-  data.variables[0].companies.push(second);
-  const result = flipLib.flipCards({ data, models: { [REF]: sensitivity(NEUTRAL_PLUS), [second.result_ref]: sensitivity(flipsOf(['neutral_plus_10_pct', 22800])) }, grades: { '000933.SZ': '合理', '000807.SZ': '偏低' } });
-  assert.deepEqual(result.map((card: any) => [card.company, card.kind]), [['云铝股份', 'crossed'], ['神火股份', 'near']]);
+test('取消记录去重、最多 200 条，JSON 超限时先丢最旧；页首明确研究时和收盘时点', () => {
+  const keys = Array.from({ length: 200 }, (_, i) => `valuation:${i}`);
+  assert.deepEqual(prefs.addUnpinned(keys, 'new'), [...keys.slice(1), 'new']);
+  assert.equal(prefs.addUnpinned(keys, keys[0]).length, 200);
+  const bounded = prefs.addUnpinned(Array.from({ length: 199 }, (_, i) => `${i}:${'x'.repeat(100)}`), 'new');
+  assert.ok(JSON.stringify(bounded).length <= 16384);
+  assert.equal(bounded.at(-1), 'new');
+  assert.equal(valuation.valuationLabel(value(), '偏低'), '估值合理（研究时偏低，11-06收盘）');
+  assert.equal(valuation.valuationLabel(value({ grade: '偏低' }), '偏低'), '估值偏低');
+  assert.equal(valuation.valuationLabel(value({ status: 'gap' }), '偏低'), '估值偏低（研究时）');
 });
 
-const sessions = { start: async () => ({ sessionId: 's', status: 'started' }), openSession: async () => {} };
+test('财报变化只写研究时，今天不同才补；gap 与未变化文案不补', () => {
+  const card = { symbol: '000933.SZ', date: '2026-10-24', period: '2026Q3' };
+  const info = { grade: '偏低', previousGrade: '合理', researchedAt: '2026-10-26' };
+  assert.equal(recon.reconResult(card, undefined, info, null, value()).text, '研究时估值从合理变为偏低，现在合理');
+  assert.equal(recon.reconResult(card, undefined, info, null, value({ status: 'gap' })).text, '研究时估值从合理变为偏低');
+  assert.equal(recon.reconResult(card, undefined, { ...info, previousGrade: '偏低' }, null, value()).text, '估值没变（偏低）');
+});
+
+test('取消置顶只认共享 Client 偏好，浏览器旧值不能静默重新写回', async () => {
+  win.localStorage.setItem('finance.feed-unpinned', JSON.stringify(['local-only']));
+  const methods: string[] = [];
+  globalThis.fetch = (async (_url, init) => { methods.push(init?.method ?? 'GET'); return Response.json({ prefs: {} }); }) as typeof fetch;
+  await prefs.hydratePrefs();
+  assert.equal(prefs.prefGet('finance.feed-unpinned'), '[]');
+  assert.deepEqual(methods, ['GET']);
+});
+
 const h = React.createElement;
 async function render(element: React.ReactElement) {
   await React.act(async () => root.render(null));
-  await React.act(async () => root.render(h(router.MemoryRouter, null, h(pageContext.AiPageProvider, {}, h(sessionModule.ResearchSessionContext.Provider, { value: sessions }, element)))));
-  await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 5)); });
+  await React.act(async () => root.render(h(router.MemoryRouter, null, h(pageContext.AiPageProvider, {}, element))));
   await React.act(async () => {});
 }
 
-test('动态「行情」：跳档提醒置顶、不描边，平时不出现；读取失败不影响其余卡片', async () => {
-  const loadFlips = async (data: any) => flipLib.flipCards({ data, models: { [REF]: sensitivity(NEUTRAL_PLUS) }, grades: { '000933.SZ': '合理' } });
-  const withJudgment = dataAt(22000); withJudgment.cards[0].judgment_changed = true;
-  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips, loadFilings: async () => ({ rows: [], hidden: 0 }) }));
-  const first = container.querySelector('[data-stream-card]')!;
-  assert.equal(first.getAttribute('data-stream-type'), '估值', '估值卡置顶');
-  assert.ok(first.hasAttribute('data-flip-card'));
-  assert.equal(first.querySelector('.variable-card-title')!.textContent, '沪铝跌破 22,500 元/吨，神火股份估值从合理变为偏高');
-  assert.match(first.querySelector('.variable-card-touch')!.textContent!, /^神火股份 · 越过跳档价/);
-  assert.match(first.querySelector('.variable-card-foot')!.textContent!, /^置顶 · 估值 · /, '置顶卡底行写明置顶');
-  assert.equal(container.querySelectorAll('.card-alert').length, 0, '提醒卡不用品牌橙描边');
-  assert.equal(first.closest('.card')!.className.trim(), 'card', '样式与普通动态卡一致');
-  assert.doesNotMatch(first.querySelector('.variable-card-title')!.textContent!, /已越过|接近/, '卡上不再有“接近 / 越过”标签，句子本身已说明');
-  assert.equal(first.querySelector('a')!.getAttribute('href'), '/watch/000933');
-  assert.ok([...first.querySelectorAll('button')].some(button => button.textContent === '讨论'), '估值卡也能讨论');
-  assert.doesNotMatch(first.textContent!, /买入|卖出|建议|机会|减仓|加仓/);
-  // 远离：不出提醒卡。
-  await render(h(desk.VariableDesk, { load: async () => withJudgment, loadFlips: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) }));
-  assert.equal(container.querySelector('[data-flip-card]'), null);
-  assert.equal(container.querySelectorAll('.card-alert').length, 0);
-  await render(h(desk.VariableDesk, { load: async () => dataAt(25000), loadFlips: async () => { throw new Error("boom"); }, loadFilings: async () => ({ rows: [], hidden: 0 }) }));
-  assert.equal(container.querySelector('[data-flip-card]'), null);
-  assert.ok(container.querySelector('[data-variable-card]'), '原有价格变动卡照常');
+test('估值请求未返回时财报先显示研究结论，返回后再补现在档位', async () => {
+  let release!: () => void;
+  const pending = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = (async url => {
+    const path = String(url);
+    if (path.includes('/tracking/valuation-today')) { await pending; return Response.json({ items: [value()] }); }
+    if (path.includes('/page-research')) return Response.json({ previousGrade: '合理', research: { researchedAt: '2026-10-26', valuation: { grade: '偏低' } } });
+    if (path.includes('/client/watch')) return Response.json({ symbols: ['000933'] });
+    if (path.includes('/client/prefs')) return Response.json({ prefs: {} });
+    return Response.json({ items: [] });
+  }) as typeof fetch;
+  try {
+    await render(h(desk.VariableDesk, { load: async () => fixture, loadFlips: async () => [],
+      loadRecon: async () => [{ symbol: '000933.SZ', company: '神火股份', period: '2026Q3', date: '2026-10-24', headline: '三季报已出', details: [] }],
+      loadResults: recon.loadReconResults, loadEvents: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) }));
+    assert.equal(container.querySelector('[data-recon-result]')!.textContent, '研究时估值从合理变为偏低');
+    await React.act(async () => release());
+    assert.equal(container.querySelector('[data-recon-result]')!.textContent, '研究时估值从合理变为偏低，现在合理');
+  } finally { release(); }
 });
 
-test('跟踪页走势：展开后跳档线旁写一句；没有跳档价的价格不写；价格模型读不到不报错', async () => {
-  const live = dataAt(22000);
-  const calc = { body: { payload: { calculation: { extra: { base_profit: 1, shares: 1, flips: NEUTRAL_PLUS,
-    variables: [{ var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', current: 23465, coef_per_unit: 827213.78, range: [18000, 28000], step: 10 }] } } } } };
-  let calcOk = true;
-  globalThis.fetch = (async (url: string) => {
+test('取消置顶立即生效，写失败恢复；成功刷新后保持，新 key 仍可置顶', async () => {
+  let remote: string | undefined, fail = true, release!: () => void;
+  let pending = new Promise<void>(resolve => { release = resolve; });
+  globalThis.fetch = (async (_url, init) => {
+    if (init?.method === 'POST') {
+      await pending;
+      if (fail) return Response.json({ message: 'failed' }, { status: 500 });
+      remote = JSON.parse(String(init.body)).value;
+    }
+    return Response.json({ prefs: remote ? { 'finance.feed-unpinned': remote } : {} });
+  }) as typeof fetch;
+  const today = stream.shanghaiToday();
+  const item = value({ changed_on: today, as_of: today });
+  const props = { load: async () => fixture, loadFlips: async () => flip.flipCards(input(item)),
+    loadRecon: async () => [], loadResults: async () => ({}), loadEvents: async () => [], loadFilings: async () => ({ rows: [], hidden: 0 }) };
+  await render(h(desk.VariableDesk, props));
+  const button = () => [...container.querySelectorAll('button')].find(b => b.textContent === '取消置顶') as HTMLButtonElement;
+  assert.ok(button() && !button().disabled);
+  await React.act(async () => button().click());
+  assert.equal(container.querySelector('.variable-card-pinned'), null, '写请求未完成就回普通流');
+  await React.act(async () => release());
+  assert.ok(container.querySelector('.variable-card-pinned'));
+  assert.match(container.textContent!, /取消置顶没有保存，已恢复/);
+  assert.equal(remote, undefined);
+  fail = false;
+  pending = Promise.resolve();
+  await React.act(async () => button().click());
+  assert.equal(container.querySelector('.variable-card-pinned'), null);
+  assert.deepEqual(JSON.parse(remote!), [valuation.valuationKey(item)]);
+  await render(h(desk.VariableDesk, props));
+  assert.equal(container.querySelector('.variable-card-pinned'), null, '从 Client 偏好重新读回');
+  await render(h(desk.VariableDesk, { ...props, loadFlips: async () => flip.flipCards(input({ ...item, grade: '偏高' })) }));
+  assert.ok(container.querySelector('.variable-card-pinned'), '新档位 key 不受旧取消记录影响');
+  assert.doesNotMatch(container.textContent!, /跳档价/);
+});
+
+test('跟踪页只用接口 near 画线；估值接口失败时保留走势', async () => {
+  let ok = true;
+  globalThis.fetch = (async url => {
     const path = String(url);
-    if (path.includes('/page-research')) return Response.json({ research: { valuation: { grade: '合理' } }, stale: false, basisVersion: 'v' });
-    if (path.startsWith('/finance-research/tracking/items')) return Response.json({ as_of: live.as_of, muted: [], items: live.variables.filter((item: any) => item.series).map((item: any) => ({ id: `price:${item.var_id}`, kind: 'price', var_id: item.var_id, name: item.name, unit: item.unit, source: 'research',
-      started_at: '2026-09-15', series: item.var_id === 'cmdty:SHFE.AL' ? item.series.slice(0, -1).concat([[item.last_date, '22000']]) : item.series, status: 'ok', cards: [], flips: [], companies: item.companies, muted_at: null })) });
-    if (path.startsWith('/finance-research/research-results/')) return calcOk ? Response.json(calc) : Response.json({ detail: 'x' }, { status: 404 });
-    if (path.includes('client') || path.includes('watch')) return Response.json({ symbols: ['000933', '000807'] });
-    return Response.json({ detail: 'unused' }, { status: 404 });
+    if (path.includes('/tracking/valuation-today')) return ok ? Response.json({ items: [value({ grade: '偏低', near })] }) : Response.json({}, { status: 503 });
+    if (path.includes('/tracking/items')) return Response.json({ as_of: fixture.as_of, muted: [], items: fixture.variables.filter((v: any) => v.series).map((v: any) => ({ ...v, id: `price:${v.var_id}`, kind: 'price', source: 'research', started_at: '2026-09-15', cards: [], flips: [], muted_at: null })) });
+    if (path.includes('/wiki/pages')) return Response.json({ items: [{ slug: 'companies/000933-sz', title: '神火股份' }], total: 1 });
+    if (path.includes('client')) return Response.json({ symbols: ['000933'] });
+    return Response.json({ items: [] });
   }) as typeof fetch;
   await render(h(tracking.Tracking));
-  const row = (id: string) => container.querySelector(`[data-variable-row="${id}"]`)!;
-  const open = async (id: string) => React.act(async () => (row(id).querySelector('button.tracking-row') as HTMLButtonElement).click());
-  assert.equal(container.querySelector('[data-flip-line]'), null, '默认折叠，跳档线在展开里');
-  await open('cmdty:SHFE.AL');
-  assert.equal(row('cmdty:SHFE.AL').querySelector('[data-flip-line]')!.textContent, '跌破 22,500 元/吨：神火股份估值从合理变为偏高');
-  assert.equal(row('cmdty:SHFE.AL').querySelectorAll('.tracking-trend-flip').length, 1, '虚线一条');
-  await open('cmdty:SHFE.AO');
-  assert.equal(row('cmdty:SHFE.AO').querySelector('[data-flip-line]'), null, '氧化铝没有跳档价，不写也不画线');
-  assert.equal(row('cmdty:SHFE.AO').querySelectorAll('.tracking-trend-flip').length, 0);
-  calcOk = false;
+  const row = () => container.querySelector('[data-variable-row="cmdty:SHFE.AL"]')!;
+  await React.act(async () => (row().querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.match(row().querySelector('[data-flip-line]')!.textContent!, /只差 1.4%/);
+  assert.equal(row().querySelectorAll('.tracking-trend-flip').length, 1);
+  ok = false;
   await render(h(tracking.Tracking));
-  await open('cmdty:SHFE.AL');
-  assert.equal(container.querySelector('[data-flip-line]'), null);
-  assert.ok(row('cmdty:SHFE.AL').querySelector('[data-trend] svg'), '走势仍画');
+  if (row().querySelector('button.tracking-row')!.getAttribute('aria-expanded') !== 'true')
+    await React.act(async () => (row().querySelector('button.tracking-row') as HTMLButtonElement).click());
+  assert.equal(row().querySelector('[data-flip-line]'), null);
+  assert.ok(row().querySelector('[data-trend] svg'));
 });

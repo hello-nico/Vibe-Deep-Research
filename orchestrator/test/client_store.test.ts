@@ -82,3 +82,15 @@ test("只持久化白名单偏好键", () => {
   assert.deepEqual(listPrefs(ctx), { "vr-theme": "light", "vr-sidebar": "collapsed", "vr-company-roster-view": "list" });
   assert.throws(() => setPref(ctx, "vr-llm", "secret"), /不是可持久化/);
 });
+
+test("取消置顶偏好可存 16384 字符，其余键仍限 64，重新打开可读", () => {
+  const ctx = { dataRoot: dataRoot() };
+  const value = JSON.stringify(['x'.repeat(16380)]);
+  assert.equal(value.length, 16384);
+  setPref(ctx, 'finance.feed-unpinned', value);
+  closeClientStores();
+  assert.equal(listPrefs(ctx)['finance.feed-unpinned'], value);
+  assert.throws(() => setPref(ctx, 'finance.feed-unpinned', value + ' '), /偏好值过长/);
+  assert.throws(() => setPref(ctx, 'vr-theme', 'x'.repeat(65)), /偏好值过长/);
+  assert.throws(() => setPref(ctx, 'finance.feed-unpinned', ['key']), /偏好值必须是字符串/);
+});

@@ -74,7 +74,7 @@ async function showDesk(loadEventsRaw: () => Promise<unknown>, sessions: Record<
   await React.act(async () => { await new Promise(resolve => setTimeout(resolve, 20)); });
 }
 
-test('动态里的记录卡：置顶、「对话」、打开对话、撤回带版本发 POST 并重读；旧的不显示撤回', async () => {
+test('动态里的旧记录卡：置顶已过期、打开对话、撤回带版本发 POST 并重读；旧版本不显示撤回', async () => {
   const requests: { url: string; method: string; body?: string }[] = [];
   let reverted = false;
   globalThis.fetch = (async (url: string, init?: RequestInit) => {
@@ -91,7 +91,7 @@ test('动态里的记录卡：置顶、「对话」、打开对话、撤回带�
   assert.equal(cards[0].querySelector('.variable-card-title')!.textContent, '按讨论改写铝价取值');
   assert.equal(loadCount, 1, '记录只读一次，不会因渲染反复重读');
   assert.equal(cards[0].querySelector('.variable-card-result')!.textContent, '估值从合理变为偏高');
-  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^置顶 · 对话 · 10-26/);
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^对话 · 10-26/);
   const labels = (card: Element) => [...card.querySelectorAll('.variable-card-actions > *')].map(el => el.textContent);
   assert.ok(labels(cards[0]).includes('撤回') && labels(cards[0]).includes('打开对话') && labels(cards[0]).includes('看神火') && labels(cards[0]).includes('讨论'));
   assert.ok(!labels(cards[1]).includes('撤回'), '旧的一次没有撤回按钮');

@@ -17,7 +17,7 @@ test.after(async () => { await server.close(); });
 const price = { date: '2026-10-19', var_id: 'cmdty:SHFE.AL', name: '沪铝', unit: '元/吨', from: '23270', to: '22970', change: '-300', change_pct: '-0.013', rule: 'daily',
   companies: [{ symbol: '000807.SZ', name: '云铝股份', impact: '-627000000', pct_of_base: '0.057', neutral_price_delta: '-1.81' }] };
 const recon = { symbol: '000933.SZ', company: '神火', period: '2026Q3', date: '2026-10-20', headline: '神火三季报：单季净利润 27.05 亿元，比上季多 2.14 亿元', explain: '沪铝变化约带来 +1.20 亿元', details: ['沪铝：本季均价'] };
-const flip = { symbol: '000933.SZ', company: '神火', kind: 'crossed', text: '沪铝跌破 22,500 元/吨，神火估值从偏高变为明显高估' };
+const flip = { key: 'valuation:000933.SZ:2026-10-26:偏低>合理', symbol: '000933.SZ', company: '神火', kind: 'changed', pinned: true, date: '2026-10-26', involved: '神火 · 股价 25.33，沪铝 23,180 元/吨', text: '神火现在估值合理（研究时偏低）' };
 const filing = { symbol: '603799.SH', name: '华友钴业', title: '华友钴业：收购进展公告', when: '2026-10-26 09:30', url: 'https://example.com/a', industry: '能源金属' };
 
 test('四类卡片结构一致：第一句、涉及、类型 · 日期，都有「讨论」与「看公司」', () => {
@@ -36,7 +36,7 @@ test('四类卡片结构一致：第一句、涉及、类型 · 日期，都有�
 
 test('排序与筛选：估值卡置顶；其余日期倒序；价格筛选时估值卡也在；公告只有公告', () => {
   const cards = [stream.priceStream(price), stream.filingStream(filing), stream.reconStream(recon), stream.flipStream(flip, '2026-10-26')];
-  assert.deepEqual(stream.streamOf(cards, '全部').map((card: any) => card.type), ['估值', '公告', '财报', '价格']);
+  assert.deepEqual(stream.streamOf(cards, '全部', '2026-10-26').map((card: any) => card.type), ['估值', '公告', '财报', '价格']);
   assert.deepEqual(stream.streamOf(cards, '财报').map((card: any) => card.type), ['财报']);
   assert.deepEqual(stream.streamOf(cards, '价格').map((card: any) => card.type), ['估值', '价格']);
   assert.deepEqual(stream.streamOf(cards, '公告').map((card: any) => card.type), ['公告']);

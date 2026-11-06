@@ -17,8 +17,9 @@ import { loadResearchEvents, revertWriteback } from "../lib/researchEvents";
 import { ResearchSessionContext } from "../dsh/research-session";
 import { createCompanyPageServices } from "../lib/companyPageServices";
 import { companyPageStore } from "../lib/companyPage";
-import { filingStreams, flipStream, writebackStream, loadFilingRows, priceStream, reconStream, streamDayText, streamOf, type FilingRow, type StreamCard, type StreamFilter } from "../lib/feedStream";
+import { filingStreams, flipStream, writebackStream, loadFilingRows, priceStream, reconStream, shanghaiToday, streamDayText, streamOf, type FilingRow, type StreamCard, type StreamFilter } from "../lib/feedStream";
 import { ProfitBridge } from "../components/ProfitBridge";
+import { addUnpinned, hydratePrefs, prefGet, prefSet, unpinnedKeys } from '../lib/prefs';
 import "./variable-desk.css";
 
 type Loader = (signal?: AbortSignal) => Promise<TrackingVariables | null>;
@@ -27,8 +28,8 @@ const toneSpans = (pieces: { text: string; tone?: 'up' | 'down' }[]) => pieces.m
 const codeOf = (symbol: string) => symbol.split(".")[0]!;
 
 /** 动态页「关键变量」：价格动了，对你关注的公司意味着什么。每张卡一件事，金额点「展开」才看。变量总表在「跟踪」页。 */
-/** 取得关注公司的跳档提醒；失败当没有，不影响其余卡片。 */
-export function useFlipCards(data: TrackingVariables | null | undefined, loadFlips: typeof loadFlipCards = loadFlipCards) {
+/** 取得关注公司的收盘估值；失败不影响其余卡片。 */
+export function useFlipCards(loadFlips: typeof loadFlipCards = loadFlipCards) {
   const [flips, setFlips] = useState<FlipCard[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
@@ -36,10 +37,10 @@ export function useFlipCards(data: TrackingVariables | null | undefined, loadFli
   useEffect(() => {
     const controller = new AbortController();
     setFlips([]);
-    setLoading(!!data); setFailed(false);
-    if (data) loadFlips(data, controller.signal).then(cards => { if (!controller.signal.aborted) setFlips(cards); }, error => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/flip-cards] unavailable", error); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    setLoading(true); setFailed(false);
+    loadFlips(null, controller.signal).then(cards => { if (!controller.signal.aborted) setFlips(cards); }, error => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/flip-cards] unavailable", error); } }).finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [data, loadFlips, revision]);
+  }, [loadFlips, revision]);
   return { cards: flips, loading, failed, retry: () => setRevision(value => value + 1) };
 }
 
@@ -64,7 +65,7 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
   const [data, setData] = useState<TrackingVariables | null | undefined>(undefined);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
-  const flipRead = useFlipCards(data, loadFlips);
+  const flipRead = useFlipCards(loadFlips);
   const flips = flipRead.cards;
   const [reconRevision, setReconRevision] = useState(0);
   const [reconFailed, setReconFailed] = useState(false);
@@ -75,6 +76,36 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
   const resultRead = useReconResults(recon, loadResults, resultsRevision, refreshRecon);
   const results = resultRead.results;
   const [showAll, setShowAll] = useState(false);
+  const [unpinned, setUnpinned] = useState<string[]>([]);
+  const [pinReady, setPinReady] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState('');
+  const [today, setToday] = useState(shanghaiToday);
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const tick = () => {
+      setToday(shanghaiToday());
+      timer = setTimeout(tick, 86400_000 - (Date.now() + 8 * 3600_000) % 86400_000 + 1);
+    };
+    tick();
+    return () => clearTimeout(timer);
+  }, []);
+  useEffect(() => {
+    let active = true;
+    void hydratePrefs().then(() => {
+      if (active) { setUnpinned(unpinnedKeys(prefGet('finance.feed-unpinned'))); setPinReady(true); }
+    }).catch(() => { if (active) setPinError('置顶设置暂时读取不到，请刷新重试'); });
+    return () => { active = false; };
+  }, []);
+  const unpin = async (key: string) => {
+    if (!pinReady || pinBusy) return;
+    const previous = unpinned;
+    const next = addUnpinned(previous, key);
+    setPinBusy(true); setPinError(''); setUnpinned(next);
+    try { await prefSet('finance.feed-unpinned', JSON.stringify(next)); }
+    catch { setUnpinned(previous); setPinError('取消置顶没有保存，已恢复，请重试'); }
+    finally { setPinBusy(false); }
+  };
   const [eventsKey, setEventsKey] = useState(0);
   const eventRead = useWritebackEvents(loadEvents, eventsKey);
   const events = eventRead.events;
@@ -101,15 +132,15 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
     return () => controller.abort();
   }, [load, attempt]);
   const all = useMemo(() => [
-    ...(data ? flips.map(flip => flipStream(flip, data.as_of)) : []),
+    ...flips.map(flipStream),
     ...recon.map(card => reconStream(card, results[reconResultKey(card)])),
     ...(data?.cards ?? []).map(priceStream),
     ...events.map(writebackStream),
     ...filingStreams(filings.rows, filter === "全部"),
   ], [data, flips, recon, results, filings.rows, events, filter]);
-  const stream = useMemo(() => streamOf(all, filter), [all, filter]);
+  const stream = streamOf(all, filter, today, unpinned);
   useAiPage({ key: "feed:variables", title: "动态", context: data || all.length
-    ? `关注公司的动态，按时间倒序。\n${streamOf(all, "全部").slice(0, 30).map(card => `${card.type}：${card.title.map(piece => piece.text).join("")}（${card.involved.map(piece => piece.text).join("")}）`).join("\n") || "最近没有动态"}` : "动态正在读取",
+    ? `关注公司的动态，估值为最近收盘判定，研究时档位另列。\n${streamOf(all, "全部", today, unpinned).slice(0, 30).map(card => `${card.type}：${card.title.map(piece => piece.text).join("")}（${card.involved.map(piece => piece.text).join("")}）${card.result ? `；${card.result.text}` : ''}`).join("\n") || "最近没有动态"}` : "动态正在读取",
     suggestions: ["最近哪条动态对我关注的公司影响最大？"] });
   // 「讨论」打开问助手面板：卡片标题和第二行作为本轮引用，输入框预填问句；不新开深度对话。
   const discuss = useCallback((card: StreamCard) => {
@@ -120,6 +151,7 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
   const partialFailed = failed || flipRead.failed || filings.failed || eventRead.failed || reconFailed || resultRead.failed;
   if (data === null && !all.length && !loading && !partialFailed) return <p className="variable-desk-note">关注公司后，这里会汇总它们的财报、价格变动和公告。<Link className="btn btn-primary btn-sm" to="/watch">去关注</Link></p>;
   return <div className="variable-desk" data-feed-stream="">
+    {pinError && <p className="variable-card-note" role="status">{pinError}</p>}
     {partialFailed && <ReadFailure retry={() => {
       if (failed) setAttempt(value => value + 1);
       if (flipRead.failed) flipRead.retry();
@@ -128,7 +160,7 @@ export function VariableDesk({ load = loadTrackingVariables, loadFlips = loadFli
     {filter === "公告" && (filings.hidden > 0 || showAll) && <button type="button" className="btn btn-sm variable-desk-routine" data-show-all="" aria-pressed={showAll} onClick={() => setShowAll(value => !value)}>{showAll ? "只看重要的" : `查看全部（另有 ${filings.hidden} 条例行）`}</button>}
     {stream.length === 0
       ? loading ? <div className="variable-desk-cards"><LoadingCard /><LoadingCard /><LoadingCard /></div> : !partialFailed && <p className="variable-desk-empty">{filter === "全部" ? "最近没有需要看的动态" : `最近没有${filter}类的动态`}</p>
-      : <div className="variable-desk-cards">{stream.map(card => <StreamItem key={card.key} card={card} onDiscuss={discuss} onResearch={researchServices ? startResearch : undefined} onOpenSession={sessions ? id => void sessions.openSession(id).catch(() => {}) : undefined} onRevert={async item => { await revertWriteback(item); setEventsKey(value => value + 1); }} />)}</div>}
+      : <div className="variable-desk-cards">{stream.map(card => <StreamItem key={card.key} card={card} onDiscuss={discuss} onUnpin={pinReady && !pinBusy ? unpin : undefined} onResearch={researchServices ? startResearch : undefined} onOpenSession={sessions ? id => void sessions.openSession(id).catch(() => {}) : undefined} onRevert={async item => { await revertWriteback(item); setEventsKey(value => value + 1); }} />)}</div>}
   </div>;
 }
 
@@ -146,7 +178,8 @@ function useReconResults(recon: ReconCard[], loadResults: typeof loadReconResult
     lastRevision.current = revision;
     setFailed(false);
     const fail = (error: unknown) => { if (!controller.signal.aborted) { setFailed(true); console.warn("[finance/recon-results] unavailable", error); } };
-    const run = () => loadResults(recon, controller.signal, fail).then(value => {
+    const partial = (value: Awaited<ReturnType<typeof loadReconResults>>) => { if (!controller.signal.aborted) setResults(value); };
+    const run = () => loadResults(recon, controller.signal, fail, partial).then(value => {
       if (controller.signal.aborted) return;
       setResults(value);
       const active = Object.values(value).some(item => item && !item.changed && item.text.startsWith("重新研究中"));
@@ -192,7 +225,7 @@ function useFilingRows(loadFilings: typeof loadFilingRows, showAll: boolean) {
 }
 
 const DATA_ATTR: Record<string, string> = { 价格: "data-variable-card", 财报: "data-recon-card", 估值: "data-flip-card", 公告: "data-filing-card", 对话: "data-writeback-card" };
-export function StreamItem({ card, onDiscuss, onOpenSession, onRevert, onResearch }: { card: StreamCard; onDiscuss: (card: StreamCard) => void; onOpenSession?: (sessionId: string) => void; onRevert?: (event: NonNullable<StreamCard["revert"]>["event"]) => Promise<void>; onResearch?: (company: NonNullable<StreamCard['research']>) => Promise<void> }) {
+export function StreamItem({ card, onDiscuss, onOpenSession, onRevert, onResearch, onUnpin }: { card: StreamCard; onDiscuss: (card: StreamCard) => void; onOpenSession?: (sessionId: string) => void; onRevert?: (event: NonNullable<StreamCard["revert"]>["event"]) => Promise<void>; onResearch?: (company: NonNullable<StreamCard['research']>) => Promise<void>; onUnpin?: (key: string) => Promise<void> }) {
   const [expanded, setExpanded] = useState(false);
   const [reverting, setReverting] = useState<"idle" | "busy" | "failed">("idle");
   const [starting, setStarting] = useState<'idle' | 'busy' | 'failed'>('idle');
@@ -230,6 +263,7 @@ export function StreamItem({ card, onDiscuss, onOpenSession, onRevert, onResearc
       <div className="variable-card-foot">
         <span>{card.pinned && <b className="variable-card-pinned" title="估值判断变了，排在最前">置顶 · </b>}{card.type}{streamDayText(card) ? ` · ${streamDayText(card)}` : ""}{card.extra?.length ? ` · 另有 ${card.extra.length} 份公告` : ""}</span>
         <span className="variable-card-actions">
+          {card.pinned && <button type="button" className="btn btn-sm" disabled={!onUnpin} onClick={() => void onUnpin?.(card.key)}>取消置顶</button>}
           {expandable && <button type="button" className="btn btn-sm" aria-expanded={expanded} onClick={() => setExpanded(value => !value)}>{expanded ? "收起" : "展开"}</button>}
           {card.research && <button type="button" className="btn btn-sm" disabled={starting === 'busy' || !onResearch} onClick={() => void research()}>{starting === 'busy' ? '正在开始' : '重新研究'}</button>}
           {card.companies.map(company => <Link key={company.symbol} className="btn btn-sm" to={watchPath(codeOf(company.symbol))}>看{company.name}</Link>)}

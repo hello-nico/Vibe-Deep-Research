@@ -76,7 +76,7 @@ const running = { task_id: 't', symbol: '300750.SZ', status: 'running', current_
 
 test('三种结论：变了、没变、研究中；研究早于披露日、读不到不写；没有上一版只写档位', () => {
   const c = card('000933.SZ', '神火', '2026-10-20');
-  assert.deepEqual(result.reconResult(c, undefined, info('合理', '偏低')), { text: '估值从偏低变为合理', changed: true, id: 'recon:000933.SZ:2026Q3:偏低>合理' });
+  assert.deepEqual(result.reconResult(c, undefined, info('合理', '偏低')), { text: '研究时估值从偏低变为合理', changed: true, id: 'recon:000933.SZ:2026Q3:偏低>合理' });
   assert.deepEqual(result.reconResult(c, undefined, info('合理', '合理')), { text: '估值没变（合理）', changed: false });
   assert.deepEqual(result.reconResult(card('300750.SZ', '宁德', '2026-10-21'), running as any, null), { text: '重新研究中 3/6', changed: false });
   assert.equal(result.reconResult(c, undefined, info('合理', '偏低', '2026-10-19T01:00:00Z')), null, '研究完成早于披露日：不写');
@@ -84,14 +84,14 @@ test('三种结论：变了、没变、研究中；研究早于披露日、读�
   assert.deepEqual(result.reconResult(c, undefined, info('合理', null)), { text: '三季报后估值合理', changed: false });
 });
 
-test('财报卡：第三行写结论，变了的置顶，底行只写类型；没变的不置顶', () => {
+test('财报卡：第三行写研究时结论，变化也不置顶', () => {
   const changed = stream.reconStream(card('000933.SZ', '神火', '2026-10-20'), result.reconResult(card('000933.SZ', '神火', '2026-10-20'), undefined, info('合理', '偏低')));
   const same = stream.reconStream(card('601899.SH', '紫金', '2026-10-24'), result.reconResult(card('601899.SH', '紫金', '2026-10-24'), undefined, info('合理', '合理')));
   const none = stream.reconStream(card('600900.SH', '长电', '2026-10-25'));
-  assert.equal(changed.pinned, true); assert.deepEqual(changed.result, { text: '估值从偏低变为合理', strong: true });
+  assert.equal(changed.pinned, undefined); assert.deepEqual(changed.result, { text: '研究时估值从偏低变为合理', strong: true });
   assert.equal(same.pinned, undefined); assert.equal(same.result.strong, false);
   assert.equal(none.result, undefined);
-  assert.deepEqual(stream.streamOf([none, same, changed], '全部').map((c: any) => c.companies[0].name), ['神火', '长电', '紫金'], '变了的置顶，其余按日期');
+  assert.deepEqual(stream.streamOf([none, same, changed], '全部').map((c: any) => c.companies[0].name), ['长电', '紫金', '神火'], '所有财报卡按日期');
 });
 
 test('新一期数据只提示新报告，不写旧报告期；有进度时显示进度', () => {
@@ -156,12 +156,12 @@ test('页面：结论行，置顶卡底行不叠标签；进行中写进度', as
       React.createElement(pageContext.AiPageProvider, {}, React.createElement(Probe), React.createElement(desk.VariableDesk, { load: async () => data, loadFlips: async () => [], loadRecon: async () => [card('300750.SZ', '宁德', '2026-10-21'), card('000933.SZ', '神火', '2026-10-20')], loadFilings: async () => ({ rows: [], hidden: 0 }), loadResults, filter: '全部' }))))));
   await React.act(async () => {});
   const cards = [...container.querySelectorAll('[data-recon-card]')];
-  assert.deepEqual(cards.map(c => c.getAttribute('data-recon-card')), ['000933.SZ', '300750.SZ'], '档位变了的神火置顶');
-  assert.equal(cards[0].querySelector('[data-recon-result]')!.textContent, '估值从偏低变为合理');
-  assert.ok(cards[0].querySelector('[data-recon-result].is-strong'));
-  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^置顶 · 财报 · 10-20/);
-  assert.equal(cards[1].querySelector('[data-recon-result]')!.textContent, '重新研究中 3/6');
-  assert.match(cards[1].querySelector('.variable-card-foot')!.textContent!, /^财报 · 10-21/);
+  assert.deepEqual(cards.map(c => c.getAttribute('data-recon-card')), ['300750.SZ', '000933.SZ'], '财报按日期排序');
+  assert.equal(cards[1].querySelector('[data-recon-result]')!.textContent, '研究时估值从偏低变为合理');
+  assert.ok(cards[1].querySelector('[data-recon-result].is-strong'));
+  assert.match(cards[1].querySelector('.variable-card-foot')!.textContent!, /^财报 · 10-20/);
+  assert.equal(cards[0].querySelector('[data-recon-result]')!.textContent, '重新研究中 3/6');
+  assert.match(cards[0].querySelector('.variable-card-foot')!.textContent!, /^财报 · 10-21/);
 });
 
 function mock(options: { grade?: [string | null, string | null] }) {
@@ -260,7 +260,7 @@ test('小圆点：有未看的判断变化亮（无数字）；进入动态页�
 });
 
 test('编号：跳档卡与写回的编号稳定；Layout 只在「动态」挂圆点，跟踪圆点已删', () => {
-  assert.equal(attention.flipAttentionId({ symbol: '000933.SZ', kind: 'crossed', company: '神火', text: 'x' }), 'flip:000933.SZ:crossed:x');
+  assert.equal(attention.flipAttentionId({ key: 'valuation:000933.SZ:2026-11-04:合理>偏高', symbol: '000933.SZ', kind: 'changed', company: '神火', text: 'x' }), 'valuation:000933.SZ:2026-11-04:合理>偏高');
   assert.equal(attention.writebackAttentionId('e1'), 'writeback:e1');
   const layout = readFileSync(new URL('../src/verticals/finance/components/layout/Layout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /to === "\/feed" && <FeedDot/);

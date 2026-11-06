@@ -17,6 +17,8 @@ import { chainPath, createUserChain, defaultChainServices, loadRecommendations, 
 import { loadDriverSetByIndustry, type DriverSet } from '../lib/templateDrivers';
 import { currencyLabel } from '../lib/marketSymbol';
 import { buildCompanySnapshotSections } from '../assistant/companySnapshot';
+import { loadValuationToday, valuationLabel, type ValuationToday } from '../lib/valuationToday';
+import { aShareQualified } from '../lib/research';
 import type { SnapshotSection } from '../assistant/snapshot';
 import { Metric, MetricTag, Panel, Tag } from '../components/ui/Card';
 import { LoadingCard } from '../components/ui/LoadingCard';
@@ -227,6 +229,17 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     return () => { controller.abort(); unsubscribe(); };
   }, [services, symbol]);
   const saved = research.research;
+  const [valuationRead, setValuationToday] = useState<ValuationToday | null>(null);
+  const valuationToday = valuationRead?.symbol === aShareQualified(symbol) ? valuationRead : null;
+  useEffect(() => {
+    const controller = new AbortController();
+    setValuationToday(null);
+    if (!research.loaded) return () => controller.abort();
+    void loadValuationToday([symbol], controller.signal).then(items => {
+      if (!controller.signal.aborted) setValuationToday(items.find(item => item.symbol === aShareQualified(symbol)) ?? null);
+    }).catch(() => { /* 页首明确退回研究时档位，不冒充收盘结论。 */ });
+    return () => controller.abort();
+  }, [symbol, research.loaded, saved?.researchedAt, readAttempt]);
   const inherited = saved != null && 'sensitivity_inherited_from' in saved;
   useEffect(() => {
     const controller = new AbortController();
@@ -321,7 +334,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
   const grade = inherited ? evaluation?.grade_base : saved?.valuation?.grade;
   const primary = model?.variables.find(item => item.id === model.implied?.id);
   const currentLive = inherited && primary ? { value: primary.current, when: primary.currentDate ? periodLabel(primary.currentDate) : '' } : live;
-  const verdict = verdictLine({ grade, model, live: currentLive });
+  const verdict = { ...verdictLine({ grade, model, live: currentLive }), label: valuationLabel(valuationToday, saved?.valuation?.grade) };
   const expectation = expectations({ packet, scenarios, model, price, grade, verdict, ...(inherited ? { marketEps: evaluation?.status === 'sourced' && evaluation.market_eps != null ? Number(evaluation.market_eps) : null } : {}) });
   const revert = async () => {
     if (!services.revertResearch) return;
@@ -396,7 +409,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
     name, symbol, typeName: saved?.companyType ? COMPANY_TYPE_NAME[saved.companyType] : undefined,
     quote: quote ? { price: quote.price, currencyLabel: currencyLabel(quote.currency), change_pct: quote.change_pct, fetched_at: quote.fetched_at } : null,
     quoteLoading: data.quote.loading,
-    thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, changeText: change?.text, report_period: saved?.report_period,
+    thesis: saved?.thesis, gapNote: saved?.gapNote, grade: saved?.valuation?.grade, valuationLabel: verdict.label, changeText: change?.text, report_period: saved?.report_period,
     packet, packetLoading: data.packet.loading, packetError: Boolean(data.packet.error), calcs,
     show: showSection, titles,
     answers: { business: block('business')?.summary, variables: variableAnswer, cash: block('cash')?.summary, valuation: valuation?.summary, tracking: saved?.sections?.tracking?.summary },
@@ -419,7 +432,7 @@ export function CompanyPage({ symbol, name, services, onSnapshot, chainServices 
         {inherited && evaluation?.status !== 'sourced' && <p className="company-page-gap" data-evaluation-gap="">{evaluation?.reason || '当前价格或利润计算输入暂缺'}</p>}
         {gapOnly ? <p className="company-page-conclusion" data-gap-note="">{saved?.gapNote}</p> : <Thesis research={saved} state={research} packet={packet} calcs={calcs} livePrice={slotPrice} />}
         {!gapOnly && verdict.label && <p className="company-page-verdict" data-verdict="">
-          <Tag brand><span data-valuation-grade={saved?.valuation?.grade}>{verdict.label}</span></Tag>
+          <Tag brand><span data-valuation-grade={valuationToday?.status === 'sourced' ? valuationToday.grade ?? undefined : saved?.valuation?.grade}>{verdict.label}</span></Tag>
           {verdict.implied && <span data-verdict-implied="">：{verdict.implied}</span>}
           {verdict.flip && <span data-verdict-flip="">，{verdict.flip}</span>}
         </p>}

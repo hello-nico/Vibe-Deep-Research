@@ -219,6 +219,8 @@ test('动态页：一条流，顶部是类型筛选（全部、财报、价格�
 test('宿主研究代理放行关键变量读取', async () => {
   const { researchRoute } = await import('../dsh/finance-ui/research.mjs');
   assert.equal(researchRoute('GET', '/tracking/variables'), true);
+  assert.equal(researchRoute('GET', '/tracking/valuation-today'), true);
+  assert.equal(researchRoute('POST', '/tracking/valuation-today'), false);
   assert.equal(researchRoute('POST', '/tracking/variables'), false);
   // 跟踪清单：读、添加、不再盯/恢复、改信号类型；编号里的冒号是 %3A，其余方法与路径不放行。
   assert.equal(researchRoute('GET', '/tracking/items'), true);

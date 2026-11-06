@@ -4,11 +4,10 @@ import { loadReconResults } from './reconResult';
 import { markArrivalsSeen, seenArrivals } from './reportArrival';
 import { loadResearchEvents } from './researchEvents';
 import { writebackGradeChanged } from './feedStream';
-import { loadTrackingVariables } from './trackingVariables';
 import { storageGet, storageSet } from './storage';
 
 /** 动态页判断变化的稳定编号：同一件事只亮一次，档位或价格句变了才算新的。 */
-export const flipAttentionId = (flip: FlipCard) => `flip:${flip.symbol}:${flip.kind}:${flip.text}`;
+export const flipAttentionId = (flip: FlipCard) => flip.key;
 export const writebackAttentionId = (eventId: string) => `writeback:${eventId}`;
 
 /**
@@ -17,9 +16,8 @@ export const writebackAttentionId = (eventId: string) => `writeback:${eventId}`;
  */
 export async function loadAttentionIds(signal?: AbortSignal): Promise<string[]> {
   const reconJob = loadReconCards(signal).catch(() => []);
-  const data = await loadTrackingVariables(signal).catch(() => null);
   const [flips, recon] = await Promise.all([
-    data ? loadFlipCards(data, signal).catch(() => [] as FlipCard[]) : Promise.resolve([] as FlipCard[]),
+    loadFlipCards(null, signal).catch(() => [] as FlipCard[]),
     reconJob,
   ]);
   const results = await loadReconResults(recon, signal);
